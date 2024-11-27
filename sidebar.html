@@ -203,6 +203,116 @@
                 background-color: #fff;
             }
         }
+
+        /* API 设置页面样式 */
+        #api-settings {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--cerebr-bg-color);
+            display: none;
+            flex-direction: column;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        #api-settings.visible {
+            display: flex;
+        }
+
+        .settings-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .back-button {
+            background: none;
+            border: none;
+            color: var(--cerebr-text-color);
+            cursor: pointer;
+            padding: 8px;
+            margin-right: 10px;
+        }
+
+        .settings-title {
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .api-cards {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .api-card {
+            background: var(--cerebr-message-ai-bg);
+            border-radius: 8px;
+            padding: 15px;
+            position: relative;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: border-color 0.2s;
+        }
+
+        .api-card.selected {
+            border-color: #64ffda;
+        }
+
+        .card-actions {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .card-button {
+            background: none;
+            border: none;
+            padding: 4px;
+            cursor: pointer;
+            color: var(--cerebr-text-color);
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+
+        .card-button:hover {
+            opacity: 1;
+        }
+
+        .api-form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .form-group label {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .form-group input {
+            background: var(--cerebr-input-bg);
+            border: none;
+            padding: 8px;
+            border-radius: 4px;
+            color: var(--cerebr-text-color);
+            font-size: 14px;
+        }
+
+        .form-group input:focus {
+            outline: 1px solid #64ffda;
+        }
     </style>
 </head>
 <body>
@@ -230,8 +340,57 @@
                     <span class="slider"></span>
                 </label>
             </div>
+            <div class="menu-item" id="api-settings-toggle">
+                <span>API 设置</span>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </div>
         </div>
         <textarea id="message-input" placeholder="输入消息..." rows="1"></textarea>
+    </div>
+    <div id="api-settings">
+        <div class="settings-header">
+            <button class="back-button">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M12 4L6 10L12 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <span class="settings-title">API 设置</span>
+        </div>
+        <div class="api-cards">
+            <!-- 卡片模板 -->
+            <div class="api-card template" style="display: none;">
+                <div class="card-actions">
+                    <button class="card-button duplicate-btn">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M13 5H7V11H13V5Z" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M10 3H4V9" stroke="currentColor" stroke-width="1.5"/>
+                        </svg>
+                    </button>
+                    <button class="card-button delete-btn">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M3 4H13" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M5 4V12H11V4" stroke="currentColor" stroke-width="1.5"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="api-form">
+                    <div class="form-group">
+                        <label>API Key</label>
+                        <input type="password" class="api-key" placeholder="输入 API Key">
+                    </div>
+                    <div class="form-group">
+                        <label>Base URL</label>
+                        <input type="text" class="base-url" placeholder="输入 Base URL">
+                    </div>
+                    <div class="form-group">
+                        <label>模型名称</label>
+                        <input type="text" class="model-name" placeholder="输入模型名称">
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
     <script src="sidebar.js"></script>
 </body>

@@ -1,10 +1,13 @@
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async () => {
     const chatContainer = document.getElementById('chat-container');
     const messageInput = document.getElementById('message-input');
 
     async function sendMessage() {
         const message = messageInput.value.trim();
         if (!message) return;
+
+        const config = apiConfigs[selectedConfigIndex];
+        if (!config) return;
 
         // 显示用户消息
         appendMessage(message, 'user');
@@ -29,14 +32,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 content: message
             });
 
-            const response = await fetch('http://127.0.0.1:8000/v1/chat/completions', {
+            const response = await fetch(`${config.baseUrl}/chat/completions`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ***REMOVED***123'
+                    'Authorization': `Bearer ${config.apiKey}`
                 },
                 body: JSON.stringify({
-                    "model": "gpt-4o",
+                    "model": config.modelName,
                     "messages": messages,
                     "stream": true
                 })
@@ -54,14 +57,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
+                        const content = line.slice(6);
+
+                        // 检查是否是结束标记
+                        if (content.trim() === '[DONE]') {
+                            console.log('流式响应结束');
+                            continue;
+                        }
+
                         try {
-                            const data = JSON.parse(line.slice(6));
-                            if (data.choices && data.choices[0].delta.content) {
-                                aiResponse += data.choices[0].delta.content;
-                                updateAIMessage(aiResponse);
+                            const data = JSON.parse(content);
+                            // 检查响应结构
+                            if (data.choices && data.choices.length > 0) {
+                                const choice = data.choices[0];
+                                if (choice.delta && choice.delta.content) {
+                                    // 只有在有实际内容时才更新
+                                    aiResponse += choice.delta.content;
+                                    updateAIMessage(aiResponse);
+                                } else if (choice.finish_reason) {
+                                    // 处理结束原因（如果需要）
+                                    console.log('响应结束原因:', choice.finish_reason);
+                                }
+                            } else if (data.usage) {
+                                // 处理使用统计信息（如果需要）
+                                console.log('Token 使用统计:', data.usage);
                             }
                         } catch (e) {
                             console.error('解析响应出错:', e);
+                            console.log('出错的内容:', content);
                         }
                     }
                 }
@@ -105,11 +128,28 @@ document.addEventListener('DOMContentLoaded', function() {
         adjustTextareaHeight(this);
     });
 
-    // 处理换行
+    // 处理换行和输入
+    let isComposing = false;  // 跟踪输入法状态
+
+    messageInput.addEventListener('compositionstart', () => {
+        isComposing = true;
+    });
+
+    messageInput.addEventListener('compositionend', () => {
+        isComposing = false;
+    });
+
     messageInput.addEventListener('keydown', function(e) {
         if (e.key === 'Enter' && !e.shiftKey) {
+            if (isComposing) {
+                // 如果正在使用输入法，不发送消息
+                return;
+            }
             e.preventDefault();
-            sendMessage();
+            const text = this.value.trim();
+            if (text) {  // 只有在有实际内容时才发送
+                sendMessage();
+            }
         }
     });
 
@@ -222,5 +262,173 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             pageContent = null;
         }
+    });
+
+    // API 设置功能
+    const apiSettings = document.getElementById('api-settings');
+    const apiSettingsToggle = document.getElementById('api-settings-toggle');
+    const backButton = document.querySelector('.back-button');
+    const apiCards = document.querySelector('.api-cards');
+
+    // 加载保存的 API 配置
+    let apiConfigs = [];
+    let selectedConfigIndex = 0;
+
+    // 从存储加载配置
+    async function loadAPIConfigs() {
+        try {
+            const result = await chrome.storage.local.get('apiConfigs');
+            if (result.apiConfigs && result.apiConfigs.length > 0) {
+                apiConfigs = result.apiConfigs;
+                selectedConfigIndex = result.selectedConfigIndex || 0;
+            } else {
+                // 创建默认配置
+                apiConfigs = [{
+                    apiKey: '',
+                    baseUrl: 'https://api.openai.com/v1/chat/completions',
+                    modelName: 'gpt-3.5-turbo'
+                }];
+                selectedConfigIndex = 0;
+                await saveAPIConfigs();
+            }
+        } catch (error) {
+            console.error('加载 API 配置失败:', error);
+            // 如果加载失败，也创建默认配置
+            apiConfigs = [{
+                apiKey: '',
+                baseUrl: 'https://api.openai.com/v1/chat/completions',
+                modelName: 'gpt-3.5-turbo'
+            }];
+            selectedConfigIndex = 0;
+        }
+
+        // 确保一定会渲染卡片
+        renderAPICards();
+    }
+
+    // 保存配置到存储
+    async function saveAPIConfigs() {
+        try {
+            await chrome.storage.local.set({
+                apiConfigs,
+                selectedConfigIndex
+            });
+        } catch (error) {
+            console.error('保存 API 配置失败:', error);
+        }
+    }
+
+    // 渲染 API 卡片
+    function renderAPICards() {
+        // 确保模板元素存在
+        const templateCard = document.querySelector('.api-card.template');
+        if (!templateCard) {
+            console.error('找不到模板卡片元素');
+            return;
+        }
+
+        // 保存模板的副本
+        const templateClone = templateCard.cloneNode(true);
+
+        // 清空现有卡片
+        apiCards.innerHTML = '';
+
+        // 先重新添加模板（保持隐藏状态）
+        apiCards.appendChild(templateClone);
+
+        // 渲染实际的卡片
+        apiConfigs.forEach((config, index) => {
+            const card = createAPICard(config, index, templateClone);
+            apiCards.appendChild(card);
+        });
+    }
+
+    // 创建 API 卡片
+    function createAPICard(config, index, templateCard) {
+        // 克模板
+        const template = templateCard.cloneNode(true);
+        template.classList.remove('template');
+        template.style.display = '';
+
+        if (index === selectedConfigIndex) {
+            template.classList.add('selected');
+        }
+
+        const apiKeyInput = template.querySelector('.api-key');
+        const baseUrlInput = template.querySelector('.base-url');
+        const modelNameInput = template.querySelector('.model-name');
+        const apiForm = template.querySelector('.api-form');
+
+        apiKeyInput.value = config.apiKey || '';
+        baseUrlInput.value = config.baseUrl || 'https://api.openai.com/v1/chat/completions';
+        modelNameInput.value = config.modelName || 'gpt-3.5-turbo';
+
+        // 阻止输入框和按钮的点击事件冒泡
+        const stopPropagation = (e) => e.stopPropagation();
+        apiForm.addEventListener('click', stopPropagation);
+        template.querySelector('.card-actions').addEventListener('click', stopPropagation);
+
+        // 输入变化时保存
+        [apiKeyInput, baseUrlInput, modelNameInput].forEach(input => {
+            input.addEventListener('change', () => {
+                apiConfigs[index] = {
+                    apiKey: apiKeyInput.value,
+                    baseUrl: baseUrlInput.value,
+                    modelName: modelNameInput.value
+                };
+                saveAPIConfigs();
+            });
+        });
+
+        // 复制配置
+        template.querySelector('.duplicate-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            apiConfigs.push({...config});
+            saveAPIConfigs();
+            renderAPICards();
+        });
+
+        // 删除配置
+        template.querySelector('.delete-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (apiConfigs.length > 1) {
+                apiConfigs.splice(index, 1);
+                if (selectedConfigIndex >= apiConfigs.length) {
+                    selectedConfigIndex = apiConfigs.length - 1;
+                }
+                saveAPIConfigs();
+                renderAPICards();
+            }
+        });
+
+        // 选择配置
+        template.addEventListener('click', () => {
+            selectedConfigIndex = index;
+            saveAPIConfigs();
+            document.querySelectorAll('.api-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            template.classList.add('selected');
+            // 关闭设置页面
+            apiSettings.classList.remove('visible');
+        });
+
+        return template;
+    }
+
+    // 等待 DOM 加载完成后再初始化
+    await loadAPIConfigs();
+
+    // 显示/隐藏 API 设置
+    apiSettingsToggle.addEventListener('click', () => {
+        apiSettings.classList.add('visible');
+        settingsMenu.classList.remove('visible');
+        // 确保每次打开设置时都重新渲染卡片
+        renderAPICards();
+    });
+
+    // 返回聊天界面
+    backButton.addEventListener('click', () => {
+        apiSettings.classList.remove('visible');
     });
 });
