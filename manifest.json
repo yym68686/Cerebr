@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "Cerebr",
+  "version": "1.0",
+  "description": "Cerebr - 智能AI聊天助手",
+  "permissions": [
+    "storage",
+    "commands",
+    "scripting",
+    "activeTab",
+    "tabs",
+    "webNavigation"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_title": "打开 Cerebr 侧边栏",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+A",
+        "mac": "Ctrl+A"
+      },
+      "description": "打开/关闭 Cerebr 侧边栏"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "web_accessible_resources": [{
+    "resources": ["sidebar.html"],
+    "matches": ["<all_urls>"]
+  }],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ]
+}
