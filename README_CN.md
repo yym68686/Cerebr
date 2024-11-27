@@ -2,7 +2,9 @@
 <img src="./icons/icon128.png">
 </p>
 
-# Cerebr
+[English](./README.md) | [简体中文](./README_CN.md)
+
+# 🧠 Cerebr
 
 Cerebr 是一款基于 Chrome 的 AI 助手，旨在提高您的生产力。
 

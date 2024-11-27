@@ -2,7 +2,9 @@
 <img src="./icons/icon128.png">
 </p>
 
-# Cerebr
+[English](./README.md) | [Simplified Chinese](./README_CN.md)
+
+# 🧠 Cerebr
 
 Cerebr is a Chrome-based AI assistant designed to enhance your productivity.
 
