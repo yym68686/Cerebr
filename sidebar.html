@@ -263,25 +263,43 @@
         }
 
         .card-actions {
-            position: absolute;
-            top: 12px;
-            right: 12px;
             display: flex;
             gap: 8px;
+            z-index: 3;
         }
 
         .card-button {
             background: none;
             border: none;
-            padding: 4px;
+            padding: 8px;
             cursor: pointer;
             color: var(--cerebr-text-color);
             opacity: 0.6;
-            transition: opacity 0.2s;
+            transition: opacity 0.2s, background-color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            position: relative;
         }
 
         .card-button:hover {
             opacity: 1;
+            background-color: rgba(0, 0, 0, 0.1);
+        }
+
+        .card-button svg {
+            width: 16px;
+            height: 16px;
+            pointer-events: none;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .card-button:hover {
+                background-color: rgba(255, 255, 255, 0.1);
+            }
         }
 
         .api-form {
@@ -296,18 +314,32 @@
             gap: 4px;
         }
 
+        .form-group:first-child {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .form-group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
         .form-group label {
             font-size: 12px;
             opacity: 0.8;
         }
 
         .form-group input {
+            width: 100%;
             background: var(--cerebr-input-bg);
             border: none;
             padding: 8px;
             border-radius: 4px;
             color: var(--cerebr-text-color);
             font-size: 14px;
+            box-sizing: border-box;
         }
 
         .form-group input:focus {
@@ -361,23 +393,25 @@
         <div class="api-cards">
             <!-- 卡片模板 -->
             <div class="api-card template" style="display: none;">
-                <div class="card-actions">
-                    <button class="card-button duplicate-btn">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                            <path d="M13 5H7V11H13V5Z" stroke="currentColor" stroke-width="1.5"/>
-                            <path d="M10 3H4V9" stroke="currentColor" stroke-width="1.5"/>
-                        </svg>
-                    </button>
-                    <button class="card-button delete-btn">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                            <path d="M3 4H13" stroke="currentColor" stroke-width="1.5"/>
-                            <path d="M5 4V12H11V4" stroke="currentColor" stroke-width="1.5"/>
-                        </svg>
-                    </button>
-                </div>
                 <div class="api-form">
                     <div class="form-group">
-                        <label>API Key</label>
+                        <div class="form-group-header">
+                            <label>API Key</label>
+                            <div class="card-actions">
+                                <button class="card-button duplicate-btn">
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                        <path d="M13 5H7V11H13V5Z" stroke="currentColor" stroke-width="1.5"/>
+                                        <path d="M10 3H4V9" stroke="currentColor" stroke-width="1.5"/>
+                                    </svg>
+                                </button>
+                                <button class="card-button delete-btn">
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                        <path d="M3 4H13" stroke="currentColor" stroke-width="1.5"/>
+                                        <path d="M5 4V12H11V4" stroke="currentColor" stroke-width="1.5"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
                         <input type="password" class="api-key" placeholder="输入 API Key">
                     </div>
                     <div class="form-group">
