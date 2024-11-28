@@ -419,7 +419,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 从存储加载配置
     async function loadAPIConfigs() {
         try {
-            const result = await chrome.storage.local.get('apiConfigs');
+            const result = await chrome.storage.sync.get(['apiConfigs', 'selectedConfigIndex']);
             if (result.apiConfigs && result.apiConfigs.length > 0) {
                 apiConfigs = result.apiConfigs;
                 selectedConfigIndex = result.selectedConfigIndex || 0;
@@ -451,7 +451,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 保存配置到存储
     async function saveAPIConfigs() {
         try {
-            await chrome.storage.local.set({
+            await chrome.storage.sync.set({
                 apiConfigs,
                 selectedConfigIndex
             });
