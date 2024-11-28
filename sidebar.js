@@ -431,4 +431,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     backButton.addEventListener('click', () => {
         apiSettings.classList.remove('visible');
     });
+
+    // 清空聊天记录功能
+    const clearChat = document.getElementById('clear-chat');
+    clearChat.addEventListener('click', () => {
+        // 清空聊天容器
+        chatContainer.innerHTML = '';
+        // 关闭设置菜单
+        settingsMenu.classList.remove('visible');
+    });
 });
