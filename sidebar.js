@@ -121,7 +121,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     function appendMessage(text, sender) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${sender}-message`;
-        messageDiv.textContent = text;
+
+        // 配置 marked 选项
+        marked.setOptions({
+            breaks: true,  // 支持 GitHub 风格的换行
+            gfm: true,     // 启用 GitHub 风格的 Markdown
+            sanitize: false, // 允许 HTML 标签
+            highlight: function(code, lang) {
+                // 使用 highlight.js 进行代码高亮
+                if (lang && hljs.getLanguage(lang)) {
+                    try {
+                        return hljs.highlight(code, { language: lang }).value;
+                    } catch (err) {}
+                }
+                return hljs.highlightAuto(code).value;
+            }
+        });
+
+        // 渲染 Markdown
+        messageDiv.innerHTML = marked.parse(text);
+
+        // 处理消息中的链接
+        messageDiv.querySelectorAll('a').forEach(link => {
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+        });
+
         chatContainer.appendChild(messageDiv);
         chatContainer.scrollTop = chatContainer.scrollHeight;
     }
@@ -129,7 +154,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     function updateAIMessage(text) {
         const lastMessage = chatContainer.querySelector('.ai-message:last-child');
         if (lastMessage) {
-            lastMessage.textContent = text;
+            lastMessage.innerHTML = marked.parse(text);
+            // 处理新渲染的链接
+            lastMessage.querySelectorAll('a').forEach(link => {
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+            });
         } else {
             appendMessage(text, 'ai');
         }

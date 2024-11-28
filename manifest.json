@@ -34,7 +34,12 @@
     "type": "module"
   },
   "web_accessible_resources": [{
-    "resources": ["sidebar.html"],
+    "resources": [
+      "sidebar.html",
+      "lib/marked.min.js",
+      "lib/highlight.min.js",
+      "lib/github-dark.css"
+    ],
     "matches": ["<all_urls>"]
   }],
   "content_scripts": [

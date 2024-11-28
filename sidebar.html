@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <title>Cerebr</title>
+    <script src="lib/marked.min.js"></script>
+    <script src="lib/highlight.min.js"></script>
+    <link rel="stylesheet" href="lib/github-dark.css">
     <style>
         :root {
             --cerebr-bg-color: #ffffff;
@@ -56,7 +59,6 @@
             word-wrap: break-word;
             font-size: 14px;
             line-height: 1.5;
-            white-space: pre-wrap;
         }
 
         .user-message {
@@ -348,6 +350,60 @@
 
         .form-group input:focus {
             outline: 1px solid #64ffda;
+        }
+
+        /* Markdown 样式 */
+        .message pre code {
+            display: block;
+            overflow-x: auto;
+            padding: 1em;
+            background: #282c34;
+            border-radius: 6px;
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+            white-space: pre;
+        }
+
+        .message code {
+            background: rgba(0, 0, 0, 0.1);
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+        }
+
+        .message p {
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        .message p + p {
+            margin-top: 0.5em;
+        }
+
+        .message ul, .message ol {
+            margin: 0.5em 0;
+            padding-left: 24px;
+        }
+
+        .message blockquote {
+            margin: 0.5em 0;
+            padding-left: 12px;
+            border-left: 4px solid rgba(0, 0, 0, 0.2);
+            color: rgba(0, 0, 0, 0.7);
+        }
+
+        .message pre {
+            margin: 0.5em 0;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .message blockquote {
+                border-left-color: rgba(255, 255, 255, 0.2);
+                color: rgba(255, 255, 255, 0.7);
+            }
+
+            .message code:not(pre code) {
+                background: rgba(255, 255, 255, 0.1);
+            }
         }
     </style>
 </head>
