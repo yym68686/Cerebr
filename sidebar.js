@@ -276,6 +276,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (text) {  // 只有在有实际内容时才发送
                 sendMessage();
             }
+        } else if (e.key === 'Escape') {
+            // 按 ESC 键时让输入框失去焦点
+            messageInput.blur();
         }
     });
 
@@ -581,5 +584,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         chatContainer.innerHTML = '';
         // 关闭设置菜单
         settingsMenu.classList.remove('visible');
+    });
+
+    // 监听来自 content script 的消息
+    window.addEventListener('message', (event) => {
+        if (event.data.type === 'FOCUS_INPUT') {
+            messageInput.focus();
+        }
+    });
+
+    // 添加点击事件监听
+    chatContainer.addEventListener('click', () => {
+        // 点击聊天区域时让输入框失去焦点
+        messageInput.blur();
+    });
+
+    // 监听输入框的焦点状态
+    messageInput.addEventListener('focus', () => {
+        // 输入框获得焦点时，阻止事件冒泡
+        messageInput.addEventListener('click', (e) => e.stopPropagation());
+    });
+
+    messageInput.addEventListener('blur', () => {
+        // 输入框失去焦点时，移除点击事件监听
+        messageInput.removeEventListener('click', (e) => e.stopPropagation());
     });
 });

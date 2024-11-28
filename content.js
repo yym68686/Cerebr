@@ -176,6 +176,13 @@ class CerebrSidebar {
       this.sidebar.classList.toggle('visible', this.isVisible);
       this.saveState();
       console.log('侧边栏可见性已切换为:', this.isVisible);
+
+      if (this.isVisible) {
+        const iframe = this.sidebar.querySelector('.cerebr-sidebar__iframe');
+        if (iframe) {
+          iframe.contentWindow.postMessage({ type: 'FOCUS_INPUT' }, '*');
+        }
+      }
     } catch (error) {
       console.error('切换侧边栏失败:', error);
     }
