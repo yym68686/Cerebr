@@ -247,20 +247,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             } else {
                 // 如果是首次使用，跟随系统主题
                 setTheme(systemTheme);
-                // 同步更新开关状态
-                if (themeSwitch) {
-                    themeSwitch.checked = systemTheme;
-                }
             }
         } catch (error) {
             console.error('初始化主题失败:', error);
             // 如果出错，默认跟随系统主题
-            const systemTheme = checkSystemTheme();
-            setTheme(systemTheme);
-            // 同步更新开关状态
-            if (themeSwitch) {
-                themeSwitch.checked = systemTheme;
-            }
+            setTheme(checkSystemTheme());
         }
     }
 
@@ -278,10 +269,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         setTheme(themeSwitch.checked);
     });
 
-    // 在 DOMContentLoaded 事件中初始化主题
-    document.addEventListener('DOMContentLoaded', () => {
-        initializeTheme();
-    });
+    // 立即初始化主题
+    await initializeTheme();
 
     // 网页问答功能
     const webpageSwitch = document.getElementById('webpage-switch');
