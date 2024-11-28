@@ -256,28 +256,49 @@ window.addEventListener('unhandledrejection', (event) => {
 });
 
 function extractPageContent() {
-    const elementsToRemove = document.querySelectorAll('script, style, noscript, iframe, img, svg, header, footer, nav, aside');
+    // 创建一个文档片段来处理内容，避免修改原始页面
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = document.body.innerHTML;
+
+    // 在临时容器中移除不需要的元素
+    const elementsToRemove = tempDiv.querySelectorAll('script, style, noscript, iframe, svg, header, footer, nav, aside');
     elementsToRemove.forEach(el => el.remove());
 
-    const article = document.querySelector('article') || document.querySelector('main') || document.body;
+    // 获取主要内容
+    const article = document.querySelector('article') || document.querySelector('main') || document.querySelector('.content') || document.querySelector('.article');
 
-    const textNodes = [];
-    const walk = document.createTreeWalker(article, NodeFilter.SHOW_TEXT, null, false);
-    let node;
-    while (node = walk.nextNode()) {
-        const text = node.textContent.trim();
-        if (text.length > 20) {
-            textNodes.push(text);
-        }
+    // 如果找到特定的内容容器，使用它
+    let mainContent = '';
+    if (article) {
+        const clone = article.cloneNode(true);
+        // 清理克隆的内容
+        const cleanup = clone.querySelectorAll('script, style, noscript, iframe, svg');
+        cleanup.forEach(el => el.remove());
+        mainContent = clone.textContent;
+    } else {
+        // 如果没有找到特定容器，从 body 提取文本
+        const bodyClone = tempDiv;
+        const paragraphs = bodyClone.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li');
+        mainContent = Array.from(paragraphs)
+            .map(p => p.textContent.trim())
+            .filter(text => text.length > 20)  // 只保留较长的文本
+            .join('\n');
     }
+
+    // 清理文本
+    mainContent = mainContent
+        .replace(/\s+/g, ' ')  // 替换多个空白字符为单个空格
+        .replace(/\n\s*\n/g, '\n')  // 替换多个换行为单个换行
+        .trim();
 
     return {
         title: document.title,
         url: window.location.href,
-        content: textNodes.join('\n')
+        content: mainContent
     };
 }
 
+// 监听消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'GET_PAGE_CONTENT') {
         const content = extractPageContent();
