@@ -6,8 +6,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         const message = messageInput.value.trim();
         if (!message) return;
 
+        // 检查是否有选中的配置
         const config = apiConfigs[selectedConfigIndex];
-        if (!config) return;
+        if (!config) {
+            appendMessage('错误：未找到 API 配置，请在设置中配置 API', 'ai');
+            return;
+        }
+
+        // 检查必要的配置项
+        if (!config.baseUrl || !config.apiKey) {
+            appendMessage('错误：请在设置中完善 API 配置信息', 'ai');
+            return;
+        }
 
         // 显示用户消息
         appendMessage(message, 'user');
@@ -32,66 +42,79 @@ document.addEventListener('DOMContentLoaded', async () => {
                 content: message
             });
 
-            const response = await fetch(`${config.baseUrl}/chat/completions`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${config.apiKey}`
-                },
-                body: JSON.stringify({
-                    "model": config.modelName,
-                    "messages": messages,
-                    "stream": true
-                })
-            });
+            try {
+                const response = await fetch(`${config.baseUrl}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${config.apiKey}`
+                    },
+                    body: JSON.stringify({
+                        "model": config.modelName || "gpt-3.5-turbo",
+                        "messages": messages,
+                        "stream": true
+                    })
+                });
 
-            const reader = response.body.getReader();
-            let aiResponse = '';
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
 
-            while (true) {
-                const {done, value} = await reader.read();
-                if (done) break;
+                const reader = response.body.getReader();
+                let aiResponse = '';
 
-                const chunk = new TextDecoder().decode(value);
-                const lines = chunk.split('\n');
+                while (true) {
+                    const {done, value} = await reader.read();
+                    if (done) break;
 
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const content = line.slice(6);
+                    const chunk = new TextDecoder().decode(value);
+                    const lines = chunk.split('\n');
 
-                        // 检查是否是结束标记
-                        if (content.trim() === '[DONE]') {
-                            console.log('流式响应结束');
-                            continue;
-                        }
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const content = line.slice(6);
 
-                        try {
-                            const data = JSON.parse(content);
-                            // 检查响应结构
-                            if (data.choices && data.choices.length > 0) {
-                                const choice = data.choices[0];
-                                if (choice.delta && choice.delta.content) {
-                                    // 只有在有实际内容时才更新
-                                    aiResponse += choice.delta.content;
-                                    updateAIMessage(aiResponse);
-                                } else if (choice.finish_reason) {
-                                    // 处理结束原因（如果需要）
-                                    console.log('响应结束原因:', choice.finish_reason);
-                                }
-                            } else if (data.usage) {
-                                // 处理使用统计信息（如果需要）
-                                console.log('Token 使用统计:', data.usage);
+                            // 检查是否是结束标记
+                            if (content.trim() === '[DONE]') {
+                                console.log('流式响应结束');
+                                continue;
                             }
-                        } catch (e) {
-                            console.error('解析响应出错:', e);
-                            console.log('出错的内容:', content);
+
+                            try {
+                                const data = JSON.parse(content);
+                                // 检查响应结构
+                                if (data.choices && data.choices.length > 0) {
+                                    const choice = data.choices[0];
+                                    if (choice.delta && choice.delta.content) {
+                                        // 只有在有实际内容时才更新
+                                        aiResponse += choice.delta.content;
+                                        updateAIMessage(aiResponse);
+                                    } else if (choice.finish_reason) {
+                                        // 处理结束原因（如果需要）
+                                        console.log('响应结束原因:', choice.finish_reason);
+                                    }
+                                } else if (data.usage) {
+                                    // 处理使用统计信息（如果需要）
+                                    console.log('Token 使用统计:', data.usage);
+                                }
+                            } catch (e) {
+                                console.error('解析响应出错:', e);
+                                console.log('出错的内容:', content);
+                            }
                         }
                     }
+                }
+            } catch (error) {
+                console.error('API 请求失败:', error);
+                if (error.message.includes('Failed to fetch')) {
+                    appendMessage('错误：无法连接到 API 服务器，请检查网络连接和 Base URL 配置', 'ai');
+                } else {
+                    appendMessage(`错误：${error.message}`, 'ai');
                 }
             }
         } catch (error) {
             console.error('发送消息失败:', error);
-            appendMessage('抱歉，发送消息失败', 'ai');
+            appendMessage('发送消息失败，请检查配置和网络连接', 'ai');
         }
     }
 

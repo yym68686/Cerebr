@@ -48,24 +48,28 @@
         }
 
         .message {
-            margin: 8px 0;
+            margin: 8px;
             padding: 10px 12px;
             border-radius: 8px;
-            max-width: 85%;
+            width: fit-content;
+            max-width: 80%;
             word-wrap: break-word;
             font-size: 14px;
             line-height: 1.5;
+            white-space: pre-wrap;
         }
 
         .user-message {
             background-color: var(--cerebr-message-user-bg);
             margin-left: auto;
+            margin-right: 0;
             border-bottom-right-radius: 2px;
         }
 
         .ai-message {
             background-color: var(--cerebr-message-ai-bg);
             margin-right: auto;
+            margin-left: 0;
             border-bottom-left-radius: 2px;
         }
 
