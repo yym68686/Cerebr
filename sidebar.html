@@ -5,7 +5,10 @@
     <title>Cerebr</title>
     <script src="lib/marked.min.js"></script>
     <script src="lib/highlight.min.js"></script>
+    <script src="lib/katex.min.js"></script>
+    <script src="lib/auto-render.min.js"></script>
     <link rel="stylesheet" href="lib/github-dark.css">
+    <link rel="stylesheet" href="lib/katex.min.css">
     <style>
         :root {
             --cerebr-bg-color: #ffffff;
@@ -404,6 +407,21 @@
             .message code:not(pre code) {
                 background: rgba(255, 255, 255, 0.1);
             }
+        }
+
+        /* LaTeX 公式样式调整 */
+        .katex-display {
+            margin: 0.5em 0;
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+
+        .katex {
+            font-size: 1.1em;
+        }
+
+        .katex-display > .katex {
+            font-size: 1.21em;
         }
     </style>
 </head>

@@ -122,13 +122,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${sender}-message`;
 
-        // 配置 marked 选项
+        // 配置 marked 选项，添加数学公式保护
+        const mathExpressions = [];
+        let mathIndex = 0;
+
+        // 临时替换数学公式
+        text = text.replace(/(\$\$[\s\S]+?\$\$)|(\$[^\s$][^$]*?\$)|(\\\([^\)]+?\\\))|(\\\[[\s\S]+?\\\])/g, (match) => {
+            // 如果是普通括号形式的公式，转换为 \(...\) 形式
+            if (match.startsWith('(') && match.endsWith(')') && !match.startsWith('\\(')) {
+                console.log('警告：请使用 \\(...\\) 来表示行内公式');
+            }
+            const placeholder = `%%MATH_EXPRESSION_${mathIndex}%%`;
+            mathExpressions.push(match);
+            mathIndex++;
+            return placeholder;
+        });
+
+        // 配置 marked
         marked.setOptions({
-            breaks: true,  // 支持 GitHub 风格的换行
-            gfm: true,     // 启用 GitHub 风格的 Markdown
-            sanitize: false, // 允许 HTML 标签
+            breaks: true,
+            gfm: true,
+            sanitize: false,
             highlight: function(code, lang) {
-                // 使用 highlight.js 进行代码高亮
                 if (lang && hljs.getLanguage(lang)) {
                     try {
                         return hljs.highlight(code, { language: lang }).value;
@@ -139,12 +154,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         // 渲染 Markdown
-        messageDiv.innerHTML = marked.parse(text);
+        let html = marked.parse(text);
+
+        // 恢复数学公式
+        html = html.replace(/%%MATH_EXPRESSION_(\d+)%%/g, (_, index) => mathExpressions[index]);
+
+        messageDiv.innerHTML = html;
 
         // 处理消息中的链接
         messageDiv.querySelectorAll('a').forEach(link => {
             link.target = '_blank';
             link.rel = 'noopener noreferrer';
+        });
+
+        // 渲染 LaTeX 公式
+        renderMathInElement(messageDiv, {
+            delimiters: [
+                {left: '\\(', right: '\\)', display: false},  // 行内公式
+                {left: '\\\(', right: '\\\)', display: false},  // 行内公式
+                {left: '\(', right: '\)', display: false},  // 行内公式
+                // {left: '(', right: ')', display: false},  // 行内公式
+                // {left: '\\\\(', right: '\\\\)', display: false},  // 行内公式
+                {left: '\\[', right: '\\]', display: true},   // 行间公式
+                {left: '$$', right: '$$', display: true},     // 行间公式（备用）
+                {left: '$', right: '$', display: false}       // 行内公式（备用）
+            ],
+            throwOnError: false,
+            output: 'html',
+            strict: false,
+            trust: true,
+            macros: {
+                "\\eqref": "\\href{#1}{}",
+            }
         });
 
         chatContainer.appendChild(messageDiv);
@@ -154,11 +195,47 @@ document.addEventListener('DOMContentLoaded', async () => {
     function updateAIMessage(text) {
         const lastMessage = chatContainer.querySelector('.ai-message:last-child');
         if (lastMessage) {
-            lastMessage.innerHTML = marked.parse(text);
+            // 使用与 appendMessage 相同的处理逻辑
+            const mathExpressions = [];
+            let mathIndex = 0;
+
+            text = text.replace(/(\$\$[\s\S]+?\$\$)|(\$[^\s$][^$]*?\$)|(\\\([^\)]+?\\\))|(\\\[[\s\S]+?\\\])/g, (match) => {
+                // 如果是普通括号形式的公式，转换为 \(...\) 形式
+                if (match.startsWith('(') && match.endsWith(')') && !match.startsWith('\\(')) {
+                    console.log('警告：请使用 \\(...\\) 来表示行内公式');
+                }
+                const placeholder = `%%MATH_EXPRESSION_${mathIndex}%%`;
+                mathExpressions.push(match);
+                mathIndex++;
+                return placeholder;
+            });
+
+            let html = marked.parse(text);
+            html = html.replace(/%%MATH_EXPRESSION_(\d+)%%/g, (_, index) => mathExpressions[index]);
+
+            lastMessage.innerHTML = html;
+
             // 处理新渲染的链接
             lastMessage.querySelectorAll('a').forEach(link => {
                 link.target = '_blank';
                 link.rel = 'noopener noreferrer';
+            });
+
+            // 渲染 LaTeX 公式
+            renderMathInElement(lastMessage, {
+                delimiters: [
+                    {left: '\\(', right: '\\)', display: false},  // 行内公式
+                    {left: '\\[', right: '\\]', display: true},   // 行间公式
+                    {left: '$$', right: '$$', display: true},     // 行间公式（备用）
+                    {left: '$', right: '$', display: false}       // 行内公式（备用）
+                ],
+                throwOnError: false,
+                output: 'html',
+                strict: false,
+                trust: true,
+                macros: {
+                    "\\eqref": "\\href{#1}{}",
+                }
             });
         } else {
             appendMessage(text, 'ai');
@@ -405,7 +482,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 先重新添加模板（保持隐藏状态）
         apiCards.appendChild(templateClone);
 
-        // 渲染实际的卡片
+        // 渲染实际的卡
         apiConfigs.forEach((config, index) => {
             const card = createAPICard(config, index, templateClone);
             apiCards.appendChild(card);
