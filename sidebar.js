@@ -222,38 +222,65 @@ document.addEventListener('DOMContentLoaded', async () => {
         for (const [property, value] of Object.entries(theme)) {
             document.documentElement.style.setProperty(property, value);
         }
-        themeSwitch.checked = isDark;
-        themeToggle.querySelector('span').textContent = isDark ? '深色模式' : '浅色模式';
+        // 更新开关状态和文本
+        if (themeSwitch) {
+            themeSwitch.checked = isDark;
+        }
+        const themeLabel = themeToggle?.querySelector('span');
+        if (themeLabel) {
+            themeLabel.textContent = isDark ? '深色模式' : '浅色模式';
+        }
 
         // 保存主题设置
         chrome.storage.sync.set({ theme: isDark ? 'dark' : 'light' });
     }
 
     // 初始化主题
-    let currentTheme = checkSystemTheme();
+    async function initializeTheme() {
+        try {
+            const result = await chrome.storage.sync.get('theme');
+            const systemTheme = checkSystemTheme();
 
-    // 加载保存的主题设置
-    chrome.storage.sync.get('theme', (data) => {
-        if (data.theme) {
-            currentTheme = data.theme === 'dark';
+            if (result.theme) {
+                // 如果有保存的主题设置，使用保存的设置
+                setTheme(result.theme === 'dark');
+            } else {
+                // 如果是首次使用，跟随系统主题
+                setTheme(systemTheme);
+                // 同步更新开关状态
+                if (themeSwitch) {
+                    themeSwitch.checked = systemTheme;
+                }
+            }
+        } catch (error) {
+            console.error('初始化主题失败:', error);
+            // 如果出错，默认跟随系统主题
+            const systemTheme = checkSystemTheme();
+            setTheme(systemTheme);
+            // 同步更新开关状态
+            if (themeSwitch) {
+                themeSwitch.checked = systemTheme;
+            }
         }
-        setTheme(currentTheme);
-    });
-
-    // 监听 Switch 切换
-    themeSwitch.addEventListener('change', () => {
-        currentTheme = themeSwitch.checked;
-        setTheme(currentTheme);
-    });
+    }
 
     // 监听系统主题变化
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
         chrome.storage.sync.get('theme', (data) => {
             if (!data.theme) {  // 只有在用户没有手动设置主题时才跟随系统
-                currentTheme = e.matches;
-                setTheme(currentTheme);
+                setTheme(e.matches);
             }
         });
+    });
+
+    // 监听主题切换开关
+    themeSwitch.addEventListener('change', () => {
+        setTheme(themeSwitch.checked);
+    });
+
+    // 在 DOMContentLoaded 事件中初始化主题
+    document.addEventListener('DOMContentLoaded', () => {
+        initializeTheme();
     });
 
     // 网页问答功能

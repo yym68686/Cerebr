@@ -24,7 +24,7 @@
     "_execute_action": {
       "suggested_key": {
         "default": "Alt+A",
-        "mac": "Ctrl+A"
+        "mac": "MacCtrl+A"
       },
       "description": "打开/关闭 Cerebr 侧边栏"
     }
