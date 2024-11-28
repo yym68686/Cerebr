@@ -118,6 +118,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // 提取公共配置
+    const MATH_DELIMITERS = {
+        regex: /(\$\$[\s\S]+?\$\$)|(\$[^\s$][^$]*?\$)|(\\\\\([^]+?\\\\\))|(\\\([^]+?\\\))|(\\\[[\s\S]+?\\\])/g,
+        renderConfig: {
+            delimiters: [
+                {left: '\\(', right: '\\)', display: false},  // 行内公式
+                {left: '\\\\(', right: '\\\\)', display: false},  // 行内公式
+                {left: '\\[', right: '\\]', display: true},   // 行间公式
+                {left: '$$', right: '$$', display: true},     // 行间公式（备用）
+                {left: '$', right: '$', display: false}       // 行内公式（备用）
+            ],
+            throwOnError: false
+        }
+    };
+
+    // 处理数学公式的函数
+    function processLatexContent(text, element) {
+        // 处理文本中的 LaTeX
+        text = text.replace(MATH_DELIMITERS.regex, (match) => {
+            return match;
+        });
+
+        // 渲染元素中的数学公式
+        renderMathInElement(element, MATH_DELIMITERS.renderConfig);
+
+        return text;
+    }
+
     function appendMessage(text, sender) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${sender}-message`;
@@ -127,7 +155,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let mathIndex = 0;
 
         // 临时替换数学公式
-        text = text.replace(/(\$\$[\s\S]+?\$\$)|(\$[^\s$][^$]*?\$)|(\\\([^\)]+?\\\))|(\\\[[\s\S]+?\\\])/g, (match) => {
+        text = text.replace(MATH_DELIMITERS.regex, (match) => {
             // 如果是普通括号形式的公式，转换为 \(...\) 形式
             if (match.startsWith('(') && match.endsWith(')') && !match.startsWith('\\(')) {
                 console.log('警告：请使用 \\(...\\) 来表示行内公式');
@@ -168,25 +196,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         // 渲染 LaTeX 公式
-        renderMathInElement(messageDiv, {
-            delimiters: [
-                {left: '\\(', right: '\\)', display: false},  // 行内公式
-                {left: '\\\(', right: '\\\)', display: false},  // 行内公式
-                {left: '\(', right: '\)', display: false},  // 行内公式
-                // {left: '(', right: ')', display: false},  // 行内公式
-                // {left: '\\\\(', right: '\\\\)', display: false},  // 行内公式
-                {left: '\\[', right: '\\]', display: true},   // 行间公式
-                {left: '$$', right: '$$', display: true},     // 行间公式（备用）
-                {left: '$', right: '$', display: false}       // 行内公式（备用）
-            ],
-            throwOnError: false,
-            output: 'html',
-            strict: false,
-            trust: true,
-            macros: {
-                "\\eqref": "\\href{#1}{}",
-            }
-        });
+        renderMathInElement(messageDiv, MATH_DELIMITERS.renderConfig);
 
         chatContainer.appendChild(messageDiv);
         chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -199,7 +209,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const mathExpressions = [];
             let mathIndex = 0;
 
-            text = text.replace(/(\$\$[\s\S]+?\$\$)|(\$[^\s$][^$]*?\$)|(\\\([^\)]+?\\\))|(\\\[[\s\S]+?\\\])/g, (match) => {
+            text = text.replace(MATH_DELIMITERS.regex, (match) => {
                 // 如果是普通括号形式的公式，转换为 \(...\) 形式
                 if (match.startsWith('(') && match.endsWith(')') && !match.startsWith('\\(')) {
                     console.log('警告：请使用 \\(...\\) 来表示行内公式');
@@ -222,21 +232,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
 
             // 渲染 LaTeX 公式
-            renderMathInElement(lastMessage, {
-                delimiters: [
-                    {left: '\\(', right: '\\)', display: false},  // 行内公式
-                    {left: '\\[', right: '\\]', display: true},   // 行间公式
-                    {left: '$$', right: '$$', display: true},     // 行间公式（备用）
-                    {left: '$', right: '$', display: false}       // 行内公式（备用）
-                ],
-                throwOnError: false,
-                output: 'html',
-                strict: false,
-                trust: true,
-                macros: {
-                    "\\eqref": "\\href{#1}{}",
-                }
-            });
+            renderMathInElement(lastMessage, MATH_DELIMITERS.renderConfig);
         } else {
             appendMessage(text, 'ai');
         }
