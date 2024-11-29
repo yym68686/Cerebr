@@ -21,7 +21,7 @@
     }
   },
   "commands": {
-    "_execute_action": {
+    "toggle_sidebar": {
       "suggested_key": {
         "default": "Alt+A",
         "mac": "MacCtrl+A"

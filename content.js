@@ -171,11 +171,10 @@ class CerebrSidebar {
     if (!this.initialized) return;
 
     try {
-      console.log('切换侧边栏可见性，当前状态:', this.isVisible);
       this.isVisible = !this.isVisible;
       this.sidebar.classList.toggle('visible', this.isVisible);
       this.saveState();
-      console.log('侧边栏可见性已切换为:', this.isVisible);
+      console.log('切换侧边栏可见性，当前状态:', this.isVisible, '侧边栏可见性已切换为:', this.isVisible);
 
       if (this.isVisible) {
         const iframe = this.sidebar.querySelector('.cerebr-sidebar__iframe');
@@ -198,14 +197,14 @@ try {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log('收到消息:', message, '来自:', sender);
+  console.log(message.type);
 
-  if (message.type === 'TOGGLE_SIDEBAR') {
+  if (message.type === 'TOGGLE_SIDEBAR_onClicked' || message.type === 'TOGGLE_SIDEBAR_toggle_sidebar') {
     try {
-      console.log('收到切换侧边栏命令，来源:', message.source);
+      // console.log('收到切换侧边栏命令，来源:', message.source);
       if (sidebar) {
         sidebar.toggle();
-        console.log('侧边栏已切换');
+        // console.log('侧边栏已切换');
         sendResponse({ success: true, status: sidebar.isVisible });
       } else {
         console.error('侧边栏实例不存在');
@@ -216,6 +215,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ success: false, error: error.message });
     }
     return true;
+  }
+});
+
+// 监听来自iframe的消息
+window.addEventListener('message', (event) => {
+  console.log(event.data.type);
+  if (event.data && event.data.type === 'TOGGLE_SIDEBAR') {
+      if (sidebar) {
+          sidebar.toggle();
+      }
   }
 });
 
@@ -444,12 +453,3 @@ async function extractTextFromPDF(url) {
     return null;
   }
 }
-
-// 监听来自iframe的消息
-window.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'TOGGLE_SIDEBAR') {
-        if (sidebar) {
-            sidebar.toggle();
-        }
-    }
-});
