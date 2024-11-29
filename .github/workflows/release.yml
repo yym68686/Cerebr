@@ -1,0 +1,36 @@
+name: Build and Release Extension
+
+on:
+  push:
+    tags:
+      - 'v*' # 当推送新的版本标签时触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+
+      - name: Create ZIP file
+        run: |
+          zip -r cerebr.zip . \
+            -x "*.git*" \
+            -x "*.github*" \
+            -x "*.DS_Store" \
+            -x "README*"
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: cerebr.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
