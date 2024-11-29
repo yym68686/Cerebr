@@ -9,6 +9,7 @@ class CerebrSidebar {
     this.initialized = false;
     this.pageKey = window.location.origin + window.location.pathname;
     console.log('CerebrSidebar 实例创建');
+    this.lastToggleTime = null; // 添加上次执行时间存储
     this.initializeSidebar();
   }
 
@@ -171,13 +172,32 @@ class CerebrSidebar {
     if (!this.initialized) return;
 
     try {
+      const currentTime = new Date();
+      const timeDiff = this.lastToggleTime ? currentTime - this.lastToggleTime : 0;
+
+      // 如果时间间隔小于10ms则不执行
+      if (timeDiff > 0 && timeDiff < 10) {
+        console.log('切换操作被忽略 - 间隔太短:', timeDiff + 'ms');
+        return;
+      }
+
+      console.log('切换侧边栏可见性 -',
+        '当前时间:', currentTime.toLocaleTimeString(),
+        '上次执行:', this.lastToggleTime ? this.lastToggleTime.toLocaleTimeString() : '无',
+        '时间间隔:', timeDiff + 'ms',
+        '当前状态:', this.isVisible,
+        '侧边栏可见性已切换为:', !this.isVisible
+      );
+      this.lastToggleTime = currentTime;
+
       this.isVisible = !this.isVisible;
       this.sidebar.classList.toggle('visible', this.isVisible);
       this.saveState();
-      console.log('切换侧边栏可见性，当前状态:', this.isVisible, '侧边栏可见性已切换为:', this.isVisible);
+
 
       if (this.isVisible) {
         const iframe = this.sidebar.querySelector('.cerebr-sidebar__iframe');
+        // console.log('发送聚焦输入框消息');
         if (iframe) {
           iframe.contentWindow.postMessage({ type: 'FOCUS_INPUT' }, '*');
         }

@@ -17,6 +17,21 @@ window.addEventListener('message', (event) => {
 let userQuestions = [];
 let currentIndex = -1;
 
+function checkCustomShortcut() {
+    return new Promise((resolve) => {
+        chrome.commands.getAll((commands) => {
+            const toggleCommand = commands.find(command => command.name === 'toggle_sidebar');
+            if (toggleCommand && toggleCommand.shortcut) {
+                const lastLetter = toggleCommand.shortcut.charAt(toggleCommand.shortcut.length - 1).toLowerCase();
+                console.log('当前设置的快捷键:', toggleCommand.shortcut, '最后一个字符:', lastLetter);
+                resolve(lastLetter);
+            } else {
+                resolve(null);
+            }
+        });
+    });
+}
+
 // 等待 DOM 加载完成
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -24,9 +39,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatContainer = document.querySelector('#chat-container');
 
     // 监听输入框的键盘事件
-    input.addEventListener('keydown', (event) => {
+    input.addEventListener('keydown', async (event) => {
         // 检查是否是快捷键组合（Alt+A 或 MacCtrl+A）
-        console.log('检查快捷键组合', event.key.toLowerCase());
+        const lastLetter = await checkCustomShortcut();
+        // console.log('检查快捷键组合', event.key.toLowerCase(), lastLetter, event.ctrlKey, navigator.userAgent, /Mac|iPod|iPhone|iPad/.test(navigator.userAgent), event.key.toLowerCase() === lastLetter);
+
+        if ((event.altKey || (event.ctrlKey && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent))) && event.key.toLowerCase() === lastLetter) {
+            // 主动触发隐藏操作
+            event.preventDefault();
+            window.parent.postMessage({ type: 'TOGGLE_SIDEBAR' }, '*');
+            return;
+        }
 
         // 当按下向上键且输入框为空时
         if (event.key === 'ArrowUp' && event.target.value.trim() === '') {
