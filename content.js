@@ -444,3 +444,12 @@ async function extractTextFromPDF(url) {
     return null;
   }
 }
+
+// 监听来自iframe的消息
+window.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'TOGGLE_SIDEBAR') {
+        if (sidebar) {
+            sidebar.toggle();
+        }
+    }
+});

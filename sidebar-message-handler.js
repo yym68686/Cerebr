@@ -24,6 +24,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 监听输入框的键盘事件
     input.addEventListener('keydown', (event) => {
+        // 检查是否是快捷键组合（Alt+A 或 MacCtrl+A）
+        if ((event.altKey || (event.ctrlKey && /Mac|iPod|iPhone|iPad/.test(navigator.platform))) && event.key === 'a') {
+            // 主动触发隐藏操作
+            event.preventDefault();
+            window.parent.postMessage({ type: 'TOGGLE_SIDEBAR' }, '*');
+            return;
+        }
+
         // 当按下向上键且输入框为空时
         if (event.key === 'ArrowUp' && event.target.value.trim() === '') {
             event.preventDefault(); // 阻止默认行为
