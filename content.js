@@ -241,7 +241,7 @@ function sendInitMessage(retryCount = 0) {
       console.log(`${retryDelay}ms 后重试...`);
       setTimeout(() => sendInitMessage(retryCount + 1), retryDelay);
     } else {
-      console.error('达到最大重试次数，初始化消息发送失败');
+      console.error('达最大重试次数，初始化消息发送失败');
     }
   });
 }
@@ -263,53 +263,184 @@ window.addEventListener('unhandledrejection', (event) => {
 });
 
 function extractPageContent() {
-    // 创建一个文档片段来处理内容，避免修改原始页面
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = document.body.innerHTML;
+  console.log('开始提取页面内容');
+  // 创建一个文档片段来处理内容，避免修改原始页面
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = document.body.innerHTML;
 
-    // 在临时容器中移除不需要的元素
-    const elementsToRemove = tempDiv.querySelectorAll('script, style, noscript, iframe, svg, header, footer, nav, aside');
-    elementsToRemove.forEach(el => el.remove());
+  // 检查是否是PDF
+  if (document.contentType === 'application/pdf') {
+    console.log('检测到PDF文件，尝试提取PDF内容');
+    return extractTextFromPDF(window.location.href).then(pdfText => {
+      if (pdfText) {
+        return {
+          title: document.title,
+          url: window.location.href,
+          content: pdfText
+        };
+      }
+    });
+  }
 
-    // 获取主要内容
-    const article = document.querySelector('article') || document.querySelector('main') || document.querySelector('.content') || document.querySelector('.article');
+  // 在临时容器中移除不需要的元素
+  const elementsToRemove = tempDiv.querySelectorAll('script, style, noscript, iframe, svg, header, footer, nav, aside');
+  elementsToRemove.forEach(el => el.remove());
 
-    // 如果找到特定的内容容器，使用它
-    let mainContent = '';
-    if (article) {
-        const clone = article.cloneNode(true);
-        // 清理克隆的内容
-        const cleanup = clone.querySelectorAll('script, style, noscript, iframe, svg');
-        cleanup.forEach(el => el.remove());
-        mainContent = clone.textContent;
-    } else {
-        // 如果没有找到特定容器，从 body 提取文本
-        const bodyClone = tempDiv;
-        const paragraphs = bodyClone.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li');
-        mainContent = Array.from(paragraphs)
-            .map(p => p.textContent.trim())
-            .filter(text => text.length > 20)  // 只保留较长的文本
-            .join('\n');
-    }
+  // 获取主要内容
+  const article = document.querySelector('article') || document.querySelector('main') || document.querySelector('.content') || document.querySelector('.article');
 
-    // 清理文本
-    mainContent = mainContent
-        .replace(/\s+/g, ' ')  // 替换多个空白字符为单个空格
-        .replace(/\n\s*\n/g, '\n')  // 替换多个换行为单个换行
-        .trim();
+  // 如果找到定的内容容器，使用它
+  let mainContent = '';
+  if (article) {
+    const clone = article.cloneNode(true);
+    // 清理克隆的内容
+    const cleanup = clone.querySelectorAll('script, style, noscript, iframe, svg');
+    cleanup.forEach(el => el.remove());
+    mainContent = clone.textContent;
+  } else {
+    // 如果没有找到特定容器，从 body 提取文本
+    const bodyClone = tempDiv;
+    const paragraphs = bodyClone.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li');
+    mainContent = Array.from(paragraphs)
+      .map(p => p.textContent.trim())
+      .filter(text => text.length > 20)  // 只保留较长的文本
+      .join('\n');
+  }
 
-    return {
-        title: document.title,
-        url: window.location.href,
-        content: mainContent
-    };
+  // 清理文本
+  mainContent = mainContent
+    .replace(/\s+/g, ' ')  // 替换多个空白字符为单个空格
+    .replace(/\n\s*\n/g, '\n')  // 替换多个换行为单个换行
+    .trim();
+
+  console.log('页面内容提取完成，内容长度:', mainContent.length);
+
+  return {
+    title: document.title,
+    url: window.location.href,
+    content: mainContent
+  };
 }
 
 // 监听消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type === 'GET_PAGE_CONTENT') {
-        const content = extractPageContent();
-        sendResponse(content);
+  if (message.type === 'GET_PAGE_CONTENT') {
+    console.log('收到获取页面内容请求');
+    const content = extractPageContent();
+    if (content instanceof Promise) {
+      content.then(result => {
+        console.log('异步内容提取完成');
+        sendResponse(result);
+      }).catch(error => {
+        console.error('内容提取失败:', error);
+        sendResponse(null);
+      });
+      return true;
     }
-    return true;
+    sendResponse(content);
+  }
+  return true;
 });
+
+// PDF.js 库的路径
+const PDFJS_PATH = chrome.runtime.getURL('lib/pdf.js');
+const PDFJS_WORKER_PATH = chrome.runtime.getURL('lib/pdf.worker.js');
+
+// 设置 PDF.js worker 路径
+pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_PATH;
+
+async function extractTextFromPDF(url) {
+  try {
+    // 在shadow DOM中查找容器
+    const sidebar = document.querySelector('cerebr-root');
+    if (!sidebar || !sidebar.shadowRoot) {
+      console.error('找不到侧边栏元素');
+      return null;
+    }
+
+    // 通过iframe发送消息来更新placeholder
+    const iframe = sidebar.shadowRoot.querySelector('.cerebr-sidebar__iframe');
+    if (iframe) {
+      console.log('发送更新placeholder消息:', {
+        type: 'UPDATE_PLACEHOLDER',
+        placeholder: '正在下载PDF文件...'
+      });
+      iframe.contentWindow.postMessage({
+        type: 'UPDATE_PLACEHOLDER',
+        placeholder: '正在下载PDF文件...'
+      }, '*');
+    }
+
+    console.log('开始下载PDF:', url);
+    const response = await chrome.runtime.sendMessage({
+      action: 'downloadPDF',
+      url: url
+    });
+
+    if (!response.success) {
+      console.error('PDF下载失败，响应:', response);
+      if (iframe) {
+        iframe.contentWindow.postMessage({
+          type: 'UPDATE_PLACEHOLDER',
+          placeholder: 'PDF下载失败',
+          timeout: 2000
+        }, '*');
+      }
+      throw new Error('PDF下载失败');
+    }
+
+    const uint8Array = new Uint8Array(response.data);
+    console.log('PDF下载成功，数据大小:', uint8Array.byteLength, 'bytes');
+
+    if (iframe) {
+      iframe.contentWindow.postMessage({
+        type: 'UPDATE_PLACEHOLDER',
+        placeholder: '正在解析PDF文件...'
+      }, '*');
+    }
+
+    console.log('开始解析PDF文件');
+    const loadingTask = pdfjsLib.getDocument({data: uint8Array});
+    const pdf = await loadingTask.promise;
+    console.log('PDF加载成功，总页数:', pdf.numPages);
+
+    let fullText = '';
+    // 遍历所有页面
+    for (let i = 1; i <= pdf.numPages; i++) {
+      if (iframe) {
+        iframe.contentWindow.postMessage({
+          type: 'UPDATE_PLACEHOLDER',
+          placeholder: `正在提取文本 (${i}/${pdf.numPages})...`
+        }, '*');
+      }
+      console.log(`开始处理第 ${i}/${pdf.numPages} 页`);
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map(item => item.str).join(' ');
+      console.log(`第 ${i} 页提取的文本长度:`, pageText.length);
+      fullText += pageText + '\n';
+    }
+
+    console.log('PDF文本提取完成，总文本长度:', fullText.length);
+    if (iframe) {
+      iframe.contentWindow.postMessage({
+        type: 'UPDATE_PLACEHOLDER',
+        placeholder: 'PDF处理完成',
+        timeout: 2000
+      }, '*');
+    }
+    return fullText;
+  } catch (error) {
+    console.error('PDF处理过程中出错:', error);
+    console.error('错误堆栈:', error.stack);
+    const iframe = sidebar.shadowRoot.querySelector('.cerebr-sidebar__iframe');
+    if (iframe) {
+      iframe.contentWindow.postMessage({
+        type: 'UPDATE_PLACEHOLDER',
+        placeholder: 'PDF处理失败',
+        timeout: 2000
+      }, '*');
+    }
+    return null;
+  }
+}

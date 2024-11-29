@@ -109,6 +109,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     return true;
   }
+
+  // 处理PDF下载请求
+  if (message.action === 'downloadPDF') {
+    console.log('收到PDF下载请求');
+    downloadPDF(message.url)
+      .then(data => {
+        console.log('PDF下载成功，准备发送响应');
+        // 将 ArrayBuffer 转换为 Uint8Array
+        const uint8Array = new Uint8Array(data);
+        // 将 Uint8Array 转换为普通数组
+        const array = Array.from(uint8Array);
+        sendResponse({success: true, data: array});
+      })
+      .catch(error => {
+        console.error('PDF下载失败:', error);
+        sendResponse({success: false, error: error.message});
+      });
+    return true;
+  }
 });
 
 // 保持 Service Worker 活跃
@@ -133,3 +152,19 @@ chrome.runtime.onInstalled.addListener(() => {
     });
   });
 });
+
+// PDF下载函数
+async function downloadPDF(url) {
+    try {
+        console.log('开始下载PDF文件:', url);
+        const response = await fetch(url);
+        console.log('PDF文件下载响应状态:', response.status);
+        const arrayBuffer = await response.arrayBuffer();
+        console.log('PDF文件下载完成，大小:', arrayBuffer.byteLength, 'bytes');
+        return arrayBuffer;
+    } catch (error) {
+        console.error('PDF下载失败:', error);
+        console.error('错误堆栈:', error.stack);
+        throw new Error('PDF下载失败: ' + error.message);
+    }
+}

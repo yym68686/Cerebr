@@ -42,6 +42,7 @@
       "lib/katex.min.js",
       "lib/katex.min.css",
       "lib/auto-render.min.js",
+      "sidebar-message-handler.js",
       "lib/fonts/KaTeX_Math-Italic.woff2",
       "lib/fonts/KaTeX_Main-Regular.woff2",
       "lib/fonts/KaTeX_Size2-Regular.woff2",
@@ -54,14 +55,16 @@
       "lib/fonts/KaTeX_Main-Bold.woff",
       "lib/fonts/KaTeX_AMS-Regular.woff",
       "lib/fonts/KaTeX_Size2-Regular.ttf",
-      "lib/fonts/KaTeX_Size4-Regular.ttf"
+      "lib/fonts/KaTeX_Size4-Regular.ttf",
+      "lib/pdf.js",
+      "lib/pdf.worker.js"
     ],
     "matches": ["<all_urls>"]
   }],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "js": ["lib/pdf.js", "content.js"],
       "run_at": "document_start"
     }
   ]
