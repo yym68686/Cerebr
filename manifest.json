@@ -62,7 +62,10 @@
       "lib/fonts/KaTeX_Size2-Regular.ttf",
       "lib/fonts/KaTeX_Size4-Regular.ttf",
       "lib/pdf.js",
-      "lib/pdf.worker.js"
+      "lib/pdf.worker.js",
+      "lib/fonts/KaTeX_Caligraphic-Regular.woff2",
+      "lib/fonts/KaTeX_Caligraphic-Regular.woff",
+      "lib/fonts/KaTeX_Caligraphic-Regular.ttf"
     ],
     "matches": ["<all_urls>"]
   }],
