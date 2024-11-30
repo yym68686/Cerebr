@@ -8,9 +8,110 @@ class CerebrSidebar {
     this.sidebarWidth = 430;
     this.initialized = false;
     this.pageKey = window.location.origin + window.location.pathname;
+    this.lastUrl = window.location.href;
     console.log('CerebrSidebar 实例创建');
     this.lastToggleTime = null; // 添加上次执行时间存储
     this.initializeSidebar();
+    this.setupUrlChangeListener();
+  }
+
+  setupUrlChangeListener() {
+    // 使用 setInterval 定期检查 URL 变化
+    setInterval(() => {
+      const currentUrl = window.location.href;
+      if (currentUrl !== this.lastUrl) {
+        console.log('[URL变化]', '从:', this.lastUrl, '到:', currentUrl);
+        this.lastUrl = currentUrl;
+
+        // 等待页面内容加载完成
+        const waitForContent = () => {
+          const mainElements = document.querySelectorAll('article, [role="article"], [data-testid="tweet"]');
+          if (mainElements.length > 0) {
+            console.log('[URL变化] 检测到主要内容已加载');
+            // 通知 iframe 更新页面内容
+            const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
+            if (iframe) {
+              iframe.contentWindow.postMessage({
+                type: 'URL_CHANGED',
+                url: currentUrl
+              }, '*');
+            }
+          } else {
+            console.log('[URL变化] 等待主要内容加载...');
+            setTimeout(waitForContent, 1000);  // 每秒检查一次
+          }
+        };
+
+        // 开始等待内容加载
+        setTimeout(waitForContent, 1000);  // 先等待1秒再开始检查
+      }
+    }, 1000);  // 每秒检查一次
+
+    // 监听 popstate 事件（浏览器前进/后退）
+    window.addEventListener('popstate', () => {
+      const currentUrl = window.location.href;
+      console.log('[URL变化-popstate]', '从:', this.lastUrl, '到:', currentUrl);
+      this.lastUrl = currentUrl;
+
+      // 等待页面内容加载完成
+      const waitForContent = () => {
+        const mainElements = document.querySelectorAll('article, [role="article"], [data-testid="tweet"]');
+        if (mainElements.length > 0) {
+          console.log('[URL变化-popstate] 检测到主要内容已加载');
+          const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
+          if (iframe) {
+            iframe.contentWindow.postMessage({
+              type: 'URL_CHANGED',
+              url: currentUrl
+            }, '*');
+          }
+        } else {
+          console.log('[URL变化-popstate] 等待主要内容加载...');
+          setTimeout(waitForContent, 1000);  // 每秒检查一次
+        }
+      };
+
+      // 开始等待内容加载
+      setTimeout(waitForContent, 1000);  // 先等待1秒再开始检查
+    });
+
+    // 监听 pushState 和 replaceState
+    const originalPushState = history.pushState;
+    const originalReplaceState = history.replaceState;
+
+    history.pushState = function() {
+      originalPushState.apply(this, arguments);
+      const currentUrl = window.location.href;
+      if (currentUrl !== this.lastUrl) {
+        console.log('[URL变化-pushState]', '从:', this.lastUrl, '到:', currentUrl);
+        this.lastUrl = currentUrl;
+
+        const iframe = document.querySelector('cerebr-root')?.shadowRoot?.querySelector('.cerebr-sidebar__iframe');
+        if (iframe) {
+          iframe.contentWindow.postMessage({
+            type: 'URL_CHANGED',
+            url: currentUrl
+          }, '*');
+        }
+      }
+    }.bind(this);
+
+    history.replaceState = function() {
+      originalReplaceState.apply(this, arguments);
+      const currentUrl = window.location.href;
+      if (currentUrl !== this.lastUrl) {
+        console.log('[URL变化-replaceState]', '从:', this.lastUrl, '到:', currentUrl);
+        this.lastUrl = currentUrl;
+
+        const iframe = document.querySelector('cerebr-root')?.shadowRoot?.querySelector('.cerebr-sidebar__iframe');
+        if (iframe) {
+          iframe.contentWindow.postMessage({
+            type: 'URL_CHANGED',
+            url: currentUrl
+          }, '*');
+        }
+      }
+    }.bind(this);
   }
 
   async saveState() {
@@ -316,9 +417,14 @@ function extractPageContent() {
   elementsToRemove.forEach(el => el.remove());
 
   // 获取主要内容
-  const article = document.querySelector('article') || document.querySelector('main') || document.querySelector('.content') || document.querySelector('.article');
+  const article = document.querySelector('article') ||
+                  document.querySelector('[role="article"]') ||
+                  document.querySelector('[data-testid="tweet"]') ||
+                  document.querySelector('main') ||
+                  document.querySelector('.content') ||
+                  document.querySelector('.article');
 
-  // 如果找到定的内容容器，使用它
+  // 如果找到特定的内容容器，使用它
   let mainContent = '';
   if (article) {
     const clone = article.cloneNode(true);
@@ -341,6 +447,12 @@ function extractPageContent() {
     .replace(/\s+/g, ' ')  // 替换多个空白字符为单个空格
     .replace(/\n\s*\n/g, '\n')  // 替换多个换行为单个换行
     .trim();
+
+  // 检查提取的内容是否足够
+  if (mainContent.length < 40) {
+    console.log('提取的内容太少，返回 null');
+    return null;
+  }
 
   console.log('页面内容提取完成，内容长度:', mainContent.length);
 
