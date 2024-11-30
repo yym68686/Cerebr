@@ -65,6 +65,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentIndex = Math.max(0, currentIndex - 1);
                 }
                 event.target.value = userQuestions[currentIndex];
+                // 触发输入事件以调整高度
+                event.target.dispatchEvent(new Event('input', { bubbles: true }));
             }
         }
         // 当按下向下键时
@@ -73,9 +75,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentIndex < userQuestions.length - 1) {
                 currentIndex++;
                 event.target.value = userQuestions[currentIndex];
+                // 触发输入事件以调整高度
+                event.target.dispatchEvent(new Event('input', { bubbles: true }));
             } else {
                 currentIndex = -1;
                 event.target.value = '';
+                // 触发输入事件以调整高度
+                event.target.dispatchEvent(new Event('input', { bubbles: true }));
             }
         }
     });
