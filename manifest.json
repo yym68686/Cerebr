@@ -11,10 +11,8 @@
   "permissions": [
     "storage",
     "commands",
-    "scripting",
     "activeTab",
-    "tabs",
-    "webNavigation"
+    "tabs"
   ],
   "host_permissions": ["<all_urls>"],
   "action": {
