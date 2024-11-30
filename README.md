@@ -14,7 +14,7 @@ Cerebr is a Chrome-based AI assistant designed to enhance your productivity.
 
 - Sidebar: In any tab open in the browser, call out the sidebar using a shortcut key (default `Ctrl+A`).
 - Multiple API Support: Supports multiple API configurations and generates different AI assistants based on different API configurations.
-- Support PDF Q&A: Enable web Q&A in the sidebar, automatically recognize web PDF files and conduct Q&A.
+- Support for Q&A on web content and PDFs: Enable web Q&A in the sidebar, automatically recognize web PDF files and conduct Q&A.
 - Supports markdown rendering and supports Latex formula display.
 - Support streaming output.
 - Support light mode and dark mode theme switching.
