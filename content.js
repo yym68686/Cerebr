@@ -25,7 +25,7 @@ class CerebrSidebar {
 
         // 等待页面内容加载完成
         const waitForContent = () => {
-          const mainElements = document.querySelectorAll('article, [role="article"], [data-testid="tweet"]');
+          const mainElements = document.querySelectorAll('article, [role="article"], [role="main"], [data-testid="tweet"]');
           if (mainElements.length > 0) {
             console.log('[URL变化] 检测到主要内容已加载');
             // 通知 iframe 更新页面内容
@@ -55,7 +55,7 @@ class CerebrSidebar {
 
       // 等待页面内容加载完成
       const waitForContent = () => {
-        const mainElements = document.querySelectorAll('article, [role="article"], [data-testid="tweet"]');
+        const mainElements = document.querySelectorAll('article, [role="article"], [role="main"], [data-testid="tweet"]');
         if (mainElements.length > 0) {
           console.log('[URL变化-popstate] 检测到主要内容已加载');
           const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
@@ -395,8 +395,8 @@ window.addEventListener('unhandledrejection', (event) => {
 function extractPageContent() {
   console.log('开始提取页面内容');
   // 创建一个文档片段来处理内容，避免修改原始页面
-  const tempDiv = document.createElement('div');
-  tempDiv.innerHTML = document.body.innerHTML;
+  const tempContainer = document.createElement('div');
+  tempContainer.innerHTML = document.body.innerHTML;
 
   // 检查是否是PDF
   if (document.contentType === 'application/pdf') {
@@ -412,35 +412,20 @@ function extractPageContent() {
     });
   }
 
-  // 在临时容器中移除不需要的元素
-  const elementsToRemove = tempDiv.querySelectorAll('script, style, noscript, iframe, svg, header, footer, nav, aside');
-  elementsToRemove.forEach(el => el.remove());
+  // 移除不需要的元素
+  const selectorsToRemove = [
+    'script', 'style', 'nav', 'header', 'footer',
+    'iframe', 'noscript', 'img', 'svg', 'video',
+    '[role="complementary"]', '[role="navigation"]',
+    '.sidebar', '.nav', '.footer', '.header'
+  ];
 
-  // 获取主要内容
-  const article = document.querySelector('article') ||
-                  document.querySelector('[role="article"]') ||
-                  document.querySelector('[data-testid="tweet"]') ||
-                  document.querySelector('main') ||
-                  document.querySelector('.content') ||
-                  document.querySelector('.article');
+  selectorsToRemove.forEach(selector => {
+    const elements = tempContainer.querySelectorAll(selector);
+    elements.forEach(element => element.remove());
+  });
 
-  // 如果找到特定的内容容器，使用它
-  let mainContent = '';
-  if (article) {
-    const clone = article.cloneNode(true);
-    // 清理克隆的内容
-    const cleanup = clone.querySelectorAll('script, style, noscript, iframe, svg');
-    cleanup.forEach(el => el.remove());
-    mainContent = clone.textContent;
-  } else {
-    // 如果没有找到特定容器，从 body 提取文本
-    const bodyClone = tempDiv;
-    const paragraphs = bodyClone.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li');
-    mainContent = Array.from(paragraphs)
-      .map(p => p.textContent.trim())
-      .filter(text => text.length > 20)  // 只保留较长的文本
-      .join('\n');
-  }
+  let mainContent = tempContainer.innerText;
 
   // 清理文本
   mainContent = mainContent
@@ -454,6 +439,7 @@ function extractPageContent() {
     return null;
   }
 
+  console.log('页面内容提取完成，内容:', mainContent);
   console.log('页面内容提取完成，内容长度:', mainContent.length);
 
   return {
