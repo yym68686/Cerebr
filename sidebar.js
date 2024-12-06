@@ -2,6 +2,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     const chatContainer = document.getElementById('chat-container');
     const messageInput = document.getElementById('message-input');
 
+    // 聊天历史记录变量
+    let chatHistory = [];
+
+    // 保存聊天历史记录的函数
+    async function saveChatHistory() {
+        try {
+            await chrome.storage.local.set({ chatHistory });
+        } catch (error) {
+            console.error('保存聊天历史记录失败:', error);
+        }
+    }
+
+    // 在文件开头添加函数用于获取当前域名
+    async function getCurrentDomain() {
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab?.url) return null;
+            const hostname = new URL(tab.url).hostname;
+
+            // 规范化域名
+            const normalizedDomain = hostname
+                .replace(/^www\./, '')  // 移除www前缀
+                .toLowerCase();         // 转换为小写
+
+            console.log('规范化域名:', hostname, '->', normalizedDomain);
+            return normalizedDomain;
+        } catch (error) {
+            console.error('获取当前域名失败:', error);
+            return null;
+        }
+    }
+
     async function sendMessage() {
         const message = messageInput.value.trim();
         if (!message) return;
@@ -26,14 +58,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             // 构建消息数组
-            const messages = [];
+            const messages = [...chatHistory]; // 复制所有历史消息
 
             // 如果开启了网页问答，添加网页内容到上下文
             if (webpageSwitch.checked && pageContent) {
-                messages.push({
+                const systemMessage = {
                     role: "system",
                     content: `以下是当前网页的内容，请基于这些内容回答用户问题：\n标题：${pageContent.title}\nURL：${pageContent.url}\n内容：${pageContent.content}`
-                });
+                };
+
+                // 检查第一条消息是否为系统消息
+                if (messages.length > 0 && messages[0].role === "system") {
+                    // 如果是系统消息，则替换内容
+                    messages[0] = systemMessage;
+                } else {
+                    // 如果不是系统消息，则在开头添加
+                    messages.unshift(systemMessage);
+                }
             }
 
             // 添加用户问题
@@ -50,7 +91,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         'Authorization': `Bearer ${config.apiKey}`
                     },
                     body: JSON.stringify({
-                        "model": config.modelName || "gpt-3.5-turbo",
+                        "model": config.modelName || "gpt-4o",
                         "messages": messages,
                         "stream": true
                     })
@@ -133,20 +174,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    // 处理数学公式的函数
-    function processLatexContent(text, element) {
-        // 处理文本中的 LaTeX
-        text = text.replace(MATH_DELIMITERS.regex, (match) => {
-            return match;
-        });
-
-        // 渲染元素中的数学公式
-        renderMathInElement(element, MATH_DELIMITERS.renderConfig);
-
-        return text;
-    }
-
-    function appendMessage(text, sender) {
+    function appendMessage(text, sender, skipHistory = false) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${sender}-message`;
 
@@ -200,6 +228,29 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         chatContainer.appendChild(messageDiv);
         chatContainer.scrollTop = chatContainer.scrollHeight;
+
+        // 只有在不跳过历史记录时才添加到历史记录
+        if (!skipHistory) {
+            chatHistory.push({
+                role: sender === 'user' ? 'user' : 'assistant',
+                content: text
+            });
+            saveChatHistory();
+        }
+    }
+
+    // 在 DOMContentLoaded 事件处理程序中添加历史记录的加载
+    try {
+        const result = await chrome.storage.local.get('chatHistory');
+        if (result.chatHistory) {
+            chatHistory = result.chatHistory;
+            // 重新显示历史消息，但不要重复添加到历史记录中
+            chatHistory.forEach(msg => {
+                appendMessage(msg.content, msg.role === 'user' ? 'user' : 'ai', true);
+            });
+        }
+    } catch (error) {
+        console.error('加载聊天历史记录失败:', error);
     }
 
     function updateAIMessage(text) {
@@ -233,6 +284,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 渲染 LaTeX 公式
             renderMathInElement(lastMessage, MATH_DELIMITERS.renderConfig);
+
+            // 更新历史记录中的最后一条消息
+            if (chatHistory.length > 0) {
+                chatHistory[chatHistory.length - 1].content = text;
+                saveChatHistory(); // 保存更新后的历史记录
+            }
         } else {
             appendMessage(text, 'ai');
         }
@@ -396,18 +453,101 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // 监听网页问答开关
+    // 修改 saveWebpageSwitch 函数，改进存储机制和错误处理
+    async function saveWebpageSwitch(domain, enabled) {
+        console.log('开始保存网页问答开关状态:', domain, enabled);
+
+        // 获取当前存储的所有域名状态
+        const result = await chrome.storage.local.get('webpageSwitchDomains');
+        let domains = result.webpageSwitchDomains || {};
+        console.log('获取到当前存储的域名状态:', domains);
+
+        // 更新状态
+        if (enabled) {
+            domains[domain] = true;
+        } else {
+            delete domains[domain];
+        }
+
+        console.log('准备保存的域名状态:', domains);
+
+        // 保存并立即验证
+        await chrome.storage.local.set({ webpageSwitchDomains: domains });
+    }
+
+    // 修改 loadWebpageSwitch 函数，添加延迟加载
+    async function loadWebpageSwitch(retryCount = 0) {
+        try {
+            // 添加延迟等待存储操作完成
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            const domain = await getCurrentDomain();
+            console.log('刷新后 网页问答 获取当前域名:', domain);
+            if (!domain) return;
+
+            const result = await chrome.storage.local.get('webpageSwitchDomains');
+            const domains = result.webpageSwitchDomains || {};
+            console.log('刷新后 网页问答存储中获取域名:', domains);
+
+            if (domains[domain]) {
+                webpageSwitch.checked = true;
+                console.log('刷新后 网页问答 获取网页内容');
+                pageContent = await getPageContent();
+                if (!pageContent && retryCount < 3) {
+                    console.log(`获取内容失败，${1000}ms 后重试(${retryCount + 1}/3)`);
+                    setTimeout(() => loadWebpageSwitch(retryCount + 1), 1000);
+                    return;
+                }
+                // 如果成功获取到内容，确保域名存在于存储中
+                if (pageContent) {
+                    await saveWebpageSwitch(domain, true);
+                }
+            } else {
+                webpageSwitch.checked = false;
+                pageContent = null;
+            }
+        } catch (error) {
+            console.error('加载网页问答开关状态失败:', error);
+            if (retryCount < 3) {
+                console.log(`加载失败，${1000}ms 后重试(${retryCount + 1}/3)`);
+                setTimeout(() => loadWebpageSwitch(retryCount + 1), 1000);
+            }
+        }
+    }
+
+    // 修改网页问答开关监听器
     webpageSwitch.addEventListener('change', async () => {
+        const domain = await getCurrentDomain();
+        console.log('网页问答开关状态改变后，获取当前域名:', domain);
+        if (!domain) {
+            webpageSwitch.checked = false;
+            return;
+        }
+        console.log('网页问答开关状态改变后，获取网页问答开关状态:', webpageSwitch.checked);
+
+        // 添加延迟确保存储操作完成
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         if (webpageSwitch.checked) {
+            console.log('网页问答开关状态改变后，获取网页内容');
             pageContent = await getPageContent();
             if (!pageContent) {
                 webpageSwitch.checked = false;
+                await saveWebpageSwitch(domain, false);
                 appendMessage('无法获取网页内容', 'ai');
+            } else {
+                await saveWebpageSwitch(domain, true);
+                console.log('修改网页问答为已开启');
             }
         } else {
             pageContent = null;
+            await saveWebpageSwitch(domain, false);
+            console.log('修改网页问答为已关闭');
         }
     });
+
+    // 在 DOMContentLoaded 事件处理程序中添加加载网页问答状态
+    await loadWebpageSwitch();
 
     // API 设置功能
     const apiSettings = document.getElementById('api-settings');
@@ -431,7 +571,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 apiConfigs = [{
                     apiKey: '',
                     baseUrl: 'https://api.openai.com/v1/chat/completions',
-                    modelName: 'gpt-3.5-turbo'
+                    modelName: 'gpt-4o'
                 }];
                 selectedConfigIndex = 0;
                 await saveAPIConfigs();
@@ -442,7 +582,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             apiConfigs = [{
                 apiKey: '',
                 baseUrl: 'https://api.openai.com/v1/chat/completions',
-                modelName: 'gpt-3.5-turbo'
+                modelName: 'gpt-4o'
             }];
             selectedConfigIndex = 0;
         }
@@ -506,7 +646,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         apiKeyInput.value = config.apiKey || '';
         baseUrlInput.value = config.baseUrl || 'https://api.openai.com/v1/chat/completions';
-        modelNameInput.value = config.modelName || 'gpt-3.5-turbo';
+        modelNameInput.value = config.modelName || 'gpt-4o';
 
         // 阻止输入框和按钮的点击事件冒泡
         const stopPropagation = (e) => e.stopPropagation();
@@ -582,6 +722,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     clearChat.addEventListener('click', () => {
         // 清空聊天容器
         chatContainer.innerHTML = '';
+        // 清空聊天历史记录
+        chatHistory = [];
+        saveChatHistory();
         // 关闭设置菜单
         settingsMenu.classList.remove('visible');
     });

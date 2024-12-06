@@ -16,101 +16,67 @@ class CerebrSidebar {
   }
 
   setupUrlChangeListener() {
+    let lastPathname = window.location.pathname;
+    let lastSearch = window.location.search;
+
+    // 检查是否是真正的页面变化
+    const isRealPageChange = (oldPath, oldSearch) => {
+        const newPathname = window.location.pathname;
+        const newSearch = window.location.search;
+
+        // 如果是 PDF，忽略 URL 中的 hash 和 search 变化
+        if (document.contentType === 'application/pdf') {
+            return false;
+        }
+
+        // 对于其他页面，检查路径或查询参数是否发生实质变化
+        return newPathname !== oldPath || newSearch !== oldSearch;
+    };
+
+    // 处理 URL 变化的通用函数
+    this.handleUrlChange = (source = '') => {
+        const currentUrl = window.location.href;
+        if (currentUrl !== this.lastUrl && isRealPageChange(lastPathname, lastSearch)) {
+            console.log(`[URL变化${source ? '-' + source : ''}]`, '从:', this.lastUrl, '到:', currentUrl);
+            this.lastUrl = currentUrl;
+            lastPathname = window.location.pathname;
+            lastSearch = window.location.search;
+
+            const iframe = source === 'pushState' || source === 'replaceState'
+                ? document.querySelector('cerebr-root')?.shadowRoot?.querySelector('.cerebr-sidebar__iframe')
+                : this.sidebar?.querySelector('.cerebr-sidebar__iframe');
+
+            if (iframe) {
+                iframe.contentWindow.postMessage({
+                    type: 'URL_CHANGED',
+                    url: currentUrl
+                }, '*');
+            }
+        }
+    };
+
     // 使用 setInterval 定期检查 URL 变化
     setInterval(() => {
-      const currentUrl = window.location.href;
-      if (currentUrl !== this.lastUrl) {
-        console.log('[URL变化]', '从:', this.lastUrl, '到:', currentUrl);
-        this.lastUrl = currentUrl;
+        this.handleUrlChange();
+    }, 1000);
 
-        // 等待页面内容加载完成
-        const waitForContent = () => {
-          const mainElements = document.querySelectorAll('article, [role="article"], [role="main"], [data-testid="tweet"]');
-          if (mainElements.length > 0) {
-            console.log('[URL变化] 检测到主要内容已加载');
-            // 通知 iframe 更新页面内容
-            const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
-            if (iframe) {
-              iframe.contentWindow.postMessage({
-                type: 'URL_CHANGED',
-                url: currentUrl
-              }, '*');
-            }
-          } else {
-            console.log('[URL变化] 等待主要内容加载...');
-            setTimeout(waitForContent, 1000);  // 每秒检查一次
-          }
-        };
-
-        // 开始等待内容加载
-        setTimeout(waitForContent, 1000);  // 先等待1秒再开始检查
-      }
-    }, 1000);  // 每秒检查一次
-
-    // 监听 popstate 事件（浏览器前进/后退）
+    // 修改 popstate 事件处理
     window.addEventListener('popstate', () => {
-      const currentUrl = window.location.href;
-      console.log('[URL变化-popstate]', '从:', this.lastUrl, '到:', currentUrl);
-      this.lastUrl = currentUrl;
-
-      // 等待页面内容加载完成
-      const waitForContent = () => {
-        const mainElements = document.querySelectorAll('article, [role="article"], [role="main"], [data-testid="tweet"]');
-        if (mainElements.length > 0) {
-          console.log('[URL变化-popstate] 检测到主要内容已加载');
-          const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
-          if (iframe) {
-            iframe.contentWindow.postMessage({
-              type: 'URL_CHANGED',
-              url: currentUrl
-            }, '*');
-          }
-        } else {
-          console.log('[URL变化-popstate] 等待主要内容加载...');
-          setTimeout(waitForContent, 1000);  // 每秒检查一次
-        }
-      };
-
-      // 开始等待内容加载
-      setTimeout(waitForContent, 1000);  // 先等待1秒再开始检查
+        this.handleUrlChange('popstate');
     });
 
-    // 监听 pushState 和 replaceState
+    // 修改 pushState 和 replaceState 监听
     const originalPushState = history.pushState;
     const originalReplaceState = history.replaceState;
 
     history.pushState = function() {
-      originalPushState.apply(this, arguments);
-      const currentUrl = window.location.href;
-      if (currentUrl !== this.lastUrl) {
-        console.log('[URL变化-pushState]', '从:', this.lastUrl, '到:', currentUrl);
-        this.lastUrl = currentUrl;
-
-        const iframe = document.querySelector('cerebr-root')?.shadowRoot?.querySelector('.cerebr-sidebar__iframe');
-        if (iframe) {
-          iframe.contentWindow.postMessage({
-            type: 'URL_CHANGED',
-            url: currentUrl
-          }, '*');
-        }
-      }
+        originalPushState.apply(this, arguments);
+        this.handleUrlChange('pushState');
     }.bind(this);
 
     history.replaceState = function() {
-      originalReplaceState.apply(this, arguments);
-      const currentUrl = window.location.href;
-      if (currentUrl !== this.lastUrl) {
-        console.log('[URL变化-replaceState]', '从:', this.lastUrl, '到:', currentUrl);
-        this.lastUrl = currentUrl;
-
-        const iframe = document.querySelector('cerebr-root')?.shadowRoot?.querySelector('.cerebr-sidebar__iframe');
-        if (iframe) {
-          iframe.contentWindow.postMessage({
-            type: 'URL_CHANGED',
-            url: currentUrl
-          }, '*');
-        }
-      }
+        originalReplaceState.apply(this, arguments);
+        this.handleUrlChange('replaceState');
     }.bind(this);
   }
 
@@ -341,7 +307,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // 监听来自iframe的消息
 window.addEventListener('message', (event) => {
-  console.log(event.data.type);
+  // console.log("监听来自iframe的消息:", event.data);
   if (event.data && event.data.type === 'TOGGLE_SIDEBAR') {
       if (sidebar) {
           sidebar.toggle();
@@ -392,16 +358,14 @@ window.addEventListener('unhandledrejection', (event) => {
   console.error('未处理的 Promise 拒绝:', event.reason);
 });
 
-function extractPageContent() {
+// 修改 extractPageContent 函数
+async function extractPageContent() {
   console.log('开始提取页面内容');
-  // 创建一个文档片段来处理内容，避免修改原始页面
-  const tempContainer = document.createElement('div');
-  tempContainer.innerHTML = document.body.innerHTML;
 
   // 检查是否是PDF
   if (document.contentType === 'application/pdf') {
-    console.log('检测到PDF文件，尝试提取PDF内容');
-    return extractTextFromPDF(window.location.href).then(pdfText => {
+      console.log('检测到PDF文件，尝试提取PDF内容');
+      const pdfText = await extractTextFromPDF(window.location.href);
       if (pdfText) {
         return {
           title: document.title,
@@ -409,64 +373,79 @@ function extractPageContent() {
           content: pdfText
         };
       }
-    });
   }
+
+  // 等待页面内容加载完成
+  async function waitForContent() {
+      return new Promise((resolve) => {
+          const checkContent = () => {
+              const mainElements = document.querySelectorAll('h2, article, [role="article"], [role="main"], [data-testid="tweet"]');
+              if (mainElements.length > 0) {
+                  console.log('检测到主要内容已加载');
+                  resolve();
+              } else {
+                  console.log('等待主要内容加载...');
+                  setTimeout(checkContent, 1000);  // 每秒检查一次
+              }
+          };
+          setTimeout(checkContent, 1000);  // 先等待1秒再开始检查
+      });
+  }
+
+  // 等待内容加载
+  await waitForContent();
+
+  // 创建一个文档片段来处理内容
+  const tempContainer = document.createElement('div');
+  tempContainer.innerHTML = document.body.innerHTML;
 
   // 移除不需要的元素
   const selectorsToRemove = [
-    'script', 'style', 'nav', 'header', 'footer',
-    'iframe', 'noscript', 'img', 'svg', 'video',
-    '[role="complementary"]', '[role="navigation"]',
-    '.sidebar', '.nav', '.footer', '.header'
+      'script', 'style', 'nav', 'header', 'footer',
+      'iframe', 'noscript', 'img', 'svg', 'video',
+      '[role="complementary"]', '[role="navigation"]',
+      '.sidebar', '.nav', '.footer', '.header'
   ];
 
   selectorsToRemove.forEach(selector => {
-    const elements = tempContainer.querySelectorAll(selector);
-    elements.forEach(element => element.remove());
+      const elements = tempContainer.querySelectorAll(selector);
+      elements.forEach(element => element.remove());
   });
 
   let mainContent = tempContainer.innerText;
 
   // 清理文本
   mainContent = mainContent
-    .replace(/\s+/g, ' ')  // 替换多个空白字符为单个空格
-    .replace(/\n\s*\n/g, '\n')  // 替换多个换行为单个换行
-    .trim();
+      .replace(/\s+/g, ' ')  // 替换多个空白字符为单个空格
+      .replace(/\n\s*\n/g, '\n')  // 替换多个换行为单个换行
+      .trim();
 
   // 检查提取的内容是否足够
   if (mainContent.length < 40) {
-    console.log('提取的内容太少，返回 null');
-    return null;
+      console.log('提取的内容太少，返回 null');
+      return null;
   }
 
   console.log('页面内容提取完成，内容:', mainContent);
   console.log('页面内容提取完成，内容长度:', mainContent.length);
 
   return {
-    title: document.title,
-    url: window.location.href,
-    content: mainContent
+      title: document.title,
+      url: window.location.href,
+      content: mainContent
   };
 }
 
-// 监听消息
+// 修改消息监听器
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'GET_PAGE_CONTENT') {
-    console.log('收到获取页面内容请求');
-    const content = extractPageContent();
-    if (content instanceof Promise) {
-      content.then(result => {
-        console.log('异步内容提取完成');
-        sendResponse(result);
-      }).catch(error => {
-        console.error('内容提取失败:', error);
-        sendResponse(null);
-      });
-      return true;
+    if (message.type === 'GET_PAGE_CONTENT') {
+        console.log('收到获取页面内容请求');
+        extractPageContent().then(content => {
+            sendResponse(content);
+        });
+        return true; // 保持消息通道开放
     }
-    sendResponse(content);
-  }
-  return true;
+    return true;
 });
 
 // PDF.js 库的路径

@@ -91,6 +91,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+// 监听存储变化
+chrome.storage.onChanged.addListener(async (changes, areaName) => {
+  if (areaName === 'local' && changes.webpageSwitchDomains) {
+    const newValue = changes.webpageSwitchDomains.newValue || {};
+    const oldValue = changes.webpageSwitchDomains.oldValue || {};
+    console.log('域名状态变更:', {old: oldValue, new: newValue});
+
+    // 确保状态持久化
+    try {
+      const result = await chrome.storage.local.get('webpageSwitchDomains');
+      const currentDomains = result.webpageSwitchDomains || {};
+
+      // 检查是否有丢失的域名
+      const allDomains = {...oldValue, ...currentDomains};
+      if (Object.keys(allDomains).length > Object.keys(currentDomains).length) {
+        console.log('检测到域名丢失，恢复状态:', allDomains);
+        await chrome.storage.local.set({ webpageSwitchDomains: allDomains });
+      }
+    } catch (error) {
+      console.error('域名状态持久化失败:', error);
+    }
+  }
+});
+
 // 保持 Service Worker 活跃
 let keepAliveInterval = setInterval(() => {
   console.log('Service Worker 心跳:', new Date().toISOString());
