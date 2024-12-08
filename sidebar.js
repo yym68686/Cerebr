@@ -255,6 +255,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function updateAIMessage(text) {
         const lastMessage = chatContainer.querySelector('.ai-message:last-child');
+        let rawText = text;
         if (lastMessage) {
             // 使用与 appendMessage 相同的处理逻辑
             const mathExpressions = [];
@@ -287,11 +288,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 更新历史记录中的最后一条消息
             if (chatHistory.length > 0) {
-                chatHistory[chatHistory.length - 1].content = text;
+                chatHistory[chatHistory.length - 1].content = rawText;
                 saveChatHistory(); // 保存更新后的历史记录
             }
         } else {
-            appendMessage(text, 'ai');
+            appendMessage(rawText, 'ai');
         }
     }
 
