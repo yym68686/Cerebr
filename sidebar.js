@@ -340,14 +340,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // 设置按钮点击事件
+    // 修改点击事件监听器
+    document.addEventListener('click', (e) => {
+        // 如果点击的不是设置按钮本身和设置菜单，就关闭菜单
+        if (!settingsButton.contains(e.target) && !settingsMenu.contains(e.target)) {
+            settingsMenu.classList.remove('visible');
+        }
+    });
+
+    // 确保设置按钮的点击事件在文档点击事件之前处理
     settingsButton.addEventListener('click', (e) => {
         e.stopPropagation();
         settingsMenu.classList.toggle('visible');
     });
 
-    // 点击其他地方关闭菜单
-    document.addEventListener('click', () => {
+    // 添加输入框的事件监听器
+    messageInput.addEventListener('focus', () => {
         settingsMenu.classList.remove('visible');
     });
 
