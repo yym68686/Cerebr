@@ -1,6 +1,9 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const chatContainer = document.getElementById('chat-container');
     const messageInput = document.getElementById('message-input');
+    const contextMenu = document.getElementById('context-menu');
+    const copyMessageButton = document.getElementById('copy-message');
+    let currentMessageElement = null;
 
     // 聊天历史记录变量
     let chatHistory = [];
@@ -177,6 +180,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     function appendMessage(text, sender, skipHistory = false) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${sender}-message`;
+        // 存储原始文本用于复制
+        messageDiv.setAttribute('data-original-text', text);
 
         // 配置 marked 选项，添加数学公式保护
         const mathExpressions = [];
@@ -760,5 +765,78 @@ document.addEventListener('DOMContentLoaded', async () => {
     messageInput.addEventListener('blur', () => {
         // 输入框失去焦点时，移除点击事件监听
         messageInput.removeEventListener('click', (e) => e.stopPropagation());
+    });
+
+    // 右键菜单功能
+    function showContextMenu(e, messageElement) {
+        e.preventDefault();
+        currentMessageElement = messageElement;
+
+        // 设置菜单位置
+        contextMenu.style.display = 'block';
+        const menuWidth = contextMenu.offsetWidth;
+        const menuHeight = contextMenu.offsetHeight;
+
+        // 确保菜单不会超出视口
+        let x = e.clientX;
+        let y = e.clientY;
+
+        if (x + menuWidth > window.innerWidth) {
+            x = window.innerWidth - menuWidth;
+        }
+
+        if (y + menuHeight > window.innerHeight) {
+            y = window.innerHeight - menuHeight;
+        }
+
+        contextMenu.style.left = x + 'px';
+        contextMenu.style.top = y + 'px';
+    }
+
+    // 隐藏右键菜单
+    function hideContextMenu() {
+        contextMenu.style.display = 'none';
+        currentMessageElement = null;
+    }
+
+    // 复制消息内容
+    function copyMessageContent() {
+        if (currentMessageElement) {
+            // 获取存储的原始文本
+            const originalText = currentMessageElement.getAttribute('data-original-text');
+            navigator.clipboard.writeText(originalText).then(() => {
+                hideContextMenu();
+            }).catch(err => {
+                console.error('复制失败:', err);
+            });
+        }
+    }
+
+    // 监听 AI 消息的右键点击
+    chatContainer.addEventListener('contextmenu', (e) => {
+        const messageElement = e.target.closest('.ai-message');
+        if (messageElement) {
+            showContextMenu(e, messageElement);
+        }
+    });
+
+    // 点击复制按钮
+    copyMessageButton.addEventListener('click', copyMessageContent);
+
+    // 点击其他地方隐藏菜单
+    document.addEventListener('click', (e) => {
+        if (!contextMenu.contains(e.target)) {
+            hideContextMenu();
+        }
+    });
+
+    // 滚动时隐藏菜单
+    chatContainer.addEventListener('scroll', hideContextMenu);
+
+    // 按下 Esc 键隐藏菜单
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            hideContextMenu();
+        }
     });
 });

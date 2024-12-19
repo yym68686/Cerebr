@@ -64,6 +64,7 @@
             word-wrap: break-word;
             font-size: 14px;
             line-height: 1.5;
+            position: relative;
         }
 
         .user-message {
@@ -426,10 +427,58 @@
         .katex-display > .katex {
             font-size: 1.21em;
         }
+
+        /* 添加自定义右键菜单样式 */
+        #context-menu {
+            position: fixed;
+            background: var(--cerebr-bg-color);
+            border: 1px solid rgba(128, 128, 128, 0.2);
+            border-radius: 8px;
+            padding: 6px;
+            min-width: 140px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            display: none;
+        }
+
+        .context-menu-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--cerebr-text-color);
+            font-size: 13px;
+            border-radius: 6px;
+            margin: 2px 0;
+            transition: background-color 0.2s ease;
+        }
+
+        .context-menu-item:hover {
+            background-color: var(--cerebr-message-user-bg);
+        }
+
+        .context-menu-item svg {
+            width: 14px;
+            height: 14px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            flex-shrink: 0;
+        }
     </style>
 </head>
 <body>
     <div id="chat-container"></div>
+    <div id="context-menu">
+        <div class="context-menu-item" id="copy-message">
+            <svg viewBox="0 0 24 24">
+                <rect x="8" y="8" width="12" height="12" rx="1"/>
+                <path d="M4 16V4a1 1 0 0 1 1-1h11"/>
+            </svg>
+            复制消息
+        </div>
+    </div>
     <div id="input-container">
         <button id="settings-button">
             <svg viewBox="0 0 24 24">
