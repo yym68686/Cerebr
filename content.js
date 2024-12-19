@@ -379,7 +379,7 @@ async function extractPageContent() {
   async function waitForContent() {
       return new Promise((resolve) => {
           const checkContent = () => {
-              const mainElements = document.querySelectorAll('h2, article, [role="article"], [role="main"], [data-testid="tweet"]');
+              const mainElements = document.querySelectorAll('p, h2, article, [role="article"], [role="main"], [data-testid="tweet"]');
               if (mainElements.length > 0) {
                   console.log('检测到主要内容已加载');
                   resolve();
