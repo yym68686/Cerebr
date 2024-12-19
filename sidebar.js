@@ -475,7 +475,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (enabled) {
             domains[domain] = true;
         } else {
-            delete domains[domain];
+            domains[domain] = false;
         }
 
         console.log('准备保存的域名状态:', domains);
