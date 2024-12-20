@@ -262,6 +262,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const lastMessage = chatContainer.querySelector('.ai-message:last-child');
         let rawText = text;
         if (lastMessage) {
+            // 更新原始文本属性
+            lastMessage.setAttribute('data-original-text', rawText);
+
             // 使用与 appendMessage 相同的处理逻辑
             const mathExpressions = [];
             let mathIndex = 0;
