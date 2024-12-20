@@ -283,26 +283,54 @@ try {
   console.error('创建侧边栏实例失败:', error);
 }
 
+// 修改消息监听器
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log(message.type);
-
-  if (message.type === 'TOGGLE_SIDEBAR_onClicked' || message.type === 'TOGGLE_SIDEBAR_toggle_sidebar') {
-    try {
-      // console.log('收到切换侧边栏命令，来源:', message.source);
-      if (sidebar) {
-        sidebar.toggle();
-        // console.log('侧边栏已切换');
-        sendResponse({ success: true, status: sidebar.isVisible });
-      } else {
-        console.error('侧边栏实例不存在');
-        sendResponse({ success: false, error: 'Sidebar instance not found' });
-      }
-    } catch (error) {
-      console.error('处理切换命令失败:', error);
-      sendResponse({ success: false, error: error.message });
+    if (message.type != 'REQUEST_STARTED' && message.type != 'REQUEST_COMPLETED' &&
+        message.type != 'REQUEST_FAILED' && message.type != 'PING') {
+      console.log('content.js 收到消息:', message.type);
     }
+
+    // 处理 PING 消息
+    if (message.type === 'PING') {
+      sendResponse(true);
+      return true;
+    }
+
+    // 处理侧边栏切换命令
+    if (message.type === 'TOGGLE_SIDEBAR_onClicked' || message.type === 'TOGGLE_SIDEBAR_toggle_sidebar') {
+        try {
+            if (sidebar) {
+                sidebar.toggle();
+                sendResponse({ success: true, status: sidebar.isVisible });
+            } else {
+                console.error('侧边栏实例不存在');
+                sendResponse({ success: false, error: 'Sidebar instance not found' });
+            }
+        } catch (error) {
+            console.error('处理切换命令失败:', error);
+            sendResponse({ success: false, error: error.message });
+        }
+        return true;
+    }
+
+    // 处理获取页面内容请求
+    if (message.type === 'GET_PAGE_CONTENT_INTERNAL') {
+        console.log('收到获取页面内容请求');
+        isProcessing = true;
+
+        extractPageContent().then(content => {
+            isProcessing = false;
+            sendResponse(content);
+        }).catch(error => {
+            console.error('提取页面内容失败:', error);
+            isProcessing = false;
+            sendResponse(null);
+        });
+
+        return true;
+    }
+
     return true;
-  }
 });
 
 // 监听来自iframe的消息
@@ -358,41 +386,114 @@ window.addEventListener('unhandledrejection', (event) => {
   console.error('未处理的 Promise 拒绝:', event.reason);
 });
 
+// 添加变量来跟踪网络请求状态和时间
+let pendingRequests = new Set();
+let isInitialRequestsCompleted = false;
+let lastRequestCompletedTime = null;
+let requestCompletionTimer = null;
+let relayRequestCompletedTime = 300;
+
+// 检查请求是否已完成的函数
+function checkRequestsCompletion() {
+    const now = Date.now();
+    if (lastRequestCompletedTime && (now - lastRequestCompletedTime) >= relayRequestCompletedTime) {
+        // console.log(`${relayRequestCompletedTime} 毫秒内没有新的请求完成，判定为加载完成`);
+        isInitialRequestsCompleted = true;
+    }
+}
+
+// 重置计时器
+function resetCompletionTimer() {
+    if (requestCompletionTimer) {
+        clearTimeout(requestCompletionTimer);
+    }
+    lastRequestCompletedTime = Date.now();
+    requestCompletionTimer = setTimeout(checkRequestsCompletion, relayRequestCompletedTime);
+}
+
+// 监听来自 background.js 的网络请求状态更新
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    // 处理网络请求状态更新
+    if (message.type === 'REQUEST_STARTED') {
+        pendingRequests.add(message.requestId);
+        // console.log('新请求开始，待处理请求数:', message.pendingCount);
+    }
+    else if (message.type === 'REQUEST_COMPLETED') {
+        pendingRequests.delete(message.requestId);
+        // console.log('请求完成，待处理请求数:', message.pendingCount);
+        resetCompletionTimer(); // 重置计时器
+
+        if (message.isInitialRequestsCompleted) {
+            isInitialRequestsCompleted = true;
+            // console.log('所有初始请求已完成');
+        }
+    }
+    else if (message.type === 'REQUEST_FAILED') {
+        pendingRequests.delete(message.requestId);
+        console.log('请求失败，待处理请求数:', message.pendingCount);
+        resetCompletionTimer(); // 重置计时器
+    }
+    // ... 其他消息处理 ...
+    return true;
+});
+
+// 修改 waitForContent 函数
+async function waitForContent() {
+  return new Promise((resolve) => {
+    const checkContent = () => {
+      // 检查是否有主要内容元素
+      const mainElements = document.querySelectorAll('p, h2, article, [role="article"], [role="main"], [data-testid="tweet"]');
+
+      // 检查网络请求是否都已完成
+      const requestsCompleted = lastRequestCompletedTime && (Date.now() - lastRequestCompletedTime) >= relayRequestCompletedTime;
+
+      if (mainElements.length > 0 && requestsCompleted) {
+        console.log(`页面内容已加载，网络请求已完成（已稳定${relayRequestCompletedTime}秒无新请求）`);
+        resolve();
+      } else {
+        const reason = [];
+        if (mainElements.length === 0) reason.push('主要内容未找到');
+        if (!requestsCompleted) {
+            if (pendingRequests.size > 0) {
+                reason.push(`还有 ${pendingRequests.size} 个网络请求未完成`);
+            }
+            if (lastRequestCompletedTime) {
+                const waitTime = Math.floor((relayRequestCompletedTime - (Date.now() - lastRequestCompletedTime)) / 1000);
+                if (waitTime > 0) {
+                    reason.push(`等待请求稳定，剩余 ${waitTime} 秒`);
+                }
+            } else {
+                reason.push('等待首个请求完成');
+            }
+        }
+        console.log('等待页面加载...', reason.join(', '));
+        setTimeout(checkContent, 1000);
+      }
+    };
+
+    // 开始检查
+    setTimeout(checkContent, 1000);
+  });
+}
+
 // 修改 extractPageContent 函数
 async function extractPageContent() {
-  console.log('开始提取页面内容');
+  console.log('extractPageContent 开始提取页面内容');
 
   // 检查是否是PDF
   if (document.contentType === 'application/pdf') {
-      console.log('检测到PDF文件，尝试提取PDF内容');
-      const pdfText = await extractTextFromPDF(window.location.href);
-      if (pdfText) {
-        return {
-          title: document.title,
-          url: window.location.href,
-          content: pdfText
-        };
-      }
+    console.log('检测到PDF文件，尝试提取PDF内容');
+    const pdfText = await extractTextFromPDF(window.location.href);
+    if (pdfText) {
+      return {
+        title: document.title,
+        url: window.location.href,
+        content: pdfText
+      };
+    }
   }
 
-  // 等待页面内容加载完成
-  async function waitForContent() {
-      return new Promise((resolve) => {
-          const checkContent = () => {
-              const mainElements = document.querySelectorAll('p, h2, article, [role="article"], [role="main"], [data-testid="tweet"]');
-              if (mainElements.length > 0) {
-                  console.log('检测到主要内容已加载');
-                  resolve();
-              } else {
-                  console.log('等待主要内容加载...');
-                  setTimeout(checkContent, 1000);  // 每秒检查一次
-              }
-          };
-          setTimeout(checkContent, 1000);  // 先等待1秒再开始检查
-      });
-  }
-
-  // 等待内容加载
+  // 等待内容加载和网络请求完成
   await waitForContent();
 
   // 创建一个文档片段来处理内容
@@ -414,7 +515,7 @@ async function extractPageContent() {
 
   let mainContent = tempContainer.innerText;
 
-  // 清理文本
+  // 理文本
   mainContent = mainContent
       .replace(/\s+/g, ' ')  // 替换多个空白字符为单个空格
       .replace(/\n\s*\n/g, '\n')  // 替换多个换行为单个换行
@@ -435,18 +536,6 @@ async function extractPageContent() {
       content: mainContent
   };
 }
-
-// 修改消息监听器
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type === 'GET_PAGE_CONTENT') {
-        console.log('收到获取页面内容请求');
-        extractPageContent().then(content => {
-            sendResponse(content);
-        });
-        return true; // 保持消息通道开放
-    }
-    return true;
-});
 
 // PDF.js 库的路径
 const PDFJS_PATH = chrome.runtime.getURL('lib/pdf.js');

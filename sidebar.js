@@ -17,6 +17,127 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // 提取公共配置
+    const MATH_DELIMITERS = {
+        regex: /(\$\$[\s\S]+?\$\$)|(\$[^\s$][^$]*?\$)|(\\\\\([^]+?\\\\\))|(\\\([^]+?\\\))|(\\\[[\s\S]+?\\\])/g,
+        renderConfig: {
+            delimiters: [
+                {left: '\\(', right: '\\)', display: false},  // 行内公式
+                {left: '\\\\(', right: '\\\\)', display: false},  // 行内公式
+                {left: '\\[', right: '\\]', display: true},   // 行间公式
+                {left: '$$', right: '$$', display: true},     // 行间公式（备用）
+                {left: '$', right: '$', display: false}       // 行内公式（备用）
+            ],
+            throwOnError: false
+        }
+    };
+
+    // 加载历史记录的函数
+    async function loadChatHistory() {
+        try {
+            const result = await chrome.storage.local.get('chatHistory');
+            if (result.chatHistory) {
+                chatHistory = result.chatHistory;
+                // 清空当前显示的消息
+                chatContainer.innerHTML = '';
+                // 重新显示历史消息，但不要重复添加到历史记录中
+                chatHistory.forEach(msg => {
+                    appendMessage(msg.content, msg.role === 'user' ? 'user' : 'ai', true);
+                });
+            }
+        } catch (error) {
+            console.error('加载聊天历史记录失败:', error);
+        }
+    }
+
+    // 监听标签页切换事件
+    chrome.tabs.onActivated.addListener(async (activeInfo) => {
+        console.log('标签页切换:', activeInfo);
+        await loadChatHistory();
+        await loadWebpageSwitch('标签页切换');
+    });
+
+    // 初始加载历史记录
+    await loadChatHistory();
+
+
+    // 网页问答功能
+    const webpageSwitch = document.getElementById('webpage-switch');
+    let pageContent = null;
+
+    // 获取网页内容
+    async function getPageContent() {
+        try {
+            console.log('getPageContent 发送获取网页内容请求');
+            const response = await chrome.runtime.sendMessage({
+                type: 'GET_PAGE_CONTENT_FROM_SIDEBAR'
+            });
+            return response;
+        } catch (error) {
+            console.error('获取网页内容失败:', error);
+            return null;
+        }
+    }
+
+    // 修改 loadWebpageSwitch 函数，添加延迟加载
+    async function loadWebpageSwitch(call_name = 'loadWebpageSwitch') {
+        console.log(`loadWebpageSwitch 从 ${call_name} 调用`);
+
+        const domain = await getCurrentDomain();
+        console.log('刷新后 网页问答 获取当前域名:', domain);
+        if (!domain) return;
+
+        const result = await chrome.storage.local.get('webpageSwitchDomains');
+        const domains = result.webpageSwitchDomains || {};
+        console.log('刷新后 网页问答存储中获取域名:', domains);
+
+        if (domains[domain]) {
+            webpageSwitch.checked = true;
+            console.log('loadWebpageSwitch 刷新后 网页问答 获取网页内容');
+            pageContent = await getPageContent();
+            // 如果成功获取到内容，确保域名存在于存储中
+            if (pageContent) {
+                await saveWebpageSwitch(domain, true);
+            }
+        } else {
+            webpageSwitch.checked = false;
+            pageContent = null;
+        }
+    }
+
+    // 修改网页问答开关监听器
+    webpageSwitch.addEventListener('change', async () => {
+        const domain = await getCurrentDomain();
+        console.log('网页问答开关状态改变后，获取当前域名:', domain);
+        if (!domain) {
+            webpageSwitch.checked = false;
+            return;
+        }
+        console.log('网页问答开关状态改变后，获取网页问答开关状态:', webpageSwitch.checked);
+
+        // 添加延迟确保存储操作完成
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        if (webpageSwitch.checked) {
+            console.log('网页问答开关状态改变后，获取网页内容');
+            pageContent = await getPageContent();
+            if (!pageContent) {
+                webpageSwitch.checked = false;
+                await saveWebpageSwitch(domain, false);
+                appendMessage('无法获取网页内容', 'ai');
+            } else {
+                await saveWebpageSwitch(domain, true);
+                console.log('修改网页问答为已开启');
+            }
+        } else {
+            pageContent = null;
+            await saveWebpageSwitch(domain, false);
+            console.log('修改网页问答为已关闭');
+        }
+    });
+    // 在 DOMContentLoaded 事件处理程序中添加加载网页问答状态
+    await loadWebpageSwitch();
+
     // 在文件开头添加函数用于获取当前域名
     async function getCurrentDomain() {
         try {
@@ -162,21 +283,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // 提取公共配置
-    const MATH_DELIMITERS = {
-        regex: /(\$\$[\s\S]+?\$\$)|(\$[^\s$][^$]*?\$)|(\\\\\([^]+?\\\\\))|(\\\([^]+?\\\))|(\\\[[\s\S]+?\\\])/g,
-        renderConfig: {
-            delimiters: [
-                {left: '\\(', right: '\\)', display: false},  // 行内公式
-                {left: '\\\\(', right: '\\\\)', display: false},  // 行内公式
-                {left: '\\[', right: '\\]', display: true},   // 行间公式
-                {left: '$$', right: '$$', display: true},     // 行间公式（备用）
-                {left: '$', right: '$', display: false}       // 行内公式（备用）
-            ],
-            throwOnError: false
-        }
-    };
-
     function appendMessage(text, sender, skipHistory = false) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${sender}-message`;
@@ -242,20 +348,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             saveChatHistory();
         }
-    }
-
-    // 在 DOMContentLoaded 事件处理程序中添加历史记录的加载
-    try {
-        const result = await chrome.storage.local.get('chatHistory');
-        if (result.chatHistory) {
-            chatHistory = result.chatHistory;
-            // 重新显示历史消息，但不要重复添加到历史记录中
-            chatHistory.forEach(msg => {
-                appendMessage(msg.content, msg.role === 'user' ? 'user' : 'ai', true);
-            });
-        }
-    } catch (error) {
-        console.error('加载聊天历史记录失败:', error);
     }
 
     function updateAIMessage(text) {
@@ -452,24 +544,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 立即初始化主题
     await initializeTheme();
 
-    // 网页问答功能
-    const webpageSwitch = document.getElementById('webpage-switch');
-    let pageContent = null;
-
-    // 获取网页内容
-    async function getPageContent() {
-        try {
-            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (!tab) return null;
-
-            const response = await chrome.tabs.sendMessage(tab.id, { type: 'GET_PAGE_CONTENT' });
-            return response;
-        } catch (error) {
-            console.error('获取网页内容失败:', error);
-            return null;
-        }
-    }
-
     // 修改 saveWebpageSwitch 函数，改进存储机制和错误处理
     async function saveWebpageSwitch(domain, enabled) {
         console.log('开始保存网页问答开关状态:', domain, enabled);
@@ -491,80 +565,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 保存并立即验证
         await chrome.storage.local.set({ webpageSwitchDomains: domains });
     }
-
-    // 修改 loadWebpageSwitch 函数，添加延迟加载
-    async function loadWebpageSwitch(retryCount = 0) {
-        try {
-            // 添加延迟等待存储操作完成
-            await new Promise(resolve => setTimeout(resolve, 500));
-
-            const domain = await getCurrentDomain();
-            console.log('刷新后 网页问答 获取当前域名:', domain);
-            if (!domain) return;
-
-            const result = await chrome.storage.local.get('webpageSwitchDomains');
-            const domains = result.webpageSwitchDomains || {};
-            console.log('刷新后 网页问答存储中获取域名:', domains);
-
-            if (domains[domain]) {
-                webpageSwitch.checked = true;
-                console.log('刷新后 网页问答 获取网页内容');
-                pageContent = await getPageContent();
-                if (!pageContent && retryCount < 3) {
-                    console.log(`获取内容失败，${1000}ms 后重试(${retryCount + 1}/3)`);
-                    setTimeout(() => loadWebpageSwitch(retryCount + 1), 1000);
-                    return;
-                }
-                // 如果成功获取到内容，确保域名存在于存储中
-                if (pageContent) {
-                    await saveWebpageSwitch(domain, true);
-                }
-            } else {
-                webpageSwitch.checked = false;
-                pageContent = null;
-            }
-        } catch (error) {
-            console.error('加载网页问答开关状态失败:', error);
-            if (retryCount < 3) {
-                console.log(`加载失败，${1000}ms 后重试(${retryCount + 1}/3)`);
-                setTimeout(() => loadWebpageSwitch(retryCount + 1), 1000);
-            }
-        }
-    }
-
-    // 修改网页问答开关监听器
-    webpageSwitch.addEventListener('change', async () => {
-        const domain = await getCurrentDomain();
-        console.log('网页问答开关状态改变后，获取当前域名:', domain);
-        if (!domain) {
-            webpageSwitch.checked = false;
-            return;
-        }
-        console.log('网页问答开关状态改变后，获取网页问答开关状态:', webpageSwitch.checked);
-
-        // 添加延迟确保存储操作完成
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        if (webpageSwitch.checked) {
-            console.log('网页问答开关状态改变后，获取网页内容');
-            pageContent = await getPageContent();
-            if (!pageContent) {
-                webpageSwitch.checked = false;
-                await saveWebpageSwitch(domain, false);
-                appendMessage('无法获取网页内容', 'ai');
-            } else {
-                await saveWebpageSwitch(domain, true);
-                console.log('修改网页问答为已开启');
-            }
-        } else {
-            pageContent = null;
-            await saveWebpageSwitch(domain, false);
-            console.log('修改网页问答为已关闭');
-        }
-    });
-
-    // 在 DOMContentLoaded 事件处理程序中添加加载网页问答状态
-    await loadWebpageSwitch();
 
     // API 设置功能
     const apiSettings = document.getElementById('api-settings');
