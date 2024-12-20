@@ -491,7 +491,7 @@ async function waitForContent() {
   return new Promise((resolve) => {
     const checkContent = () => {
       // 检查是否有主要内容元素
-      const mainElements = document.querySelectorAll('p, h2, article, [role="article"], [role="main"], [data-testid="tweet"]');
+      const mainElements = document.querySelectorAll('body, p, h2, article, [role="article"], [role="main"], [data-testid="tweet"]');
 
       // 检查网络请求是否都已完成
       const requestsCompleted = lastRequestCompletedTime && (Date.now() - lastRequestCompletedTime) >= relayRequestCompletedTime;
@@ -595,15 +595,14 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_PATH;
 
 async function extractTextFromPDF(url) {
   try {
-    // 在shadow DOM中查找容器
-    const sidebar = document.querySelector('cerebr-root');
-    if (!sidebar || !sidebar.shadowRoot) {
-      console.error('找不到侧边栏元素');
+    // 使用已存在的 sidebar 实例
+    if (!sidebar || !sidebar.sidebar) {
+      console.error('侧边栏实例不存在');
       return null;
     }
 
     // 通过iframe发送消息来更新placeholder
-    const iframe = sidebar.shadowRoot.querySelector('.cerebr-sidebar__iframe');
+    const iframe = sidebar.sidebar.querySelector('.cerebr-sidebar__iframe');
     if (iframe) {
       console.log('发送更新placeholder消息:', {
         type: 'UPDATE_PLACEHOLDER',
@@ -677,13 +676,15 @@ async function extractTextFromPDF(url) {
   } catch (error) {
     console.error('PDF处理过程中出错:', error);
     console.error('错误堆栈:', error.stack);
-    const iframe = sidebar.shadowRoot.querySelector('.cerebr-sidebar__iframe');
-    if (iframe) {
-      iframe.contentWindow.postMessage({
-        type: 'UPDATE_PLACEHOLDER',
-        placeholder: 'PDF处理失败',
-        timeout: 2000
-      }, '*');
+    if (sidebar && sidebar.sidebar) {
+      const iframe = sidebar.sidebar.querySelector('.cerebr-sidebar__iframe');
+      if (iframe) {
+        iframe.contentWindow.postMessage({
+          type: 'UPDATE_PLACEHOLDER',
+          placeholder: 'PDF处理失败',
+          timeout: 2000
+        }, '*');
+      }
     }
     return null;
   }
