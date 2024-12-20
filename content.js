@@ -114,16 +114,29 @@ class CerebrSidebar {
     }
   }
 
-  initializeSidebar() {
+  async initializeSidebar() {
     try {
       console.log('开始初始化侧边栏');
       const container = document.createElement('cerebr-root');
-      container.attachShadow({ mode: 'open' });
+
+      // 防止外部JavaScript访问和修改我们的元素
+      Object.defineProperty(container, 'remove', {
+        configurable: false,
+        writable: false,
+        value: () => {
+          console.log('阻止移除侧边栏');
+          return false;
+        }
+      });
+
+      // 使用closed模式的shadowRoot以增加隔离性
+      const shadow = container.attachShadow({ mode: 'closed' });
 
       const style = document.createElement('style');
       style.textContent = `
         :host {
           all: initial;
+          contain: style layout size;
         }
         .cerebr-sidebar {
           position: fixed;
@@ -141,6 +154,8 @@ class CerebrSidebar {
           visibility: hidden;
           transform: translateX(0);
           pointer-events: none;
+          contain: style layout size;
+          isolation: isolate;
         }
         .cerebr-sidebar.initialized {
           visibility: visible;
@@ -161,17 +176,29 @@ class CerebrSidebar {
           height: 100%;
           overflow: hidden;
           border-radius: 12px;
+          contain: style layout size;
         }
         .cerebr-sidebar__iframe {
           width: 100%;
           height: 100%;
           border: none;
           background: var(--cerebr-bg-color, #ffffff);
+          contain: strict;
         }
       `;
 
       this.sidebar = document.createElement('div');
       this.sidebar.className = 'cerebr-sidebar';
+
+      // 防止外部JavaScript访问和修改侧边栏
+      Object.defineProperty(this.sidebar, 'remove', {
+        configurable: false,
+        writable: false,
+        value: () => {
+          console.log('阻止移除侧边栏');
+          return false;
+        }
+      });
 
       const header = document.createElement('div');
       header.className = 'cerebr-sidebar__header';
@@ -192,20 +219,42 @@ class CerebrSidebar {
       this.sidebar.appendChild(resizer);
       this.sidebar.appendChild(content);
 
-      container.shadowRoot.appendChild(style);
-      container.shadowRoot.appendChild(this.sidebar);
+      shadow.appendChild(style);
+      shadow.appendChild(this.sidebar);
 
-      document.documentElement.appendChild(container);
+      // 先加载状态
+      await this.loadState();
+
+      // 添加到文档并保护它
+      const root = document.documentElement;
+      root.appendChild(container);
+
+      // 使用MutationObserver确保我们的元素不会被移除
+      const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+          if (mutation.type === 'childList') {
+            const removedNodes = Array.from(mutation.removedNodes);
+            if (removedNodes.includes(container)) {
+              console.log('检测到侧边栏被移除，正在恢复...');
+              root.appendChild(container);
+            }
+          }
+        }
+      });
+
+      observer.observe(root, {
+        childList: true
+      });
+
       console.log('侧边栏已添加到文档');
 
       this.setupEventListeners(resizer);
 
-      this.loadState().then(() => {
-        requestAnimationFrame(() => {
-          this.sidebar.classList.add('initialized');
-          this.initialized = true;
-          console.log('侧边栏初始化完成');
-        });
+      // 使用 requestAnimationFrame 确保状态已经应用
+      requestAnimationFrame(() => {
+        this.sidebar.classList.add('initialized');
+        this.initialized = true;
+        console.log('侧边栏初始化完成');
       });
     } catch (error) {
       console.error('初始化侧边栏失败:', error);
