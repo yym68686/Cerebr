@@ -120,16 +120,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'downloadPDF') {
     console.log('收到PDF下载请求');
     downloadPDF(message.url)
-      .then(data => {
-        console.log('PDF下载成功，准备发送响应');
-        // 将 ArrayBuffer 转换为 Uint8Array
-        const uint8Array = new Uint8Array(data);
-        // 将 Uint8Array 转换为普通数组
-        const array = Array.from(uint8Array);
-        sendResponse({success: true, data: array});
+      .then(response => {
+        console.log('PDF初始化信息:', response);
+        sendResponse(response);
       })
       .catch(error => {
         console.error('PDF下载失败:', error);
+        sendResponse({success: false, error: error.message});
+      });
+    return true;
+  }
+
+  // 处理获取PDF块的请求
+  if (message.action === 'getPDFChunk') {
+    console.log('收到获取PDF块请求:', message.chunkIndex);
+    getPDFChunk(message.url, message.chunkIndex)
+      .then(response => {
+        console.log('发送PDF块数据:', message.chunkIndex);
+        sendResponse(response);
+      })
+      .catch(error => {
+        console.error('获取PDF块失败:', error);
         sendResponse({success: false, error: error.message});
       });
     return true;
@@ -191,11 +202,53 @@ async function downloadPDF(url) {
         console.log('PDF文件下载响应状态:', response.status);
         const arrayBuffer = await response.arrayBuffer();
         console.log('PDF文件下载完成，大小:', arrayBuffer.byteLength, 'bytes');
-        return arrayBuffer;
+
+        // 将ArrayBuffer转换为Uint8Array
+        const uint8Array = new Uint8Array(arrayBuffer);
+
+        // 分块大小设为4MB
+        const chunkSize = 4 * 1024 * 1024;
+        const chunks = Math.ceil(uint8Array.length / chunkSize);
+
+        // 发送第一个消息，包含总块数和文件大小信息
+        const initResponse = {
+            success: true,
+            type: 'init',
+            totalChunks: chunks,
+            totalSize: uint8Array.length
+        };
+
+        return initResponse;
     } catch (error) {
         console.error('PDF下载失败:', error);
         console.error('错误堆栈:', error.stack);
         throw new Error('PDF下载失败: ' + error.message);
+    }
+}
+
+// 获取特定块的数据
+async function getPDFChunk(url, chunkIndex) {
+    try {
+        const response = await fetch(url);
+        const arrayBuffer = await response.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+
+        const chunkSize = 4 * 1024 * 1024;
+        const start = chunkIndex * chunkSize;
+        const end = Math.min(start + chunkSize, uint8Array.length);
+
+        return {
+            success: true,
+            type: 'chunk',
+            chunkIndex: chunkIndex,
+            data: Array.from(uint8Array.slice(start, end))
+        };
+    } catch (error) {
+        console.error('获取PDF块数据失败:', error);
+        return {
+            success: false,
+            error: error.message
+        };
     }
 }
 

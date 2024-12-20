@@ -615,13 +615,14 @@ async function extractTextFromPDF(url) {
     }
 
     console.log('开始下载PDF:', url);
-    const response = await chrome.runtime.sendMessage({
+    // 首先获取PDF文件的初始信息
+    const initResponse = await chrome.runtime.sendMessage({
       action: 'downloadPDF',
       url: url
     });
 
-    if (!response.success) {
-      console.error('PDF下载失败，响应:', response);
+    if (!initResponse.success) {
+      console.error('PDF初始化失败，响应:', initResponse);
       if (iframe) {
         iframe.contentWindow.postMessage({
           type: 'UPDATE_PLACEHOLDER',
@@ -629,11 +630,42 @@ async function extractTextFromPDF(url) {
           timeout: 2000
         }, '*');
       }
-      throw new Error('PDF下载失败');
+      throw new Error('PDF初始化失败');
     }
 
-    const uint8Array = new Uint8Array(response.data);
-    console.log('PDF下载成功，数据大小:', uint8Array.byteLength, 'bytes');
+    const { totalChunks, totalSize } = initResponse;
+    console.log(`PDF文件大小: ${totalSize} bytes, 总块数: ${totalChunks}`);
+
+    // 分块接收数据
+    const chunks = new Array(totalChunks);
+    for (let i = 0; i < totalChunks; i++) {
+      if (iframe) {
+        iframe.contentWindow.postMessage({
+          type: 'UPDATE_PLACEHOLDER',
+          placeholder: `正在下载PDF文件 (${Math.round((i + 1) / totalChunks * 100)}%)...`
+        }, '*');
+      }
+
+      const chunkResponse = await chrome.runtime.sendMessage({
+        action: 'getPDFChunk',
+        url: url,
+        chunkIndex: i
+      });
+
+      if (!chunkResponse.success) {
+        throw new Error(`获取PDF块 ${i} 失败`);
+      }
+
+      chunks[i] = new Uint8Array(chunkResponse.data);
+    }
+
+    // 合并所有块
+    const completeData = new Uint8Array(totalSize);
+    let offset = 0;
+    for (const chunk of chunks) {
+      completeData.set(chunk, offset);
+      offset += chunk.length;
+    }
 
     if (iframe) {
       iframe.contentWindow.postMessage({
@@ -643,7 +675,7 @@ async function extractTextFromPDF(url) {
     }
 
     console.log('开始解析PDF文件');
-    const loadingTask = pdfjsLib.getDocument({data: uint8Array});
+    const loadingTask = pdfjsLib.getDocument({data: completeData});
     const pdf = await loadingTask.promise;
     console.log('PDF加载成功，总页数:', pdf.numPages);
 
