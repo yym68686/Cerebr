@@ -369,26 +369,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     function updateAIMessage(text) {
         const lastMessage = chatContainer.querySelector('.ai-message:last-child');
         let rawText = text;
+
         if (lastMessage) {
-            // 更新原始文本属性
-            lastMessage.setAttribute('data-original-text', rawText);
+            // 获取当前显示的文本
+            const currentText = lastMessage.getAttribute('data-original-text') || '';
+            // 如果新文本比当前文本长，说明有新内容需要动画显示
+            if (text.length > currentText.length) {
+                // 计算需要动画显示的新文本
+                const newText = text.slice(currentText.length);
+                let currentIndex = 0;
+                const chunkSize = 5; // 每次更新5个字符
 
-            // 处理数学公式和 Markdown
-            lastMessage.innerHTML = processMathAndMarkdown(text);
+                // 使用requestAnimationFrame来实现平滑动画
+                function animateText() {
+                    if (currentIndex < newText.length) {
+                        // 更新原始文本属性
+                        const nextIndex = Math.min(currentIndex + chunkSize, newText.length);
+                        const updatedText = currentText + newText.slice(0, nextIndex);
+                        lastMessage.setAttribute('data-original-text', updatedText);
 
-            // 处理新渲染的链接
-            lastMessage.querySelectorAll('a').forEach(link => {
-                link.target = '_blank';
-                link.rel = 'noopener noreferrer';
-            });
+                        // 处理数学公式和Markdown
+                        lastMessage.innerHTML = processMathAndMarkdown(updatedText);
 
-            // 渲染 LaTeX 公式
-            renderMathInElement(lastMessage, MATH_DELIMITERS.renderConfig);
+                        // 处理新渲染的链接
+                        lastMessage.querySelectorAll('a').forEach(link => {
+                            link.target = '_blank';
+                            link.rel = 'noopener noreferrer';
+                        });
 
-            // 更新历史记录中的最后一条消息
-            if (chatHistory.length > 0) {
-                chatHistory[chatHistory.length - 1].content = rawText;
-                saveChatHistory(); // 保存更新后的历史记录
+                        // 渲染LaTeX公式
+                        renderMathInElement(lastMessage, MATH_DELIMITERS.renderConfig);
+
+                        currentIndex = nextIndex;
+                        requestAnimationFrame(animateText);
+                    } else {
+                        // 动画结束，更新历史记录
+                        if (chatHistory.length > 0) {
+                            chatHistory[chatHistory.length - 1].content = rawText;
+                            saveChatHistory();
+                        }
+                    }
+                }
+
+                requestAnimationFrame(animateText);
             }
         } else {
             appendMessage(rawText, 'ai');
