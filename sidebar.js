@@ -741,6 +741,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.addEventListener('message', (event) => {
         if (event.data.type === 'FOCUS_INPUT') {
             messageInput.focus();
+            // 确保光标移动到末尾
+            requestAnimationFrame(() => {
+                const length = messageInput.value.length;
+                messageInput.setSelectionRange(length, length);
+            });
         }
     });
 
