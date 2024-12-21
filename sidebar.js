@@ -283,18 +283,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    function appendMessage(text, sender, skipHistory = false) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${sender}-message`;
-        // 存储原始文本用于复制
-        messageDiv.setAttribute('data-original-text', text);
-
-        // 配置 marked 选项，添加数学公式保护
+    // 提取公共的数学公式处理函数
+    function processMathAndMarkdown(text) {
         const mathExpressions = [];
         let mathIndex = 0;
 
         // 临时替换数学公式
         text = text.replace(MATH_DELIMITERS.regex, (match) => {
+            // 替换 abla_ 为 \nabla_
+            match = match.replace(/abla_/g, '\\nabla_');
+
             // 如果是普通括号形式的公式，转换为 \(...\) 形式
             if (match.startsWith('(') && match.endsWith(')') && !match.startsWith('\\(')) {
                 console.log('警告：请使用 \\(...\\) 来表示行内公式');
@@ -326,7 +324,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 恢复数学公式
         html = html.replace(/%%MATH_EXPRESSION_(\d+)%%/g, (_, index) => mathExpressions[index]);
 
-        messageDiv.innerHTML = html;
+        return html;
+    }
+
+    function appendMessage(text, sender, skipHistory = false) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${sender}-message`;
+        // 存储原始文本用于复制
+        messageDiv.setAttribute('data-original-text', text);
+
+        // 处理数学公式和 Markdown
+        messageDiv.innerHTML = processMathAndMarkdown(text);
 
         // 处理消息中的链接
         messageDiv.querySelectorAll('a').forEach(link => {
@@ -357,25 +365,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 更新原始文本属性
             lastMessage.setAttribute('data-original-text', rawText);
 
-            // 使用与 appendMessage 相同的处理逻辑
-            const mathExpressions = [];
-            let mathIndex = 0;
-
-            text = text.replace(MATH_DELIMITERS.regex, (match) => {
-                // 如果是普通括号形式的公式，转换为 \(...\) 形式
-                if (match.startsWith('(') && match.endsWith(')') && !match.startsWith('\\(')) {
-                    console.log('警告：请使用 \\(...\\) 来表示行内公式');
-                }
-                const placeholder = `%%MATH_EXPRESSION_${mathIndex}%%`;
-                mathExpressions.push(match);
-                mathIndex++;
-                return placeholder;
-            });
-
-            let html = marked.parse(text);
-            html = html.replace(/%%MATH_EXPRESSION_(\d+)%%/g, (_, index) => mathExpressions[index]);
-
-            lastMessage.innerHTML = html;
+            // 处理数学公式和 Markdown
+            lastMessage.innerHTML = processMathAndMarkdown(text);
 
             // 处理新渲染的链接
             lastMessage.querySelectorAll('a').forEach(link => {
