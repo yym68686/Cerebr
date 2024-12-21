@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Cerebr",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "Cerebr - 智能AI聊天助手",
   "icons": {
     "16": "icons/icon16.png",
@@ -31,6 +31,13 @@
         "mac": "MacCtrl+A"
       },
       "description": "打开/关闭 Cerebr 侧边栏"
+    },
+    "clear_chat": {
+      "suggested_key": {
+        "default": "Alt+X",
+        "mac": "MacCtrl+X"
+      },
+      "description": "清空聊天记录"
     }
   },
   "background": {

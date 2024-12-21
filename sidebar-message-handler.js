@@ -54,20 +54,46 @@ function checkCustomShortcut() {
     });
 }
 
+// 检查清空聊天记录快捷键
+function checkClearChatShortcut() {
+    return new Promise((resolve) => {
+        chrome.commands.getAll((commands) => {
+            const clearCommand = commands.find(command => command.name === 'clear_chat');
+            if (clearCommand && clearCommand.shortcut) {
+                const lastLetter = clearCommand.shortcut.charAt(clearCommand.shortcut.length - 1).toLowerCase();
+                console.log('当前设置的清空聊天记录快捷键:', clearCommand.shortcut, '最后一个字符:', lastLetter);
+                resolve(lastLetter);
+            } else {
+                resolve(null);
+            }
+        });
+    });
+}
+
 // 等待 DOM 加载完成
 document.addEventListener('DOMContentLoaded', () => {
 
     const input = document.querySelector('#message-input');
     const chatContainer = document.querySelector('#chat-container');
+    const clearChat = document.querySelector('#clear-chat');
 
     // 监听输入框的键盘事件
     input.addEventListener('keydown', async (event) => {
         // 检查是否是快捷键组合（Alt+A 或 MacCtrl+A）
         const lastLetter = await checkCustomShortcut();
-        // console.log('检查快捷键组合', event.key.toLowerCase(), lastLetter, event.ctrlKey, navigator.userAgent, /Mac|iPod|iPhone|iPad/.test(navigator.userAgent), event.key.toLowerCase() === lastLetter);
+        const clearLastLetter = await checkClearChatShortcut();
 
-        if ((event.altKey || (event.ctrlKey && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent))) && event.key.toLowerCase() === lastLetter) {
-            // 主动触发隐藏操作
+        // 检查是否是清空聊天记录的快捷键
+        if ((event.altKey || (event.ctrlKey && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent))) &&
+            event.key.toLowerCase() === clearLastLetter) {
+            event.preventDefault();
+            clearChat.click();
+            return;
+        }
+
+        // 检查是否是切换侧边栏的快捷键
+        if ((event.altKey || (event.ctrlKey && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent))) &&
+            event.key.toLowerCase() === lastLetter) {
             event.preventDefault();
             window.parent.postMessage({ type: 'TOGGLE_SIDEBAR' }, '*');
             return;
