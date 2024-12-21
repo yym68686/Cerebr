@@ -49,6 +49,9 @@
             scrollbar-width: none; /* Firefox */
             -ms-overflow-style: none; /* IE and Edge */
             min-height: 0;
+            -webkit-overflow-scrolling: touch;
+            transform: translateZ(0);
+            scroll-behavior: smooth;
         }
 
         #chat-container::-webkit-scrollbar {
@@ -65,6 +68,21 @@
             font-size: 14px;
             line-height: 1.5;
             position: relative;
+            opacity: 0;
+            transform: translateY(8px);
+            animation: messageAppear 0.2s cubic-bezier(0.4, 0.24, 0.3, 1) forwards;
+            will-change: transform, opacity;
+        }
+
+        @keyframes messageAppear {
+            0% {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .user-message {

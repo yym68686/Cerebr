@@ -346,7 +346,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderMathInElement(messageDiv, MATH_DELIMITERS.renderConfig);
 
         chatContainer.appendChild(messageDiv);
-        chatContainer.scrollTop = chatContainer.scrollHeight;
+
+        // 使用 requestAnimationFrame 来同步滚动动画
+        requestAnimationFrame(() => {
+            const scrollOptions = {
+                top: chatContainer.scrollHeight,
+                behavior: 'smooth'
+            };
+            chatContainer.scrollTo(scrollOptions);
+        });
 
         // 只有在不跳过历史记录时才添加到历史记录
         if (!skipHistory) {
