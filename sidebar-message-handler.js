@@ -39,6 +39,9 @@ window.addEventListener('message', (event) => {
 let userQuestions = [];
 let currentIndex = -1;
 
+// 添加全局变量
+let clearChat;
+
 function checkCustomShortcut() {
     return new Promise((resolve) => {
         chrome.commands.getAll((commands) => {
@@ -70,35 +73,47 @@ function checkClearChatShortcut() {
     });
 }
 
+// 添加快捷键处理函数
+async function handleShortcut(event) {
+    const lastLetter = await checkCustomShortcut();
+    const clearLastLetter = await checkClearChatShortcut();
+
+    // 检查是否是清空聊天记录的快捷键
+    if ((event.ctrlKey && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent)) &&
+        event.key.toLowerCase() === clearLastLetter) {
+        event.preventDefault();
+        if (clearChat) {
+            clearChat.click();
+        }
+        return;
+    }
+
+    // 检查是否是切换侧边栏的快捷键
+    if ((event.ctrlKey && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent)) &&
+        event.key.toLowerCase() === lastLetter) {
+        event.preventDefault();
+        window.parent.postMessage({ type: 'TOGGLE_SIDEBAR' }, '*');
+        return;
+    }
+}
+
 // 等待 DOM 加载完成
 document.addEventListener('DOMContentLoaded', () => {
 
     const input = document.querySelector('#message-input');
     const chatContainer = document.querySelector('#chat-container');
-    const clearChat = document.querySelector('#clear-chat');
+    // 初始化全局变量
+    clearChat = document.querySelector('#clear-chat');
+
+    // 为整个文档添加快捷键监听
+    document.addEventListener('keydown', handleShortcut);
 
     // 监听输入框的键盘事件
     input.addEventListener('keydown', async (event) => {
-        // 检查是否是快捷键组合（Alt+A 或 MacCtrl+A）
-        const lastLetter = await checkCustomShortcut();
-        const clearLastLetter = await checkClearChatShortcut();
+        // 先处理快捷键
+        await handleShortcut(event);
 
-        // 检查是否是清空聊天记录的快捷键
-        if ((event.altKey || (event.ctrlKey && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent))) &&
-            event.key.toLowerCase() === clearLastLetter) {
-            event.preventDefault();
-            clearChat.click();
-            return;
-        }
-
-        // 检查是否是切换侧边栏的快捷键
-        if ((event.altKey || (event.ctrlKey && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent))) &&
-            event.key.toLowerCase() === lastLetter) {
-            event.preventDefault();
-            window.parent.postMessage({ type: 'TOGGLE_SIDEBAR' }, '*');
-            return;
-        }
-
+        // 处理输入框特定的键盘事件
         // 当按下向上键且输入框为空时
         if (event.key === 'ArrowUp' && event.target.value.trim() === '') {
             event.preventDefault(); // 阻止默认行为
@@ -150,7 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // 开始观察聊天容器的变化
+    // 开始观察聊��容器的变化
     observer.observe(chatContainer, { childList: true });
 
     // 当输入框失去焦点时重置历史索引

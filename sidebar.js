@@ -222,7 +222,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
 
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    const errorText = await response.text();
+                    let errorMessage = `HTTP 错误! 状态码: ${response.status}`;
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        if (errorJson.error) {
+                            errorMessage += `\n错误信息: ${errorJson.error.message || errorJson.error}`;
+                        }
+                    } catch (e) {
+                        if (errorText) {
+                            errorMessage += `\n错误信息: ${errorText}`;
+                        }
+                    }
+                    throw new Error(errorMessage);
                 }
 
                 const reader = response.body.getReader();
@@ -273,6 +285,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.error('API 请求失败:', error);
                 if (error.message.includes('Failed to fetch')) {
                     appendMessage('错误：无法连接到 API 服务器，请检查网络连接和 Base URL 配置', 'ai');
+                } else if (error.message.includes('HTTP 错误!')) {
+                    appendMessage(error.message, 'ai');
                 } else {
                     appendMessage(`错误：${error.message}`, 'ai');
                 }
