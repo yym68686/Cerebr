@@ -175,11 +175,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        // 显示用户消息
-        appendMessage(message, 'user');
-        messageInput.value = '';
-        adjustTextareaHeight(messageInput);
-
         try {
             // 构建消息数组
             const messages = [...chatHistory]; // 复制所有历史消息
@@ -202,10 +197,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             // 添加用户问题
-            messages.push({
+            const userMessage = {
                 role: "user",
                 content: message
-            });
+            };
+            messages.push(userMessage);
+
+            // 显示用户消息并清空输入框
+            appendMessage(message, 'user');
+            messageInput.value = '';
+            adjustTextareaHeight(messageInput);
 
             try {
                 const response = await fetch(`${config.baseUrl}`, {
@@ -220,6 +221,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         "stream": true
                     })
                 });
+                console.log('消息数组状态:', messages);
 
                 if (!response.ok) {
                     const errorText = await response.text();
