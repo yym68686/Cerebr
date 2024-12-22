@@ -165,13 +165,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 检查是否有选中的配置
         const config = apiConfigs[selectedConfigIndex];
         if (!config) {
-            appendMessage('错误：未找到 API 配置，请在设置中配置 API', 'ai');
+            appendMessage('错误：未找到 API 配置，请在设置中配置 API', 'ai', true);
             return;
         }
 
         // 检查必要的配置项
         if (!config.baseUrl || !config.apiKey) {
-            appendMessage('错误：请在设置中完善 API 配置信息', 'ai');
+            appendMessage('错误：请在设置中完善 API 配置信息', 'ai', true);
             return;
         }
 
@@ -208,6 +208,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             messageInput.value = '';
             adjustTextareaHeight(messageInput);
 
+            let hasError = false; // 添加错误标记
             try {
                 const response = await fetch(`${config.baseUrl}`, {
                     method: 'POST',
@@ -224,19 +225,69 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.log('消息数组状态:', messages);
 
                 if (!response.ok) {
+                    hasError = true; // 设置错误标记
                     const errorText = await response.text();
+                    console.log('服务器返回的错误响应:', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        errorText: errorText,
+                        headers: Object.fromEntries(response.headers.entries())
+                    });
+
                     let errorMessage = `HTTP 错误! 状态码: ${response.status}`;
                     try {
+                        // 尝试解析JSON
+                        console.log('尝试解析错误响应为JSON:', errorText);
                         const errorJson = JSON.parse(errorText);
+                        console.log('解析后的JSON:', errorJson);
+
                         if (errorJson.error) {
-                            errorMessage += `\n错误信息: ${errorJson.error.message || errorJson.error}`;
+                            console.log('错误对象类型:', typeof errorJson.error);
+                            console.log('错误对象内容:', errorJson.error);
+
+                            if (typeof errorJson.error === 'string') {
+                                errorMessage += `\n错误信息: ${errorJson.error}`;
+                            } else if (errorJson.error.message) {
+                                errorMessage += `\n错误信息: ${errorJson.error.message}`;
+                            } else {
+                                // 如果error对象存在但没有预期的格式，则输出整个error对象
+                                errorMessage += `\n错误信息: ${JSON.stringify(errorJson.error)}`;
+                            }
+                        } else {
+                            // 如果没有error字段，则尝试使用整个响应对象
+                            errorMessage += `\n错误信息: ${JSON.stringify(errorJson)}`;
                         }
                     } catch (e) {
-                        if (errorText) {
-                            errorMessage += `\n错误信息: ${errorText}`;
+                        console.log('JSON解析失败:', e);
+                        // 如果不是JSON格式，直接使用错误文本
+                        if (errorText && errorText.trim()) {
+                            errorMessage += `\n错误信息: ${errorText.trim()}`;
+                        } else {
+                            // 如果没有错误文本，则根据状态码提供通用错误信息
+                            switch (response.status) {
+                                case 503:
+                                    errorMessage += '\n错误信息: 服务暂时不可用，请稍后重试';
+                                    break;
+                                case 500:
+                                    errorMessage += '\n错误信息: 服务器内部错误';
+                                    break;
+                                case 429:
+                                    errorMessage += '\n错误信息: 请求过于频繁，请稍后重试';
+                                    break;
+                                case 401:
+                                    errorMessage += '\n错误信息: 认证失败，请检查API密钥';
+                                    break;
+                                case 403:
+                                    errorMessage += '\n错误信息: 无权访问，请检查API密钥权限';
+                                    break;
+                                default:
+                                    errorMessage += '\n错误信息: 服务器响应异常';
+                            }
                         }
                     }
-                    throw new Error(errorMessage);
+                    console.log('最终错误信息:', errorMessage);
+                    appendMessage(errorMessage, 'ai', true);
+                    return;
                 }
 
                 const reader = response.body.getReader();
@@ -284,18 +335,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 }
             } catch (error) {
+                hasError = true; // 设置错误标记
                 console.error('API 请求失败:', error);
                 if (error.message.includes('Failed to fetch')) {
-                    appendMessage('错误：无法连接到 API 服务器，请检查网络连接和 Base URL 配置', 'ai');
+                    appendMessage('错误：无法连接到 API 服务器，请检查网络连接和 Base URL 配置', 'ai', true);
                 } else if (error.message.includes('HTTP 错误!')) {
-                    appendMessage(error.message, 'ai');
+                    appendMessage(error.message, 'ai', true);
                 } else {
-                    appendMessage(`错误：${error.message}`, 'ai');
+                    appendMessage(`错误：${error.message}`, 'ai', true);
+                }
+            } finally {
+                // 在finally块中处理错误情况下的历史记录
+                if (hasError) {
+                    chatHistory.pop(); // 如果发生错误，移除最后一条用户消息
                 }
             }
         } catch (error) {
             console.error('发送消息失败:', error);
-            appendMessage('发送消息失败，请检查配置和网络连接', 'ai');
+            appendMessage('发送消息失败，请检查配置和网络连接', 'ai', true);
+            chatHistory.pop(); // 确保在最外层的错误处理中也移除用户消息
         }
     }
 
