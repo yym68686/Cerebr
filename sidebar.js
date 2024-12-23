@@ -410,6 +410,66 @@ document.addEventListener('DOMContentLoaded', async () => {
         return html;
     }
 
+    // 添加侧边栏可见性状态变量
+    let isSidebarVisible = true; // 默认为可见状态
+
+    // 监听来自 content script 的消息
+    window.addEventListener('message', (event) => {
+        if (event.data.type === 'FOCUS_INPUT') {
+            messageInput.focus();
+            // 确保光标移动到末尾
+            requestAnimationFrame(() => {
+                const length = messageInput.value.length;
+                messageInput.setSelectionRange(length, length);
+            });
+        } else if (event.data.type === 'SIDEBAR_VISIBILITY_CHANGED') {
+            // 更新侧边栏可见性状态
+            isSidebarVisible = event.data.isVisible;
+            if (!event.data.isVisible) {
+                console.log('侧边栏已隐藏，继续保持消息更新');
+                // 移除自动滚动
+            } else {
+                console.log('侧边栏已显示');
+            }
+        }
+    });
+
+    function updateAIMessage(text) {
+        const lastMessage = chatContainer.querySelector('.ai-message:last-child');
+        let rawText = text;
+
+        if (lastMessage) {
+            // 获取当前显示的文本
+            const currentText = lastMessage.getAttribute('data-original-text') || '';
+            // 如果新文本比当前文本长，说明有新内容需要更新
+            if (text.length > currentText.length) {
+                // 更新原始文本属性
+                lastMessage.setAttribute('data-original-text', text);
+
+                // 处理数学公式和Markdown
+                lastMessage.innerHTML = processMathAndMarkdown(text);
+
+                // 处理新渲染的链接
+                lastMessage.querySelectorAll('a').forEach(link => {
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                });
+
+                // 渲染LaTeX公式
+                renderMathInElement(lastMessage, MATH_DELIMITERS.renderConfig);
+
+                // 更新历史记录
+                if (chatHistory.length > 0) {
+                    chatHistory[chatHistory.length - 1].content = rawText;
+                    saveChatHistory();
+                }
+            }
+        } else {
+            appendMessage(rawText, 'ai');
+        }
+    }
+
+    // 修改appendMessage函数，只在发送新消息时滚动
     function appendMessage(text, sender, skipHistory = false) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${sender}-message`;
@@ -430,14 +490,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         chatContainer.appendChild(messageDiv);
 
-        // 使用 requestAnimationFrame 来同步滚动动画
-        requestAnimationFrame(() => {
-            const scrollOptions = {
-                top: chatContainer.scrollHeight,
-                behavior: 'smooth'
-            };
-            chatContainer.scrollTo(scrollOptions);
-        });
+        // 只在发送新消息时自动滚动（不是加载历史记录）
+        if (sender === 'user' && !skipHistory) {
+            requestAnimationFrame(() => {
+                chatContainer.scrollTo({
+                    top: chatContainer.scrollHeight,
+                    behavior: 'smooth'
+                });
+            });
+        }
 
         // 只有在不跳过历史记录时才添加到历史记录
         if (!skipHistory) {
@@ -446,58 +507,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 content: text
             });
             saveChatHistory();
-        }
-    }
-
-    function updateAIMessage(text) {
-        const lastMessage = chatContainer.querySelector('.ai-message:last-child');
-        let rawText = text;
-
-        if (lastMessage) {
-            // 获取当前显示的文本
-            const currentText = lastMessage.getAttribute('data-original-text') || '';
-            // 如果新文本比当前文本长，说明有新内容需要动画显示
-            if (text.length > currentText.length) {
-                // 计算需要动画显示的新文本
-                const newText = text.slice(currentText.length);
-                let currentIndex = 0;
-                const chunkSize = 5; // 每次更新5个字符
-
-                // 使用requestAnimationFrame来实现平滑动画
-                function animateText() {
-                    if (currentIndex < newText.length) {
-                        // 更新原始文本属性
-                        const nextIndex = Math.min(currentIndex + chunkSize, newText.length);
-                        const updatedText = currentText + newText.slice(0, nextIndex);
-                        lastMessage.setAttribute('data-original-text', updatedText);
-
-                        // 处理数学公式和Markdown
-                        lastMessage.innerHTML = processMathAndMarkdown(updatedText);
-
-                        // 处理新渲染的链接
-                        lastMessage.querySelectorAll('a').forEach(link => {
-                            link.target = '_blank';
-                            link.rel = 'noopener noreferrer';
-                        });
-
-                        // 渲染LaTeX公式
-                        renderMathInElement(lastMessage, MATH_DELIMITERS.renderConfig);
-
-                        currentIndex = nextIndex;
-                        requestAnimationFrame(animateText);
-                    } else {
-                        // 动画结束，更新历史记录
-                        if (chatHistory.length > 0) {
-                            chatHistory[chatHistory.length - 1].content = rawText;
-                            saveChatHistory();
-                        }
-                    }
-                }
-
-                requestAnimationFrame(animateText);
-            }
-        } else {
-            appendMessage(rawText, 'ai');
         }
     }
 
@@ -849,18 +858,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         saveChatHistory();
         // 关闭设置菜单
         settingsMenu.classList.remove('visible');
-    });
-
-    // 监听来自 content script 的消息
-    window.addEventListener('message', (event) => {
-        if (event.data.type === 'FOCUS_INPUT') {
-            messageInput.focus();
-            // 确保光标移动到末尾
-            requestAnimationFrame(() => {
-                const length = messageInput.value.length;
-                messageInput.setSelectionRange(length, length);
-            });
-        }
     });
 
     // 添加点击事件监听

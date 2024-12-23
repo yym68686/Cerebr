@@ -291,7 +291,7 @@ class CerebrSidebar {
       const currentTime = new Date();
       const timeDiff = this.lastToggleTime ? currentTime - this.lastToggleTime : Infinity;
 
-      // 如果时间间隔小于等于10ms则不执行
+      // 如果时间间隔小于等于30ms则不执行
       if (timeDiff <= 30) {
         console.log('切换操作被忽略 - 间隔太短:', timeDiff + 'ms');
         return;
@@ -306,15 +306,35 @@ class CerebrSidebar {
       );
       this.lastToggleTime = currentTime;
 
+      // 在改变可见性之前保存旧状态
+      const wasVisible = this.isVisible;
       this.isVisible = !this.isVisible;
-      this.sidebar.classList.toggle('visible', this.isVisible);
+
+      // 更新DOM状态
+      if (this.isVisible) {
+        this.sidebar.classList.add('visible');
+      } else {
+        this.sidebar.classList.remove('visible');
+      }
+
+      // 保存状态
       this.saveState();
 
-
-      if (this.isVisible) {
+      // 如果从可见变为不可见，通知iframe
+      if (wasVisible && !this.isVisible) {
         const iframe = this.sidebar.querySelector('.cerebr-sidebar__iframe');
-        // console.log('发送聚焦输入框消息');
         if (iframe) {
+          iframe.contentWindow.postMessage({ type: 'SIDEBAR_VISIBILITY_CHANGED', isVisible: false }, '*');
+        }
+      }
+      // 如果从不可见变为可见，通知iframe并聚焦输入框
+      else if (!wasVisible && this.isVisible) {
+        const iframe = this.sidebar.querySelector('.cerebr-sidebar__iframe');
+        if (iframe) {
+          iframe.contentWindow.postMessage({
+            type: 'SIDEBAR_VISIBILITY_CHANGED',
+            isVisible: true
+          }, '*');
           iframe.contentWindow.postMessage({ type: 'FOCUS_INPUT' }, '*');
         }
       }
