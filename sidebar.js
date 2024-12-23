@@ -19,14 +19,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 提取公共配置
     const MATH_DELIMITERS = {
-        regex: /(\$\$[\s\S]+?\$\$)|(\$[^\s$][^$]*?\$)|(\\\\\([^]+?\\\\\))|(\\\([^]+?\\\))|(\\\[[\s\S]+?\\\])/g,
+        regex: /(\\\\\([^]+?\\\\\))|(\\\([^]+?\\\))|(\\\[[\s\S]+?\\\])/g,
+        // regex: /(\$\$[\s\S]+?\$\$)|(\$[^\s$][^$]*?\$)|(\\\\\([^]+?\\\\\))|(\\\([^]+?\\\))|(\\\[[\s\S]+?\\\])/g,
         renderConfig: {
             delimiters: [
                 {left: '\\(', right: '\\)', display: false},  // 行内公式
                 {left: '\\\\(', right: '\\\\)', display: false},  // 行内公式
                 {left: '\\[', right: '\\]', display: true},   // 行间公式
-                {left: '$$', right: '$$', display: true},     // 行间公式（备用）
-                {left: '$', right: '$', display: false}       // 行内公式（备用）
+                // {left: '$$', right: '$$', display: true},     // 行间公式（备用）
+                // {left: '$', right: '$', display: false}       // 行内公式（备用）
             ],
             throwOnError: false
         }
@@ -179,21 +180,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 构建消息数组
             const messages = [...chatHistory]; // 复制所有历史消息
 
-            // 如果开启了网页问答，添加网页内容到上下文
-            if (webpageSwitch.checked && pageContent) {
-                const systemMessage = {
-                    role: "system",
-                    content: `以下是当前网页的内容，请基于这些内容回答用户问题：\n标题：${pageContent.title}\nURL：${pageContent.url}\n内容：${pageContent.content}`
-                };
+            // 默认的系统消息
+            const defaultSystemMessage = {
+                role: "system",
+                content: `数学公式请使用LaTeX表示，行间公式请使用\\[...\\]表示，行内公式请使用\\(...\\)表示。用户语言是 ${navigator.language}，请优先使用该语言回复。`
+            };
 
-                // 检查第一条消息是否为系统消息
-                if (messages.length > 0 && messages[0].role === "system") {
-                    // 如果是系统消息，则替换内容
-                    messages[0] = systemMessage;
-                } else {
-                    // 如果不是系统消息，则在开头添加
-                    messages.unshift(systemMessage);
-                }
+            // 如果是第一条消息或第一条不是系统消息，添加默认系统消息
+            if (messages.length === 0 || messages[0].role !== "system") {
+                messages.unshift(defaultSystemMessage);
+            }
+
+            // 如果开启了网页问答，修改系统消息添加网页内容
+            if (webpageSwitch.checked && pageContent) {
+                messages[0] = {
+                    role: "system",
+                    content: `${defaultSystemMessage.content}\n以下是当前网页的内容，请基于这些内容回答用户问题：\n标题：${pageContent.title}\nURL：${pageContent.url}\n内容：${pageContent.content}`
+                };
             }
 
             // 添加用户问题
