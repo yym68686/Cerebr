@@ -373,8 +373,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // 临时替换数学公式
         text = text.replace(MATH_DELIMITERS.regex, (match) => {
-            // 替换 abla_ 为 \nabla_
-            match = match.replace(/abla_/g, '\\nabla_');
+            // 只替换不在 \n 后面的 abla_
+            match = match.replace(/(?<!\\n)abla_/g, '\\nabla_');
 
             // 如果是普通括号形式的公式，转换为 \(...\) 形式
             if (match.startsWith('(') && match.endsWith(')') && !match.startsWith('\\(')) {
