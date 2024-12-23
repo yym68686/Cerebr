@@ -27,8 +27,30 @@ function checkCustomShortcut(callback) {
 chrome.commands.onCommand.addListener(async (command) => {
   console.log('onCommand:', command);
   if (command === 'toggle_sidebar') {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_toggle_sidebar' });
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab) {
+        console.log('没有找到活动标签页');
+        return;
+      }
+
+      // 检查标签页是否已连接
+      const isConnected = await isTabConnected(tab.id);
+      if (!isConnected) {
+        console.log('标签页未连接，等待重试...');
+        // 等待一段时间后重试
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const retryConnection = await isTabConnected(tab.id);
+        if (!retryConnection) {
+          console.log('重试失败，标签页仍未连接');
+          return;
+        }
+      }
+
+      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_toggle_sidebar' });
+    } catch (error) {
+      console.error('处理命令失败:', error);
+    }
   }
 });
 
@@ -36,12 +58,22 @@ chrome.commands.onCommand.addListener(async (command) => {
 chrome.action.onClicked.addListener(async (tab) => {
   console.log('扩展图标被点击');
   try {
-      // console.log('尝试切换侧边栏');
-      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
-      // console.log('已发送切换侧边栏命令');
+    // 检查标签页是否已连接
+    const isConnected = await isTabConnected(tab.id);
+    if (!isConnected) {
+      console.log('标签页未连接，等待重试...');
+      // 等待一段时间后重试
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const retryConnection = await isTabConnected(tab.id);
+      if (!retryConnection) {
+        console.log('重试失败，标签页仍未连接');
+        return;
+      }
+    }
+
+    await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
   } catch (error) {
-      console.error('处理切换失败:', error);
-      console.error('错误堆栈:', error.stack);
+    console.error('处理切换失败:', error);
   }
 });
 
@@ -61,14 +93,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('收到消息:', message, '来自:', sender.tab?.id);
 
   if (message.type === 'CONTENT_LOADED') {
-    try {
-      console.log('内容脚本已加载:', message.url);
-      sendResponse({ status: 'ok', timestamp: new Date().toISOString() });
-    } catch (error) {
-      console.error('处理 CONTENT_LOADED 消息失败:', error);
-      sendResponse({ status: 'error', error: error.message });
-    }
-    return true;
+    console.log('内容脚本已加载:', message.url);
+    sendResponse({ status: 'ok', timestamp: new Date().toISOString() });
+    return false;
   }
 
   // 处理来自 sidebar 的网页内容请求
@@ -77,35 +104,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       try {
         const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!activeTab) {
-          console.log('未找到活动标签页');
           sendResponse(null);
           return;
         }
 
-        // 检查请求是否来自当前活动标签页
         if (sender.tab && sender.tab.id !== activeTab.id) {
-          console.log('请求来自非活动标签页，忽略请求');
           sendResponse(null);
           return;
         }
 
-        // 检查发送者是否是 sidebar
         if (!sender.url || !sender.url.includes('sidebar.html')) {
-          console.log('请求不是来自sidebar，忽略请求');
           sendResponse(null);
           return;
         }
 
-        // 检查标签页是否已连接
         if (await isTabConnected(activeTab.id)) {
-          console.log('向活动标签页发送内容请求:', activeTab.id);
           const response = await chrome.tabs.sendMessage(activeTab.id, {
             type: 'GET_PAGE_CONTENT_INTERNAL'
           });
-          console.log('收到活动标签页响应，发送回 sidebar');
           sendResponse(response);
         } else {
-          console.log('标签页未连接，无法获取内容');
           sendResponse(null);
         }
       } catch (error) {
@@ -118,81 +136,143 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // 处理PDF下载请求
   if (message.action === 'downloadPDF') {
-    console.log('收到PDF下载请求');
-    downloadPDF(message.url)
-      .then(response => {
-        console.log('PDF初始化信息:', response);
+    (async () => {
+      try {
+        const response = await downloadPDF(message.url);
         sendResponse(response);
-      })
-      .catch(error => {
-        console.error('PDF下载失败:', error);
+      } catch (error) {
         sendResponse({success: false, error: error.message});
-      });
+      }
+    })();
     return true;
   }
 
   // 处理获取PDF块的请求
   if (message.action === 'getPDFChunk') {
-    console.log('收到获取PDF块请求:', message.chunkIndex);
-    getPDFChunk(message.url, message.chunkIndex)
-      .then(response => {
-        console.log('发送PDF块数据:', message.chunkIndex);
+    (async () => {
+      try {
+        const response = await getPDFChunk(message.url, message.chunkIndex);
         sendResponse(response);
-      })
-      .catch(error => {
-        console.error('获取PDF块失败:', error);
+      } catch (error) {
         sendResponse({success: false, error: error.message});
-      });
+      }
+    })();
     return true;
   }
+
+  return false;
 });
 
 // 监听存储变化
-chrome.storage.onChanged.addListener(async (changes, areaName) => {
-  if (areaName === 'local' && changes.webpageSwitchDomains) {
-    const newValue = changes.webpageSwitchDomains.newValue || {};
-    const oldValue = changes.webpageSwitchDomains.oldValue || {};
-    console.log('域名状态变更:', {old: oldValue, new: newValue});
-
-    // 确保状态持久化
-    try {
-      const result = await chrome.storage.local.get('webpageSwitchDomains');
-      const currentDomains = result.webpageSwitchDomains || {};
-
-      // 检查是否有丢失的域名
-      const allDomains = {...oldValue, ...currentDomains};
-      if (Object.keys(allDomains).length > Object.keys(currentDomains).length) {
-        console.log('检测到域名丢失，恢复状态:', allDomains);
-        await chrome.storage.local.set({ webpageSwitchDomains: allDomains });
-      }
-    } catch (error) {
-      console.error('域名状态持久化失败:', error);
+chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'local' && changes.webpageSwitchDomains) {
+        const { newValue = {}, oldValue = {} } = changes.webpageSwitchDomains;
+        const domains = { ...oldValue, ...newValue };
+        chrome.storage.local.set({ webpageSwitchDomains: domains });
     }
-  }
 });
 
-// 保持 Service Worker 活跃
-let keepAliveInterval = setInterval(() => {
-  console.log('Service Worker 心跳:', new Date().toISOString());
-}, 20000);
+// 简化Service Worker活跃保持
+const HEARTBEAT_INTERVAL = 20000;
+const keepAliveInterval = setInterval(() => {
+    console.log('Service Worker 心跳:', new Date().toISOString());
+}, HEARTBEAT_INTERVAL);
 
-// 清理函数
-self.addEventListener('beforeunload', () => {
-  if (keepAliveInterval) {
-    clearInterval(keepAliveInterval);
-  }
-});
+self.addEventListener('beforeunload', () => clearInterval(keepAliveInterval));
 
-// 初始化检查
+// 简化初始化检查
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('扩展已安装/更新，时间:', new Date().toISOString());
-  chrome.commands.getAll().then(commands => {
-    console.log('已注册的命令:', commands);
-    commands.forEach(cmd => {
-      console.log(`命令 ${cmd.name} 的快捷键:`, cmd.shortcut || '未设置');
-    });
-  });
+    console.log('扩展已安装/更新:', new Date().toISOString());
 });
+
+// 简化标签页连接检查
+async function isTabConnected(tabId) {
+    try {
+        await chrome.tabs.sendMessage(tabId, { type: 'PING' });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+// 简化消息发送
+async function sendMessageToTab(tabId, message) {
+    if (await isTabConnected(tabId)) {
+        return chrome.tabs.sendMessage(tabId, message);
+    }
+    return null;
+}
+
+// 简化请求跟踪
+const tabRequests = new Map();
+
+function initTabRequests(tabId) {
+    if (!tabRequests.has(tabId)) {
+        tabRequests.set(tabId, {
+            pending: new Set(),
+            isInitialRequestsCompleted: false
+        });
+    }
+}
+
+// 简化请求监听器
+chrome.webRequest.onBeforeRequest.addListener(
+    ({ tabId, requestId }) => {
+        if (tabId !== -1) {
+            initTabRequests(tabId);
+            const tabData = tabRequests.get(tabId);
+            tabData.pending.add(requestId);
+            // 使用非异步方式发送消息
+            chrome.tabs.sendMessage(tabId, {
+                type: 'REQUEST_STARTED',
+                requestId,
+                pendingCount: tabData.pending.size
+            }).catch(() => {});
+        }
+    },
+    { urls: ["<all_urls>"] }
+);
+
+chrome.webRequest.onCompleted.addListener(
+    ({ tabId, requestId }) => {
+        if (tabId !== -1 && tabRequests.has(tabId)) {
+            const tabData = tabRequests.get(tabId);
+            tabData.pending.delete(requestId);
+
+            if (tabData.pending.size === 0) {
+                tabData.isInitialRequestsCompleted = true;
+            }
+
+            // 使用非异步方式发送消息
+            chrome.tabs.sendMessage(tabId, {
+                type: 'REQUEST_COMPLETED',
+                requestId,
+                pendingCount: tabData.pending.size,
+                isInitialRequestsCompleted: tabData.isInitialRequestsCompleted
+            }).catch(() => {});
+        }
+    },
+    { urls: ["<all_urls>"] }
+);
+
+chrome.webRequest.onErrorOccurred.addListener(
+    ({ tabId, requestId }) => {
+        if (tabId !== -1 && tabRequests.has(tabId)) {
+            const tabData = tabRequests.get(tabId);
+            tabData.pending.delete(requestId);
+
+            // 使用非异步方式发送消息
+            chrome.tabs.sendMessage(tabId, {
+                type: 'REQUEST_FAILED',
+                requestId,
+                pendingCount: tabData.pending.size
+            }).catch(() => {});
+        }
+    },
+    { urls: ["<all_urls>"] }
+);
+
+chrome.tabs.onRemoved.addListener(tabId => tabRequests.delete(tabId));
 
 // PDF下载函数
 async function downloadPDF(url) {
@@ -281,113 +361,3 @@ async function getPDFChunk(url, chunkIndex) {
         };
     }
 }
-
-// 添加网络请求跟踪
-const tabRequests = new Map(); // 存储每个标签页的请求
-
-// 初始化标签页的请求跟踪
-function initTabRequests(tabId) {
-  if (!tabRequests.has(tabId)) {
-    tabRequests.set(tabId, {
-      pending: new Set(),
-      isInitialRequestsCompleted: false
-    });
-  }
-}
-
-// 添加连接检查函数
-async function isTabConnected(tabId) {
-  try {
-    await chrome.tabs.sendMessage(tabId, { type: 'PING' });
-    return true;
-  } catch (error) {
-    return false;
-  }
-}
-
-// 修改消息发送函数
-async function sendMessageToTab(tabId, message) {
-  try {
-    if (await isTabConnected(tabId)) {
-      return await chrome.tabs.sendMessage(tabId, message);
-    } else {
-      console.log(`标签页 ${tabId} 未连接，跳过消息发送`);
-      return null;
-    }
-  } catch (error) {
-    // console.log(`发送消息到标签页 ${tabId} 失败:`, error);
-    return null;
-  }
-}
-
-// 修改网络请求监听器
-chrome.webRequest.onBeforeRequest.addListener(
-  async (details) => {
-    const { tabId, requestId, url } = details;
-    if (tabId !== -1) {  // 忽略不属于任何标签页的请求
-      initTabRequests(tabId);
-      const tabData = tabRequests.get(tabId);
-      tabData.pending.add(requestId);
-
-      // 通知 content script
-      await sendMessageToTab(tabId, {
-        type: 'REQUEST_STARTED',
-        requestId,
-        pendingCount: tabData.pending.size
-      });
-    }
-  },
-  { urls: ["<all_urls>"] }
-);
-
-// 修改请求完成监听器
-chrome.webRequest.onCompleted.addListener(
-  async (details) => {
-    const { tabId, requestId, url } = details;
-    if (tabId !== -1 && tabRequests.has(tabId)) {
-      const tabData = tabRequests.get(tabId);
-      tabData.pending.delete(requestId);
-
-      if (tabData.pending.size === 0 && !tabData.isInitialRequestsCompleted) {
-        tabData.isInitialRequestsCompleted = true;
-        console.log(`[Tab ${tabId}] 所有初始请求已完成`);
-      }
-
-      // 通知 content script
-      await sendMessageToTab(tabId, {
-        type: 'REQUEST_COMPLETED',
-        requestId,
-        pendingCount: tabData.pending.size,
-        isInitialRequestsCompleted: tabData.isInitialRequestsCompleted
-      });
-    }
-  },
-  { urls: ["<all_urls>"] }
-);
-
-// 修改请求错误监听器
-chrome.webRequest.onErrorOccurred.addListener(
-  async (details) => {
-    const { tabId, requestId, url } = details;
-    if (tabId !== -1 && tabRequests.has(tabId)) {
-      const tabData = tabRequests.get(tabId);
-      tabData.pending.delete(requestId);
-
-      // 通知 content script
-      await sendMessageToTab(tabId, {
-        type: 'REQUEST_FAILED',
-        requestId,
-        pendingCount: tabData.pending.size
-      });
-    }
-  },
-  { urls: ["<all_urls>"] }
-);
-
-// 清理标签页数据
-chrome.tabs.onRemoved.addListener((tabId) => {
-  if (tabRequests.has(tabId)) {
-    console.log(`[Tab ${tabId}] 标签页关闭，清理请求数据`);
-    tabRequests.delete(tabId);
-  }
-});

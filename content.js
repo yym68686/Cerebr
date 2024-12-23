@@ -16,37 +16,29 @@ class CerebrSidebar {
   }
 
   setupUrlChangeListener() {
-    let lastPathname = window.location.pathname;
-    let lastSearch = window.location.search;
+    let lastUrl = window.location.href;
 
-    // 检查是否是真正的页面变化
-    const isRealPageChange = (oldPath, oldSearch) => {
-        const newPathname = window.location.pathname;
-        const newSearch = window.location.search;
+    // 检查URL是否发生实质性变化
+    const hasUrlChanged = (currentUrl) => {
+        if (currentUrl === lastUrl) return false;
+        if (document.contentType === 'application/pdf') return false;
 
-        // 如果是 PDF，忽略 URL 中的 hash 和 search 变化
-        if (document.contentType === 'application/pdf') {
-            return false;
-        }
-
-        // 对于其他页面，检查路径或查询参数是否发生实质变化
-        return newPathname !== oldPath || newSearch !== oldSearch;
+        const oldUrl = new URL(lastUrl);
+        const newUrl = new URL(currentUrl);
+        return oldUrl.pathname !== newUrl.pathname || oldUrl.search !== newUrl.search;
     };
 
-    // 处理 URL 变化的通用函数
-    this.handleUrlChange = (source = '') => {
+    // 处理URL变化
+    const handleUrlChange = () => {
         const currentUrl = window.location.href;
-        if (currentUrl !== this.lastUrl && isRealPageChange(lastPathname, lastSearch)) {
-            console.log(`[URL变化${source ? '-' + source : ''}]`, '从:', this.lastUrl, '到:', currentUrl);
-            this.lastUrl = currentUrl;
-            lastPathname = window.location.pathname;
-            lastSearch = window.location.search;
+        if (hasUrlChanged(currentUrl)) {
+            console.log('URL变化:', '从:', lastUrl, '到:', currentUrl);
+            lastUrl = currentUrl;
 
-            const iframe = source === 'pushState' || source === 'replaceState'
-                ? document.querySelector('cerebr-root')?.shadowRoot?.querySelector('.cerebr-sidebar__iframe')
-                : this.sidebar?.querySelector('.cerebr-sidebar__iframe');
-
+            // 获取iframe并发送消息
+            const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
             if (iframe) {
+                console.log('发送URL变化消息到iframe');
                 iframe.contentWindow.postMessage({
                     type: 'URL_CHANGED',
                     url: currentUrl
@@ -55,29 +47,30 @@ class CerebrSidebar {
         }
     };
 
-    // 使用 setInterval 定期检查 URL 变化
-    setInterval(() => {
-        this.handleUrlChange();
-    }, 1000);
-
-    // 修改 popstate 事件处理
+    // 监听popstate事件
     window.addEventListener('popstate', () => {
-        this.handleUrlChange('popstate');
+        console.log('popstate事件触发');
+        handleUrlChange();
     });
 
-    // 修改 pushState 和 replaceState 监听
+    // 重写history方法
     const originalPushState = history.pushState;
     const originalReplaceState = history.replaceState;
 
     history.pushState = function() {
         originalPushState.apply(this, arguments);
-        this.handleUrlChange('pushState');
-    }.bind(this);
+        console.log('pushState被调用');
+        handleUrlChange();
+    };
 
     history.replaceState = function() {
         originalReplaceState.apply(this, arguments);
-        this.handleUrlChange('replaceState');
-    }.bind(this);
+        console.log('replaceState被调用');
+        handleUrlChange();
+    };
+
+    // 添加定期检查
+    setInterval(handleUrlChange, 1000);
   }
 
   async saveState() {
@@ -587,7 +580,7 @@ async function extractPageContent() {
   // 理文本
   mainContent = mainContent
       .replace(/\s+/g, ' ')  // 替换多个空白字符为单个空格
-      .replace(/\n\s*\n/g, '\n')  // 替换多个换行为单个换行
+      .replace(/\n\s*\n/g, '\n')  // 替��多个换行为单个换行
       .trim();
 
   // 检查提取的内容是否足够

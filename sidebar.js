@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     chrome.tabs.onActivated.addListener(async (activeInfo) => {
         console.log('标签页切换:', activeInfo);
         await loadChatHistory();
-        await loadWebpageSwitch('标签页切换');
+        await loadWebpageSwitch('标签页切');
     });
 
     // 初始加载历史记录
@@ -169,200 +169,84 @@ document.addEventListener('DOMContentLoaded', async () => {
         const message = messageInput.value.trim();
         if (!message) return;
 
-        // 检查是否有选中的配置
         const config = apiConfigs[selectedConfigIndex];
-        if (!config) {
-            appendMessage('错误：未找到 API 配置，请在设置中配置 API', 'ai', true);
-            return;
-        }
-
-        // 检查必要的配置项
-        if (!config.baseUrl || !config.apiKey) {
-            appendMessage('错误：请在设置中完善 API 配置信息', 'ai', true);
+        if (!config?.baseUrl || !config?.apiKey) {
+            appendMessage('请在设置中完善 API 配置', 'ai', true);
             return;
         }
 
         try {
-            // 构建消息数组
-            const messages = [...chatHistory]; // 复制所有历史消息
-
-            // 默认的系统消息
-            const defaultSystemMessage = {
-                role: "system",
-                content: `数学公式请使用LaTeX表示，行间公式请使用\\[...\\]表示，行内公式请使用\\(...\\)表示，禁止使用$...$表示行内公式。用户语言是 ${navigator.language}，请优先使用该语言回复。`
-            };
-
-            // 如果是第一条消息或第一条不是系统消息，添加默认系统消息
-            if (messages.length === 0 || messages[0].role !== "system") {
-                messages.unshift(defaultSystemMessage);
-            }
-
-            // 如果开启了网页问答，修改系统消息添加网页内容
-            if (webpageSwitch.checked && pageContent) {
-                messages[0] = {
-                    role: "system",
-                    content: `${defaultSystemMessage.content}\n以下是当前网页的内容，请基于这些内容回答用户问题：\n标题：${pageContent.title}\nURL：${pageContent.url}\n内容：${pageContent.content}`
-                };
-            }
-
-            // 添加用户问题
-            const userMessage = {
-                role: "user",
-                content: message
-            };
-            messages.push(userMessage);
-
-            // 显示用户消息并清空输入框
+            // 先添加用户消息到界面
             appendMessage(message, 'user');
             messageInput.value = '';
             adjustTextareaHeight(messageInput);
 
-            let hasError = false; // 添加错误标记
-            try {
-                const response = await fetch(`${config.baseUrl}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${config.apiKey}`
-                    },
-                    body: JSON.stringify({
-                        "model": config.modelName || "gpt-4o",
-                        "messages": messages,
-                        "stream": true
-                    })
-                });
-                console.log('消息数组状态:', messages);
+            // 构建消息数组
+            const messages = [...chatHistory];
+            const systemMessage = {
+                role: "system",
+                content: `数学公式请使用LaTeX表示，行间公式请使用\\[...\\]表示，行内公式请使用\\(...\\)表示。用户语言是 ${navigator.language}。${
+                    webpageSwitch.checked && pageContent ?
+                    `\n当前网页内容：\n标题：${pageContent.title}\nURL：${pageContent.url}\n内容：${pageContent.content}` :
+                    ''
+                }`
+            };
 
-                if (!response.ok) {
-                    hasError = true; // 设置错误标记
-                    const errorText = await response.text();
-                    console.log('服务器返回的错误响应:', {
-                        status: response.status,
-                        statusText: response.statusText,
-                        errorText: errorText,
-                        headers: Object.fromEntries(response.headers.entries())
-                    });
+            // 如果是第一条消息或第一条不是系统消息，添加系统消息
+            if (messages.length === 0 || messages[0].role !== "system") {
+                messages.unshift(systemMessage);
+            }
 
-                    let errorMessage = `HTTP 错误! 状态码: ${response.status}`;
-                    try {
-                        // 尝试解析JSON
-                        console.log('尝试解析错误响应为JSON:', errorText);
-                        const errorJson = JSON.parse(errorText);
-                        console.log('解析后的JSON:', errorJson);
+            // 发送API请求
+            const response = await fetch(config.baseUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${config.apiKey}`
+                },
+                body: JSON.stringify({
+                    model: config.modelName || "gpt-4o",
+                    messages,
+                    stream: true
+                })
+            });
 
-                        if (errorJson.error) {
-                            console.log('错误对象类型:', typeof errorJson.error);
-                            console.log('错误对象内容:', errorJson.error);
+            if (!response.ok) {
+                const error = await response.text();
+                throw new Error(error);
+            }
 
-                            if (typeof errorJson.error === 'string') {
-                                errorMessage += `\n错误信息: ${errorJson.error}`;
-                            } else if (errorJson.error.message) {
-                                errorMessage += `\n错误信息: ${errorJson.error.message}`;
-                            } else {
-                                // 如果error对象存在但没有预期的格式，则输出整个error对象
-                                errorMessage += `\n错误信息: ${JSON.stringify(errorJson.error)}`;
+            const reader = response.body.getReader();
+            let aiResponse = '';
+
+            while (true) {
+                const {done, value} = await reader.read();
+                if (done) break;
+
+                const chunk = new TextDecoder().decode(value);
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const content = line.slice(6);
+                        if (content.trim() === '[DONE]') continue;
+
+                        try {
+                            const data = JSON.parse(content);
+                            if (data.choices?.[0]?.delta?.content) {
+                                aiResponse += data.choices[0].delta.content;
+                                updateAIMessage(aiResponse);
                             }
-                        } else {
-                            // 如果没有error字段，则尝试使用整个响应对象
-                            errorMessage += `\n错误信息: ${JSON.stringify(errorJson)}`;
-                        }
-                    } catch (e) {
-                        console.log('JSON解析失败:', e);
-                        // 如果不是JSON格式，直接使用错误文本
-                        if (errorText && errorText.trim()) {
-                            errorMessage += `\n错误信息: ${errorText.trim()}`;
-                        } else {
-                            // 如果没有错误文本，则根据状态码提供通用错误信息
-                            switch (response.status) {
-                                case 503:
-                                    errorMessage += '\n错误信息: 服务暂时不可用，请稍后重试';
-                                    break;
-                                case 500:
-                                    errorMessage += '\n错误信息: 服务器内部错误';
-                                    break;
-                                case 429:
-                                    errorMessage += '\n错误信息: 请求过于频繁，请稍后重试';
-                                    break;
-                                case 401:
-                                    errorMessage += '\n错误信息: 认证失败，请检查API密钥';
-                                    break;
-                                case 403:
-                                    errorMessage += '\n错误信息: 无权访问，请检查API密钥权限';
-                                    break;
-                                default:
-                                    errorMessage += '\n错误信息: 服务器响应异常';
-                            }
+                        } catch (e) {
+                            console.error('解析响应出错:', e);
                         }
                     }
-                    console.log('最终错误信息:', errorMessage);
-                    appendMessage(errorMessage, 'ai', true);
-                    return;
-                }
-
-                const reader = response.body.getReader();
-                let aiResponse = '';
-
-                while (true) {
-                    const {done, value} = await reader.read();
-                    if (done) break;
-
-                    const chunk = new TextDecoder().decode(value);
-                    const lines = chunk.split('\n');
-
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            const content = line.slice(6);
-
-                            // 检查是否是结束标记
-                            if (content.trim() === '[DONE]') {
-                                console.log('流式响应结束');
-                                continue;
-                            }
-
-                            try {
-                                const data = JSON.parse(content);
-                                // 检查响应结构
-                                if (data.choices && data.choices.length > 0) {
-                                    const choice = data.choices[0];
-                                    if (choice.delta && choice.delta.content) {
-                                        // 只有在有实际内容时才更新
-                                        aiResponse += choice.delta.content;
-                                        updateAIMessage(aiResponse);
-                                    } else if (choice.finish_reason) {
-                                        // 处理结束原因（如果需要）
-                                        console.log('响应结束原因:', choice.finish_reason);
-                                    }
-                                } else if (data.usage) {
-                                    // 处理使用统计信息（如果需要）
-                                    console.log('Token 使用统计:', data.usage);
-                                }
-                            } catch (e) {
-                                console.error('解析响应出错:', e);
-                                console.log('出错的内容:', content);
-                            }
-                        }
-                    }
-                }
-            } catch (error) {
-                hasError = true; // 设置错误标记
-                console.error('API 请求失败:', error);
-                if (error.message.includes('Failed to fetch')) {
-                    appendMessage('错误：无法连接到 API 服务器，请检查网络连接和 Base URL 配置', 'ai', true);
-                } else if (error.message.includes('HTTP 错误!')) {
-                    appendMessage(error.message, 'ai', true);
-                } else {
-                    appendMessage(`错误：${error.message}`, 'ai', true);
-                }
-            } finally {
-                // 在finally块中处理错误情况下的历史记录
-                if (hasError) {
-                    chatHistory.pop(); // 如果发生错误，移除最后一条用户消息
                 }
             }
         } catch (error) {
             console.error('发送消息失败:', error);
-            appendMessage('发送消息失败，请检查配置和网络连接', 'ai', true);
-            chatHistory.pop(); // 确保在最外层的错误处理中也移除用户消息
+            appendMessage('发送失败: ' + error.message, 'ai', true);
+            chatHistory.pop();
         }
     }
 
@@ -386,7 +270,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return placeholder;
         });
 
-        // 配置 marked
+        // 配 marked
         marked.setOptions({
             breaks: true,
             gfm: true,
@@ -427,9 +311,30 @@ document.addEventListener('DOMContentLoaded', async () => {
             isSidebarVisible = event.data.isVisible;
             if (!event.data.isVisible) {
                 console.log('侧边栏已隐藏，继续保持消息更新');
-                // 移除自动滚动
             } else {
                 console.log('侧边栏已显示');
+            }
+        } else if (event.data.type === 'URL_CHANGED') {
+            console.log('[收到URL变化]', event.data.url);
+            // 检查网页问答开关是否打开
+            if (webpageSwitch.checked) {
+                console.log('[网页问答] URL变化，重新获取页面内容');
+                (async () => {
+                    pageContent = await getPageContent();
+                    if (!pageContent) {
+                        webpageSwitch.checked = false;
+                        const domain = await getCurrentDomain();
+                        if (domain) {
+                            await saveWebpageSwitch(domain, false);
+                        }
+                        appendMessage('无法获取网页内容', 'ai', true);
+                    } else {
+                        const domain = await getCurrentDomain();
+                        if (domain) {
+                            await saveWebpageSwitch(domain, true);
+                        }
+                    }
+                })();
             }
         }
     });
@@ -575,14 +480,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 主题切换
     const themeSwitch = document.getElementById('theme-switch');
-    const themeToggle = document.getElementById('theme-toggle');
 
-    // 检查系统主题
-    function checkSystemTheme() {
-        return window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }
-
-    // 定义主题颜色
+    // 简化主题配置
     const themes = {
         light: {
             '--cerebr-bg-color': '#ffffff',
@@ -605,41 +504,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 设置主题
     function setTheme(isDark) {
         const theme = isDark ? themes.dark : themes.light;
-        for (const [property, value] of Object.entries(theme)) {
+        Object.entries(theme).forEach(([property, value]) => {
             document.documentElement.style.setProperty(property, value);
-        }
-        // 更新开关状态和文本
-        if (themeSwitch) {
-            themeSwitch.checked = isDark;
-        }
-        const themeLabel = themeToggle?.querySelector('span');
-        if (themeLabel) {
-            themeLabel.textContent = isDark ? '深色模式' : '浅色模式';
-        }
-
-        // 保存主题设置
+        });
+        themeSwitch.checked = isDark;
         chrome.storage.sync.set({ theme: isDark ? 'dark' : 'light' });
     }
 
     // 初始化主题
-    async function initializeTheme() {
+    async function initTheme() {
         try {
             const result = await chrome.storage.sync.get('theme');
-            const systemTheme = checkSystemTheme();
-
-            if (result.theme) {
-                // 如果有保存的主题设置，使用保存的设置
-                setTheme(result.theme === 'dark');
-            } else {
-                // 如果是首次使用，跟随系统主题
-                setTheme(systemTheme);
-            }
+            const isDark = result.theme === 'dark' ||
+                          (!result.theme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            setTheme(isDark);
         } catch (error) {
             console.error('初始化主题失败:', error);
-            // 如果出错，默认跟随系统主题
-            setTheme(checkSystemTheme());
+            // 如果出错，使用系统主题
+            setTheme(window.matchMedia('(prefers-color-scheme: dark)').matches);
         }
     }
+
+    // 监听主题切换
+    themeSwitch.addEventListener('change', () => setTheme(themeSwitch.checked));
 
     // 监听系统主题变化
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
@@ -650,13 +537,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
-    // 监听主题切换开关
-    themeSwitch.addEventListener('change', () => {
-        setTheme(themeSwitch.checked);
-    });
-
-    // 立即初始化主题
-    await initializeTheme();
+    // 初始化主题
+    await initTheme();
 
     // 修改 saveWebpageSwitch 函数，改进存储机制和错误处理
     async function saveWebpageSwitch(domain, enabled) {
@@ -667,7 +549,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let domains = result.webpageSwitchDomains || {};
         console.log('获取到当前存储的域名状态:', domains);
 
-        // 更新状态
+        // 新状态
         if (enabled) {
             domains[domain] = true;
         } else {
@@ -796,7 +678,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         });
 
-        // 复制配置
+        // ���制配置
         template.querySelector('.duplicate-btn').addEventListener('click', (e) => {
             e.stopPropagation();
             apiConfigs.push({...config});
@@ -887,7 +769,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const menuWidth = contextMenu.offsetWidth;
         const menuHeight = contextMenu.offsetHeight;
 
-        // 确保菜单不会超出视口
+        // 确保菜单不超出视口
         let x = e.clientX;
         let y = e.clientY;
 

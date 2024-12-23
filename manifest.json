@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Cerebr",
-  "version": "1.3.7",
+  "version": "1.3.8",
   "description": "Cerebr - 智能AI聊天助手",
   "icons": {
     "16": "icons/icon16.png",
