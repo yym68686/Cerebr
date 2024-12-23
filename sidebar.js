@@ -189,7 +189,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 默认的系统消息
             const defaultSystemMessage = {
                 role: "system",
-                content: `数学公式请使用LaTeX表示，行间公式请使用\\[...\\]表示，行内公式请使用\\(...\\)表示。用户语言是 ${navigator.language}，请优先使用该语言回复。`
+                content: `数学公式请使用LaTeX表示，行间公式请使用\\[...\\]表示，行内公式请使用\\(...\\)表示，禁止使用$...$表示行内公式。用户语言是 ${navigator.language}，请优先使用该语言回复。`
             };
 
             // 如果是第一条消息或第一条不是系统消息，添加默认系统消息
