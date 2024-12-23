@@ -144,6 +144,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
             if (!tab?.url) return null;
+
+            // 处理本地文件
+            if (tab.url.startsWith('file://')) {
+                return 'local_pdf';
+            }
+
             const hostname = new URL(tab.url).hostname;
 
             // 规范化域名

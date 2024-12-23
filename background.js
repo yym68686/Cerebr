@@ -198,9 +198,24 @@ chrome.runtime.onInstalled.addListener(() => {
 async function downloadPDF(url) {
     try {
         console.log('开始下载PDF文件:', url);
-        const response = await fetch(url);
-        console.log('PDF文件下载响应状态:', response.status);
-        const arrayBuffer = await response.arrayBuffer();
+        let arrayBuffer;
+
+        if (url.startsWith('file://')) {
+            // 处理本地文件
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error('无法读取本地PDF文件');
+            }
+            arrayBuffer = await response.arrayBuffer();
+        } else {
+            // 处理在线文件
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error('PDF文件下载失败');
+            }
+            arrayBuffer = await response.arrayBuffer();
+        }
+
         console.log('PDF文件下载完成，大小:', arrayBuffer.byteLength, 'bytes');
 
         // 将ArrayBuffer转换为Uint8Array
@@ -229,10 +244,25 @@ async function downloadPDF(url) {
 // 获取特定块的数据
 async function getPDFChunk(url, chunkIndex) {
     try {
-        const response = await fetch(url);
-        const arrayBuffer = await response.arrayBuffer();
-        const uint8Array = new Uint8Array(arrayBuffer);
+        let arrayBuffer;
 
+        if (url.startsWith('file://')) {
+            // 处理本地文件
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error('无法读取本地PDF文件');
+            }
+            arrayBuffer = await response.arrayBuffer();
+        } else {
+            // 处理在线文件
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error('PDF文件下载失败');
+            }
+            arrayBuffer = await response.arrayBuffer();
+        }
+
+        const uint8Array = new Uint8Array(arrayBuffer);
         const chunkSize = 4 * 1024 * 1024;
         const start = chunkIndex * chunkSize;
         const end = Math.min(start + chunkSize, uint8Array.length);
