@@ -678,7 +678,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         });
 
-        // ���制配置
+        // 制配置
         template.querySelector('.duplicate-btn').addEventListener('click', (e) => {
             e.stopPropagation();
             apiConfigs.push({...config});
@@ -740,6 +740,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         saveChatHistory();
         // 关闭设置菜单
         settingsMenu.classList.remove('visible');
+        // 聚焦输入框并将光标移到末尾
+        messageInput.focus();
+        requestAnimationFrame(() => {
+            const length = messageInput.value.length;
+            messageInput.setSelectionRange(length, length);
+        });
     });
 
     // 添加点击事件监听

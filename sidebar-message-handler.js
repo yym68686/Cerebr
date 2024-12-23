@@ -84,6 +84,15 @@ async function handleShortcut(event) {
         event.preventDefault();
         if (clearChat) {
             clearChat.click();
+            // 聚焦输入框并将光标移到末尾
+            const input = document.querySelector('#message-input');
+            if (input) {
+                input.focus();
+                requestAnimationFrame(() => {
+                    const length = input.value.length;
+                    input.setSelectionRange(length, length);
+                });
+            }
         }
         return;
     }
@@ -165,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // 开始观察聊��容器的变化
+    // 开始观察聊天容器的变化
     observer.observe(chatContainer, { childList: true });
 
     // 当输入框失去焦点时重置历史索引
