@@ -123,7 +123,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadChatHistory();
 
 
-    // 网问答功能
+    // 网答功能
     const webpageSwitch = document.getElementById('webpage-switch');
     let pageContent = null;
 
@@ -141,7 +141,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // 修改 loadWebpageSwitch 函数，添加延迟加载
+    // 修改 loadWebpageSwitch 函数
     async function loadWebpageSwitch(call_name = 'loadWebpageSwitch') {
         console.log(`loadWebpageSwitch 从 ${call_name} 调用`);
 
@@ -155,12 +155,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (domains[domain]) {
             webpageSwitch.checked = true;
-            console.log('loadWebpageSwitch 刷新后 ���问答 获取网页内容');
-            pageContent = await getPageContent();
-            // 如果成功获取到内容，确保域名存在于存储中
-            if (pageContent) {
-                await saveWebpageSwitch(domain, true);
-            }
+            // 添加加载状态
+            document.body.classList.add('loading-content');
+
+            // 异步获取网页内容
+            getPageContent().then(content => {
+                if (content) {
+                    pageContent = content;
+                    saveWebpageSwitch(domain, true);
+                } else {
+                    webpageSwitch.checked = false;
+                    saveWebpageSwitch(domain, false);
+                    appendMessage('无法获取网页内容', 'ai');
+                }
+            }).catch(error => {
+                console.error('获取网页内容失败:', error);
+                webpageSwitch.checked = false;
+                saveWebpageSwitch(domain, false);
+                appendMessage('获取网页内容失败', 'ai');
+            }).finally(() => {
+                document.body.classList.remove('loading-content');
+            });
         } else {
             webpageSwitch.checked = false;
             pageContent = null;
@@ -177,20 +192,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         console.log('网页问答开关状态改变后，获取网页问答开关状态:', webpageSwitch.checked);
 
-        // 添加延迟确保存储操作完成
-        await new Promise(resolve => setTimeout(resolve, 100));
-
         if (webpageSwitch.checked) {
-            console.log('网页问答开关状态改变后，获取网页内容');
-            pageContent = await getPageContent();
-            if (!pageContent) {
-                webpageSwitch.checked = false;
-                await saveWebpageSwitch(domain, false);
-                appendMessage('无法获取网页内容', 'ai');
-            } else {
-                await saveWebpageSwitch(domain, true);
-                console.log('修改网页问答为已开启');
-            }
+            document.body.classList.add('loading-content');
+
+            getPageContent()
+                .then(async content => {
+                    if (content) {
+                        pageContent = content;
+                        await saveWebpageSwitch(domain, true);
+                        console.log('修改网页问答为已开启');
+                    } else {
+                        webpageSwitch.checked = false;
+                        await saveWebpageSwitch(domain, false);
+                        appendMessage('无法获取网页内容', 'ai');
+                    }
+                })
+                .catch(async error => {
+                    console.error('获取网页内容失败:', error);
+                    webpageSwitch.checked = false;
+                    await saveWebpageSwitch(domain, false);
+                    appendMessage('获取网页内容失败', 'ai');
+                })
+                .finally(() => {
+                    document.body.classList.remove('loading-content');
+                });
         } else {
             pageContent = null;
             await saveWebpageSwitch(domain, false);
@@ -266,7 +291,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 });
             } else {
-                // 如果只有文本，直接使用文本内容
+                // 如果��有文本，直接使用文本内容
                 content = message;
             }
 
@@ -404,7 +429,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.addEventListener('message', (event) => {
         if (event.data.type === 'FOCUS_INPUT') {
             messageInput.focus();
-            // 移动光标到��尾
             const range = document.createRange();
             range.selectNodeContents(messageInput);
             range.collapse(false);
@@ -412,7 +436,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             selection.removeAllRanges();
             selection.addRange(range);
         } else if (event.data.type === 'SIDEBAR_VISIBILITY_CHANGED') {
-            // 更新侧边栏可见性状态
             isSidebarVisible = event.data.isVisible;
             if (!event.data.isVisible) {
                 console.log('侧边栏已隐藏，继续保持消息更新');
@@ -421,25 +444,39 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         } else if (event.data.type === 'URL_CHANGED') {
             console.log('[收到URL变化]', event.data.url);
-            // 检查网页问答开关是否打开
             if (webpageSwitch.checked) {
                 console.log('[网页问答] URL变化，重新获取页面内容');
-                (async () => {
-                    pageContent = await getPageContent();
-                    if (!pageContent) {
+                document.body.classList.add('loading-content');
+
+                getPageContent()
+                    .then(async content => {
+                        if (content) {
+                            pageContent = content;
+                            const domain = await getCurrentDomain();
+                            if (domain) {
+                                await saveWebpageSwitch(domain, true);
+                            }
+                        } else {
+                            webpageSwitch.checked = false;
+                            const domain = await getCurrentDomain();
+                            if (domain) {
+                                await saveWebpageSwitch(domain, false);
+                            }
+                            appendMessage('无法获取网页内容', 'ai', true);
+                        }
+                    })
+                    .catch(async error => {
+                        console.error('获取网页内容失败:', error);
                         webpageSwitch.checked = false;
                         const domain = await getCurrentDomain();
                         if (domain) {
                             await saveWebpageSwitch(domain, false);
                         }
-                        appendMessage('无法获取网页内容', 'ai', true);
-                    } else {
-                        const domain = await getCurrentDomain();
-                        if (domain) {
-                            await saveWebpageSwitch(domain, true);
-                        }
-                    }
-                })();
+                        appendMessage('获取网页内容失败', 'ai', true);
+                    })
+                    .finally(() => {
+                        document.body.classList.remove('loading-content');
+                    });
             }
         } else if (event.data.type === 'UPDATE_PLACEHOLDER') {
             console.log('收到更新placeholder消息:', event.data);
@@ -935,7 +972,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 监听输入框的焦点状态
     messageInput.addEventListener('focus', () => {
-        // 输入框获得焦点���，阻止事件冒泡
+        // 输入框获得焦点，阻止事件冒泡
         messageInput.addEventListener('click', (e) => e.stopPropagation());
     });
 
@@ -979,7 +1016,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 复制消息内容
     function copyMessageContent() {
         if (currentMessageElement) {
-            // 获取存储的原始文���
+            // 获取存储的原始文本
             const originalText = currentMessageElement.getAttribute('data-original-text');
             navigator.clipboard.writeText(originalText).then(() => {
                 hideContextMenu();
@@ -1117,7 +1154,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             e.preventDefault();
             e.stopPropagation();
             container.remove();
-            // 触发输入事件以调整高度
+            // ���发输入事件以调整高度
             messageInput.dispatchEvent(new Event('input'));
         });
 

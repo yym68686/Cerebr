@@ -1,21 +1,22 @@
 /* 根变量 */
 :root {
-    --cerebr-bg-color: #ffffff;
+    --cerebr-bg-color: rgba(255, 255, 255, 0.8);
     --cerebr-text-color: #000000;
-    --cerebr-message-user-bg: #e3f2fd;
-    --cerebr-message-ai-bg: #f5f5f5;
-    --cerebr-input-bg: #f8f8f8;
+    --cerebr-message-user-bg: rgba(0, 122, 255, 0.1);
+    --cerebr-message-ai-bg: rgba(0, 0, 0, 0.05);
+    --cerebr-input-bg: rgba(255, 255, 255, 0.5);
     --cerebr-icon-color: #666666;
+    --cerebr-blur-radius: 12px;
 }
 
 @media (prefers-color-scheme: dark) {
     :root {
-        --cerebr-bg-color: #282c34;
-        --cerebr-text-color: #abb2bf;
-        --cerebr-message-user-bg: #3E4451;
-        --cerebr-message-ai-bg: #2c313c;
-        --cerebr-input-bg: #21252b;
-        --cerebr-icon-color: #abb2bf;
+        --cerebr-bg-color: rgba(0, 0, 0, 0.7);
+        --cerebr-text-color: #ffffff;
+        --cerebr-message-user-bg: rgba(0, 122, 255, 0.2);
+        --cerebr-message-ai-bg: rgba(255, 255, 255, 0.1);
+        --cerebr-input-bg: rgba(0, 0, 0, 0.3);
+        --cerebr-icon-color: #ffffff;
     }
 }
 
@@ -30,6 +31,8 @@ body {
     color: var(--cerebr-text-color);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     overflow: hidden;
+    backdrop-filter: blur(var(--cerebr-blur-radius));
+    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
 }
 
 /* 侧边栏基础样式 */
@@ -118,7 +121,7 @@ body {
 .message {
     margin: 8px 0;
     padding: 12px 16px;
-    border-radius: 14px;
+    border-radius: 8px;
     width: fit-content;
     max-width: calc(100% - 32px);
     word-wrap: break-word;
@@ -129,14 +132,16 @@ body {
     transform: translateY(8px) scale(0.98);
     animation: messageAppear 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
     will-change: transform, opacity;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    backdrop-filter: blur(var(--cerebr-blur-radius));
+    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
     transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
                 box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .message:hover {
     transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .user-message {
@@ -161,6 +166,9 @@ body {
     align-items: flex-start;
     position: relative;
     flex-shrink: 0;
+    backdrop-filter: blur(var(--cerebr-blur-radius));
+    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
+    box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.1);
 }
 
 #message-input {
@@ -170,7 +178,7 @@ body {
     background-color: transparent;
     color: var(--cerebr-text-color);
     font-size: 14px;
-    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     outline: none;
     resize: none;
     box-sizing: border-box;
@@ -238,14 +246,16 @@ body {
     position: absolute;
     bottom: 100%;
     left: 8px;
-    background-color: var(--cerebr-input-bg);
+    background-color: var(--cerebr-bg-color);
     border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
     padding: 8px;
     display: none;
     min-width: 180px;
     margin-bottom: 8px;
     transform-origin: bottom left;
+    backdrop-filter: blur(var(--cerebr-blur-radius));
+    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
 }
 
 #settings-menu.visible {
@@ -327,6 +337,8 @@ input:checked + .slider:before {
     flex-direction: column;
     padding: 20px;
     overflow-y: auto;
+    backdrop-filter: blur(var(--cerebr-blur-radius));
+    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
 }
 
 #api-settings.visible {
@@ -365,12 +377,20 @@ input:checked + .slider:before {
     padding: 15px;
     position: relative;
     cursor: pointer;
-    border: 2px solid transparent;
-    transition: border-color 0.2s;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.2s ease;
+    backdrop-filter: blur(var(--cerebr-blur-radius));
+    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
+}
+
+.api-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .api-card.selected {
-    border-color: #64ffda;
+    border-color: rgba(0, 122, 255, 0.5);
+    box-shadow: 0 0 0 1px rgba(0, 122, 255, 0.5);
 }
 
 .card-actions {
@@ -507,13 +527,15 @@ input:checked + .slider:before {
 #context-menu {
     position: fixed;
     background: var(--cerebr-bg-color);
-    border: 1px solid rgba(128, 128, 128, 0.2);
     border-radius: 8px;
     padding: 6px;
     min-width: 140px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
     z-index: 1000;
     display: none;
+    backdrop-filter: blur(var(--cerebr-blur-radius));
+    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .context-menu-item {
@@ -638,6 +660,8 @@ input:checked + .slider:before {
     opacity: 0;
     visibility: hidden;
     transition: opacity 0.3s ease;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
 }
 
 .image-preview-modal.visible {
@@ -759,4 +783,54 @@ input:checked + .slider:before {
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+/* 加载状态样式 */
+.loading-content #webpage-switch:checked {
+    opacity: 0.7;
+}
+
+.loading-content #webpage-switch:checked + .slider {
+    position: relative;
+}
+
+.loading-content #webpage-switch:checked + .slider:after {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border: 2px solid transparent;
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: loading-spinner 0.8s linear infinite;
+    right: 4px;
+    top: 2px;
+}
+
+@keyframes loading-spinner {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* 确保加载状态下的UI响应性 */
+.loading-content {
+    pointer-events: auto !important;
+}
+
+.loading-content #webpage-switch {
+    pointer-events: none;
+}
+
+.loading-content #chat-container,
+.loading-content #input-container,
+.loading-content #settings-button,
+.loading-content #settings-menu,
+.loading-content .menu-item:not(#webpage-qa) {
+    pointer-events: auto !important;
+}
+
+/* 加载状态下的菜单项样式 */
+.loading-content #webpage-qa {
+    opacity: 0.7;
+    cursor: wait;
 }
