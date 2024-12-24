@@ -1,18 +1,7 @@
 // 监听来自content script的消息
 window.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'UPDATE_PLACEHOLDER') {
-        const input = document.querySelector('#message-input');
-        if (input) {
-            input.placeholder = event.data.placeholder;
-            if (event.data.timeout) {
-                setTimeout(() => {
-                    input.placeholder = '输入消息...';
-                }, event.data.timeout);
-            }
-        }
-    }
     // 处理 URL 变化消息
-    else if (event.data && event.data.type === 'URL_CHANGED') {
+    if (event.data && event.data.type === 'URL_CHANGED') {
         console.log('[收到URL变化]', event.data.url);
         // 检查网页问答开关是否打开
         const webpageSwitch = document.querySelector('#webpage-switch');
@@ -88,10 +77,13 @@ async function handleShortcut(event) {
             const input = document.querySelector('#message-input');
             if (input) {
                 input.focus();
-                requestAnimationFrame(() => {
-                    const length = input.value.length;
-                    input.setSelectionRange(length, length);
-                });
+                // 移动光标到末尾
+                const range = document.createRange();
+                range.selectNodeContents(input);
+                range.collapse(false);
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
             }
         }
         return;
@@ -108,7 +100,6 @@ async function handleShortcut(event) {
 
 // 等待 DOM 加载完成
 document.addEventListener('DOMContentLoaded', () => {
-
     const input = document.querySelector('#message-input');
     const chatContainer = document.querySelector('#chat-container');
     // 初始化全局变量
@@ -129,7 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 如果有历史记录
             if (userQuestions.length > 0) {
-                // 如果是第一次按向上键，从最后一个问题开始
+                // 如果是第一次按向上键从最后一个问题开始
                 if (currentIndex === -1) {
                     currentIndex = userQuestions.length - 1;
                 } else {

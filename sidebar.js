@@ -3,15 +3,59 @@ document.addEventListener('DOMContentLoaded', async () => {
     const messageInput = document.getElementById('message-input');
     const contextMenu = document.getElementById('context-menu');
     const copyMessageButton = document.getElementById('copy-message');
+    const settingsButton = document.getElementById('settings-button');
+    const settingsMenu = document.getElementById('settings-menu');
+    const toggleTheme = document.getElementById('toggle-theme');
     let currentMessageElement = null;
 
     // 聊天历史记录变量
     let chatHistory = [];
 
-    // 保存聊天历史记录的函数
+    // 添加公共的消息格式化函数
+    function processMessageContent(msg) {
+        // 如果消息内容是字符串且包含 image-tag
+        if (typeof msg.content === 'string' && msg.content.includes('image-tag')) {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = msg.content;
+            const imageTags = tempDiv.querySelectorAll('.image-tag');
+
+            if (imageTags.length > 0) {
+                const content = [];
+                // 添加文本内容
+                const textContent = msg.content.replace(/<span class="image-tag"[^>]*>.*?<\/span>/g, '').trim();
+                if (textContent) {
+                    content.push({
+                        type: "text",
+                        text: textContent
+                    });
+                }
+                // 添加图片
+                imageTags.forEach(tag => {
+                    const base64Data = tag.getAttribute('data-image');
+                    if (base64Data) {
+                        content.push({
+                            type: "image_url",
+                            image_url: {
+                                url: base64Data
+                            }
+                        });
+                    }
+                });
+                return {
+                    ...msg,
+                    content: content
+                };
+            }
+        }
+        return msg;
+    }
+
+    // 修改保存聊天历史记录的函数
     async function saveChatHistory() {
         try {
-            await chrome.storage.local.set({ chatHistory });
+            // 在保存之前处理消息格式
+            const processedHistory = chatHistory.map(processMessageContent);
+            await chrome.storage.local.set({ chatHistory: processedHistory });
         } catch (error) {
             console.error('保存聊天历史记录失败:', error);
         }
@@ -33,17 +77,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    // 加载历史记录的函数
+    // 修改加载历史记录的函数
     async function loadChatHistory() {
         try {
             const result = await chrome.storage.local.get('chatHistory');
             if (result.chatHistory) {
-                chatHistory = result.chatHistory;
+                // 处理历史记录中的消息格式
+                chatHistory = result.chatHistory.map(processMessageContent);
+
                 // 清空当前显示的消息
                 chatContainer.innerHTML = '';
-                // 重新显示历史消息，但不要重复添加到历史记录中
+
+                // 重新显示历史消息
                 chatHistory.forEach(msg => {
-                    appendMessage(msg.content, msg.role === 'user' ? 'user' : 'ai', true);
+                    if (Array.isArray(msg.content)) {
+                        // 处理包含图片的消息
+                        let messageHtml = '';
+                        msg.content.forEach(item => {
+                            if (item.type === "text") {
+                                messageHtml += item.text;
+                            } else if (item.type === "image_url") {
+                                const imageTag = createImageTag(item.image_url.url);
+                                messageHtml += imageTag.outerHTML;
+                            }
+                        });
+                        appendMessage(messageHtml, msg.role === 'user' ? 'user' : 'ai', true);
+                    } else {
+                        appendMessage(msg.content, msg.role === 'user' ? 'user' : 'ai', true);
+                    }
                 });
             }
         } catch (error) {
@@ -51,7 +112,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // 监听标签页切换事件
+    // 监听标签页切换
     chrome.tabs.onActivated.addListener(async (activeInfo) => {
         console.log('标签页切换:', activeInfo);
         await loadChatHistory();
@@ -94,7 +155,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (domains[domain]) {
             webpageSwitch.checked = true;
-            console.log('loadWebpageSwitch 刷新后 网页问答 获取网页内容');
+            console.log('loadWebpageSwitch 刷新后 页问答 获取网页内容');
             pageContent = await getPageContent();
             // 如果成功获取到内容，确保域名存在于存储中
             if (pageContent) {
@@ -166,8 +227,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function sendMessage() {
-        const message = messageInput.value.trim();
-        if (!message) return;
+        const message = messageInput.textContent.trim();
+        const imageTags = messageInput.querySelectorAll('.image-tag');
+
+        if (!message && imageTags.length === 0) return;
 
         const config = apiConfigs[selectedConfigIndex];
         if (!config?.baseUrl || !config?.apiKey) {
@@ -176,16 +239,53 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         try {
-            // 先添加用户消息到界面
-            appendMessage(message, 'user');
-            messageInput.value = '';
+            // 构建消息内容
+            let content;
+            const images = [];
+
+            // 如果有图片，构建包含文本和图片的数组格式
+            if (imageTags.length > 0) {
+                content = [];
+                // 添加文本内容（如果有）
+                if (message) {
+                    content.push({
+                        type: "text",
+                        text: message
+                    });
+                }
+                // 添加图片
+                imageTags.forEach(tag => {
+                    const base64Data = tag.getAttribute('data-image');
+                    if (base64Data) {
+                        content.push({
+                            type: "image_url",
+                            image_url: {
+                                url: base64Data
+                            }
+                        });
+                    }
+                });
+            } else {
+                // 如果只有文本，直接使用文本内容
+                content = message;
+            }
+
+            // 构建用户消息
+            const userMessage = {
+                role: "user",
+                content: content
+            };
+
+            // 先添加用户消息到界面和历史记录
+            appendMessage(messageInput.innerHTML, 'user');
+            messageInput.innerHTML = '';
             adjustTextareaHeight(messageInput);
 
-            // 构建消息数组
-            const messages = [...chatHistory];
+            // 构建消息数组（不包括当前用户消息）
+            const messages = [...chatHistory.slice(0, -1)];  // 排除刚刚添加的用户消息
             const systemMessage = {
                 role: "system",
-                content: `数学公式请使用LaTeX表示，行间公式请使用\\[...\\]表示，行内公式请使用\\(...\\)表示。用户语言是 ${navigator.language}。${
+                content: `数学公式请使用LaTeX表示，行间公式请使用\\[...\\]表示，行内公式请使用\\(...\\)表示。用户语言是 ${navigator.language}。请优先使用 ${navigator.language} 语言回答用户问题。${
                     webpageSwitch.checked && pageContent ?
                     `\n当前网页内容：\n标题：${pageContent.title}\nURL：${pageContent.url}\n内容：${pageContent.content}` :
                     ''
@@ -205,9 +305,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     'Authorization': `Bearer ${config.apiKey}`
                 },
                 body: JSON.stringify({
-                    model: config.modelName || "gpt-4o",
-                    messages,
-                    stream: true
+                    model: config.modelName || "gpt-4-vision-preview",
+                    messages: [...messages, userMessage],
+                    stream: true,
+                    // max_tokens: 4096
                 })
             });
 
@@ -260,7 +361,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 只替换不在 \n 后面的 abla_
             match = match.replace(/(?<!\\n)abla_/g, '\\nabla_');
 
-            // 如果是普通括号形式的公式，转换为 \(...\) 形式
+            // 如果是普通括号形式公式，转换为 \(...\) 形式
             if (match.startsWith('(') && match.endsWith(')') && !match.startsWith('\\(')) {
                 console.log('警告：请使用 \\(...\\) 来表示行内公式');
             }
@@ -301,11 +402,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.addEventListener('message', (event) => {
         if (event.data.type === 'FOCUS_INPUT') {
             messageInput.focus();
-            // 确保光标移动到末尾
-            requestAnimationFrame(() => {
-                const length = messageInput.value.length;
-                messageInput.setSelectionRange(length, length);
-            });
+            // 移动光标到末尾
+            const range = document.createRange();
+            range.selectNodeContents(messageInput);
+            range.collapse(false);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
         } else if (event.data.type === 'SIDEBAR_VISIBILITY_CHANGED') {
             // 更新侧边栏可见性状态
             isSidebarVisible = event.data.isVisible;
@@ -336,6 +439,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 })();
             }
+        } else if (event.data.type === 'UPDATE_PLACEHOLDER') {
+            console.log('收到更新placeholder消息:', event.data);
+            if (messageInput) {
+                messageInput.setAttribute('placeholder', event.data.placeholder);
+                if (event.data.timeout) {
+                    setTimeout(() => {
+                        messageInput.setAttribute('placeholder', '输入消息...');
+                    }, event.data.timeout);
+                }
+            }
         }
     });
 
@@ -346,7 +459,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (lastMessage) {
             // 获取当前显示的文本
             const currentText = lastMessage.getAttribute('data-original-text') || '';
-            // 如果新文本比当前文本长，说明有新内容需要更新
+            // 如果新文本比当前文本长，说有新内容需要更新
             if (text.length > currentText.length) {
                 // 更新原始文本属性
                 lastMessage.setAttribute('data-original-text', text);
@@ -354,7 +467,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // 处理数学公式和Markdown
                 lastMessage.innerHTML = processMathAndMarkdown(text);
 
-                // 处理新渲染的链接
+                // 处理新染的链接
                 lastMessage.querySelectorAll('a').forEach(link => {
                     link.target = '_blank';
                     link.rel = 'noopener noreferrer';
@@ -378,6 +491,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function appendMessage(text, sender, skipHistory = false) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${sender}-message`;
+
         // 存储原始文本用于复制
         messageDiv.setAttribute('data-original-text', text);
 
@@ -388,6 +502,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         messageDiv.querySelectorAll('a').forEach(link => {
             link.target = '_blank';
             link.rel = 'noopener noreferrer';
+        });
+
+        // 处理消息中的图片标签
+        messageDiv.querySelectorAll('.image-tag').forEach(tag => {
+            const img = tag.querySelector('img');
+            const base64Data = tag.getAttribute('data-image');
+            if (img && base64Data) {
+                img.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showImagePreview(base64Data);
+                });
+            }
         });
 
         // 渲染 LaTeX 公式
@@ -407,9 +534,39 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // 只有在不跳过历史记录时才添加到历史记录
         if (!skipHistory) {
+            // 检查消息是否包含图片标签
+            const imageTags = messageDiv.querySelectorAll('.image-tag');
+            let content;
+
+            if (imageTags.length > 0) {
+                content = [];
+                // 添加文本内容
+                const textContent = text.replace(/<span class="image-tag"[^>]*>.*?<\/span>/g, '').trim();
+                if (textContent) {
+                    content.push({
+                        type: "text",
+                        text: textContent
+                    });
+                }
+                // 添加图片
+                imageTags.forEach(tag => {
+                    const base64Data = tag.getAttribute('data-image');
+                    if (base64Data) {
+                        content.push({
+                            type: "image_url",
+                            image_url: {
+                                url: base64Data
+                            }
+                        });
+                    }
+                });
+            } else {
+                content = text;
+            }
+
             chatHistory.push({
                 role: sender === 'user' ? 'user' : 'assistant',
-                content: text
+                content: content
             });
             saveChatHistory();
         }
@@ -418,17 +575,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 自动调整文本框高度
     function adjustTextareaHeight(textarea) {
         textarea.style.height = 'auto';
-        textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+        const maxHeight = 200;
+        textarea.style.height = Math.min(textarea.scrollHeight, maxHeight) + 'px';
+        if (textarea.scrollHeight > maxHeight) {
+            textarea.style.overflowY = 'auto';
+        } else {
+            textarea.style.overflowY = 'hidden';
+        }
     }
-
-    // 设置按钮和菜单功能
-    const settingsButton = document.getElementById('settings-button');
-    const settingsMenu = document.getElementById('settings-menu');
-    const toggleTheme = document.getElementById('toggle-theme');
 
     // 监听输入框变化
     messageInput.addEventListener('input', function() {
         adjustTextareaHeight(this);
+
+        // 处理 placeholder 的显示
+        if (this.textContent.trim() === '' && !this.querySelector('.image-tag')) {
+            // 如果内容空且没有图片标签，清空内容以显示 placeholder
+            while (this.firstChild) {
+                this.removeChild(this.firstChild);
+            }
+        }
+
+        // 移除不必要的 br 标签
+        const brElements = this.getElementsByTagName('br');
+        Array.from(brElements).forEach(br => {
+            if (!br.nextSibling || (br.nextSibling.nodeType === Node.TEXT_NODE && br.nextSibling.textContent.trim() === '')) {
+                br.remove();
+            }
+        });
     });
 
     // 处理换行和输入
@@ -449,8 +623,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             e.preventDefault();
-            const text = this.value.trim();
-            if (text) {  // 只有在有实际内容时才发送
+            const text = this.textContent.trim();
+            if (text || this.querySelector('.image-tag')) {  // 检查是否有文本或图片
                 sendMessage();
             }
         } else if (e.key === 'Escape') {
@@ -540,11 +714,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 初始化主题
     await initTheme();
 
-    // 修改 saveWebpageSwitch 函数，改进存储机制和错误处理
+    // 修改 saveWebpageSwitch 函数，改进存储��和错误处理
     async function saveWebpageSwitch(domain, enabled) {
         console.log('开始保存网页问答开关状态:', domain, enabled);
 
-        // 获取当前存储的所有域名状态
+        // 取当前存储的所有域名状态
         const result = await chrome.storage.local.get('webpageSwitchDomains');
         let domains = result.webpageSwitchDomains || {};
         console.log('获取到当前存储的域名状态:', domains);
@@ -618,7 +792,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 渲染 API 卡片
     function renderAPICards() {
-        // 确保模板元素存在
+        // 确保模板元素在
         const templateCard = document.querySelector('.api-card.template');
         if (!templateCard) {
             console.error('找不到模板卡片元素');
@@ -661,7 +835,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         baseUrlInput.value = config.baseUrl || 'https://api.openai.com/v1/chat/completions';
         modelNameInput.value = config.modelName || 'gpt-4o';
 
-        // 阻止输入框和按钮的点击事件冒泡
+        // 止入框和按钮点击事件冒泡
         const stopPropagation = (e) => e.stopPropagation();
         apiForm.addEventListener('click', stopPropagation);
         template.querySelector('.card-actions').addEventListener('click', stopPropagation);
@@ -738,19 +912,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 清空聊天历史记录
         chatHistory = [];
         saveChatHistory();
-        // 关闭设置菜单
+        // 闭设置菜单
         settingsMenu.classList.remove('visible');
         // 聚焦输入框并将光标移到末尾
         messageInput.focus();
-        requestAnimationFrame(() => {
-            const length = messageInput.value.length;
-            messageInput.setSelectionRange(length, length);
-        });
+        // 移动光标到末尾
+        const range = document.createRange();
+        range.selectNodeContents(messageInput);
+        range.collapse(false);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
     });
 
     // 添加点击事件监听
     chatContainer.addEventListener('click', () => {
-        // 点击聊天区域时让输入框失去焦点
+        // 击聊天区域时让输入框失去焦点
         messageInput.blur();
     });
 
@@ -818,7 +995,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // 点击复制按钮
+    // 点击���制按钮
     copyMessageButton.addEventListener('click', copyMessageContent);
 
     // 点击其他地方隐藏菜单
@@ -835,6 +1012,139 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             hideContextMenu();
+        }
+    });
+
+    // 片粘贴功能
+    messageInput.addEventListener('paste', async (e) => {
+        const items = Array.from(e.clipboardData.items);
+        const imageItem = items.find(item => item.type.startsWith('image/'));
+
+        if (imageItem) {
+            e.preventDefault();
+            const file = imageItem.getAsFile();
+            const reader = new FileReader();
+
+            reader.onload = async () => {
+                const base64Data = reader.result;
+                const imageTag = createImageTag(base64Data, file.name);
+
+                // 在光标位置插入图片标签
+                const selection = window.getSelection();
+                const range = selection.getRangeAt(0);
+                range.deleteContents();
+                range.insertNode(imageTag);
+
+                // 移动光标到图片标签后面，并确保不会插入额外的换行
+                const newRange = document.createRange();
+                newRange.setStartAfter(imageTag);
+                newRange.collapse(true);
+                selection.removeAllRanges();
+                selection.addRange(newRange);
+
+                // 移除可能存在的多余���行
+                const brElements = messageInput.getElementsByTagName('br');
+                Array.from(brElements).forEach(br => {
+                    if (br.previousSibling && br.previousSibling.classList && br.previousSibling.classList.contains('image-tag')) {
+                        br.remove();
+                    }
+                });
+
+                // 触发输入事件以调整高度
+                messageInput.dispatchEvent(new Event('input'));
+            };
+
+            reader.readAsDataURL(file);
+        }
+    });
+
+    // 处理图片标签的删除
+    messageInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace' || e.key === 'Delete') {
+            const selection = window.getSelection();
+            const range = selection.getRangeAt(0);
+            const startContainer = range.startContainer;
+
+            // 检查是否在图片标签旁边
+            if (startContainer.nodeType === Node.TEXT_NODE && startContainer.textContent === '') {
+                const previousSibling = startContainer.previousSibling;
+                if (previousSibling && previousSibling.classList?.contains('image-tag')) {
+                    e.preventDefault();
+                    previousSibling.remove();
+
+                    // 移除可能存在的多余换行
+                    const brElements = messageInput.getElementsByTagName('br');
+                    Array.from(brElements).forEach(br => {
+                        if (!br.nextSibling || (br.nextSibling.nodeType === Node.TEXT_NODE && br.nextSibling.textContent.trim() === '')) {
+                            br.remove();
+                        }
+                    });
+
+                    // 触发输入事件以调整高度
+                    messageInput.dispatchEvent(new Event('input'));
+                }
+            }
+        }
+    });
+
+    // 创建图片标签
+    function createImageTag(base64Data, fileName) {
+        const container = document.createElement('span');
+        container.className = 'image-tag';
+        container.contentEditable = false;
+        container.setAttribute('data-image', base64Data);
+        container.title = fileName || '图片'; // 添加悬停提示
+
+        const thumbnail = document.createElement('img');
+        thumbnail.src = base64Data;
+        thumbnail.alt = fileName || '图片';
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-linecap="round"/></svg>';
+        deleteBtn.title = '删除图片';
+
+        // 点击删除按钮时除整个标签
+        deleteBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            container.remove();
+            // 触发输入事件以调整高度
+            messageInput.dispatchEvent(new Event('input'));
+        });
+
+        container.appendChild(thumbnail);
+        container.appendChild(deleteBtn);
+
+        // 点击图片区域预览图片
+        thumbnail.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            showImagePreview(base64Data);
+        });
+
+        return container;
+    }
+
+    // 图片预览功能
+    const previewModal = document.querySelector('.image-preview-modal');
+    const previewImage = previewModal.querySelector('img');
+    const closeButton = previewModal.querySelector('.image-preview-close');
+
+    function showImagePreview(base64Data) {
+        previewImage.src = base64Data;
+        previewModal.classList.add('visible');
+    }
+
+    function hideImagePreview() {
+        previewModal.classList.remove('visible');
+        previewImage.src = '';
+    }
+
+    closeButton.addEventListener('click', hideImagePreview);
+    previewModal.addEventListener('click', (e) => {
+        if (e.target === previewModal) {
+            hideImagePreview();
         }
     });
 });

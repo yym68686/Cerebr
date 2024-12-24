@@ -580,7 +580,7 @@ async function extractPageContent() {
   // 理文本
   mainContent = mainContent
       .replace(/\s+/g, ' ')  // 替换多个空白字符为单个空格
-      .replace(/\n\s*\n/g, '\n')  // 替��多个换行为单个换行
+      .replace(/\n\s*\n/g, '\n')  // 替换多个换行为单个换行
       .trim();
 
   // 检查提取的内容是否足够
@@ -614,18 +614,24 @@ async function extractTextFromPDF(url) {
       return null;
     }
 
-    // 通过iframe发送消息来更新placeholder
+    // 获取iframe
     const iframe = sidebar.sidebar.querySelector('.cerebr-sidebar__iframe');
-    if (iframe) {
-      console.log('发送更新placeholder消息:', {
-        type: 'UPDATE_PLACEHOLDER',
-        placeholder: '正在下载PDF文件...'
-      });
+    if (!iframe) {
+      console.error('找不到iframe元素');
+      return null;
+    }
+
+    // 发送更新placeholder消息
+    const sendPlaceholderUpdate = (message, timeout = 0) => {
+      console.log('发送placeholder更新:', message);
       iframe.contentWindow.postMessage({
         type: 'UPDATE_PLACEHOLDER',
-        placeholder: '正在下载PDF文件...'
+        placeholder: message,
+        timeout: timeout
       }, '*');
-    }
+    };
+
+    sendPlaceholderUpdate('正在下载PDF文件...');
 
     console.log('开始下载PDF:', url);
     // 首先获取PDF文件的初始信息
@@ -636,13 +642,7 @@ async function extractTextFromPDF(url) {
 
     if (!initResponse.success) {
       console.error('PDF初始化失败，响应:', initResponse);
-      if (iframe) {
-        iframe.contentWindow.postMessage({
-          type: 'UPDATE_PLACEHOLDER',
-          placeholder: 'PDF下载失败',
-          timeout: 2000
-        }, '*');
-      }
+      sendPlaceholderUpdate('PDF下载失败', 2000);
       throw new Error('PDF初始化失败');
     }
 
@@ -652,12 +652,7 @@ async function extractTextFromPDF(url) {
     // 分块接收数据
     const chunks = new Array(totalChunks);
     for (let i = 0; i < totalChunks; i++) {
-      if (iframe) {
-        iframe.contentWindow.postMessage({
-          type: 'UPDATE_PLACEHOLDER',
-          placeholder: `正在下载PDF文件 (${Math.round((i + 1) / totalChunks * 100)}%)...`
-        }, '*');
-      }
+      sendPlaceholderUpdate(`正在下载PDF文件 (${Math.round((i + 1) / totalChunks * 100)}%)...`);
 
       const chunkResponse = await chrome.runtime.sendMessage({
         action: 'getPDFChunk',
@@ -666,6 +661,7 @@ async function extractTextFromPDF(url) {
       });
 
       if (!chunkResponse.success) {
+        sendPlaceholderUpdate('PDF下载失败', 2000);
         throw new Error(`获取PDF块 ${i} 失败`);
       }
 
@@ -680,12 +676,7 @@ async function extractTextFromPDF(url) {
       offset += chunk.length;
     }
 
-    if (iframe) {
-      iframe.contentWindow.postMessage({
-        type: 'UPDATE_PLACEHOLDER',
-        placeholder: '正在解析PDF文件...'
-      }, '*');
-    }
+    sendPlaceholderUpdate('正在解析PDF文件...');
 
     console.log('开始解析PDF文件');
     const loadingTask = pdfjsLib.getDocument({data: completeData});
@@ -695,12 +686,7 @@ async function extractTextFromPDF(url) {
     let fullText = '';
     // 遍历所有页面
     for (let i = 1; i <= pdf.numPages; i++) {
-      if (iframe) {
-        iframe.contentWindow.postMessage({
-          type: 'UPDATE_PLACEHOLDER',
-          placeholder: `正在提取文本 (${i}/${pdf.numPages})...`
-        }, '*');
-      }
+      sendPlaceholderUpdate(`正在提取文本 (${i}/${pdf.numPages})...`);
       console.log(`开始处理第 ${i}/${pdf.numPages} 页`);
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
@@ -710,13 +696,7 @@ async function extractTextFromPDF(url) {
     }
 
     console.log('PDF文本提取完成，总文本长度:', fullText.length);
-    if (iframe) {
-      iframe.contentWindow.postMessage({
-        type: 'UPDATE_PLACEHOLDER',
-        placeholder: 'PDF处理完成',
-        timeout: 2000
-      }, '*');
-    }
+    sendPlaceholderUpdate('PDF处理完成', 2000);
     return fullText;
   } catch (error) {
     console.error('PDF处理过程中出错:', error);
