@@ -98,7 +98,7 @@ async function handleShortcut(event) {
     }
 }
 
-// 等待 DOM 加载完成
+// 等 DOM 加载完成
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.querySelector('#message-input');
     const chatContainer = document.querySelector('#chat-container');
@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 处理输入框特定的键盘事件
         // 当按下向上键且输入框为空时
-        if (event.key === 'ArrowUp' && event.target.value.trim() === '') {
+        if (event.key === 'ArrowUp' && event.target.textContent.trim() === '') {
             event.preventDefault(); // 阻止默认行为
 
             // 如果有历史记录
@@ -127,9 +127,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     // 否则向前移动一个问题
                     currentIndex = Math.max(0, currentIndex - 1);
                 }
-                event.target.value = userQuestions[currentIndex];
-                // 触发输入事件以调整高度
+                event.target.textContent = userQuestions[currentIndex];
+                // 触发��入事件以调整高度
                 event.target.dispatchEvent(new Event('input', { bubbles: true }));
+                // 移动光标到末尾
+                const range = document.createRange();
+                range.selectNodeContents(event.target);
+                range.collapse(false);
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
             }
         }
         // 当按下向下键时
@@ -137,12 +144,19 @@ document.addEventListener('DOMContentLoaded', () => {
             event.preventDefault();
             if (currentIndex < userQuestions.length - 1) {
                 currentIndex++;
-                event.target.value = userQuestions[currentIndex];
+                event.target.textContent = userQuestions[currentIndex];
                 // 触发输入事件以调整高度
                 event.target.dispatchEvent(new Event('input', { bubbles: true }));
+                // 移动光标到末尾
+                const range = document.createRange();
+                range.selectNodeContents(event.target);
+                range.collapse(false);
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
             } else {
                 currentIndex = -1;
-                event.target.value = '';
+                event.target.textContent = '';
                 // 触发输入事件以调整高度
                 event.target.dispatchEvent(new Event('input', { bubbles: true }));
             }

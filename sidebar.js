@@ -123,7 +123,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadChatHistory();
 
 
-    // 网页问答功能
+    // 网��问答功能
     const webpageSwitch = document.getElementById('webpage-switch');
     let pageContent = null;
 
@@ -347,7 +347,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (error) {
             console.error('发送消息失败:', error);
             appendMessage('发送失败: ' + error.message, 'ai', true);
+            // 从 chatHistory 中移除最后一条记录（用户的问题）
             chatHistory.pop();
+            saveChatHistory();
         }
     }
 
@@ -714,7 +716,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 初始化主题
     await initTheme();
 
-    // 修改 saveWebpageSwitch 函数，改进存储��和错误处理
+    // 修改 saveWebpageSwitch 函数，改进存储和错误处理
     async function saveWebpageSwitch(domain, enabled) {
         console.log('开始保存网页问答开关状态:', domain, enabled);
 
@@ -995,7 +997,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // 点击���制按钮
+    // 点击制按钮
     copyMessageButton.addEventListener('click', copyMessageContent);
 
     // 点击其他地方隐藏菜单
@@ -1042,7 +1044,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 selection.removeAllRanges();
                 selection.addRange(newRange);
 
-                // 移除可能存在的多余���行
+                // 移除可能存在的多余行
                 const brElements = messageInput.getElementsByTagName('br');
                 Array.from(brElements).forEach(br => {
                     if (br.previousSibling && br.previousSibling.classList && br.previousSibling.classList.contains('image-tag')) {
