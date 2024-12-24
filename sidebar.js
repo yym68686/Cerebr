@@ -123,7 +123,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadChatHistory();
 
 
-    // 网��问答功能
+    // 网问答功能
     const webpageSwitch = document.getElementById('webpage-switch');
     let pageContent = null;
 
@@ -155,7 +155,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (domains[domain]) {
             webpageSwitch.checked = true;
-            console.log('loadWebpageSwitch 刷新后 页问答 获取网页内容');
+            console.log('loadWebpageSwitch 刷新后 ���问答 获取网页内容');
             pageContent = await getPageContent();
             // 如果成功获取到内容，确保域名存在于存储中
             if (pageContent) {
@@ -404,7 +404,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.addEventListener('message', (event) => {
         if (event.data.type === 'FOCUS_INPUT') {
             messageInput.focus();
-            // 移动光标到末尾
+            // 移动光标到��尾
             const range = document.createRange();
             range.selectNodeContents(messageInput);
             range.collapse(false);
@@ -935,7 +935,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 监听输入框的焦点状态
     messageInput.addEventListener('focus', () => {
-        // 输入框获得焦点时，阻止事件冒泡
+        // 输入框获得焦点���，阻止事件冒泡
         messageInput.addEventListener('click', (e) => e.stopPropagation());
     });
 
@@ -979,7 +979,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 复制消息内容
     function copyMessageContent() {
         if (currentMessageElement) {
-            // 获取存储的原始文本
+            // 获取存储的原始文���
             const originalText = currentMessageElement.getAttribute('data-original-text');
             navigator.clipboard.writeText(originalText).then(() => {
                 hideContextMenu();
@@ -1019,11 +1019,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 片粘贴功能
     messageInput.addEventListener('paste', async (e) => {
+        e.preventDefault(); // 阻止默认粘贴行为
+
         const items = Array.from(e.clipboardData.items);
         const imageItem = items.find(item => item.type.startsWith('image/'));
 
         if (imageItem) {
-            e.preventDefault();
+            // 处理图片粘贴
             const file = imageItem.getAsFile();
             const reader = new FileReader();
 
@@ -1057,6 +1059,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
 
             reader.readAsDataURL(file);
+        } else {
+            // 处理文本粘贴
+            const text = e.clipboardData.getData('text/plain');
+            document.execCommand('insertText', false, text);
         }
     });
 
