@@ -11,41 +11,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 聊天历史记录变量
     let chatHistory = [];
 
-    // 添加公共的消息格式化函数
-    function processMessageContent(msg) {
-        // 如果消息内容是字符串且包含 image-tag
-        if (typeof msg.content === 'string' && msg.content.includes('image-tag')) {
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = msg.content;
-            const imageTags = tempDiv.querySelectorAll('.image-tag');
+    // 添加公共的图片处理函数
+    function processImageTags(content) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = content;
+        const imageTags = tempDiv.querySelectorAll('.image-tag');
 
-            if (imageTags.length > 0) {
-                const content = [];
-                // 添加文本内容
-                const textContent = msg.content.replace(/<span class="image-tag"[^>]*>.*?<\/span>/g, '').trim();
-                if (textContent) {
-                    content.push({
-                        type: "text",
-                        text: textContent
+        if (imageTags.length > 0) {
+            const result = [];
+            // 添加文本内容
+            const textContent = content.replace(/<span class="image-tag"[^>]*>.*?<\/span>/g, '').trim();
+            if (textContent) {
+                result.push({
+                    type: "text",
+                    text: textContent
+                });
+            }
+            // 添加图片
+            imageTags.forEach(tag => {
+                const base64Data = tag.getAttribute('data-image');
+                if (base64Data) {
+                    result.push({
+                        type: "image_url",
+                        image_url: {
+                            url: base64Data
+                        }
                     });
                 }
-                // 添加图片
-                imageTags.forEach(tag => {
-                    const base64Data = tag.getAttribute('data-image');
-                    if (base64Data) {
-                        content.push({
-                            type: "image_url",
-                            image_url: {
-                                url: base64Data
-                            }
-                        });
-                    }
-                });
-                return {
-                    ...msg,
-                    content: content
-                };
-            }
+            });
+            return result;
+        }
+        return content;
+    }
+
+    // 修改 processMessageContent 函数
+    function processMessageContent(msg) {
+        if (typeof msg.content === 'string' && msg.content.includes('image-tag')) {
+            return {
+                ...msg,
+                content: processImageTags(msg.content)
+            };
         }
         return msg;
     }
@@ -77,7 +82,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    // 修改加载历史记录的函数
+    // 修改加载历史记录的函��
     async function loadChatHistory() {
         try {
             const result = await chrome.storage.local.get('chatHistory');
@@ -573,39 +578,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // 只有在不跳过历史记录时才添加到历史记录
         if (!skipHistory) {
-            // 检查消息是否包含图片标签
-            const imageTags = messageDiv.querySelectorAll('.image-tag');
-            let content;
-
-            if (imageTags.length > 0) {
-                content = [];
-                // 添加文本内容
-                const textContent = text.replace(/<span class="image-tag"[^>]*>.*?<\/span>/g, '').trim();
-                if (textContent) {
-                    content.push({
-                        type: "text",
-                        text: textContent
-                    });
-                }
-                // 添加图片
-                imageTags.forEach(tag => {
-                    const base64Data = tag.getAttribute('data-image');
-                    if (base64Data) {
-                        content.push({
-                            type: "image_url",
-                            image_url: {
-                                url: base64Data
-                            }
-                        });
-                    }
-                });
-            } else {
-                content = text;
-            }
-
             chatHistory.push({
                 role: sender === 'user' ? 'user' : 'assistant',
-                content: content
+                content: processImageTags(text)
             });
             saveChatHistory();
         }

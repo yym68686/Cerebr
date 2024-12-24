@@ -448,94 +448,118 @@ window.addEventListener('unhandledrejection', (event) => {
   console.error('未处理的 Promise 拒绝:', event.reason);
 });
 
-// 添加变量来跟踪网络请求状态和时间
-let pendingRequests = new Set();
-let isInitialRequestsCompleted = false;
-let lastRequestCompletedTime = null;
-let requestCompletionTimer = null;
-let relayRequestCompletedTime = 300;
+// 网络请求状态管理
+class RequestManager {
+    constructor() {
+        this.pendingRequests = new Set();
+        this.isInitialRequestsCompleted = false;
+        this.lastRequestCompletedTime = null;
+        this.requestCompletionTimer = null;
+        this.relayRequestCompletedTime = 300;
+    }
 
-// 检查请求是否已完成的函数
-function checkRequestsCompletion() {
-    const now = Date.now();
-    if (lastRequestCompletedTime && (now - lastRequestCompletedTime) >= relayRequestCompletedTime) {
-        // console.log(`${relayRequestCompletedTime} 毫秒内没有新的请求完成，判定为加载完成`);
-        isInitialRequestsCompleted = true;
+    checkRequestsCompletion() {
+        const now = Date.now();
+        if (this.lastRequestCompletedTime && (now - this.lastRequestCompletedTime) >= this.relayRequestCompletedTime) {
+            this.isInitialRequestsCompleted = true;
+        }
+    }
+
+    resetCompletionTimer() {
+        if (this.requestCompletionTimer) {
+            clearTimeout(this.requestCompletionTimer);
+        }
+        this.lastRequestCompletedTime = Date.now();
+        this.requestCompletionTimer = setTimeout(() => this.checkRequestsCompletion(), this.relayRequestCompletedTime);
+    }
+
+    handleRequestStarted(requestId) {
+        this.pendingRequests.add(requestId);
+    }
+
+    handleRequestCompleted(requestId, isInitialRequestsCompleted) {
+        this.pendingRequests.delete(requestId);
+        this.resetCompletionTimer();
+
+        if (isInitialRequestsCompleted) {
+            this.isInitialRequestsCompleted = true;
+        }
+    }
+
+    handleRequestFailed(requestId) {
+        this.pendingRequests.delete(requestId);
+        this.resetCompletionTimer();
+    }
+
+    isRequestsCompleted() {
+        return this.lastRequestCompletedTime &&
+               (Date.now() - this.lastRequestCompletedTime) >= this.relayRequestCompletedTime;
+    }
+
+    getPendingRequestsCount() {
+        return this.pendingRequests.size;
+    }
+
+    getWaitTimeInSeconds() {
+        if (!this.lastRequestCompletedTime) return 0;
+        return Math.floor((this.relayRequestCompletedTime - (Date.now() - this.lastRequestCompletedTime)) / 1000);
     }
 }
 
-// 重置计时器
-function resetCompletionTimer() {
-    if (requestCompletionTimer) {
-        clearTimeout(requestCompletionTimer);
-    }
-    lastRequestCompletedTime = Date.now();
-    requestCompletionTimer = setTimeout(checkRequestsCompletion, relayRequestCompletedTime);
-}
+const requestManager = new RequestManager();
 
 // 监听来自 background.js 的网络请求状态更新
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // 处理网络请求状态更新
     if (message.type === 'REQUEST_STARTED') {
-        pendingRequests.add(message.requestId);
-        // console.log('新请求开始，待处理请求数:', message.pendingCount);
+        requestManager.handleRequestStarted(message.requestId);
     }
     else if (message.type === 'REQUEST_COMPLETED') {
-        pendingRequests.delete(message.requestId);
-        // console.log('请求完成，待处理请求数:', message.pendingCount);
-        resetCompletionTimer(); // 重置计时器
-
-        if (message.isInitialRequestsCompleted) {
-            isInitialRequestsCompleted = true;
-            // console.log('所有初始请求已完成');
-        }
+        requestManager.handleRequestCompleted(message.requestId, message.isInitialRequestsCompleted);
     }
     else if (message.type === 'REQUEST_FAILED') {
-        pendingRequests.delete(message.requestId);
-        console.log('请求失败，待处理请求数:', message.pendingCount);
-        resetCompletionTimer(); // 重置计时器
+        requestManager.handleRequestFailed(message.requestId);
+        console.log('请求失败，待处理请求数:', requestManager.getPendingRequestsCount());
     }
-    // ... 其他消息处理 ...
     return true;
 });
 
 // 修改 waitForContent 函数
 async function waitForContent() {
-  return new Promise((resolve) => {
-    const checkContent = () => {
-      // 检查是否有主要内容元素
-      const mainElements = document.querySelectorAll('body, p, h2, article, [role="article"], [role="main"], [data-testid="tweet"]');
+    return new Promise((resolve) => {
+        const checkContent = () => {
+            // 检查是否有主要内容元素
+            const mainElements = document.querySelectorAll('body, p, h2, article, [role="article"], [role="main"], [data-testid="tweet"]');
 
-      // 检查网络请求是否都已完成
-      const requestsCompleted = lastRequestCompletedTime && (Date.now() - lastRequestCompletedTime) >= relayRequestCompletedTime;
+            // 检查网络请求是否都已完成
+            const requestsCompleted = requestManager.isRequestsCompleted();
 
-      if (mainElements.length > 0 && requestsCompleted) {
-        console.log(`页面内容已加载，网络请求已完成（已稳定${relayRequestCompletedTime}秒无新请求）`);
-        resolve();
-      } else {
-        const reason = [];
-        if (mainElements.length === 0) reason.push('主要内容未找到');
-        if (!requestsCompleted) {
-            if (pendingRequests.size > 0) {
-                reason.push(`还有 ${pendingRequests.size} 个网络请求未完成`);
-            }
-            if (lastRequestCompletedTime) {
-                const waitTime = Math.floor((relayRequestCompletedTime - (Date.now() - lastRequestCompletedTime)) / 1000);
-                if (waitTime > 0) {
-                    reason.push(`等待请求稳定，剩余 ${waitTime} 秒`);
-                }
+            if (mainElements.length > 0 && requestsCompleted) {
+                console.log(`页面内容已加载，网络请求已完成（已稳定${requestManager.relayRequestCompletedTime}秒无新请求）`);
+                resolve();
             } else {
-                reason.push('等待首个请求完成');
+                const reason = [];
+                if (mainElements.length === 0) reason.push('主要内容未找到');
+                if (!requestsCompleted) {
+                    const pendingCount = requestManager.getPendingRequestsCount();
+                    if (pendingCount > 0) {
+                        reason.push(`还有 ${pendingCount} 个网络请求未完成`);
+                    }
+                    const waitTime = requestManager.getWaitTimeInSeconds();
+                    if (waitTime > 0) {
+                        reason.push(`等待请求稳定，剩余 ${waitTime} 秒`);
+                    } else if (!requestManager.lastRequestCompletedTime) {
+                        reason.push('等待首个请求完成');
+                    }
+                }
+                console.log('等待页面加载...', reason.join(', '));
+                setTimeout(checkContent, 1000);
             }
-        }
-        console.log('等待页面加载...', reason.join(', '));
-        setTimeout(checkContent, 1000);
-      }
-    };
+        };
 
-    // 开始检查
-    setTimeout(checkContent, 1000);
-  });
+        // 开始检查
+        setTimeout(checkContent, 1000);
+    });
 }
 
 // 修改 extractPageContent 函数
