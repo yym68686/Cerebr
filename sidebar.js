@@ -82,7 +82,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    // 修改加载历史记录的函��
+    // 修改加载历史记录的函数
     async function loadChatHistory() {
         try {
             const result = await chrome.storage.local.get('chatHistory');
@@ -171,13 +171,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } else {
                     webpageSwitch.checked = false;
                     saveWebpageSwitch(domain, false);
-                    appendMessage('无法获取网页内容', 'ai');
+                    appendMessage('无法获取网页内容', 'ai', true);
                 }
             }).catch(error => {
                 console.error('获取网页内容失败:', error);
                 webpageSwitch.checked = false;
                 saveWebpageSwitch(domain, false);
-                appendMessage('获取网页内容失败', 'ai');
+                appendMessage('获取网页内容失败', 'ai', true);
             }).finally(() => {
                 document.body.classList.remove('loading-content');
             });
@@ -209,14 +209,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     } else {
                         webpageSwitch.checked = false;
                         await saveWebpageSwitch(domain, false);
-                        appendMessage('无法获取网页内容', 'ai');
+                        appendMessage('无法获取网页内容', 'ai', true);
                     }
                 })
                 .catch(async error => {
                     console.error('获取网页内容失败:', error);
                     webpageSwitch.checked = false;
                     await saveWebpageSwitch(domain, false);
-                    appendMessage('获取网页内容失败', 'ai');
+                    appendMessage('获取网页内容失败', 'ai', true);
                 })
                 .finally(() => {
                     document.body.classList.remove('loading-content');

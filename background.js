@@ -101,35 +101,54 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // 处理来自 sidebar 的网页内容请求
   if (message.type === 'GET_PAGE_CONTENT_FROM_SIDEBAR') {
     (async () => {
-      try {
-        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (!activeTab) {
-          sendResponse(null);
-          return;
-        }
+      let retryCount = 0;
+      const maxRetries = 3;
+      const retryDelay = 1000; // 1秒延迟
 
-        if (sender.tab && sender.tab.id !== activeTab.id) {
-          sendResponse(null);
-          return;
-        }
+      async function tryGetContent() {
+        try {
+          const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (!activeTab) {
+            return null;
+          }
 
-        if (!sender.url || !sender.url.includes('sidebar.html')) {
-          sendResponse(null);
-          return;
-        }
+          if (sender.tab && sender.tab.id !== activeTab.id) {
+            return null;
+          }
 
-        if (await isTabConnected(activeTab.id)) {
-          const response = await chrome.tabs.sendMessage(activeTab.id, {
-            type: 'GET_PAGE_CONTENT_INTERNAL'
-          });
-          sendResponse(response);
-        } else {
-          sendResponse(null);
+          if (!sender.url || !sender.url.includes('sidebar.html')) {
+            return null;
+          }
+
+          if (await isTabConnected(activeTab.id)) {
+            return await chrome.tabs.sendMessage(activeTab.id, {
+              type: 'GET_PAGE_CONTENT_INTERNAL'
+            });
+          }
+          return null;
+        } catch (error) {
+          console.error(`获取页面内容失败 (尝试 ${retryCount + 1}/${maxRetries}):`, error);
+          return null;
         }
-      } catch (error) {
-        console.error('获取页面内容失败:', error);
-        sendResponse(null);
       }
+
+      async function getContentWithRetry() {
+        while (retryCount < maxRetries) {
+          const content = await tryGetContent();
+          if (content) {
+            return content;
+          }
+          retryCount++;
+          if (retryCount < maxRetries) {
+            console.log(`等待 ${retryDelay}ms 后进行第 ${retryCount + 1} 次重试...`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+          }
+        }
+        return null;
+      }
+
+      const content = await getContentWithRetry();
+      sendResponse(content);
     })();
     return true;
   }
