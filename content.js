@@ -284,8 +284,8 @@ class CerebrSidebar {
       const currentTime = new Date();
       const timeDiff = this.lastToggleTime ? currentTime - this.lastToggleTime : Infinity;
 
-      // 如果时间间隔小于等于30ms则不执行
-      if (timeDiff <= 30) {
+      // 如果时间间隔小于等于60ms则不执行
+      if (timeDiff <= 60) {
         console.log('切换操作被忽略 - 间隔太短:', timeDiff + 'ms');
         return;
       }

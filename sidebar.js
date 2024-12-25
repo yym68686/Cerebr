@@ -335,7 +335,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     'Authorization': `Bearer ${config.apiKey}`
                 },
                 body: JSON.stringify({
-                    model: config.modelName || "gpt-4-vision-preview",
+                    model: config.modelName || "gpt-4o",
                     messages: [...messages, userMessage],
                     stream: true,
                     // max_tokens: 4096
