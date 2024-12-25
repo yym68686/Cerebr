@@ -2,6 +2,12 @@
 <img src="./icons/icon128.png">
 </p>
 
+<p align="center">
+<a href="https://chromewebstore.google.com/detail/cerebr/kjojanemcpiamhohkcpcddpkbnciojkj">
+    <img src="https://img.shields.io/chrome-web-store/v/kjojanemcpiamhohkcpcddpkbnciojkj?color=blue&label=Chrome%20Store&logo=google-chrome&logoColor=white" alt="Chrome Web Store">
+</a>
+</p>
+
 [English](./README.md) | [Simplified Chinese](./README_CN.md)
 
 # 🧠 Cerebr - Intelligent AI Assistant
