@@ -14,7 +14,9 @@
 
 ![screenshot](./statics/image.png)
 
-Cerebr is a powerful Chrome browser AI assistant extension focused on enhancing your work efficiency and learning experience.
+The name "Cerebr" comes from a Latin root related to "brain" or "cerebrum". This etymology reflects our vision: to integrate powerful AI capabilities from Claude, OpenAI, and others, making Cerebr your second brain for deep reading and understanding. Cerebr is a powerful Chrome browser AI assistant extension focused on enhancing your work efficiency and learning experience.
+
+Born from a need for a clean, efficient browser AI assistant, Cerebr stands out with its minimalist design and powerful features. While other solutions often come with limitations or cluttered interfaces, Cerebr focuses on delivering a seamless, distraction-free experience for your web browsing needs.
 
 ## ✨ Core Features
 
