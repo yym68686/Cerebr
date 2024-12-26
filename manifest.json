@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Cerebr",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Cerebr - 智能AI聊天助手",
   "icons": {
     "16": "icons/icon16.png",
@@ -75,7 +75,10 @@
       "lib/pdf.worker.js",
       "lib/fonts/KaTeX_Caligraphic-Regular.woff2",
       "lib/fonts/KaTeX_Caligraphic-Regular.woff",
-      "lib/fonts/KaTeX_Caligraphic-Regular.ttf"
+      "lib/fonts/KaTeX_Caligraphic-Regular.ttf",
+      "lib/fonts/KaTeX_Math-BoldItalic.woff2",
+      "lib/fonts/KaTeX_Math-BoldItalic.woff",
+      "lib/fonts/KaTeX_Math-BoldItalic.ttf"
     ],
     "matches": ["<all_urls>"]
   }],
