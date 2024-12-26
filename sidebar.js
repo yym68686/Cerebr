@@ -296,7 +296,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 });
             } else {
-                // 如果��有文本，直接使用文本内容
+                // 如果没有文本，直接使用文本内容
                 content = message;
             }
 
@@ -1129,7 +1129,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             e.preventDefault();
             e.stopPropagation();
             container.remove();
-            // ���发输入事件以调整高度
+            // 发输入事件以调整高度
             messageInput.dispatchEvent(new Event('input'));
         });
 
@@ -1165,6 +1165,145 @@ document.addEventListener('DOMContentLoaded', async () => {
     previewModal.addEventListener('click', (e) => {
         if (e.target === previewModal) {
             hideImagePreview();
+        }
+    });
+
+    // 创建公共的图片处理函数
+    function handleImageDrop(e, target) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        try {
+            // 处理文件拖放
+            if (e.dataTransfer.files.length > 0) {
+                const file = e.dataTransfer.files[0];
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        const base64Data = reader.result;
+                        const imageTag = createImageTag(base64Data, file.name);
+
+                        // 确保输入框有焦点
+                        messageInput.focus();
+
+                        // 获取或创建选区
+                        const selection = window.getSelection();
+                        let range;
+
+                        // 检查是否有现有选区
+                        if (selection.rangeCount > 0) {
+                            range = selection.getRangeAt(0);
+                        } else {
+                            // 创建新的选区
+                            range = document.createRange();
+                            // 将选区设置到输入框的末尾
+                            range.selectNodeContents(messageInput);
+                            range.collapse(false);
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                        }
+
+                        // 插入图片标签
+                        range.deleteContents();
+                        range.insertNode(imageTag);
+
+                        // 移动光标到图片标签后面
+                        const newRange = document.createRange();
+                        newRange.setStartAfter(imageTag);
+                        newRange.collapse(true);
+                        selection.removeAllRanges();
+                        selection.addRange(newRange);
+
+                        // 触发输入事件以调整高度
+                        messageInput.dispatchEvent(new Event('input'));
+                    };
+                    reader.readAsDataURL(file);
+                    return;
+                }
+            }
+
+            // 处理网页图片拖放
+            const data = e.dataTransfer.getData('text/plain');
+            if (data) {
+                try {
+                    const imageData = JSON.parse(data);
+                    if (imageData.type === 'image') {
+                        const imageTag = createImageTag(imageData.data, imageData.name);
+
+                        // 确保输入框有焦点
+                        messageInput.focus();
+
+                        // 获取或创建选区
+                        const selection = window.getSelection();
+                        let range;
+
+                        // 检查是否有现有选区
+                        if (selection.rangeCount > 0) {
+                            range = selection.getRangeAt(0);
+                        } else {
+                            // 创建新的选区
+                            range = document.createRange();
+                            // 将选区设置到输入框的末尾
+                            range.selectNodeContents(messageInput);
+                            range.collapse(false);
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                        }
+
+                        // 插入图片标签
+                        range.deleteContents();
+                        range.insertNode(imageTag);
+
+                        // 移动光标到图片标签后面
+                        const newRange = document.createRange();
+                        newRange.setStartAfter(imageTag);
+                        newRange.collapse(true);
+                        selection.removeAllRanges();
+                        selection.addRange(newRange);
+
+                        // 触发输入事件以调整高度
+                        messageInput.dispatchEvent(new Event('input'));
+                    }
+                } catch (error) {
+                    console.error('处理拖放数据失败:', error);
+                }
+            }
+        } catch (error) {
+            console.error('处理拖放事件失败:', error);
+        }
+    }
+
+    // 为输入框添加拖放事件监听器
+    messageInput.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    messageInput.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    messageInput.addEventListener('drop', (e) => handleImageDrop(e, messageInput));
+
+    // 为聊天区域添加拖放事件监听器
+    chatContainer.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    chatContainer.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    chatContainer.addEventListener('drop', (e) => handleImageDrop(e, chatContainer));
+
+    // 阻止聊天区域的图片默认行为
+    chatContainer.addEventListener('click', (e) => {
+        if (e.target.tagName === 'IMG') {
+            e.preventDefault();
+            e.stopPropagation();
         }
     });
 });

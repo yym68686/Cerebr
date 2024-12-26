@@ -13,6 +13,7 @@ class CerebrSidebar {
     this.lastToggleTime = null; // 添加上次执行时间存储
     this.initializeSidebar();
     this.setupUrlChangeListener();
+    this.setupDragAndDrop(); // 添加拖放事件监听器
   }
 
   setupUrlChangeListener() {
@@ -334,6 +335,54 @@ class CerebrSidebar {
     } catch (error) {
       console.error('切换侧边栏失败:', error);
     }
+  }
+
+  setupDragAndDrop() {
+    // 监听页面上的所有图片
+    document.addEventListener('dragstart', (e) => {
+      const img = e.target;
+      if (img.tagName === 'IMG') {
+        // 尝试直接获取图片的 src
+        try {
+          // 对于跨域图片，尝试使用 fetch 获取
+          fetch(img.src)
+            .then(response => response.blob())
+            .then(blob => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const base64Data = reader.result;
+                e.dataTransfer.setData('text/plain', JSON.stringify({
+                  type: 'image',
+                  data: base64Data,
+                  name: img.alt || '拖放图片'
+                }));
+              };
+              reader.readAsDataURL(blob);
+            })
+            .catch(error => {
+              console.error('获取图片数据失败:', error);
+              // 如果 fetch 失败，回退到 canvas 方法
+              try {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                const base64Data = canvas.toDataURL(img.src.match(/\.png$/i) ? 'image/png' : 'image/jpeg');
+                e.dataTransfer.setData('text/plain', JSON.stringify({
+                  type: 'image',
+                  data: base64Data,
+                  name: img.alt || '拖放图片'
+                }));
+              } catch (canvasError) {
+                console.error('Canvas 获取图片数据失败:', canvasError);
+              }
+            });
+        } catch (error) {
+          console.error('处理图片拖动失败:', error);
+        }
+      }
+    });
   }
 }
 
