@@ -31,6 +31,13 @@ let currentIndex = -1;
 // 添加全局变量
 let clearChat;
 
+// 初始化历史消息
+function initializeUserQuestions() {
+    const userMessages = document.querySelectorAll('.user-message');
+    userQuestions = Array.from(userMessages).map(msg => msg.textContent.trim());
+    console.log('初始化历史问题:', userQuestions);
+}
+
 function checkCustomShortcut() {
     return new Promise((resolve) => {
         chrome.commands.getAll((commands) => {
@@ -105,6 +112,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // 初始化全局变量
     clearChat = document.querySelector('#clear-chat');
 
+    // 初始化历史消息
+    initializeUserQuestions();
+
     // 为整个文档添加快捷键监听
     document.addEventListener('keydown', handleShortcut);
 
@@ -128,7 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentIndex = Math.max(0, currentIndex - 1);
                 }
                 event.target.textContent = userQuestions[currentIndex];
-                // 触发��入事件以调整高度
+                // 触发入事件以调整高度
                 event.target.dispatchEvent(new Event('input', { bubbles: true }));
                 // 移动光标到末尾
                 const range = document.createRange();
@@ -169,9 +179,10 @@ document.addEventListener('DOMContentLoaded', () => {
             mutation.addedNodes.forEach((node) => {
                 if (node.classList && node.classList.contains('user-message')) {
                     const question = node.textContent.trim();
-                    if (question && userQuestions[userQuestions.length - 1] !== question) {
+                    // 只有当问题不在历史记录中时才添加
+                    if (question && !userQuestions.includes(question)) {
                         userQuestions.push(question);
-                        console.log('保存问题:', question);
+                        console.log('保存新问题:', question);
                         console.log('当前问题历史:', userQuestions);
                     }
                 }
@@ -191,4 +202,13 @@ document.addEventListener('DOMContentLoaded', () => {
     input.addEventListener('input', () => {
         currentIndex = -1;
     });
+
+    // 清空聊天记录时也清空问题历史
+    if (clearChat) {
+        clearChat.addEventListener('click', () => {
+            userQuestions = [];
+            currentIndex = -1;
+            console.log('清空问题历史');
+        });
+    }
 });
