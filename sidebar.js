@@ -93,6 +93,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // 清空当前显示的消息
                 chatContainer.innerHTML = '';
 
+                // 创建文档片段来提高性能
+                const fragment = document.createDocumentFragment();
+
                 // 重新显示历史消息
                 chatHistory.forEach(msg => {
                     if (Array.isArray(msg.content)) {
@@ -106,10 +109,29 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 messageHtml += imageTag.outerHTML;
                             }
                         });
-                        appendMessage(messageHtml, msg.role === 'user' ? 'user' : 'ai', true);
+                        appendMessage(messageHtml, msg.role === 'user' ? 'user' : 'ai', true, fragment);
                     } else {
-                        appendMessage(msg.content, msg.role === 'user' ? 'user' : 'ai', true);
+                        appendMessage(msg.content, msg.role === 'user' ? 'user' : 'ai', true, fragment);
                     }
+                });
+
+                // 一次性添加所有消息
+                chatContainer.appendChild(fragment);
+
+                // 使用 requestAnimationFrame 来延迟显示动画
+                requestAnimationFrame(() => {
+                    // 获取所有新添加的消息元素
+                    const messages = chatContainer.querySelectorAll('.message.batch-load');
+
+                    // 使用 requestAnimationFrame 来确保在下一帧开始时添加 show 类
+                    requestAnimationFrame(() => {
+                        messages.forEach((message, index) => {
+                            // 使用 setTimeout 来创建级联动画效果
+                            setTimeout(() => {
+                                message.classList.add('show');
+                            }, index * 30); // 每个消息间隔 30ms
+                        });
+                    });
                 });
             }
         } catch (error) {
@@ -151,7 +173,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log(`loadWebpageSwitch 从 ${call_name} 调用`);
 
         const domain = await getCurrentDomain();
-        console.log('刷新后 网页问答 获取当前域名:', domain);
+        console.log('刷新后 网页问答 获��当前域名:', domain);
         if (!domain) return;
 
         const result = await chrome.storage.local.get('webpageSwitchDomains');
@@ -531,10 +553,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // 修改appendMessage函数，只在发送新消息时滚动
-    function appendMessage(text, sender, skipHistory = false) {
+    // 修改appendMessage函数，只在发送新消���时滚动
+    function appendMessage(text, sender, skipHistory = false, fragment = null) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${sender}-message`;
+
+        // 如果是批量加载，添加特殊类名
+        if (fragment) {
+            messageDiv.classList.add('batch-load');
+        }
 
         // 存储原始文本用于复制
         messageDiv.setAttribute('data-original-text', text);
@@ -564,16 +591,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 渲染 LaTeX 公式
         renderMathInElement(messageDiv, MATH_DELIMITERS.renderConfig);
 
-        chatContainer.appendChild(messageDiv);
-
-        // 只在发送新消息时自动滚动（不是加载历史记录）
-        if (sender === 'user' && !skipHistory) {
-            requestAnimationFrame(() => {
-                chatContainer.scrollTo({
-                    top: chatContainer.scrollHeight,
-                    behavior: 'smooth'
+        // 如果提供了文档片段，添加到片段中；否则直接添加到聊天容器
+        if (fragment) {
+            fragment.appendChild(messageDiv);
+        } else {
+            chatContainer.appendChild(messageDiv);
+            // 只在发送新消息时自动滚动（不是加载历史记录）
+            if (sender === 'user' && !skipHistory) {
+                requestAnimationFrame(() => {
+                    chatContainer.scrollTo({
+                        top: chatContainer.scrollHeight,
+                        behavior: 'smooth'
+                    });
                 });
-            });
+            }
         }
 
         // 只有在不跳过历史记录时才添加到历史记录
@@ -928,7 +959,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         saveChatHistory();
         // 闭设置菜单
         settingsMenu.classList.remove('visible');
-        // 聚焦输入框并将光标移到末尾
+        // 聚焦输入框并将光标移到��尾
         messageInput.focus();
         // 移动光标到末尾
         const range = document.createRange();

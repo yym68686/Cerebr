@@ -846,3 +846,16 @@ input:checked + .slider:before {
         border-top-color: var(--cerebr-text-color);
     }
 }
+
+/* 批量加载时的消息样式 */
+.message.batch-load {
+    animation: none;
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+}
+
+.message.batch-load.show {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
