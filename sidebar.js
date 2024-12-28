@@ -172,91 +172,106 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function loadWebpageSwitch(call_name = 'loadWebpageSwitch') {
         console.log(`loadWebpageSwitch 从 ${call_name} 调用`);
 
-        const domain = await getCurrentDomain();
-        console.log('刷新后 网页问答 获��当前域名:', domain);
-        if (!domain) return;
+        try {
+            const domain = await getCurrentDomain();
+            console.log('刷新后 网页问答 获取当前域名:', domain);
+            if (!domain) return;
 
-        const result = await chrome.storage.local.get('webpageSwitchDomains');
-        const domains = result.webpageSwitchDomains || {};
-        console.log('刷新后 网页问答存储中获取域名:', domains);
+            const result = await chrome.storage.local.get('webpageSwitchDomains');
+            const domains = result.webpageSwitchDomains || {};
+            console.log('刷新后 网页问答存储中获取域名:', domains);
 
-        if (domains[domain]) {
-            webpageSwitch.checked = true;
-            // 添加加载状态
-            document.body.classList.add('loading-content');
+            // 只在开关状态不一致时才更新
+            if (domains[domain] !== webpageSwitch.checked) {
+                webpageSwitch.checked = !!domains[domain];
 
-            // 异步获取网页内容
-            getPageContent().then(content => {
-                if (content) {
-                    pageContent = content;
-                    saveWebpageSwitch(domain, true);
+                if (webpageSwitch.checked) {
+                    document.body.classList.add('loading-content');
+
+                    try {
+                        const content = await getPageContent();
+                        if (content) {
+                            pageContent = content;
+                        } else {
+                            // 不再自动关闭开关，只显示提示消息
+                            // appendMessage('无法获取网页内容', 'ai', true);
+                            console.error('获取网页内容失败。');
+                        }
+                    } catch (error) {
+                        console.error('获取网页内容失败:', error);
+                        // 不再自动关闭开关，只显示提示消息
+                        // appendMessage('获取网页内容失败', 'ai', true);
+                    } finally {
+                        document.body.classList.remove('loading-content');
+                    }
                 } else {
-                    webpageSwitch.checked = false;
-                    saveWebpageSwitch(domain, false);
-                    appendMessage('无法获取网页内容', 'ai', true);
+                    pageContent = null;
                 }
-            }).catch(error => {
-                console.error('获取网页内容失败:', error);
-                webpageSwitch.checked = false;
-                saveWebpageSwitch(domain, false);
-                appendMessage('获取网页内容失败', 'ai', true);
-            }).finally(() => {
-                document.body.classList.remove('loading-content');
-            });
-        } else {
-            webpageSwitch.checked = false;
-            pageContent = null;
+            }
+        } catch (error) {
+            console.error('加载网页问答状态失败:', error);
         }
     }
 
     // 修改网页问答开关监听器
     webpageSwitch.addEventListener('change', async () => {
-        const domain = await getCurrentDomain();
-        console.log('网页问答开关状态改变后，获取当前域名:', domain);
-        if (!domain) {
-            webpageSwitch.checked = false;
-            return;
-        }
-        console.log('网页问答开关状态改变后，获取网页问答开关状态:', webpageSwitch.checked);
+        try {
+            const domain = await getCurrentDomain();
+            console.log('网页问答开关状态改变后，获取当前域名:', domain);
 
-        if (webpageSwitch.checked) {
-            document.body.classList.add('loading-content');
+            if (!domain) {
+                console.log('无法获取域名，保持开关状态不变');
+                webpageSwitch.checked = !webpageSwitch.checked; // 恢复开关状态
+                return;
+            }
 
-            getPageContent()
-                .then(async content => {
+            console.log('网页问答开关状态改变后，获取网页问答开关状态:', webpageSwitch.checked);
+
+            if (webpageSwitch.checked) {
+                document.body.classList.add('loading-content');
+
+                try {
+                    const content = await getPageContent();
                     if (content) {
                         pageContent = content;
                         await saveWebpageSwitch(domain, true);
                         console.log('修改网页问答为已开启');
                     } else {
-                        webpageSwitch.checked = false;
-                        await saveWebpageSwitch(domain, false);
-                        appendMessage('无法获取网页内容', 'ai', true);
+                        // 不再自动关闭开关，只显示提示消息
+                        // appendMessage('无法获取网页内容', 'ai', true);
+                        console.error('获取网页内容失败。');
                     }
-                })
-                .catch(async error => {
+                } catch (error) {
                     console.error('获取网页内容失败:', error);
-                    webpageSwitch.checked = false;
-                    await saveWebpageSwitch(domain, false);
-                    appendMessage('获取网页内容失败', 'ai', true);
-                })
-                .finally(() => {
+                    // 不再自动关闭开关，只显示提示消息
+                    // appendMessage('获取网页内容失败', 'ai', true);
+                } finally {
                     document.body.classList.remove('loading-content');
-                });
-        } else {
-            pageContent = null;
-            await saveWebpageSwitch(domain, false);
-            console.log('修改网页问答为已关闭');
+                }
+            } else {
+                pageContent = null;
+                await saveWebpageSwitch(domain, false);
+                console.log('修改网页问答为已关闭');
+            }
+        } catch (error) {
+            console.error('处理网页问答开关变化失败:', error);
+            webpageSwitch.checked = !webpageSwitch.checked; // 恢复开关状态
         }
     });
     // 在 DOMContentLoaded 事件处理程序中添加加载网页问答状态
     await loadWebpageSwitch();
 
     // 在文件开头添加函数用于获取当前域名
-    async function getCurrentDomain() {
+    async function getCurrentDomain(retryCount = 0) {
+        const maxRetries = 3;
+        const retryDelay = 500;
+
         try {
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (!tab?.url) return null;
+            if (!tab?.url) {
+                console.log('未找到活动标签页');
+                return null;
+            }
 
             // 处理本地文件
             if (tab.url.startsWith('file://')) {
@@ -273,7 +288,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log('规范化域名:', hostname, '->', normalizedDomain);
             return normalizedDomain;
         } catch (error) {
-            console.error('获取当前域名失败:', error);
+            console.error(`获取当前域名失败 (尝试 ${retryCount + 1}/${maxRetries}):`, error);
+
+            if (retryCount < maxRetries) {
+                console.log(`等待 ${retryDelay}ms 后重试...`);
+                await new Promise(resolve => setTimeout(resolve, retryDelay));
+                return getCurrentDomain(retryCount + 1);
+            }
+
             return null;
         }
     }
@@ -553,7 +575,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // 修改appendMessage函数，只在发送新消���时滚动
+    // 修改appendMessage函数，只在发送新消息时滚动
     function appendMessage(text, sender, skipHistory = false, fragment = null) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${sender}-message`;
@@ -763,22 +785,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function saveWebpageSwitch(domain, enabled) {
         console.log('开始保存网页问答开关状态:', domain, enabled);
 
-        // 取当前存储的所有域名状态
-        const result = await chrome.storage.local.get('webpageSwitchDomains');
-        let domains = result.webpageSwitchDomains || {};
-        console.log('获取到当前存储的域名状态:', domains);
+        try {
+            const result = await chrome.storage.local.get('webpageSwitchDomains');
+            let domains = result.webpageSwitchDomains || {};
 
-        // 新状态
-        if (enabled) {
-            domains[domain] = true;
-        } else {
-            domains[domain] = false;
+            // 只在状态发生变化时才更新
+            if (domains[domain] !== enabled) {
+                domains[domain] = enabled;
+                await chrome.storage.local.set({ webpageSwitchDomains: domains });
+                console.log('网页问答状态已保存:', domain, enabled);
+            }
+        } catch (error) {
+            console.error('保存网页问答状态失败:', error, domain, enabled);
         }
-
-        console.log('准备保存的域名状态:', domains);
-
-        // 保存并立即验证
-        await chrome.storage.local.set({ webpageSwitchDomains: domains });
     }
 
     // API 设置功能
@@ -959,7 +978,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         saveChatHistory();
         // 闭设置菜单
         settingsMenu.classList.remove('visible');
-        // 聚焦输入框并将光标移到��尾
+        // 聚焦输入框并将光标移到末尾
         messageInput.focus();
         // 移动光标到末尾
         const range = document.createRange();
