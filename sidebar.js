@@ -722,33 +722,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 主题切换
     const themeSwitch = document.getElementById('theme-switch');
 
-    // 简化主题配置
-    const themes = {
-        light: {
-            '--cerebr-bg-color': '#ffffff',
-            '--cerebr-text-color': '#000000',
-            '--cerebr-message-user-bg': '#e3f2fd',
-            '--cerebr-message-ai-bg': '#f5f5f5',
-            '--cerebr-input-bg': '#f8f8f8',
-            '--cerebr-icon-color': '#666666'
-        },
-        dark: {
-            '--cerebr-bg-color': '#282c34',
-            '--cerebr-text-color': '#abb2bf',
-            '--cerebr-message-user-bg': '#3E4451',
-            '--cerebr-message-ai-bg': '#2c313c',
-            '--cerebr-input-bg': '#21252b',
-            '--cerebr-icon-color': '#abb2bf'
-        }
-    };
-
     // 设置主题
     function setTheme(isDark) {
-        const theme = isDark ? themes.dark : themes.light;
-        Object.entries(theme).forEach(([property, value]) => {
-            document.documentElement.style.setProperty(property, value);
-        });
+        // 获取根元素
+        const root = document.documentElement;
+
+        // 移除现有的主题类
+        root.classList.remove('dark-theme', 'light-theme');
+
+        // 添加新的主题类
+        root.classList.add(isDark ? 'dark-theme' : 'light-theme');
+
+        // 更新开关状态
         themeSwitch.checked = isDark;
+
+        // 保存主题设置
         chrome.storage.sync.set({ theme: isDark ? 'dark' : 'light' });
     }
 
@@ -756,8 +744,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function initTheme() {
         try {
             const result = await chrome.storage.sync.get('theme');
-            const isDark = result.theme === 'dark' ||
-                          (!result.theme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const isDark = result.theme === 'dark' || (!result.theme && prefersDark);
             setTheme(isDark);
         } catch (error) {
             console.error('初始化主题失败:', error);
@@ -767,7 +755,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // 监听主题切换
-    themeSwitch.addEventListener('change', () => setTheme(themeSwitch.checked));
+    themeSwitch.addEventListener('change', () => {
+        setTheme(themeSwitch.checked);
+    });
 
     // 监听系统主题变化
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
