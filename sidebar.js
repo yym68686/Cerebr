@@ -359,7 +359,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const messages = [...chatHistory.slice(0, -1)];  // 排除刚刚添加的用户消息
             const systemMessage = {
                 role: "system",
-                content: `数学公式请使用LaTeX表示，行间公式请使用\\[...\\]表示，行内公式请使用\\(...\\)表示。用户语言是 ${navigator.language}。请优先使用 ${navigator.language} 语言回答用户问题。${
+                content: `数学公式请使用LaTeX表示，行间公式请使用\\[...\\]表示，行内公式请使用\\(...\\)表示，禁止使用$美元符号包裹数学公式。用户语言是 ${navigator.language}。请优先使用 ${navigator.language} 语言回答用户问题。${
                     webpageSwitch.checked && pageContent ?
                     `\n当前网页内容：\n标题：${pageContent.title}\nURL：${pageContent.url}\n内容：${pageContent.content}` :
                     ''
@@ -431,6 +431,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function processMathAndMarkdown(text) {
         const mathExpressions = [];
         let mathIndex = 0;
+        text = text.replace(/\\\[(\d+)\]/g, '[$1]');
 
         // 临时替换数学公式
         text = text.replace(MATH_DELIMITERS.regex, (match) => {
