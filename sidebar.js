@@ -462,6 +462,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
+        text = text.replace(/:\s\*\*/g, ':**');
+
         // 渲染 Markdown
         let html = marked.parse(text);
 
