@@ -338,30 +338,57 @@ class CerebrSidebar {
   }
 
   setupDragAndDrop() {
+    console.log('初始化拖放功能');
+
+    // 存储最后一次设置的图片数据
+    let lastImageData = null;
+
+    // 检查是否在侧边栏范围内的函数
+    const isInSidebarBounds = (x, y) => {
+      if (!this.sidebar) return false;
+      const sidebarRect = this.sidebar.getBoundingClientRect();
+      return (
+        x >= sidebarRect.left &&
+        x <= sidebarRect.right &&
+        y >= sidebarRect.top &&
+        y <= sidebarRect.bottom
+      );
+    };
+
     // 监听页面上的所有图片
     document.addEventListener('dragstart', (e) => {
+      console.log('拖动开始，目标元素:', e.target.tagName);
       const img = e.target;
       if (img.tagName === 'IMG') {
+        console.log('检测到图片拖动，图片src:', img.src);
         // 尝试直接获取图片的 src
         try {
           // 对于跨域图片，尝试使用 fetch 获取
+          console.log('尝试获取图片数据');
           fetch(img.src)
             .then(response => response.blob())
             .then(blob => {
+              console.log('成功获取图片blob数据，大小:', blob.size);
               const reader = new FileReader();
               reader.onloadend = () => {
                 const base64Data = reader.result;
-                e.dataTransfer.setData('text/plain', JSON.stringify({
+                console.log('成功转换为base64数据');
+                const imageData = {
                   type: 'image',
                   data: base64Data,
                   name: img.alt || '拖放图片'
-                }));
+                };
+                console.log('设置拖动数据:', imageData.name);
+                lastImageData = imageData;  // 保存最后一次的图片数据
+                e.dataTransfer.setData('text/plain', JSON.stringify(imageData));
+                e.dataTransfer.effectAllowed = 'copy';  // 设置拖动效果为复制
               };
               reader.readAsDataURL(blob);
             })
             .catch(error => {
               console.error('获取图片数据失败:', error);
               // 如果 fetch 失败，回退到 canvas 方法
+              console.log('尝试使用Canvas方法获取图片数据');
               try {
                 const canvas = document.createElement('canvas');
                 canvas.width = img.naturalWidth;
@@ -369,19 +396,41 @@ class CerebrSidebar {
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0);
                 const base64Data = canvas.toDataURL(img.src.match(/\.png$/i) ? 'image/png' : 'image/jpeg');
-                e.dataTransfer.setData('text/plain', JSON.stringify({
+                console.log('成功使用Canvas获取图片数据');
+                const imageData = {
                   type: 'image',
                   data: base64Data,
                   name: img.alt || '拖放图片'
-                }));
+                };
+                console.log('设置拖动数据:', imageData.name);
+                lastImageData = imageData;  // 保存最后一次的图片数据
+                e.dataTransfer.setData('text/plain', JSON.stringify(imageData));
+                e.dataTransfer.effectAllowed = 'copy';  // 设置拖动效果为复制
               } catch (canvasError) {
-                console.error('Canvas 获取图片数据失败:', canvasError);
+                console.error('Canvas获取图片数据失败:', canvasError);
               }
             });
         } catch (error) {
           console.error('处理图片拖动失败:', error);
         }
       }
+    });
+
+    // 监听拖动结束事件
+    document.addEventListener('dragend', (e) => {
+      const inSidebar = isInSidebarBounds(e.clientX, e.clientY);
+      console.log('拖动结束，是否在侧边栏内:', inSidebar, '坐标:', e.clientX, e.clientY);
+
+      const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
+      if (iframe && inSidebar && lastImageData && this.isVisible) {  // 确保侧边栏可见
+        console.log('在侧边栏内放下，发送图片数据到iframe');
+        iframe.contentWindow.postMessage({
+          type: 'DROP_IMAGE',
+          imageData: lastImageData
+        }, '*');
+      }
+      // 重置状态
+      lastImageData = null;
     });
   }
 }

@@ -476,7 +476,50 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 监听来自 content script 的消息
     window.addEventListener('message', (event) => {
-        if (event.data.type === 'FOCUS_INPUT') {
+        if (event.data.type === 'DROP_IMAGE') {
+            console.log('收到拖放图片数据');
+            const imageData = event.data.imageData;
+            if (imageData && imageData.data) {
+                console.log('创建图片标签');
+                const imageTag = createImageTag(imageData.data, imageData.name);
+
+                // 确保输入框有焦点
+                messageInput.focus();
+
+                // 获取或创建选区
+                const selection = window.getSelection();
+                let range;
+
+                // 检查是否有现有选区
+                if (selection.rangeCount > 0) {
+                    range = selection.getRangeAt(0);
+                } else {
+                    // 创建新的选区
+                    range = document.createRange();
+                    // 将选区设置到输入框的末尾
+                    range.selectNodeContents(messageInput);
+                    range.collapse(false);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                }
+
+                console.log('插入图片标签到输入框');
+                // 插入图片标签
+                range.deleteContents();
+                range.insertNode(imageTag);
+
+                // 移动光标到图片标签后面
+                const newRange = document.createRange();
+                newRange.setStartAfter(imageTag);
+                newRange.collapse(true);
+                selection.removeAllRanges();
+                selection.addRange(newRange);
+
+                // 触发输入事件以调整高度
+                messageInput.dispatchEvent(new Event('input'));
+                console.log('图片插入完成');
+            }
+        } else if (event.data.type === 'FOCUS_INPUT') {
             messageInput.focus();
             const range = document.createRange();
             range.selectNodeContents(messageInput);
