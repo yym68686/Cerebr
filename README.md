@@ -20,7 +20,7 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
 
 ## ✨ Core Features
 
-- 🎯 **Smart Sidebar** - Quick access via hotkey (Windows: `Alt+A` / Mac: `Ctrl+A`) to chat with AI anytime, anywhere
+- 🎯 **Smart Sidebar** - Quick access via hotkey (Windows: `Alt+Z` / Mac: `Ctrl+Z`) to chat with AI anytime, anywhere
 - 🔄 **Multiple API Support** - Configure multiple APIs to flexibly switch between different AI assistants
 - 📝 **Comprehensive Q&A** - Support webpage content Q&A, PDF document Q&A, image Q&A and more
 - 🎨 **Elegant Rendering** - Perfect support for Markdown text rendering and LaTeX math formula display
@@ -43,7 +43,7 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
    - Support adding multiple API configurations
 
 2. 💬 **Start Chatting**
-   - Use hotkey Windows: `Alt+A` / Mac: `Ctrl+A` to summon sidebar
+   - Use hotkey Windows: `Alt+Z` / Mac: `Ctrl+Z` to summon sidebar
    - Input questions and send
    - Support image upload for visual Q&A
 

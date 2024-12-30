@@ -474,9 +474,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         return html;
     }
 
-    // 添加侧边栏可见性状态变量
-    let isSidebarVisible = true; // 默认为可见状态
-
     // 监听来自 content script 的消息
     window.addEventListener('message', (event) => {
         if (event.data.type === 'DROP_IMAGE') {
@@ -530,13 +527,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             const selection = window.getSelection();
             selection.removeAllRanges();
             selection.addRange(range);
-        } else if (event.data.type === 'SIDEBAR_VISIBILITY_CHANGED') {
-            isSidebarVisible = event.data.isVisible;
-            if (!event.data.isVisible) {
-                console.log('侧边栏已隐藏，继续保持消息更新');
-            } else {
-                console.log('侧边栏已显示');
-            }
         } else if (event.data.type === 'URL_CHANGED') {
             console.log('[收到URL变化]', event.data.url);
             if (webpageSwitch.checked) {

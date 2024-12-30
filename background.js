@@ -24,33 +24,42 @@ function checkCustomShortcut(callback) {
   });
 }
 
-chrome.commands.onCommand.addListener(async (command) => {
-  console.log('onCommand:', command);
-  if (command === 'toggle_sidebar') {
-    try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab) {
-        console.log('没有找到活动标签页');
+// 处理标签页连接和消息发送的通用函数
+async function handleTabCommand(commandType) {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab) {
+      console.log('没有找到活动标签页');
+      return;
+    }
+
+    // 检查标签页是否已连接
+    const isConnected = await isTabConnected(tab.id);
+    if (!isConnected) {
+      console.log('标签页未连接，等待重试...');
+      // 等待一段时间后重试
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const retryConnection = await isTabConnected(tab.id);
+      if (!retryConnection) {
+        console.log('重试失败，标签页仍未连接');
         return;
       }
-
-      // 检查标签页是否已连接
-      const isConnected = await isTabConnected(tab.id);
-      if (!isConnected) {
-        console.log('标签页未连接，等待重试...');
-        // 等待一段时间后重试
-        await new Promise(resolve => setTimeout(resolve, 500));
-        const retryConnection = await isTabConnected(tab.id);
-        if (!retryConnection) {
-          console.log('重试失败，标签页仍未连接');
-          return;
-        }
-      }
-
-      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_toggle_sidebar' });
-    } catch (error) {
-      console.error('处理命令失败:', error);
     }
+
+    await chrome.tabs.sendMessage(tab.id, { type: commandType });
+  } catch (error) {
+    console.error(`处理${commandType}命令失败:`, error);
+  }
+}
+
+// 简化后的命令监听器
+chrome.commands.onCommand.addListener(async (command) => {
+  console.log('onCommand:', command);
+
+  if (command === 'toggle_sidebar') {
+    await handleTabCommand('TOGGLE_SIDEBAR_toggle_sidebar');
+  } else if (command === 'clear_chat') {
+    await handleTabCommand('CLEAR_CHAT');
   }
 });
 

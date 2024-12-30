@@ -21,6 +21,12 @@ window.addEventListener('message', (event) => {
                 webpageSwitch.dispatchEvent(new Event('change'));
             }, 1000);
         }
+    } else if (event.data && event.data.type === 'CLEAR_CHAT_COMMAND') {
+        console.log('收到清空聊天记录命令');
+        const clearChatButton = document.querySelector('#clear-chat');
+        if (clearChatButton) {
+            clearChatButton.click();
+        }
     }
 });
 
@@ -38,73 +44,6 @@ function initializeUserQuestions() {
     console.log('初始化历史问题:', userQuestions);
 }
 
-function checkCustomShortcut() {
-    return new Promise((resolve) => {
-        chrome.commands.getAll((commands) => {
-            const toggleCommand = commands.find(command => command.name === 'toggle_sidebar');
-            if (toggleCommand && toggleCommand.shortcut) {
-                const lastLetter = toggleCommand.shortcut.charAt(toggleCommand.shortcut.length - 1).toLowerCase();
-                console.log('当前设置的快捷键:', toggleCommand.shortcut, '最后一个字符:', lastLetter);
-                resolve(lastLetter);
-            } else {
-                resolve(null);
-            }
-        });
-    });
-}
-
-// 检查清空聊天记录快捷键
-function checkClearChatShortcut() {
-    return new Promise((resolve) => {
-        chrome.commands.getAll((commands) => {
-            const clearCommand = commands.find(command => command.name === 'clear_chat');
-            if (clearCommand && clearCommand.shortcut) {
-                const lastLetter = clearCommand.shortcut.charAt(clearCommand.shortcut.length - 1).toLowerCase();
-                console.log('当前设置的清空聊天记录快捷键:', clearCommand.shortcut, '最后一个字符:', lastLetter);
-                resolve(lastLetter);
-            } else {
-                resolve(null);
-            }
-        });
-    });
-}
-
-// 添加快捷键处理函数
-async function handleShortcut(event) {
-    const lastLetter = await checkCustomShortcut();
-    const clearLastLetter = await checkClearChatShortcut();
-
-    // 检查是否是清空聊天记录的快捷键
-    if ((event.ctrlKey && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent)) &&
-        event.key.toLowerCase() === clearLastLetter) {
-        event.preventDefault();
-        if (clearChat) {
-            clearChat.click();
-            // 聚焦输入框并将光标移到末尾
-            const input = document.querySelector('#message-input');
-            if (input) {
-                input.focus();
-                // 移动光标到末尾
-                const range = document.createRange();
-                range.selectNodeContents(input);
-                range.collapse(false);
-                const selection = window.getSelection();
-                selection.removeAllRanges();
-                selection.addRange(range);
-            }
-        }
-        return;
-    }
-
-    // 检查是否是切换侧边栏的快捷键
-    if ((event.ctrlKey && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent)) &&
-        event.key.toLowerCase() === lastLetter) {
-        event.preventDefault();
-        window.parent.postMessage({ type: 'TOGGLE_SIDEBAR' }, '*');
-        return;
-    }
-}
-
 // 等 DOM 加载完成
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.querySelector('#message-input');
@@ -115,14 +54,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // 初始化历史消息
     initializeUserQuestions();
 
-    // 为整个文档添加快捷键监听
-    document.addEventListener('keydown', handleShortcut);
-
     // 监听输入框的键盘事件
     input.addEventListener('keydown', async (event) => {
-        // 先处理快捷键
-        await handleShortcut(event);
-
         // 处理输入框特定的键盘事件
         // 当按下向上键且输入框为空时
         if (event.key === 'ArrowUp' && event.target.textContent.trim() === '') {
@@ -147,28 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const selection = window.getSelection();
                 selection.removeAllRanges();
                 selection.addRange(range);
-            }
-        }
-        // 当按下向下键时
-        else if (event.key === 'ArrowDown' && currentIndex !== -1) {
-            event.preventDefault();
-            if (currentIndex < userQuestions.length - 1) {
-                currentIndex++;
-                event.target.textContent = userQuestions[currentIndex];
-                // 触发输入事件以调整高度
-                event.target.dispatchEvent(new Event('input', { bubbles: true }));
-                // 移动光标到末尾
-                const range = document.createRange();
-                range.selectNodeContents(event.target);
-                range.collapse(false);
-                const selection = window.getSelection();
-                selection.removeAllRanges();
-                selection.addRange(range);
-            } else {
-                currentIndex = -1;
-                event.target.textContent = '';
-                // 触发输入事件以调整高度
-                event.target.dispatchEvent(new Event('input', { bubbles: true }));
             }
         }
     });

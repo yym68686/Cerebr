@@ -10,7 +10,7 @@ class CerebrSidebar {
     this.pageKey = window.location.origin + window.location.pathname;
     this.lastUrl = window.location.href;
     console.log('CerebrSidebar 实例创建');
-    this.lastToggleTime = null; // 添加上次执行时间存储
+    // this.lastToggleTime = null; // 添加上次执行时间存储
     this.initializeSidebar();
     this.setupUrlChangeListener();
     this.setupDragAndDrop(); // 添加拖放事件监听器
@@ -282,24 +282,6 @@ class CerebrSidebar {
     if (!this.initialized) return;
 
     try {
-      const currentTime = new Date();
-      const timeDiff = this.lastToggleTime ? currentTime - this.lastToggleTime : Infinity;
-
-      // 如果时间间隔小于等于60ms则不执行
-      if (timeDiff <= 60) {
-        console.log('切换操作被忽略 - 间隔太短:', timeDiff + 'ms');
-        return;
-      }
-
-      console.log('切换侧边栏可见性 -',
-        '当前时间:', currentTime.toLocaleTimeString(),
-        '上次执行:', this.lastToggleTime ? this.lastToggleTime.toLocaleTimeString() : '无',
-        '时间间隔:', timeDiff + 'ms',
-        '当前状态:', this.isVisible,
-        '侧边栏可见性已切换为:', !this.isVisible
-      );
-      this.lastToggleTime = currentTime;
-
       // 在改变可见性之前保存旧状态
       const wasVisible = this.isVisible;
       this.isVisible = !this.isVisible;
@@ -314,21 +296,10 @@ class CerebrSidebar {
       // 保存状态
       this.saveState();
 
-      // 如果从可见变为不可见，通知iframe
-      if (wasVisible && !this.isVisible) {
-        const iframe = this.sidebar.querySelector('.cerebr-sidebar__iframe');
-        if (iframe) {
-          iframe.contentWindow.postMessage({ type: 'SIDEBAR_VISIBILITY_CHANGED', isVisible: false }, '*');
-        }
-      }
       // 如果从不可见变为可见，通知iframe并聚焦输入框
-      else if (!wasVisible && this.isVisible) {
+      if (!wasVisible && this.isVisible) {
         const iframe = this.sidebar.querySelector('.cerebr-sidebar__iframe');
         if (iframe) {
-          iframe.contentWindow.postMessage({
-            type: 'SIDEBAR_VISIBILITY_CHANGED',
-            isVisible: true
-          }, '*');
           iframe.contentWindow.postMessage({ type: 'FOCUS_INPUT' }, '*');
         }
       }
@@ -473,6 +444,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    // 处理清空聊天记录命令
+    if (message.type === 'CLEAR_CHAT') {
+        try {
+            const iframe = sidebar?.sidebar?.querySelector('.cerebr-sidebar__iframe');
+            if (iframe) {
+                iframe.contentWindow.postMessage({ type: 'CLEAR_CHAT_COMMAND' }, '*');
+                sendResponse({ success: true });
+            } else {
+                console.error('找不到侧边栏iframe');
+                sendResponse({ success: false, error: 'Iframe not found' });
+            }
+        } catch (error) {
+            console.error('处理清空聊天命令失败:', error);
+            sendResponse({ success: false, error: error.message });
+        }
+        return true;
+    }
+
     // 处理获取页面内容请求
     if (message.type === 'GET_PAGE_CONTENT_INTERNAL') {
         console.log('收到获取页面内容请求');
@@ -491,16 +480,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 
     return true;
-});
-
-// 监听来自iframe的消息
-window.addEventListener('message', (event) => {
-  // console.log("监听来自iframe的消息:", event.data);
-  if (event.data && event.data.type === 'TOGGLE_SIDEBAR') {
-      if (sidebar) {
-          sidebar.toggle();
-      }
-  }
 });
 
 const port = chrome.runtime.connect({ name: 'cerebr-sidebar' });
