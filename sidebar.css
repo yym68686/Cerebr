@@ -481,10 +481,29 @@ input:checked + .slider:before {
     display: block;
     overflow-x: auto;
     padding: 1em;
-    background: #282c34;
     border-radius: 6px;
     font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
     white-space: pre;
+    /* 浅色模式默认样式 */
+    background: #f6f8fa;
+    color: #24292e;
+    border: 1px solid #e1e4e8;
+}
+
+/* 深色模式样式 */
+:root.dark-theme .message pre code {
+    background: #282c34;
+    color: #abb2bf;
+    border: none;
+}
+
+/* 系统深色模式 */
+@media (prefers-color-scheme: dark) {
+    :root:not(.light-theme) .message pre code {
+        background: #282c34;
+        color: #abb2bf;
+        border: none;
+    }
 }
 
 .message code {
