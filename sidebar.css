@@ -11,7 +11,7 @@
 
 /* 深色主题变量 */
 :root.dark-theme {
-    --cerebr-bg-color: #282c34;
+    --cerebr-bg-color: #262B33;
     --cerebr-text-color: #abb2bf;
     --cerebr-message-user-bg: #3E4451;
     --cerebr-message-ai-bg: #2c313c;
@@ -22,7 +22,7 @@
 /* 系统深色主题 */
 @media (prefers-color-scheme: dark) {
     :root:not(.light-theme) {
-        --cerebr-bg-color: #282c34;
+        --cerebr-bg-color: #262B33;
         --cerebr-text-color: #abb2bf;
         --cerebr-message-user-bg: #3E4451;
         --cerebr-message-ai-bg: #2c313c;
