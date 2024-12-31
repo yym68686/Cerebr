@@ -431,7 +431,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function processMathAndMarkdown(text) {
         const mathExpressions = [];
         let mathIndex = 0;
-        text = text.replace(/\\\[(\d+)\]/g, '[$1]');
+        text = text.replace(/\\\[([a-zA-Z\d]+)\]/g, '[$1]');
 
         // 临时替换数学公式
         text = text.replace(MATH_DELIMITERS.regex, (match) => {
