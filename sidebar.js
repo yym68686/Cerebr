@@ -574,25 +574,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         } else if (event.data.type === 'QUICK_SUMMARY_COMMAND') {
-            // 处理快速总结命令
-            (async () => {
-                // 清空聊天记录
-                chatContainer.innerHTML = '';
-                chatHistory = [];
-                saveChatHistory();
-
-                // 获取页面内容
-                const content = await getPageContent();
-                if (!content) {
-                    appendMessage('获取页面内容失败', 'ai', true);
-                    return;
-                }
-
-                // 构建总结请求
-                messageInput.textContent = `请总结这个页面的主要内容，用简洁的语言描述。`;
-                // 直接发送消息
-                sendMessage();
-            })();
+            performQuickSummary();
         }
     });
 
@@ -1035,9 +1017,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         selection.addRange(range);
     });
 
-    // 快速总结功能
-    const quickSummary = document.getElementById('quick-summary');
-    quickSummary.addEventListener('click', async () => {
+    // 快速总结的公共函数
+    async function performQuickSummary() {
         // 清空聊天记录
         chatContainer.innerHTML = '';
         chatHistory = [];
@@ -1056,7 +1037,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         messageInput.textContent = `请总结这个页面的主要内容，用简洁的语言描述。`;
         // 直接发送消息
         sendMessage();
-    });
+    }
+
+    // 快速总结功能
+    const quickSummary = document.getElementById('quick-summary');
+    quickSummary.addEventListener('click', () => performQuickSummary());
 
     // 添加点击事件监听
     chatContainer.addEventListener('click', () => {
