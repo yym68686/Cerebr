@@ -60,6 +60,8 @@ chrome.commands.onCommand.addListener(async (command) => {
     await handleTabCommand('TOGGLE_SIDEBAR_toggle_sidebar');
   } else if (command === 'clear_chat') {
     await handleTabCommand('CLEAR_CHAT');
+  } else if (command === 'quick_summary') {
+    await handleTabCommand('QUICK_SUMMARY');
   }
 });
 

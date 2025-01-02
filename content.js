@@ -462,6 +462,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    // 处理快速总结命令
+    if (message.type === 'QUICK_SUMMARY') {
+        try {
+            // 如果侧边栏没有打开，先打开它
+            if (sidebar && !sidebar.isVisible) {
+                sidebar.toggle();
+            }
+
+            const iframe = sidebar?.sidebar?.querySelector('.cerebr-sidebar__iframe');
+            if (iframe) {
+                iframe.contentWindow.postMessage({ type: 'QUICK_SUMMARY_COMMAND' }, '*');
+                sendResponse({ success: true });
+            } else {
+                console.error('找不到侧边栏iframe');
+                sendResponse({ success: false, error: 'Iframe not found' });
+            }
+        } catch (error) {
+            console.error('处理快速总结命令失败:', error);
+            sendResponse({ success: false, error: error.message });
+        }
+        return true;
+    }
+
     // 处理获取页面内容请求
     if (message.type === 'GET_PAGE_CONTENT_INTERNAL') {
         console.log('收到获取页面内容请求');

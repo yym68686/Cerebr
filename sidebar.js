@@ -573,6 +573,26 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }, event.data.timeout);
                 }
             }
+        } else if (event.data.type === 'QUICK_SUMMARY_COMMAND') {
+            // 处理快速总结命令
+            (async () => {
+                // 清空聊天记录
+                chatContainer.innerHTML = '';
+                chatHistory = [];
+                saveChatHistory();
+
+                // 获取页面内容
+                const content = await getPageContent();
+                if (!content) {
+                    appendMessage('获取页面内容失败', 'ai', true);
+                    return;
+                }
+
+                // 构建总结请求
+                messageInput.textContent = `请总结这个页面的主要内容，用简洁的语言描述。`;
+                // 直接发送消息
+                sendMessage();
+            })();
         }
     });
 
