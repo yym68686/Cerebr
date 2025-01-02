@@ -1026,12 +1026,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 关闭设置菜单
         settingsMenu.classList.remove('visible');
 
+        // 显示加载状态
+        appendMessage('正在准备页面内容...', 'ai', true);
+
+        // 如果网页问答没有开启，先开启它
+        if (!webpageSwitch.checked) {
+            webpageSwitch.checked = true;
+            const domain = await getCurrentDomain();
+            if (domain) {
+                await saveWebpageSwitch(domain, true);
+            }
+        }
+
         // 获取页面内容
         const content = await getPageContent();
         if (!content) {
             appendMessage('获取页面内容失败', 'ai', true);
             return;
         }
+
+        // 更新 pageContent
+        pageContent = content;
+
+        // 移除加载状态消息
+        chatContainer.innerHTML = '';
+        chatHistory = [];
 
         // 构建总结请求
         messageInput.textContent = `请总结这个页面的主要内容，用简洁的语言描述。`;
