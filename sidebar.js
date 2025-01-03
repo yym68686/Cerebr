@@ -1053,7 +1053,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         chatHistory = [];
 
         // 构建总结请求
-        messageInput.textContent = `请总结这个页面的主要内容，用简洁的语言描述。`;
+        messageInput.textContent = `请总结这个页面的主要内容。`;
         // 直接发送消息
         sendMessage();
     }
