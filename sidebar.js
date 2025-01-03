@@ -573,6 +573,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }, event.data.timeout);
                 }
             }
+        } else if (event.data.type === 'QUICK_SUMMARY_COMMAND') {
+            performQuickSummary();
         }
     });
 
@@ -1014,6 +1016,51 @@ document.addEventListener('DOMContentLoaded', async () => {
         selection.removeAllRanges();
         selection.addRange(range);
     });
+
+    // 快速总结的公共函数
+    async function performQuickSummary() {
+        // 清空聊天记录
+        chatContainer.innerHTML = '';
+        chatHistory = [];
+        saveChatHistory();
+        // 关闭设置菜单
+        settingsMenu.classList.remove('visible');
+
+        // 显示加载状态
+        appendMessage('正在准备页面内容...', 'ai', true);
+
+        // 如果网页问答没有开启，先开启它
+        if (!webpageSwitch.checked) {
+            webpageSwitch.checked = true;
+            const domain = await getCurrentDomain();
+            if (domain) {
+                await saveWebpageSwitch(domain, true);
+            }
+        }
+
+        // 获取页面内容
+        const content = await getPageContent();
+        if (!content) {
+            appendMessage('获取页面内容失败', 'ai', true);
+            return;
+        }
+
+        // 更新 pageContent
+        pageContent = content;
+
+        // 移除加载状态消息
+        chatContainer.innerHTML = '';
+        chatHistory = [];
+
+        // 构建总结请求
+        messageInput.textContent = `请总结这个页面的主要内容。`;
+        // 直接发送消息
+        sendMessage();
+    }
+
+    // 快速总结功能
+    const quickSummary = document.getElementById('quick-summary');
+    quickSummary.addEventListener('click', () => performQuickSummary());
 
     // 添加点击事件监听
     chatContainer.addEventListener('click', () => {

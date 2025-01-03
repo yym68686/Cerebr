@@ -38,6 +38,13 @@
         "mac": "MacCtrl+X"
       },
       "description": "清空聊天记录"
+    },
+    "quick_summary": {
+      "suggested_key": {
+        "default": "Alt+S",
+        "mac": "MacCtrl+S"
+      },
+      "description": "快速总结当前页面"
     }
   },
   "background": {
