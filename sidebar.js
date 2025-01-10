@@ -193,14 +193,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (content) {
                             pageContent = content;
                         } else {
-                            // 不再自动关闭开关，只显示提示消息
-                            // appendMessage('无法获取网页内容', 'ai', true);
-                            console.error('获取网页内容失败。');
+                            console.error('loadWebpageSwitch 获取网页内容失败');
                         }
                     } catch (error) {
-                        console.error('获取网页内容失败:', error);
-                        // 不再自动关闭开关，只显示提示消息
-                        // appendMessage('获取网页内容失败', 'ai', true);
+                        console.error('loadWebpageSwitch 获取网页内容失败:', error);
                     } finally {
                         document.body.classList.remove('loading-content');
                     }
@@ -237,14 +233,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                         await saveWebpageSwitch(domain, true);
                         console.log('修改网页问答为已开启');
                     } else {
-                        // 不再自动关闭开关，只显示提示消息
-                        // appendMessage('无法获取网页内容', 'ai', true);
                         console.error('获取网页内容失败。');
                     }
                 } catch (error) {
                     console.error('获取网页内容失败:', error);
-                    // 不再自动关闭开关，只显示提示消息
-                    // appendMessage('获取网页内容失败', 'ai', true);
                 } finally {
                     document.body.classList.remove('loading-content');
                 }
@@ -542,22 +534,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 await saveWebpageSwitch(domain, true);
                             }
                         } else {
-                            webpageSwitch.checked = false;
-                            const domain = await getCurrentDomain();
-                            if (domain) {
-                                await saveWebpageSwitch(domain, false);
-                            }
-                            appendMessage('无法获取网页内容', 'ai', true);
+                            console.error('URL_CHANGED 无法获取网页内容');
                         }
                     })
                     .catch(async error => {
-                        console.error('获取网页内容失败:', error);
-                        webpageSwitch.checked = false;
-                        const domain = await getCurrentDomain();
-                        if (domain) {
-                            await saveWebpageSwitch(domain, false);
-                        }
-                        appendMessage('获取网页内容失败', 'ai', true);
+                        console.error('URL_CHANGED 获取网页内容失败:', error);
                     })
                     .finally(() => {
                         document.body.classList.remove('loading-content');
