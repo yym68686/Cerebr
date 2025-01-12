@@ -32,7 +32,6 @@ window.addEventListener('message', (event) => {
 
 // 存储用户的问题历史
 let userQuestions = [];
-let currentIndex = -1;
 
 // 添加全局变量
 let clearChat;
@@ -64,13 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // 如果有历史记录
             if (userQuestions.length > 0) {
                 // 如果是第一次按向上键从最后一个问题开始
-                if (currentIndex === -1) {
-                    currentIndex = userQuestions.length - 1;
-                } else {
-                    // 否则向前移动一个问题
-                    currentIndex = Math.max(0, currentIndex - 1);
-                }
-                event.target.textContent = userQuestions[currentIndex];
+                event.target.textContent = userQuestions[userQuestions.length - 1];
                 // 触发入事件以调整高度
                 event.target.dispatchEvent(new Event('input', { bubbles: true }));
                 // 移动光标到末尾
@@ -104,21 +97,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // 开始观察聊天容器的变化
     observer.observe(chatContainer, { childList: true });
 
-    // 当输入框失去焦点时重置历史索引
-    input.addEventListener('blur', () => {
-        currentIndex = -1;
-    });
-
-    // 当输入其他内容时重置历史索引
-    input.addEventListener('input', () => {
-        currentIndex = -1;
-    });
-
     // 清空聊天记录时也清空问题历史
     if (clearChat) {
         clearChat.addEventListener('click', () => {
-            userQuestions = [];
-            currentIndex = -1;
+            userQuestions = userQuestions.slice(-1);
             console.log('清空问题历史');
         });
     }

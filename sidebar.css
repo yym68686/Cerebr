@@ -925,3 +925,13 @@ input:checked + .slider:before {
     transform: translateY(0) scale(1);
     transition: opacity 0.3s ease, transform 0.3s ease;
 }
+
+#stop-update svg {
+    fill: currentColor;
+    stroke: none;
+}
+
+#stop-update:hover {
+    background-color: var(--cerebr-message-user-bg);
+    color: #ff4d4d;
+}

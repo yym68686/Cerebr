@@ -3,10 +3,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     const messageInput = document.getElementById('message-input');
     const contextMenu = document.getElementById('context-menu');
     const copyMessageButton = document.getElementById('copy-message');
+    const stopUpdateButton = document.getElementById('stop-update');
     const settingsButton = document.getElementById('settings-button');
     const settingsMenu = document.getElementById('settings-menu');
-    const toggleTheme = document.getElementById('toggle-theme');
     let currentMessageElement = null;
+    let currentController = null;  // 用于存储当前的 AbortController
+
+    // 添加点击事件监听器，让点击侧边栏时自动聚焦到输入框
+    document.body.addEventListener('click', (e) => {
+        // 排除点击设置按钮、设置菜单、上下文菜单的情况
+        if (!settingsButton.contains(e.target) &&
+            !settingsMenu.contains(e.target) &&
+            !contextMenu.contains(e.target)) {
+            messageInput.focus();
+        }
+    });
 
     // 聊天历史记录变量
     let chatHistory = [];
@@ -65,22 +76,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error('保存聊天历史记录失败:', error);
         }
     }
-
-    // 提取公共配置
-    const MATH_DELIMITERS = {
-        regex: /(\\\\\([^]+?\\\\\))|(\\\([^]+?\\\))|(\\\[[\s\S]+?\\\])/g,
-        // regex: /(\$\$[\s\S]+?\$\$)|(\$[^\s$][^$]*?\$)|(\\\\\([^]+?\\\\\))|(\\\([^]+?\\\))|(\\\[[\s\S]+?\\\])/g,
-        renderConfig: {
-            delimiters: [
-                {left: '\\(', right: '\\)', display: false},  // 行内公式
-                {left: '\\\\(', right: '\\\\)', display: false},  // 行内公式
-                {left: '\\[', right: '\\]', display: true},   // 行间公式
-                // {left: '$$', right: '$$', display: true},     // 行间公式（备用）
-                // {left: '$', right: '$', display: false}       // 行内公式（备用）
-            ],
-            throwOnError: false
-        }
-    };
 
     // 修改加载历史记录的函数
     async function loadChatHistory() {
@@ -293,6 +288,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function sendMessage() {
+        // 如果有正在更新的AI消息，停止它
+        const updatingMessage = chatContainer.querySelector('.ai-message.updating');
+        if (updatingMessage && currentController) {
+            currentController.abort();
+            currentController = null;
+            updatingMessage.classList.remove('updating');
+        }
+
         const message = messageInput.textContent.trim();
         const imageTags = messageInput.querySelectorAll('.image-tag');
 
@@ -305,6 +308,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         try {
+            // 创建新的 AbortController
+            currentController = new AbortController();
+            const signal = currentController.signal;
+
             // 构建消息内容
             let content;
             const images = [];
@@ -374,8 +381,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     model: config.modelName || "gpt-4o",
                     messages: [...messages, userMessage],
                     stream: true,
-                    // max_tokens: 4096
-                })
+                }),
+                signal  // 添加 signal 到请求中
             });
 
             if (!response.ok) {
@@ -411,13 +418,38 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         } catch (error) {
+            if (error.name === 'AbortError') {
+                console.log('用户手动停止更新');
+                return;
+            }
             console.error('发送消息失败:', error);
             appendMessage('发送失败: ' + error.message, 'ai', true);
             // 从 chatHistory 中移除最后一条记录（用户的问题）
             chatHistory.pop();
             saveChatHistory();
+        } finally {
+            const lastMessage = chatContainer.querySelector('.ai-message:last-child');
+            if (lastMessage) {
+                lastMessage.classList.remove('updating');
+            }
         }
     }
+
+    // 提取公共配置
+    const MATH_DELIMITERS = {
+        regex: /(\\\\\([^]+?\\\\\))|(\\\([^]+?\\\))|(\\\[[\s\S]+?\\\])/g,
+        // regex: /(\$\$[\s\S]+?\$\$)|(\$[^\s$][^$]*?\$)|(\\\\\([^]+?\\\\\))|(\\\([^]+?\\\))|(\\\[[\s\S]+?\\\])/g,
+        renderConfig: {
+            delimiters: [
+                {left: '\\(', right: '\\)', display: false},  // 行内公式
+                {left: '\\\\(', right: '\\\\)', display: false},  // 行内公式
+                {left: '\\[', right: '\\]', display: true},   // 行间公式
+                // {left: '$$', right: '$$', display: true},     // 行间公式（备用）
+                // {left: '$', right: '$', display: false}       // 行内公式（备用）
+            ],
+            throwOnError: false
+        }
+    };
 
     // 提取公共的数学公式处理函数
     function processMathAndMarkdown(text) {
@@ -656,6 +688,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 content: processImageTags(text)
             });
             saveChatHistory();
+            if (sender === 'ai') {
+                messageDiv.classList.add('updating');
+            }
         }
     }
 
@@ -981,12 +1016,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 清空聊天记录功能
     const clearChat = document.getElementById('clear-chat');
     clearChat.addEventListener('click', () => {
+        // 如果有正在进行的请求，停止它
+        if (currentController) {
+            currentController.abort();
+            currentController = null;
+        }
         // 清空聊天容器
         chatContainer.innerHTML = '';
         // 清空聊天历史记录
         chatHistory = [];
         saveChatHistory();
-        // 闭设置菜单
+        // 关闭设置菜单
         settingsMenu.classList.remove('visible');
         // 聚焦输入框并将光标移到末尾
         messageInput.focus();
@@ -1023,6 +1063,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // 设置菜单位置
         contextMenu.style.display = 'block';
+
+        // 根据消息状态显示或隐藏停止更新按钮
+        if (messageElement.classList.contains('updating')) {
+            stopUpdateButton.style.display = 'flex';
+        } else {
+            stopUpdateButton.style.display = 'none';
+        }
+
         const menuWidth = contextMenu.offsetWidth;
         const menuHeight = contextMenu.offsetHeight;
 
@@ -1042,6 +1090,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         contextMenu.style.top = y + 'px';
     }
 
+    // 添加停止更新按钮的点击事件处理
+    stopUpdateButton.addEventListener('click', () => {
+        if (currentController) {
+            currentController.abort();  // 中止当前请求
+            currentController = null;
+            hideContextMenu();
+        }
+    });
     // 隐藏右键菜单
     function hideContextMenu() {
         contextMenu.style.display = 'none';
