@@ -456,6 +456,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         text = text.replace(/:\s\*\*/g, ':**');
+        text = text.replace(/\*\*(.+?)\*\*[^\S\n]+/g, '@@$1@@#');
+        text = text.replace(/\*\*(?=.*[^\S\n].*\*\*)([^*]+?)\*\*(?!\s)/g, '**$1** ');
+        text = text.replace(/\@\@(.+?)\@\@#/g, '**$1** ');
 
         // 渲染 Markdown
         let html = marked.parse(text);

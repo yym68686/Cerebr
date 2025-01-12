@@ -495,6 +495,24 @@ input:checked + .slider:before {
     background: #282c34;
     color: #abb2bf;
     border: none;
+    /* 滚动条样式 */
+    scrollbar-width: thin;
+    scrollbar-color: #4b5263 #282c34;
+}
+
+:root.dark-theme .message pre code::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+:root.dark-theme .message pre code::-webkit-scrollbar-track {
+    background: #282c34;
+}
+
+:root.dark-theme .message pre code::-webkit-scrollbar-thumb {
+    background-color: #4b5263;
+    border-radius: 4px;
+    border: 2px solid #282c34;
 }
 
 /* 系统深色模式 */
@@ -503,6 +521,24 @@ input:checked + .slider:before {
         background: #282c34;
         color: #abb2bf;
         border: none;
+        /* 滚动条样式 */
+        scrollbar-width: thin;
+        scrollbar-color: #4b5263 #282c34;
+    }
+
+    :root:not(.light-theme) .message pre code::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    :root:not(.light-theme) .message pre code::-webkit-scrollbar-track {
+        background: #282c34;
+    }
+
+    :root:not(.light-theme) .message pre code::-webkit-scrollbar-thumb {
+        background-color: #4b5263;
+        border-radius: 4px;
+        border: 2px solid #282c34;
     }
 }
 
