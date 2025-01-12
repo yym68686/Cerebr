@@ -6,8 +6,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const stopUpdateButton = document.getElementById('stop-update');
     const settingsButton = document.getElementById('settings-button');
     const settingsMenu = document.getElementById('settings-menu');
+    const feedbackButton = document.getElementById('feedback-button');
     let currentMessageElement = null;
     let currentController = null;  // 用于存储当前的 AbortController
+
+    // 添加反馈按钮点击事件
+    feedbackButton.addEventListener('click', () => {
+        const newIssueUrl = 'https://github.com/yym68686/Cerebr/issues/new';
+        window.open(newIssueUrl, '_blank');
+        settingsMenu.classList.remove('visible'); // 使用 classList 来正确切换菜单状态
+    });
 
     // 添加点击事件监听器，让点击侧边栏时自动聚焦到输入框
     document.body.addEventListener('click', (e) => {
@@ -930,6 +938,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const template = templateCard.cloneNode(true);
         template.classList.remove('template');
         template.style.display = '';
+        template.setAttribute('tabindex', '0');
 
         if (index === selectedConfigIndex) {
             template.classList.add('selected');
@@ -944,10 +953,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         baseUrlInput.value = config.baseUrl || 'https://api.openai.com/v1/chat/completions';
         modelNameInput.value = config.modelName || 'gpt-4o';
 
-        // 止入框和按钮点击事件冒泡
-        const stopPropagation = (e) => e.stopPropagation();
-        apiForm.addEventListener('click', stopPropagation);
-        template.querySelector('.card-actions').addEventListener('click', stopPropagation);
+        // 阻止输入框和按钮点击事件冒泡
+        const stopPropagation = (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+        };
+
+        // 为输入框添加点击事件阻止冒泡
+        [apiKeyInput, baseUrlInput, modelNameInput].forEach(input => {
+            input.addEventListener('click', stopPropagation);
+            input.addEventListener('focus', stopPropagation);
+        });
+
+        // 为按钮添加点击事件阻止冒泡
+        template.querySelectorAll('.card-button').forEach(button => {
+            button.addEventListener('click', stopPropagation);
+        });
+
+        // 添加回车键选择功能
+        template.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                selectCard(template, index);
+            }
+        });
 
         // 输入变化时保存
         [apiKeyInput, baseUrlInput, modelNameInput].forEach(input => {
@@ -961,9 +990,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         });
 
-        // 制配置
+        // 复制配置
         template.querySelector('.duplicate-btn').addEventListener('click', (e) => {
             e.stopPropagation();
+            e.preventDefault();
             apiConfigs.push({...config});
             saveAPIConfigs();
             renderAPICards();
@@ -972,6 +1002,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 删除配置
         template.querySelector('.delete-btn').addEventListener('click', (e) => {
             e.stopPropagation();
+            e.preventDefault();
             if (apiConfigs.length > 1) {
                 apiConfigs.splice(index, 1);
                 if (selectedConfigIndex >= apiConfigs.length) {
@@ -983,18 +1014,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         // 选择配置
-        template.addEventListener('click', () => {
-            selectedConfigIndex = index;
-            saveAPIConfigs();
-            document.querySelectorAll('.api-card').forEach(card => {
-                card.classList.remove('selected');
-            });
-            template.classList.add('selected');
-            // 关闭设置页面
-            apiSettings.classList.remove('visible');
+        template.addEventListener('click', (e) => {
+            // 如果点击的是输入框或按钮，不触发选择
+            if (e.target.matches('input') || e.target.matches('.card-button') || e.target.closest('.card-button')) {
+                return;
+            }
+            selectCard(template, index);
         });
 
         return template;
+    }
+
+    // 添加选择卡片的辅助函数
+    function selectCard(template, index) {
+        selectedConfigIndex = index;
+        saveAPIConfigs();
+        document.querySelectorAll('.api-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+        template.classList.add('selected');
+        // 关闭设置页面
+        apiSettings.classList.remove('visible');
     }
 
     // 等待 DOM 加载完成后再初始化
