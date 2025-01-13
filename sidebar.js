@@ -10,22 +10,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentMessageElement = null;
     let currentController = null;  // 用于存储当前的 AbortController
 
-    // 提取公共配置
-    const MATH_DELIMITERS = {
-        regex: /(\\\\\([^]+?\\\\\))|(\\\([^]+?\\\))|(\\\[[\s\S]+?\\\])/g,
-        // regex: /(\$\$[\s\S]+?\$\$)|(\$[^\s$][^$]*?\$)|(\\\\\([^]+?\\\\\))|(\\\([^]+?\\\))|(\\\[[\s\S]+?\\\])/g,
-        renderConfig: {
-            delimiters: [
-                {left: '\\(', right: '\\)', display: false},  // 行内公式
-                {left: '\\\\(', right: '\\\\)', display: false},  // 行内公式
-                {left: '\\[', right: '\\]', display: true},   // 行间公式
-                // {left: '$$', right: '$$', display: true},     // 行间公式（备用）
-                // {left: '$', right: '$', display: false}       // 行内公式（备用）
-            ],
-            throwOnError: false
-        }
-    };
-
     // 添加反馈按钮点击事件
     feedbackButton.addEventListener('click', () => {
         const newIssueUrl = 'https://github.com/yym68686/Cerebr/issues/new';
@@ -35,6 +19,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 添加点击事件监听器，让点击侧边栏时自动聚焦到输入框
     document.body.addEventListener('click', (e) => {
+        // 如果有文本被选中，不要触发输入框聚焦
+        if (window.getSelection().toString()) {
+            return;
+        }
+
         // 排除点击设置按钮、设置菜单、上下文菜单的情况
         if (!settingsButton.contains(e.target) &&
             !settingsMenu.contains(e.target) &&
@@ -465,15 +454,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         let mathIndex = 0;
         text = text.replace(/\\\[([a-zA-Z\d]+)\]/g, '[$1]');
 
+        // 处理 \textsc 命令
+        text = text.replace(/\\textsc\{([^}]+)\}/g, (match, content) => {
+            return content.toUpperCase();
+        });
+
+        text = text.replace(/%\n\s*/g, ''); // 移除换行的百分号
         // 临时替换数学公式
-        text = text.replace(MATH_DELIMITERS.regex, (match) => {
-            // 只替换不在 \n 后面的 abla_
-            match = match.replace(/(?<!\\n)abla_/g, '\\nabla_');
+        text = text.replace(/(\\\\\([^]+?\\\\\))|(\\\([^]+?\\\))|(\\\[[\s\S]+?\\\])/g, (match) => {
 
             // 如果是普通括号形式公式，转换为 \(...\) 形式
             if (match.startsWith('(') && match.endsWith(')') && !match.startsWith('\\(')) {
                 console.log('警告：请使用 \\(...\\) 来表示行内公式');
             }
+
+            // 为行间公式添加容器
+            if (match.startsWith('\\[') || match.startsWith('$$')) {
+                match = `<div class="math-display-container">${match}</div>`;
+            }
+
             const placeholder = `%%MATH_EXPRESSION_${mathIndex}%%`;
             mathExpressions.push(match);
             mathIndex++;
@@ -482,7 +481,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // 配 marked
         marked.setOptions({
-            breaks: true,
+            breaks: false,
             gfm: true,
             sanitize: false,
             highlight: function(code, lang) {
@@ -496,16 +495,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         text = text.replace(/:\s\*\*/g, ':**');
-        text = text.replace(/\*\*(.+?)\*\*[^\S\n]+/g, '@@$1@@#');
+        text = text.replace(/\*\*([^*]+?)\*\*[^\S\n]+/g, '@@$1@@#');
         text = text.replace(/\*\*(?=.*[^\S\n].*\*\*)([^*]+?)\*\*(?!\s)/g, '**$1** ');
         text = text.replace(/\*\*(?=.*：.*\*\*)([^*]+?)\*\*(?!\s)/g, '**$1** ');
         text = text.replace(/\@\@(.+?)\@\@#/g, '**$1** ');
+
+        // 处理列表缩进
+        text = text.replace(/^\s{4}\*\s{3}/mg, '   *   ');  // 规范化列表项后的空格
 
         // 渲染 Markdown
         let html = marked.parse(text);
 
         // 恢复数学公式
         html = html.replace(/%%MATH_EXPRESSION_(\d+)%%/g, (_, index) => mathExpressions[index]);
+
+        // 移除数学公式容器外的 p 标签
+        html = html.replace(/<p>\s*(<div class="math-display-container">[\s\S]*?<\/div>)\s*<\/p>/g, '$1');
 
         return html;
     }
@@ -601,6 +606,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    // 修改数学公式渲染函数
+    function renderMathInElement(element) {
+        if (window.MathJax) {
+            MathJax.typesetPromise([element]).catch((err) => {
+                console.error('MathJax渲染错误:', err);
+            });
+        }
+    }
+
     function updateAIMessage(text) {
         const lastMessage = chatContainer.querySelector('.ai-message:last-child');
         let rawText = text;
@@ -616,14 +630,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // 处理数学公式和Markdown
                 lastMessage.innerHTML = processMathAndMarkdown(text);
 
+                // 渲染LaTeX公式
+                renderMathInElement(lastMessage);
+
                 // 处理新染的链接
                 lastMessage.querySelectorAll('a').forEach(link => {
                     link.target = '_blank';
                     link.rel = 'noopener noreferrer';
                 });
-
-                // 渲染LaTeX公式
-                renderMathInElement(lastMessage, MATH_DELIMITERS.renderConfig);
 
                 // 更新历史记录
                 if (chatHistory.length > 0) {
@@ -652,6 +666,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 处理数学公式和 Markdown
         messageDiv.innerHTML = processMathAndMarkdown(text);
 
+        // 渲染 LaTeX 公式
+        renderMathInElement(messageDiv);
+
         // 处理消息中的链接
         messageDiv.querySelectorAll('a').forEach(link => {
             link.target = '_blank';
@@ -670,9 +687,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
         });
-
-        // 渲染 LaTeX 公式
-        renderMathInElement(messageDiv, MATH_DELIMITERS.renderConfig);
 
         // 如果提供了文档片段，添加到片段中；否则直接添加到聊天容器
         if (fragment) {

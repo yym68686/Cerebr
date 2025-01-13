@@ -1,8 +1,11 @@
 {
   "manifest_version": 3,
   "name": "Cerebr",
-  "version": "1.6.8",
+  "version": "1.6.9",
   "description": "Cerebr - 智能AI聊天助手",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -44,44 +47,31 @@
     "service_worker": "background.js",
     "type": "module"
   },
-  "web_accessible_resources": [{
-    "resources": [
-      "sidebar.html",
-      "lib/marked.min.js",
-      "lib/highlight.min.js",
-      "lib/github-dark.css",
-      "lib/katex.min.js",
-      "lib/katex.min.css",
-      "lib/auto-render.min.js",
-      "sidebar-message-handler.js",
-      "lib/fonts/KaTeX_Math-Italic.woff2",
-      "lib/fonts/KaTeX_Main-Regular.woff2",
-      "lib/fonts/KaTeX_Size2-Regular.woff2",
-      "lib/fonts/KaTeX_Size4-Regular.woff2",
-      "lib/fonts/KaTeX_Math-Italic.woff",
-      "lib/fonts/KaTeX_Main-Regular.woff",
-      "lib/fonts/KaTeX_Size1-Regular.woff",
-      "lib/fonts/KaTeX_Size2-Regular.woff",
-      "lib/fonts/KaTeX_Size4-Regular.woff",
-      "lib/fonts/KaTeX_Main-Bold.woff",
-      "lib/fonts/KaTeX_Main-Bold.woff2",
-      "lib/fonts/KaTeX_AMS-Regular.woff",
-      "lib/fonts/KaTeX_Size2-Regular.ttf",
-      "lib/fonts/KaTeX_Size3-Regular.ttf",
-      "lib/fonts/KaTeX_Size3-Regular.woff",
-      "lib/fonts/KaTeX_Size3-Regular.woff2",
-      "lib/fonts/KaTeX_Size4-Regular.ttf",
-      "lib/pdf.js",
-      "lib/pdf.worker.js",
-      "lib/fonts/KaTeX_Caligraphic-Regular.woff2",
-      "lib/fonts/KaTeX_Caligraphic-Regular.woff",
-      "lib/fonts/KaTeX_Caligraphic-Regular.ttf",
-      "lib/fonts/KaTeX_Math-BoldItalic.woff2",
-      "lib/fonts/KaTeX_Math-BoldItalic.woff",
-      "lib/fonts/KaTeX_Math-BoldItalic.ttf"
-    ],
-    "matches": ["<all_urls>"]
-  }],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "sidebar.html",
+        "sidebar.js",
+        "sidebar.css",
+        "lib/marked.min.js",
+        "lib/highlight.min.js",
+        "lib/github-dark.css",
+        "lib/mathjax-config.js",
+        "lib/tex-mml-chtml.js",
+        "lib/fonts/woff-v2/MathJax_Zero.woff",
+        "lib/fonts/woff-v2/MathJax_Main-Regular.woff",
+        "lib/fonts/woff-v2/MathJax_Math-Italic.woff",
+        "lib/fonts/woff-v2/MathJax_Calligraphic-Regular.woff",
+        "lib/fonts/woff-v2/MathJax_Size1-Regular.woff",
+        "lib/fonts/woff-v2/MathJax_Size2-Regular.woff",
+        "lib/fonts/woff-v2/MathJax_Main-Bold.woff",
+        "lib/fonts/woff-v2/MathJax_Size4-Regular.woff",
+        "lib/fonts/woff-v2/MathJax_AMS-Regular.woff",
+        "statics/image.png"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
