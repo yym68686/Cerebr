@@ -862,7 +862,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             clearTimeout(touchTimeout);
             touchTimeout = null;
         }
-    });
+    }, { passive: true });
 
     chatContainer.addEventListener('touchend', () => {
         if (touchTimeout) {
