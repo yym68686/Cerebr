@@ -32,8 +32,21 @@ export const syncStorageAdapter = {
         if (isExtensionEnvironment) {
             return await chrome.storage.sync.get(key);
         } else {
-            const value = localStorage.getItem(`sync_${key}`);
-            return value ? { [key]: JSON.parse(value) } : {};
+            // 处理数组形式的 key
+            if (Array.isArray(key)) {
+                const result = {};
+                for (const k of key) {
+                    const value = localStorage.getItem(`sync_${k}`);
+                    if (value) {
+                        result[k] = JSON.parse(value);
+                    }
+                }
+                return result;
+            } else {
+                // 处理单个 key
+                const value = localStorage.getItem(`sync_${key}`);
+                return value ? { [key]: JSON.parse(value) } : {};
+            }
         }
     },
 

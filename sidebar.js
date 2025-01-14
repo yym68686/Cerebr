@@ -662,23 +662,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 从存储加载配置
     async function loadAPIConfigs() {
         try {
+            // console.log('开始加载API配置...');
+            // console.log('当前环境:', isExtensionEnvironment ? '扩展环境' : '网页环境');
+
+            // 统一使用 syncStorageAdapter 来实现配置同步
+            // console.log('使用存储适配器: syncStorageAdapter');
             const result = await syncStorageAdapter.get(['apiConfigs', 'selectedConfigIndex']);
-            if (result.apiConfigs && result.apiConfigs.length > 0) {
-                apiConfigs = result.apiConfigs;
-                selectedConfigIndex = result.selectedConfigIndex || 0;
-            } else {
-                // 创建默认配置
-                apiConfigs = [{
-                    apiKey: '',
-                    baseUrl: 'https://api.openai.com/v1/chat/completions',
-                    modelName: 'gpt-4o'
-                }];
-                selectedConfigIndex = 0;
+            // console.log('从存储中读取的配置:', result);
+
+            // 分别检查每个配置项
+            apiConfigs = result.apiConfigs || [{
+                apiKey: '',
+                baseUrl: 'https://api.openai.com/v1/chat/completions',
+                modelName: 'gpt-4o'
+            }];
+            // console.log('设置后的 apiConfigs:', apiConfigs);
+
+            // 只有当 selectedConfigIndex 为 undefined 或 null 时才使用默认值 0
+            selectedConfigIndex = result.selectedConfigIndex ?? 0;
+            // console.log('设置后的 selectedConfigIndex:', selectedConfigIndex);
+
+            // 只有在没有任何配置的情况下才保存默认配置
+            if (!result.apiConfigs) {
+                // console.log('没有找到已存储的配置，保存默认配置...');
                 await saveAPIConfigs();
             }
         } catch (error) {
             console.error('加载 API 配置失败:', error);
-            // 如果加载失败，也创建默认配置
+            // console.log('使用默认配置...');
+            // 只有在出错的情况下才使用默认值
             apiConfigs = [{
                 apiKey: '',
                 baseUrl: 'https://api.openai.com/v1/chat/completions',
@@ -687,6 +699,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             selectedConfigIndex = 0;
         }
 
+        // console.log('最终配置状态:', {
+        //     apiConfigs,
+        //     selectedConfigIndex
+        // });
         // 确保一定会渲染卡片
         renderAPICardsWithCallbacks();
     }
@@ -694,10 +710,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 保存配置到存储
     async function saveAPIConfigs() {
         try {
+            // console.log('开始保存API配置...');
+            // console.log('要保存的配置:', {
+            //     apiConfigs,
+            //     selectedConfigIndex
+            // });
+
+            // 统一使用 syncStorageAdapter 来实现配置同步
+            // console.log('使用存储适配器: syncStorageAdapter');
             await syncStorageAdapter.set({
                 apiConfigs,
                 selectedConfigIndex
             });
+
+            // 验证保存是否成功
+            const savedResult = await syncStorageAdapter.get(['apiConfigs', 'selectedConfigIndex']);
+            // console.log('验证保存的配置:', savedResult);
         } catch (error) {
             console.error('保存 API 配置失败:', error);
         }
