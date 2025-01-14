@@ -26,7 +26,7 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
 - 🎨 **Elegant Rendering** - Perfect support for Markdown text rendering and LaTeX math formula display
 - ⚡ **Real-time Response** - Stream output for instant AI replies
 - 🌓 **Theme Switching** - Support light/dark themes to protect your eyes
-- 🌐 **Web Version** - Support web version, no installation required, accessable from any browser, support vercel and cloudflare pages deployment
+- 🌐 **Web Version** - Support web version, no installation required, accessable from any browser, support vercel, GitHub Pages and cloudflare pages deployment
 
 ## 🛠️ Technical Features
 
@@ -66,7 +66,7 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyym68686%2Fcerebr)
 
-2. You can also deploy to Cloudflare Pages:
+2. You can deploy to Cloudflare Pages:
 
 ```bash
 # Install Wrangler CLI
@@ -78,6 +78,19 @@ wrangler login
 # Deploy to Cloudflare Pages with SSL configuration
 wrangler pages deploy . --project-name cerebr --branch main
 ```
+
+3. You can also deploy to GitHub Pages:
+
+```bash
+# Fork this repository
+# Then go to your repository's Settings -> Pages
+# In the "Build and deployment" section:
+# - Select "Deploy from a branch" as Source
+# - Choose your branch (main/master) and root (/) folder
+# - Click Save
+```
+
+The deployment will be automatically handled by GitHub Actions. You can access your site at `https://<your-username>.github.io/cerebr`
 
 ### Web Version Features
 - 🌐 Access Cerebr from any browser without installation
