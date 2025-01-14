@@ -41,7 +41,14 @@ export function processMathAndMarkdown(text) {
                 } catch (err) {}
             }
             return hljs.highlightAuto(code).value;
-        }
+        },
+        renderer: Object.assign(new marked.Renderer(), {
+            code(code, language) {
+                const validLanguage = language && hljs.getLanguage(language) ? language : '';
+                const highlighted = this.options.highlight(code, validLanguage);
+                return `<pre data-language="${validLanguage || 'plaintext'}"><code>${highlighted}</code></pre>`;
+            }
+        })
     });
 
     text = text.replace(/:\s\*\*/g, ':**');

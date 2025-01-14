@@ -617,7 +617,76 @@ input:checked + .slider:before {
 }
 
 .message pre {
-    margin: 0.5em 0;
+    margin: 12px 0;
+    position: relative;
+    border-radius: 8px;
+    background-color: #0d1117;
+    overflow: hidden;
+}
+
+.message pre code {
+    display: block;
+    padding: 16px;
+    overflow-x: auto;
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    tab-size: 4;
+    -webkit-font-smoothing: auto;
+    border-radius: 8px;
+    background-color: transparent;
+}
+
+/* 行内代码样式 */
+.message code:not(pre code) {
+    padding: 2px 6px;
+    margin: 0 2px;
+    border-radius: 4px;
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 0.9em;
+    background-color: rgba(175, 184, 193, 0.2);
+    color: var(--cerebr-text-color);
+}
+
+/* 滚动条样式 */
+.message pre code::-webkit-scrollbar {
+    height: 8px;
+    background-color: transparent;
+}
+
+.message pre code::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+.message pre code::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* 深色主题适配 */
+:root.dark-theme .message code:not(pre code) {
+    background-color: rgba(99, 110, 123, 0.4);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not(.light-theme) .message code:not(pre code) {
+        background-color: rgba(99, 110, 123, 0.4);
+    }
+}
+
+/* 语言标签 */
+.message pre::before {
+    content: attr(data-language);
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding: 4px 8px;
+    font-size: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #7d8590;
+    background-color: #161b22;
+    border-bottom-left-radius: 8px;
+    opacity: 0.8;
 }
 
 /* MathJax样式 */
