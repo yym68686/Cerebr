@@ -58,6 +58,8 @@
         "lib/github-dark.css",
         "lib/mathjax-config.js",
         "lib/tex-mml-chtml.js",
+        "lib/pdf.js",
+        "lib/pdf.worker.js",
         "lib/fonts/woff-v2/MathJax_Zero.woff",
         "lib/fonts/woff-v2/MathJax_Main-Regular.woff",
         "lib/fonts/woff-v2/MathJax_Math-Italic.woff",

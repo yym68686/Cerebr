@@ -7,6 +7,7 @@ import { appendMessage, updateAIMessage } from './src/handlers/message-handler.j
 import { renderAPICards, createCardCallbacks, selectCard } from './src/components/api-card/index.js';
 import { adjustTextareaHeight, showImagePreview, hideImagePreview, createImageTag } from './src/utils/ui.js';
 import { showContextMenu, hideContextMenu, copyMessageContent } from './src/components/context-menu/index.js';
+import { storageAdapter, syncStorageAdapter, browserAdapter, isExtensionEnvironment } from './src/utils/storage-adapter.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     const chatContainer = document.getElementById('chat-container');
@@ -75,7 +76,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             // 在保存之前处理消息格式
             const processedHistory = chatHistory.map(msg => processMessageContent(msg, processImageTags));
-            await chrome.storage.local.set({ chatHistory: processedHistory });
+            await storageAdapter.set({ chatHistory: processedHistory });
         } catch (error) {
             console.error('保存聊天历史记录失败:', error);
         }
@@ -83,7 +84,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function getChatHistoryFromStorage() {
         try {
-            const result = await chrome.storage.local.get('chatHistory');
+            const result = await storageAdapter.get('chatHistory');
             return result.chatHistory || [];
         } catch (error) {
             console.error('从存储中获取聊天历史记录失败:', error);
@@ -120,7 +121,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     // 在事件监听器中使用新的函数
-    chrome.tabs.onActivated.addListener(async (activeInfo) => {
+    browserAdapter.onTabActivated(async (activeInfo) => {
         console.log('标签页切换:', activeInfo);
         chatHistory = await loadChatHistory({
             chatContainer,
@@ -132,7 +133,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             uiConfig,
             getChatHistory: getChatHistoryFromStorage
         });
-        await loadWebpageSwitch('标签页切');
+        await loadWebpageSwitch('标签页切换');
     });
 
     // 初始加载历史记录
@@ -149,13 +150,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 网答功能
     const webpageSwitch = document.getElementById('webpage-switch');
+    const webpageQAContainer = document.getElementById('webpage-qa');
+
+    // 如果不是扩展环境，隐藏网页问答功能
+    if (!isExtensionEnvironment) {
+        webpageQAContainer.style.display = 'none';
+    }
+
     let pageContent = null;
 
     // 获取网页内容
     async function getPageContent() {
         try {
             console.log('getPageContent 发送获取网页内容请求');
-            const response = await chrome.runtime.sendMessage({
+            const response = await browserAdapter.sendMessage({
                 type: 'GET_PAGE_CONTENT_FROM_SIDEBAR'
             });
             return response;
@@ -174,7 +182,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log('刷新后 网页问答 获取当前域名:', domain);
             if (!domain) return;
 
-            const result = await chrome.storage.local.get('webpageSwitchDomains');
+            const result = await storageAdapter.get('webpageSwitchDomains');
             const domains = result.webpageSwitchDomains || {};
             console.log('刷新后 网页问答存储中获取域名:', domains);
 
@@ -250,25 +258,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 在 DOMContentLoaded 事件处理程序中添加加载网页问答状态
     await loadWebpageSwitch();
 
-    // 在文件开头添加函数用于获取当前域名
-    async function getCurrentDomain(retryCount = 0) {
-        const maxRetries = 3;
-        const retryDelay = 500;
-
+    // 获取当前域名
+    async function getCurrentDomain() {
         try {
-            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (!tab?.url) {
-                console.log('未找到活动标签页');
-                return null;
+            const tab = await browserAdapter.getCurrentTab();
+            if (!tab) return null;
+
+            // 如果是本地文件，直接返回hostname
+            if (tab.hostname === 'local_pdf') {
+                return tab.hostname;
             }
 
-            // 处理本地文件
-            if (tab.url.startsWith('file://')) {
-                return 'local_pdf';
-            }
-
-            const hostname = new URL(tab.url).hostname;
-
+            // 处理普通URL
+            const hostname = tab.hostname;
             // 规范化域名
             const normalizedDomain = hostname
                 .replace(/^www\./, '')  // 移除www前缀
@@ -277,14 +279,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log('规范化域名:', hostname, '->', normalizedDomain);
             return normalizedDomain;
         } catch (error) {
-            console.error(`获取当前域名失败 (尝试 ${retryCount + 1}/${maxRetries}):`, error);
-
-            if (retryCount < maxRetries) {
-                console.log(`等待 ${retryDelay}ms 后重试...`);
-                await new Promise(resolve => setTimeout(resolve, retryDelay));
-                return getCurrentDomain(retryCount + 1);
-            }
-
+            // console.error('获取当前域名失败:', error);
             return null;
         }
     }
@@ -567,13 +562,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const themeConfig = {
         root: document.documentElement,
         themeSwitch,
-        saveTheme: (theme) => chrome.storage.sync.set({ theme })
+        saveTheme: async (theme) => await syncStorageAdapter.set({ theme })
     };
 
     // 初始化主题
     async function initTheme() {
         try {
-            const result = await chrome.storage.sync.get('theme');
+            const result = await syncStorageAdapter.get('theme');
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
             const isDark = result.theme === 'dark' || (!result.theme && prefersDark);
             setTheme(isDark, themeConfig);
@@ -591,7 +586,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 监听系统主题变化
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-        chrome.storage.sync.get('theme', (data) => {
+        browserAdapter.get('theme', (data) => {
             if (!data.theme) {  // 只有在用户没有手动设置主题时才跟随系统
                 setTheme(e.matches, themeConfig);
             }
@@ -606,13 +601,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('开始保存网页问答开关状态:', domain, enabled);
 
         try {
-            const result = await chrome.storage.local.get('webpageSwitchDomains');
+            const result = await storageAdapter.get('webpageSwitchDomains');
             let domains = result.webpageSwitchDomains || {};
 
             // 只在状态发生变化时才更新
             if (domains[domain] !== enabled) {
                 domains[domain] = enabled;
-                await chrome.storage.local.set({ webpageSwitchDomains: domains });
+                await storageAdapter.set({ webpageSwitchDomains: domains });
                 console.log('网页问答状态已保存:', domain, enabled);
             }
         } catch (error) {
@@ -667,7 +662,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 从存储加载配置
     async function loadAPIConfigs() {
         try {
-            const result = await chrome.storage.sync.get(['apiConfigs', 'selectedConfigIndex']);
+            const result = await syncStorageAdapter.get(['apiConfigs', 'selectedConfigIndex']);
             if (result.apiConfigs && result.apiConfigs.length > 0) {
                 apiConfigs = result.apiConfigs;
                 selectedConfigIndex = result.selectedConfigIndex || 0;
@@ -699,7 +694,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 保存配置到存储
     async function saveAPIConfigs() {
         try {
-            await chrome.storage.sync.set({
+            await syncStorageAdapter.set({
                 apiConfigs,
                 selectedConfigIndex
             });
