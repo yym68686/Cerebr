@@ -1,3 +1,13 @@
+import { callAPI, processImageTags } from './chat.js';
+import { appendMessage, updateAIMessage } from './message-handler.js';
+import { adjustTextareaHeight, showImagePreview, hideImagePreview, createImageTag } from './src/utils/ui.js';
+import { handleImageDrop } from './src/utils/image.js';
+import { processMessageContent } from './message-utils.js';
+import { setTheme } from './src/utils/theme.js';
+import { renderAPICards, createCardCallbacks, selectCard } from './src/components/api-card/index.js';
+import { showContextMenu, hideContextMenu, copyMessageContent } from './src/components/context-menu/index.js';
+import { loadChatHistory } from './chat-history.js';
+
 document.addEventListener('DOMContentLoaded', async () => {
     const chatContainer = document.getElementById('chat-container');
     const messageInput = document.getElementById('message-input');
@@ -7,8 +17,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     const settingsButton = document.getElementById('settings-button');
     const settingsMenu = document.getElementById('settings-menu');
     const feedbackButton = document.getElementById('feedback-button');
+    const previewModal = document.querySelector('.image-preview-modal');
+    const previewImage = previewModal.querySelector('img');
     let currentMessageElement = null;
     let currentController = null;  // 用于存储当前的 AbortController
+
+    // 创建UI工具配置
+    const uiConfig = {
+        textarea: {
+            maxHeight: 200
+        },
+        imagePreview: {
+            previewModal,
+            previewImage
+        },
+        imageTag: {
+            onImageClick: (base64Data) => {
+                showImagePreview({
+                    base64Data,
+                    config: uiConfig.imagePreview
+                });
+            },
+            onDeleteClick: (container) => {
+                container.remove();
+                messageInput.dispatchEvent(new Event('input'));
+            }
+        }
+    };
 
     // 添加反馈按钮点击事件
     feedbackButton.addEventListener('click', () => {
@@ -35,128 +70,82 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 聊天历史记录变量
     let chatHistory = [];
 
-    // 添加公共的图片处理函数
-    function processImageTags(content) {
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = content;
-        const imageTags = tempDiv.querySelectorAll('.image-tag');
-
-        if (imageTags.length > 0) {
-            const result = [];
-            // 添加文本内容
-            const textContent = content.replace(/<span class="image-tag"[^>]*>.*?<\/span>/g, '').trim();
-            if (textContent) {
-                result.push({
-                    type: "text",
-                    text: textContent
-                });
-            }
-            // 添加图片
-            imageTags.forEach(tag => {
-                const base64Data = tag.getAttribute('data-image');
-                if (base64Data) {
-                    result.push({
-                        type: "image_url",
-                        image_url: {
-                            url: base64Data
-                        }
-                    });
-                }
-            });
-            return result;
-        }
-        return content;
-    }
-
-    // 修改 processMessageContent 函数
-    function processMessageContent(msg) {
-        if (typeof msg.content === 'string' && msg.content.includes('image-tag')) {
-            return {
-                ...msg,
-                content: processImageTags(msg.content)
-            };
-        }
-        return msg;
-    }
-
     // 修改保存聊天历史记录的函数
     async function saveChatHistory() {
         try {
             // 在保存之前处理消息格式
-            const processedHistory = chatHistory.map(processMessageContent);
+            const processedHistory = chatHistory.map(msg => processMessageContent(msg, processImageTags));
             await chrome.storage.local.set({ chatHistory: processedHistory });
         } catch (error) {
             console.error('保存聊天历史记录失败:', error);
         }
     }
 
-    // 修改加载历史记录的函数
-    async function loadChatHistory() {
+    async function getChatHistoryFromStorage() {
         try {
             const result = await chrome.storage.local.get('chatHistory');
-            if (result.chatHistory) {
-                // 处理历史记录中的消息格式
-                chatHistory = result.chatHistory.map(processMessageContent);
-
-                // 清空当前显示的消息
-                chatContainer.innerHTML = '';
-
-                // 创建文档片段来提高性能
-                const fragment = document.createDocumentFragment();
-
-                // 重新显示历史消息
-                chatHistory.forEach(msg => {
-                    if (Array.isArray(msg.content)) {
-                        // 处理包含图片的消息
-                        let messageHtml = '';
-                        msg.content.forEach(item => {
-                            if (item.type === "text") {
-                                messageHtml += item.text;
-                            } else if (item.type === "image_url") {
-                                const imageTag = createImageTag(item.image_url.url);
-                                messageHtml += imageTag.outerHTML;
-                            }
-                        });
-                        appendMessage(messageHtml, msg.role === 'user' ? 'user' : 'ai', true, fragment);
-                    } else {
-                        appendMessage(msg.content, msg.role === 'user' ? 'user' : 'ai', true, fragment);
-                    }
-                });
-
-                // 一次性添加所有消息
-                chatContainer.appendChild(fragment);
-
-                // 使用 requestAnimationFrame 来延迟显示动画
-                requestAnimationFrame(() => {
-                    // 获取所有新添加的消息元素
-                    const messages = chatContainer.querySelectorAll('.message.batch-load');
-
-                    // 使用 requestAnimationFrame 来确保在下一帧开始时添加 show 类
-                    requestAnimationFrame(() => {
-                        messages.forEach((message, index) => {
-                            // 使用 setTimeout 来创建级联动画效果
-                            setTimeout(() => {
-                                message.classList.add('show');
-                            }, index * 30); // 每个消息间隔 30ms
-                        });
-                    });
-                });
-            }
+            return result.chatHistory || [];
         } catch (error) {
-            console.error('加载聊天历史记录失败:', error);
+            console.error('从存储中获取聊天历史记录失败:', error);
+            return [];
         }
     }
 
-    // 监听标签页切换
+    // 创建AI消息更新配置
+    const updateAIMessageConfig = {
+        onSaveHistory: (text) => {
+            if (chatHistory.length > 0) {
+                chatHistory[chatHistory.length - 1].content = text;
+                saveChatHistory();
+            }
+        }
+    };
+
+    // 创建消息处理配置
+    const messageHandlerConfig = {
+        onSaveHistory: (message) => {
+            chatHistory.push(message);
+            saveChatHistory();
+        },
+        onShowImagePreview: showImagePreview,
+        onUpdateAIMessage: (text) => {
+            updateAIMessage({
+                text,
+                chatContainer,
+                config: updateAIMessageConfig,
+                messageHandlerConfig
+            });
+        },
+        imagePreviewConfig: uiConfig.imagePreview
+    };
+
+    // 在事件监听器中使用新的函数
     chrome.tabs.onActivated.addListener(async (activeInfo) => {
         console.log('标签页切换:', activeInfo);
-        await loadChatHistory();
+        chatHistory = await loadChatHistory({
+            chatContainer,
+            processMessageContent,
+            processImageTags,
+            createImageTag,
+            appendMessage,
+            messageHandlerConfig,
+            uiConfig,
+            getChatHistory: getChatHistoryFromStorage
+        });
         await loadWebpageSwitch('标签页切');
     });
 
     // 初始加载历史记录
-    await loadChatHistory();
-
+    chatHistory = await loadChatHistory({
+        chatContainer,
+        processMessageContent,
+        processImageTags,
+        createImageTag,
+        appendMessage,
+        messageHandlerConfig,
+        uiConfig,
+        getChatHistory: getChatHistoryFromStorage
+    });
 
     // 网答功能
     const webpageSwitch = document.getElementById('webpage-switch');
@@ -314,32 +303,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (!message && imageTags.length === 0) return;
 
-        const config = apiConfigs[selectedConfigIndex];
-        if (!config?.baseUrl || !config?.apiKey) {
-            appendMessage('请在设置中完善 API 配置', 'ai', true);
-            return;
-        }
-
         try {
-            // 创建新的 AbortController
-            currentController = new AbortController();
-            const signal = currentController.signal;
-
             // 构建消息内容
             let content;
-            const images = [];
-
-            // 如果有图片，构建包含文本和图片的数组格式
             if (imageTags.length > 0) {
                 content = [];
-                // 添加文本内容（如果有）
                 if (message) {
                     content.push({
                         type: "text",
                         text: message
                     });
                 }
-                // 添加图片
                 imageTags.forEach(tag => {
                     const base64Data = tag.getAttribute('data-image');
                     if (base64Data) {
@@ -352,7 +326,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 });
             } else {
-                // 如果没有文本，直接使用文本内容
                 content = message;
             }
 
@@ -363,80 +336,52 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
 
             // 先添加用户消息到界面和历史记录
-            appendMessage(messageInput.innerHTML, 'user');
-            messageInput.innerHTML = '';
-            adjustTextareaHeight(messageInput);
-
-            // 构建消息数组（不包括当前用户消息）
-            const messages = [...chatHistory.slice(0, -1)];  // 排除刚刚添加的用户消息
-            const systemMessage = {
-                role: "system",
-                content: `数学公式请使用LaTeX表示，行间公式请使用\\[...\\]表示，行内公式请使用\\(...\\)表示，禁止使用$美元符号包裹数学公式。用户语言是 ${navigator.language}。请优先使用 ${navigator.language} 语言回答用户问题。${
-                    webpageSwitch.checked && pageContent ?
-                    `\n当前网页内容：\n标题：${pageContent.title}\nURL：${pageContent.url}\n内容：${pageContent.content}` :
-                    ''
-                }`
-            };
-
-            // 如果是第一条消息或第一条不是系统消息，添加系统消息
-            if (messages.length === 0 || messages[0].role !== "system") {
-                messages.unshift(systemMessage);
-            }
-
-            // 发送API请求
-            const response = await fetch(config.baseUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${config.apiKey}`
-                },
-                body: JSON.stringify({
-                    model: config.modelName || "gpt-4o",
-                    messages: [...messages, userMessage],
-                    stream: true,
-                }),
-                signal  // 添加 signal 到请求中
+            appendMessage({
+                text: messageInput.innerHTML,
+                sender: 'user',
+                chatContainer,
+                config: messageHandlerConfig
             });
 
-            if (!response.ok) {
-                const error = await response.text();
-                throw new Error(error);
-            }
+            // 清空输入框并调整高度
+            messageInput.innerHTML = '';
+            adjustTextareaHeight({
+                textarea: messageInput,
+                config: uiConfig.textarea
+            });
 
-            const reader = response.body.getReader();
-            let aiResponse = '';
+            // 构建消息数组
+            const messages = [...chatHistory.slice(0, -1)];  // 排除刚刚添加的用户消息
+            messages.push(userMessage);
 
-            while (true) {
-                const {done, value} = await reader.read();
-                if (done) break;
+            // 准备API调用参数
+            const apiParams = {
+                messages,
+                apiConfig: apiConfigs[selectedConfigIndex],
+                userLanguage: navigator.language,
+                webpageInfo: webpageSwitch.checked ? pageContent : null
+            };
 
-                const chunk = new TextDecoder().decode(value);
-                const lines = chunk.split('\n');
+            // 调用 API
+            const { processStream, controller } = await callAPI(apiParams);
+            currentController = controller;
 
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const content = line.slice(6);
-                        if (content.trim() === '[DONE]') continue;
+            // 处理流式响应
+            await processStream(messageHandlerConfig.onUpdateAIMessage);
 
-                        try {
-                            const data = JSON.parse(content);
-                            if (data.choices?.[0]?.delta?.content) {
-                                aiResponse += data.choices[0].delta.content;
-                                updateAIMessage(aiResponse);
-                            }
-                        } catch (e) {
-                            console.error('解析响应出错:', e);
-                        }
-                    }
-                }
-            }
         } catch (error) {
             if (error.name === 'AbortError') {
                 console.log('用户手动停止更新');
                 return;
             }
             console.error('发送消息失败:', error);
-            appendMessage('发送失败: ' + error.message, 'ai', true);
+            appendMessage({
+                text: '发送失败: ' + error.message,
+                sender: 'ai',
+                chatContainer,
+                skipHistory: true,
+                config: messageHandlerConfig
+            });
             // 从 chatHistory 中移除最后一条记录（用户的问题）
             chatHistory.pop();
             saveChatHistory();
@@ -448,73 +393,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // 提取公共的数学公式处理函数
-    function processMathAndMarkdown(text) {
-        const mathExpressions = [];
-        let mathIndex = 0;
-        text = text.replace(/\\\[([a-zA-Z\d]+)\]/g, '[$1]');
-
-        // 处理 \textsc 命令
-        text = text.replace(/\\textsc\{([^}]+)\}/g, (match, content) => {
-            return content.toUpperCase();
-        });
-
-        text = text.replace(/%\n\s*/g, ''); // 移除换行的百分号
-        // 临时替换数学公式
-        text = text.replace(/(\\\\\([^]+?\\\\\))|(\\\([^]+?\\\))|(\\\[[\s\S]+?\\\])/g, (match) => {
-
-            // 如果是普通括号形式公式，转换为 \(...\) 形式
-            if (match.startsWith('(') && match.endsWith(')') && !match.startsWith('\\(')) {
-                console.log('警告：请使用 \\(...\\) 来表示行内公式');
-            }
-
-            // 为行间公式添加容器
-            if (match.startsWith('\\[') || match.startsWith('$$')) {
-                match = `<div class="math-display-container">${match}</div>`;
-            }
-
-            const placeholder = `%%MATH_EXPRESSION_${mathIndex}%%`;
-            mathExpressions.push(match);
-            mathIndex++;
-            return placeholder;
-        });
-
-        // 配 marked
-        marked.setOptions({
-            breaks: false,
-            gfm: true,
-            sanitize: false,
-            highlight: function(code, lang) {
-                if (lang && hljs.getLanguage(lang)) {
-                    try {
-                        return hljs.highlight(code, { language: lang }).value;
-                    } catch (err) {}
-                }
-                return hljs.highlightAuto(code).value;
-            }
-        });
-
-        text = text.replace(/:\s\*\*/g, ':**');
-        text = text.replace(/\*\*([^*]+?)\*\*[^\S\n]+/g, '@@$1@@#');
-        text = text.replace(/\*\*(?=.*[^\S\n].*\*\*)([^*]+?)\*\*(?!\s)/g, '**$1** ');
-        text = text.replace(/\*\*(?=.*：.*\*\*)([^*]+?)\*\*(?!\s)/g, '**$1** ');
-        text = text.replace(/\@\@(.+?)\@\@#/g, '**$1** ');
-
-        // 处理列表缩进
-        text = text.replace(/^\s{4}\*\s{3}/mg, '   *   ');  // 规范化列表项后的空格
-
-        // 渲染 Markdown
-        let html = marked.parse(text);
-
-        // 恢复数学公式
-        html = html.replace(/%%MATH_EXPRESSION_(\d+)%%/g, (_, index) => mathExpressions[index]);
-
-        // 移除数学公式容器外的 p 标签
-        html = html.replace(/<p>\s*(<div class="math-display-container">[\s\S]*?<\/div>)\s*<\/p>/g, '$1');
-
-        return html;
-    }
-
     // 监听来自 content script 的消息
     window.addEventListener('message', (event) => {
         if (event.data.type === 'DROP_IMAGE') {
@@ -522,7 +400,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             const imageData = event.data.imageData;
             if (imageData && imageData.data) {
                 console.log('创建图片标签');
-                const imageTag = createImageTag(imageData.data, imageData.name);
+                // 确保base64数据格式正确
+                const base64Data = imageData.data.startsWith('data:') ? imageData.data : `data:image/png;base64,${imageData.data}`;
+                const imageTag = createImageTag({
+                    base64Data: base64Data,
+                    fileName: imageData.name
+                });
 
                 // 确保输入框有焦点
                 messageInput.focus();
@@ -606,132 +489,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // 修改数学公式渲染函数
-    function renderMathInElement(element) {
-        if (window.MathJax) {
-            MathJax.typesetPromise([element]).catch((err) => {
-                console.error('MathJax渲染错误:', err);
-            });
-        }
-    }
-
-    function updateAIMessage(text) {
-        const lastMessage = chatContainer.querySelector('.ai-message:last-child');
-        let rawText = text;
-
-        if (lastMessage) {
-            // 获取当前显示的文本
-            const currentText = lastMessage.getAttribute('data-original-text') || '';
-            // 如果新文本比当前文本长，说有新内容需要更新
-            if (text.length > currentText.length) {
-                // 更新原始文本属性
-                lastMessage.setAttribute('data-original-text', text);
-
-                // 处理数学公式和Markdown
-                lastMessage.innerHTML = processMathAndMarkdown(text);
-
-                // 渲染LaTeX公式
-                renderMathInElement(lastMessage);
-
-                // 处理新染的链接
-                lastMessage.querySelectorAll('a').forEach(link => {
-                    link.target = '_blank';
-                    link.rel = 'noopener noreferrer';
-                });
-
-                // 更新历史记录
-                if (chatHistory.length > 0) {
-                    chatHistory[chatHistory.length - 1].content = rawText;
-                    saveChatHistory();
-                }
-            }
-        } else {
-            appendMessage(rawText, 'ai');
-        }
-    }
-
-    // 修改appendMessage函数，只在发送新消息时滚动
-    function appendMessage(text, sender, skipHistory = false, fragment = null) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${sender}-message`;
-
-        // 如果是批量加载，添加特殊类名
-        if (fragment) {
-            messageDiv.classList.add('batch-load');
-        }
-
-        // 存储原始文本用于复制
-        messageDiv.setAttribute('data-original-text', text);
-
-        // 处理数学公式和 Markdown
-        messageDiv.innerHTML = processMathAndMarkdown(text);
-
-        // 渲染 LaTeX 公式
-        renderMathInElement(messageDiv);
-
-        // 处理消息中的链接
-        messageDiv.querySelectorAll('a').forEach(link => {
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-        });
-
-        // 处理消息中的图片标签
-        messageDiv.querySelectorAll('.image-tag').forEach(tag => {
-            const img = tag.querySelector('img');
-            const base64Data = tag.getAttribute('data-image');
-            if (img && base64Data) {
-                img.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    showImagePreview(base64Data);
-                });
-            }
-        });
-
-        // 如果提供了文档片段，添加到片段中；否则直接添加到聊天容器
-        if (fragment) {
-            fragment.appendChild(messageDiv);
-        } else {
-            chatContainer.appendChild(messageDiv);
-            // 只在发送新消息时自动滚动（不是加载历史记录）
-            if (sender === 'user' && !skipHistory) {
-                requestAnimationFrame(() => {
-                    chatContainer.scrollTo({
-                        top: chatContainer.scrollHeight,
-                        behavior: 'smooth'
-                    });
-                });
-            }
-        }
-
-        // 只有在不跳过历史记录时才添加到历史记录
-        if (!skipHistory) {
-            chatHistory.push({
-                role: sender === 'user' ? 'user' : 'assistant',
-                content: processImageTags(text)
-            });
-            saveChatHistory();
-            if (sender === 'ai') {
-                messageDiv.classList.add('updating');
-            }
-        }
-    }
-
-    // 自动调整文本框高度
-    function adjustTextareaHeight(textarea) {
-        textarea.style.height = 'auto';
-        const maxHeight = 200;
-        textarea.style.height = Math.min(textarea.scrollHeight, maxHeight) + 'px';
-        if (textarea.scrollHeight > maxHeight) {
-            textarea.style.overflowY = 'auto';
-        } else {
-            textarea.style.overflowY = 'hidden';
-        }
-    }
-
     // 监听输入框变化
     messageInput.addEventListener('input', function() {
-        adjustTextareaHeight(this);
+        adjustTextareaHeight({
+            textarea: this,
+            config: uiConfig.textarea
+        });
 
         // 处理 placeholder 的显示
         if (this.textContent.trim() === '' && !this.querySelector('.image-tag')) {
@@ -800,23 +563,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 主题切换
     const themeSwitch = document.getElementById('theme-switch');
 
-    // 设置主题
-    function setTheme(isDark) {
-        // 获取根元素
-        const root = document.documentElement;
-
-        // 移除现有的主题类
-        root.classList.remove('dark-theme', 'light-theme');
-
-        // 添加新的主题类
-        root.classList.add(isDark ? 'dark-theme' : 'light-theme');
-
-        // 更新开关状态
-        themeSwitch.checked = isDark;
-
-        // 保存主题设置
-        chrome.storage.sync.set({ theme: isDark ? 'dark' : 'light' });
-    }
+    // 创建主题配置对象
+    const themeConfig = {
+        root: document.documentElement,
+        themeSwitch,
+        saveTheme: (theme) => chrome.storage.sync.set({ theme })
+    };
 
     // 初始化主题
     async function initTheme() {
@@ -824,24 +576,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             const result = await chrome.storage.sync.get('theme');
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
             const isDark = result.theme === 'dark' || (!result.theme && prefersDark);
-            setTheme(isDark);
+            setTheme(isDark, themeConfig);
         } catch (error) {
             console.error('初始化主题失败:', error);
             // 如果出错，使用系统主题
-            setTheme(window.matchMedia('(prefers-color-scheme: dark)').matches);
+            setTheme(window.matchMedia('(prefers-color-scheme: dark)').matches, themeConfig);
         }
     }
 
     // 监听主题切换
     themeSwitch.addEventListener('change', () => {
-        setTheme(themeSwitch.checked);
+        setTheme(themeSwitch.checked, themeConfig);
     });
 
     // 监听系统主题变化
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
         chrome.storage.sync.get('theme', (data) => {
             if (!data.theme) {  // 只有在用户没有手动设置主题时才跟随系统
-                setTheme(e.matches);
+                setTheme(e.matches, themeConfig);
             }
         });
     });
@@ -878,6 +630,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     let apiConfigs = [];
     let selectedConfigIndex = 0;
 
+    // 使用新的selectCard函数
+    const handleCardSelect = (template, index) => {
+        selectCard({
+            template,
+            index,
+            onIndexChange: (newIndex) => {
+                selectedConfigIndex = newIndex;
+            },
+            onSave: saveAPIConfigs,
+            cardSelector: '.api-card',
+            onSelect: () => {
+                // 关闭API设置面板
+                apiSettings.classList.remove('visible');
+            }
+        });
+    };
+
+    // 创建渲染API卡片的辅助函数
+    const renderAPICardsWithCallbacks = () => {
+        renderAPICards({
+            apiConfigs,
+            apiCardsContainer: apiCards,
+            templateCard: document.querySelector('.api-card.template'),
+            ...createCardCallbacks({
+                selectCard: handleCardSelect,
+                apiConfigs,
+                selectedConfigIndex,
+                saveAPIConfigs,
+                renderAPICardsWithCallbacks
+            }),
+            selectedIndex: selectedConfigIndex
+        });
+    };
+
     // 从存储加载配置
     async function loadAPIConfigs() {
         try {
@@ -907,7 +693,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         // 确保一定会渲染卡片
-        renderAPICards();
+        renderAPICardsWithCallbacks();
     }
 
     // 保存配置到存储
@@ -922,136 +708,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // 渲染 API 卡片
-    function renderAPICards() {
-        // 确保模板元素在
-        const templateCard = document.querySelector('.api-card.template');
-        if (!templateCard) {
-            console.error('找不到模板卡片元素');
-            return;
-        }
-
-        // 保存模板的副本
-        const templateClone = templateCard.cloneNode(true);
-
-        // 清空现有卡片
-        apiCards.innerHTML = '';
-
-        // 先重新添加模板（保持隐藏状态）
-        apiCards.appendChild(templateClone);
-
-        // 渲染实际的卡
-        apiConfigs.forEach((config, index) => {
-            const card = createAPICard(config, index, templateClone);
-            apiCards.appendChild(card);
-        });
-    }
-
-    // 创建 API 卡片
-    function createAPICard(config, index, templateCard) {
-        // 克模板
-        const template = templateCard.cloneNode(true);
-        template.classList.remove('template');
-        template.style.display = '';
-        template.setAttribute('tabindex', '0');
-
-        if (index === selectedConfigIndex) {
-            template.classList.add('selected');
-        }
-
-        const apiKeyInput = template.querySelector('.api-key');
-        const baseUrlInput = template.querySelector('.base-url');
-        const modelNameInput = template.querySelector('.model-name');
-        const apiForm = template.querySelector('.api-form');
-
-        apiKeyInput.value = config.apiKey || '';
-        baseUrlInput.value = config.baseUrl || 'https://api.openai.com/v1/chat/completions';
-        modelNameInput.value = config.modelName || 'gpt-4o';
-
-        // 阻止输入框和按钮点击事件冒泡
-        const stopPropagation = (e) => {
-            e.stopPropagation();
-            e.preventDefault();
-        };
-
-        // 为输入框添加点击事件阻止冒泡
-        [apiKeyInput, baseUrlInput, modelNameInput].forEach(input => {
-            input.addEventListener('click', stopPropagation);
-            input.addEventListener('focus', stopPropagation);
-        });
-
-        // 为按钮添加点击事件阻止冒泡
-        template.querySelectorAll('.card-button').forEach(button => {
-            button.addEventListener('click', stopPropagation);
-        });
-
-        // 添加回车键选择功能
-        template.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                selectCard(template, index);
-            }
-        });
-
-        // 输入变化时保存
-        [apiKeyInput, baseUrlInput, modelNameInput].forEach(input => {
-            input.addEventListener('change', () => {
-                apiConfigs[index] = {
-                    apiKey: apiKeyInput.value,
-                    baseUrl: baseUrlInput.value,
-                    modelName: modelNameInput.value
-                };
-                saveAPIConfigs();
-            });
-        });
-
-        // 复制配置
-        template.querySelector('.duplicate-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            apiConfigs.push({...config});
-            saveAPIConfigs();
-            renderAPICards();
-        });
-
-        // 删除配置
-        template.querySelector('.delete-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            if (apiConfigs.length > 1) {
-                apiConfigs.splice(index, 1);
-                if (selectedConfigIndex >= apiConfigs.length) {
-                    selectedConfigIndex = apiConfigs.length - 1;
-                }
-                saveAPIConfigs();
-                renderAPICards();
-            }
-        });
-
-        // 选择配置
-        template.addEventListener('click', (e) => {
-            // 如果点击的是输入框或按钮，不触发选择
-            if (e.target.matches('input') || e.target.matches('.card-button') || e.target.closest('.card-button')) {
-                return;
-            }
-            selectCard(template, index);
-        });
-
-        return template;
-    }
-
-    // 添加选择卡片的辅助函数
-    function selectCard(template, index) {
-        selectedConfigIndex = index;
-        saveAPIConfigs();
-        document.querySelectorAll('.api-card').forEach(card => {
-            card.classList.remove('selected');
-        });
-        template.classList.add('selected');
-        // 关闭设置页面
-        apiSettings.classList.remove('visible');
-    }
-
     // 等待 DOM 加载完成后再初始化
     await loadAPIConfigs();
 
@@ -1060,7 +716,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         apiSettings.classList.add('visible');
         settingsMenu.classList.remove('visible');
         // 确保每次打开设置时都重新渲染卡片
-        renderAPICards();
+        renderAPICardsWithCallbacks();
     });
 
     // 返回聊天界面
@@ -1111,92 +767,59 @@ document.addEventListener('DOMContentLoaded', async () => {
         messageInput.removeEventListener('click', (e) => e.stopPropagation());
     });
 
-    // 右键菜单功能
-    function showContextMenu(e, messageElement) {
-        e.preventDefault();
-        currentMessageElement = messageElement;
-
-        // 设置菜单位置
-        contextMenu.style.display = 'block';
-
-        // 根据消息状态显示或隐藏停止更新按钮
-        if (messageElement.classList.contains('updating')) {
-            stopUpdateButton.style.display = 'flex';
-        } else {
-            stopUpdateButton.style.display = 'none';
-        }
-
-        const menuWidth = contextMenu.offsetWidth;
-        const menuHeight = contextMenu.offsetHeight;
-
-        // 确保菜单不超出视口
-        let x = e.clientX;
-        let y = e.clientY;
-
-        if (x + menuWidth > window.innerWidth) {
-            x = window.innerWidth - menuWidth;
-        }
-
-        if (y + menuHeight > window.innerHeight) {
-            y = window.innerHeight - menuHeight;
-        }
-
-        contextMenu.style.left = x + 'px';
-        contextMenu.style.top = y + 'px';
-    }
-
-    // 添加停止更新按钮的点击事件处理
-    stopUpdateButton.addEventListener('click', () => {
-        if (currentController) {
-            currentController.abort();  // 中止当前请求
-            currentController = null;
-            hideContextMenu();
-        }
-    });
-    // 隐藏右键菜单
-    function hideContextMenu() {
-        contextMenu.style.display = 'none';
-        currentMessageElement = null;
-    }
-
-    // 复制消息内容
-    function copyMessageContent() {
-        if (currentMessageElement) {
-            // 获取存储的原始文本
-            const originalText = currentMessageElement.getAttribute('data-original-text');
-            navigator.clipboard.writeText(originalText).then(() => {
-                hideContextMenu();
-            }).catch(err => {
-                console.error('复制失败:', err);
-            });
-        }
-    }
-
     // 监听 AI 消息的右键点击
     chatContainer.addEventListener('contextmenu', (e) => {
         const messageElement = e.target.closest('.ai-message');
         if (messageElement) {
-            showContextMenu(e, messageElement);
+            showContextMenu({
+                event: e,
+                messageElement,
+                contextMenu,
+                stopUpdateButton,
+                onMessageElementSelect: (element) => {
+                    currentMessageElement = element;
+                }
+            });
         }
     });
 
-    // 点击制按钮
-    copyMessageButton.addEventListener('click', copyMessageContent);
+    // 点击复制按钮
+    copyMessageButton.addEventListener('click', () => {
+        copyMessageContent({
+            messageElement: currentMessageElement,
+            onSuccess: () => hideContextMenu({
+                contextMenu,
+                onMessageElementReset: () => { currentMessageElement = null; }
+            }),
+            onError: (err) => console.error('复制失败:', err)
+        });
+    });
 
     // 点击其他地方隐藏菜单
     document.addEventListener('click', (e) => {
         if (!contextMenu.contains(e.target)) {
-            hideContextMenu();
+            hideContextMenu({
+                contextMenu,
+                onMessageElementReset: () => { currentMessageElement = null; }
+            });
         }
     });
 
     // 滚动时隐藏菜单
-    chatContainer.addEventListener('scroll', hideContextMenu);
+    chatContainer.addEventListener('scroll', () => {
+        hideContextMenu({
+            contextMenu,
+            onMessageElementReset: () => { currentMessageElement = null; }
+        });
+    });
 
     // 按下 Esc 键隐藏菜单
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            hideContextMenu();
+            hideContextMenu({
+                contextMenu,
+                onMessageElementReset: () => { currentMessageElement = null; }
+            });
         }
     });
 
@@ -1214,7 +837,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             reader.onload = async () => {
                 const base64Data = reader.result;
-                const imageTag = createImageTag(base64Data, file.name);
+                const imageTag = createImageTag({
+                    base64Data,
+                    fileName: file.name,
+                    config: uiConfig.imageTag
+                });
 
                 // 在光标位置插入图片标签
                 const selection = window.getSelection();
@@ -1278,171 +905,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // 创建图片标签
-    function createImageTag(base64Data, fileName) {
-        const container = document.createElement('span');
-        container.className = 'image-tag';
-        container.contentEditable = false;
-        container.setAttribute('data-image', base64Data);
-        container.title = fileName || '图片'; // 添加悬停提示
-
-        const thumbnail = document.createElement('img');
-        thumbnail.src = base64Data;
-        thumbnail.alt = fileName || '图片';
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'delete-btn';
-        deleteBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-linecap="round"/></svg>';
-        deleteBtn.title = '删除图片';
-
-        // 点击删除按钮时除整个标签
-        deleteBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            container.remove();
-            // 发输入事件以调整高度
-            messageInput.dispatchEvent(new Event('input'));
-        });
-
-        container.appendChild(thumbnail);
-        container.appendChild(deleteBtn);
-
-        // 点击图片区域预览图片
-        thumbnail.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            showImagePreview(base64Data);
-        });
-
-        return container;
-    }
-
     // 图片预览功能
-    const previewModal = document.querySelector('.image-preview-modal');
-    const previewImage = previewModal.querySelector('img');
     const closeButton = previewModal.querySelector('.image-preview-close');
 
-    function showImagePreview(base64Data) {
-        previewImage.src = base64Data;
-        previewModal.classList.add('visible');
-    }
-
-    function hideImagePreview() {
-        previewModal.classList.remove('visible');
-        previewImage.src = '';
-    }
-
-    closeButton.addEventListener('click', hideImagePreview);
-    previewModal.addEventListener('click', (e) => {
-        if (e.target === previewModal) {
-            hideImagePreview();
-        }
+    closeButton.addEventListener('click', () => {
+        hideImagePreview({ config: uiConfig.imagePreview });
     });
 
-    // 创建公共的图片处理函数
-    function handleImageDrop(e, target) {
-        e.preventDefault();
-        e.stopPropagation();
-
-        try {
-            // 处理文件拖放
-            if (e.dataTransfer.files.length > 0) {
-                const file = e.dataTransfer.files[0];
-                if (file.type.startsWith('image/')) {
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                        const base64Data = reader.result;
-                        const imageTag = createImageTag(base64Data, file.name);
-
-                        // 确保输入框有焦点
-                        messageInput.focus();
-
-                        // 获取或创建选区
-                        const selection = window.getSelection();
-                        let range;
-
-                        // 检查是否有现有选区
-                        if (selection.rangeCount > 0) {
-                            range = selection.getRangeAt(0);
-                        } else {
-                            // 创建新的选区
-                            range = document.createRange();
-                            // 将选区设置到输入框的末尾
-                            range.selectNodeContents(messageInput);
-                            range.collapse(false);
-                            selection.removeAllRanges();
-                            selection.addRange(range);
-                        }
-
-                        // 插入图片标签
-                        range.deleteContents();
-                        range.insertNode(imageTag);
-
-                        // 移动光标到图片标签后面
-                        const newRange = document.createRange();
-                        newRange.setStartAfter(imageTag);
-                        newRange.collapse(true);
-                        selection.removeAllRanges();
-                        selection.addRange(newRange);
-
-                        // 触发输入事件以调整高度
-                        messageInput.dispatchEvent(new Event('input'));
-                    };
-                    reader.readAsDataURL(file);
-                    return;
-                }
-            }
-
-            // 处理网页图片拖放
-            const data = e.dataTransfer.getData('text/plain');
-            if (data) {
-                try {
-                    const imageData = JSON.parse(data);
-                    if (imageData.type === 'image') {
-                        const imageTag = createImageTag(imageData.data, imageData.name);
-
-                        // 确保输入框有焦点
-                        messageInput.focus();
-
-                        // 获取或创建选区
-                        const selection = window.getSelection();
-                        let range;
-
-                        // 检查是否有现有选区
-                        if (selection.rangeCount > 0) {
-                            range = selection.getRangeAt(0);
-                        } else {
-                            // 创建新的选区
-                            range = document.createRange();
-                            // 将选区设置到输入框的末尾
-                            range.selectNodeContents(messageInput);
-                            range.collapse(false);
-                            selection.removeAllRanges();
-                            selection.addRange(range);
-                        }
-
-                        // 插入图片标签
-                        range.deleteContents();
-                        range.insertNode(imageTag);
-
-                        // 移动光标到图片标签后面
-                        const newRange = document.createRange();
-                        newRange.setStartAfter(imageTag);
-                        newRange.collapse(true);
-                        selection.removeAllRanges();
-                        selection.addRange(newRange);
-
-                        // 触发输入事件以调整高度
-                        messageInput.dispatchEvent(new Event('input'));
-                    }
-                } catch (error) {
-                    console.error('处理拖放数据失败:', error);
-                }
-            }
-        } catch (error) {
-            console.error('处理拖放事件失败:', error);
+    previewModal.addEventListener('click', (e) => {
+        if (e.target === previewModal) {
+            hideImagePreview({ config: uiConfig.imagePreview });
         }
-    }
+    });
 
     // 为输入框添加拖放事件监听器
     messageInput.addEventListener('dragover', (e) => {
@@ -1455,7 +929,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         e.stopPropagation();
     });
 
-    messageInput.addEventListener('drop', (e) => handleImageDrop(e, messageInput));
+    messageInput.addEventListener('drop', (e) => {
+        handleImageDrop(e, {
+            messageInput,
+            createImageTag,
+            onSuccess: () => {
+                // 可以在这里添加成功处理的回调
+            },
+            onError: (error) => {
+                console.error('处理拖放事件失败:', error);
+            }
+        });
+    });
 
     // 为聊天区域添加拖放事件监听器
     chatContainer.addEventListener('dragover', (e) => {
@@ -1468,13 +953,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         e.stopPropagation();
     });
 
-    chatContainer.addEventListener('drop', (e) => handleImageDrop(e, chatContainer));
+    chatContainer.addEventListener('drop', (e) => {
+        handleImageDrop(e, {
+            messageInput,
+            createImageTag,
+            onSuccess: () => {
+                // 可以在这里添加成功处理的回调
+            },
+            onError: (error) => {
+                console.error('处理拖放事件失败:', error);
+            }
+        });
+    });
 
     // 阻止聊天区域的图片默认行为
     chatContainer.addEventListener('click', (e) => {
         if (e.target.tagName === 'IMG') {
             e.preventDefault();
             e.stopPropagation();
+        }
+    });
+
+    // 添加停止更新按钮的点击事件处理
+    stopUpdateButton.addEventListener('click', () => {
+        if (currentController) {
+            currentController.abort();  // 中止当前请求
+            currentController = null;
+            hideContextMenu({
+                contextMenu,
+                onMessageElementReset: () => { currentMessageElement = null; }
+            });
         }
     });
 });

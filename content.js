@@ -351,8 +351,9 @@ class CerebrSidebar {
                 };
                 console.log('设置拖动数据:', imageData.name);
                 lastImageData = imageData;  // 保存最后一次的图片数据
-                e.dataTransfer.setData('text/plain', JSON.stringify(imageData));
-                e.dataTransfer.effectAllowed = 'copy';  // 设置拖动效果为复制
+                // 使用自定义事件类型，避免数据丢失
+                e.dataTransfer.setData('application/x-cerebr-image', JSON.stringify(imageData));
+                e.dataTransfer.effectAllowed = 'copy';
               };
               reader.readAsDataURL(blob);
             })
@@ -375,8 +376,9 @@ class CerebrSidebar {
                 };
                 console.log('设置拖动数据:', imageData.name);
                 lastImageData = imageData;  // 保存最后一次的图片数据
-                e.dataTransfer.setData('text/plain', JSON.stringify(imageData));
-                e.dataTransfer.effectAllowed = 'copy';  // 设置拖动效果为复制
+                // 使用自定义事件类型，避免数据丢失
+                e.dataTransfer.setData('application/x-cerebr-image', JSON.stringify(imageData));
+                e.dataTransfer.effectAllowed = 'copy';
               } catch (canvasError) {
                 console.error('Canvas获取图片数据失败:', canvasError);
               }
