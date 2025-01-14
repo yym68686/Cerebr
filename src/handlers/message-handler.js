@@ -1,5 +1,5 @@
-import { processMathAndMarkdown, renderMathInElement } from './src/utils/latex.js';
-import { processImageTags } from './chat.js';
+import { processMathAndMarkdown, renderMathInElement } from '../utils/latex.js';
+import { processImageTags } from '../services/chat.js';
 
 /**
  * 消息处理配置接口

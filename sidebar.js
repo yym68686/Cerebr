@@ -1,12 +1,12 @@
-import { callAPI, processImageTags } from './chat.js';
-import { appendMessage, updateAIMessage } from './message-handler.js';
-import { adjustTextareaHeight, showImagePreview, hideImagePreview, createImageTag } from './src/utils/ui.js';
-import { handleImageDrop } from './src/utils/image.js';
-import { processMessageContent } from './message-utils.js';
 import { setTheme } from './src/utils/theme.js';
+import { handleImageDrop } from './src/utils/image.js';
+import { loadChatHistory } from './src/utils/chat-history.js';
+import { callAPI, processImageTags } from './src/services/chat.js';
+import { processMessageContent } from './src/utils/message-utils.js';
+import { appendMessage, updateAIMessage } from './src/handlers/message-handler.js';
 import { renderAPICards, createCardCallbacks, selectCard } from './src/components/api-card/index.js';
+import { adjustTextareaHeight, showImagePreview, hideImagePreview, createImageTag } from './src/utils/ui.js';
 import { showContextMenu, hideContextMenu, copyMessageContent } from './src/components/context-menu/index.js';
-import { loadChatHistory } from './chat-history.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     const chatContainer = document.getElementById('chat-container');
