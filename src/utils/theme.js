@@ -23,15 +23,20 @@ export function setTheme(isDark, { root, themeSwitch, saveTheme }) {
         saveTheme(isDark ? 'dark' : 'light');
     }
 
-    // 更新浏览器 UI 颜色
-    updateThemeColor(isDark);
+    // // 更新浏览器 UI 颜色
+    // updateThemeColor(isDark);
 }
 
 // 更新主题颜色
 function updateThemeColor(isDark) {
     const themeColorMeta = document.getElementById('theme-color-meta');
     if (themeColorMeta) {
-        // 使用与 CSS 中定义的相同颜色
-        themeColorMeta.content = isDark ? '#262B33' : '#ffffff';
+        if (isDark) {
+            // 深色模式：移除 meta 标签的 content 属性，使用浏览器默认颜色
+            themeColorMeta.removeAttribute('content');
+        } else {
+            // 浅色模式：设置自定义颜色
+            themeColorMeta.content = '#ffffff';
+        }
     }
 }
