@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const messageInput = document.getElementById('message-input');
     const contextMenu = document.getElementById('context-menu');
     const copyMessageButton = document.getElementById('copy-message');
+    const copyCodeButton = document.getElementById('copy-code');
     const stopUpdateButton = document.getElementById('stop-update');
     const settingsButton = document.getElementById('settings-button');
     const settingsMenu = document.getElementById('settings-menu');
@@ -21,6 +22,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const previewModal = document.querySelector('.image-preview-modal');
     const previewImage = previewModal.querySelector('img');
     let currentMessageElement = null;
+    let currentCodeElement = null;
     let currentController = null;  // 用于存储当前的 AbortController
 
     // 创建UI工具配置
@@ -793,7 +795,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 监听 AI 消息的右键点击
     chatContainer.addEventListener('contextmenu', (e) => {
         const messageElement = e.target.closest('.ai-message');
+        const codeElement = e.target.closest('pre > code');
+
         if (messageElement) {
+            currentMessageElement = messageElement;
+            currentCodeElement = codeElement;
+
+            // 根据右键点击的元素类型显示/隐藏相应的菜单项
+            copyMessageButton.style.display = 'flex';
+            copyCodeButton.style.display = codeElement ? 'flex' : 'none';
+
             showContextMenu({
                 event: e,
                 messageElement,
@@ -812,10 +823,31 @@ document.addEventListener('DOMContentLoaded', async () => {
             messageElement: currentMessageElement,
             onSuccess: () => hideContextMenu({
                 contextMenu,
-                onMessageElementReset: () => { currentMessageElement = null; }
+                onMessageElementReset: () => {
+                    currentMessageElement = null;
+                    currentCodeElement = null;
+                }
             }),
             onError: (err) => console.error('复制失败:', err)
         });
+    });
+
+    // 点击复制代码按钮
+    copyCodeButton.addEventListener('click', () => {
+        if (currentCodeElement) {
+            const codeText = currentCodeElement.textContent;
+            navigator.clipboard.writeText(codeText)
+                .then(() => {
+                    hideContextMenu({
+                        contextMenu,
+                        onMessageElementReset: () => {
+                            currentMessageElement = null;
+                            currentCodeElement = null;
+                        }
+                    });
+                })
+                .catch(err => console.error('复制代码失败:', err));
+        }
     });
 
     // 点击其他地方隐藏菜单
