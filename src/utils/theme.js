@@ -22,4 +22,16 @@ export function setTheme(isDark, { root, themeSwitch, saveTheme }) {
     if (saveTheme) {
         saveTheme(isDark ? 'dark' : 'light');
     }
+
+    // 更新浏览器 UI 颜色
+    updateThemeColor(isDark);
+}
+
+// 更新主题颜色
+function updateThemeColor(isDark) {
+    const themeColorMeta = document.getElementById('theme-color-meta');
+    if (themeColorMeta) {
+        // 使用与 CSS 中定义的相同颜色
+        themeColorMeta.content = isDark ? '#262B33' : '#ffffff';
+    }
 }
