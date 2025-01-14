@@ -79,7 +79,12 @@ export const browserAdapter = {
                 };
             }
 
-            return tab;
+            const url = new URL(tab.url);
+            return {
+                url: tab.url,
+                title: tab.title,
+                hostname: url.hostname
+            };
         } else {
             const url = window.location.href;
             // 处理本地文件

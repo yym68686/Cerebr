@@ -587,12 +587,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // 监听系统主题变化
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-        browserAdapter.get('theme', (data) => {
-            if (!data.theme) {  // 只有在用户没有手动设置主题时才跟随系统
-                setTheme(e.matches, themeConfig);
-            }
-        });
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', async (e) => {
+        const data = await syncStorageAdapter.get('theme');
+        if (!data.theme) {  // 只有在用户没有手动设置主题时才跟随系统
+            setTheme(e.matches, themeConfig);
+        }
     });
 
     // 初始化主题
