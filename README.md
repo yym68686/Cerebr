@@ -59,6 +59,18 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
 - 🖼️ **Image Preview** - Click images to view full size
 - ⚙️ **Custom Settings** - Support customizing hotkeys, themes and more
 
+## 🚀 Vercel Web Version Deploy
+
+You can quickly deploy the web version of Cerebr to Vercel with one click:
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyourusername%2Fcerebr)
+
+### Web Version Features
+- 🌐 Access Cerebr from any browser without installation
+- 💻 Same powerful features as the Chrome extension
+- ☁️ Deploy your own instance for better control
+- 🔒 Secure and private deployment
+
 ## 🚀 Latest Updates
 
 - 🆕 Added image Q&A functionality

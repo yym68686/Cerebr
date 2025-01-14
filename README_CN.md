@@ -59,6 +59,18 @@ Cerebr 是一款强大的 Chrome 浏览器 AI 助手扩展,专注于提升您的
 - 🖼️ **图片预览** - 点击图片可查看大图
 - ⚙️ **自定义配置** - 支持自定义快捷键、主题等设置
 
+## 🚀 Vercel 网页版部署
+
+你可以一键将 Cerebr 的 Web 版本部署到 Vercel：
+
+[![使用 Vercel 部署](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyourusername%2Fcerebr)
+
+### Web 版本特点
+- 🌐 无需安装，通过任何浏览器访问
+- 💻 与 Chrome 扩展版本具有相同的强大功能
+- ☁️ 部署自己的实例以获得更好的控制
+- 🔒 安全私密的部署方案
+
 ## 🚀 最新更新
 
 - 🆕 支持图片问答功能
