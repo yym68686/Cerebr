@@ -50,8 +50,16 @@ export function processMathAndMarkdown(text) {
     text = text.replace(/\*\*(?=.*：.*\*\*)([^*]+?)\*\*(?!\s)/g, '**$1** ');
     text = text.replace(/\@\@(.+?)\@\@#/g, '**$1** ');
 
-    // // 处理列表缩进
-    // text = text.replace(/^\s{4}\*\s{3}/mg, '   *   ');  // 规范化列表项后的空格
+    // 处理列表缩进，保持层级关系但使用3个空格
+    text = text.replace(/^(\s{4,})\*(\s+)/mg, (match, spaces, trailing) => {
+        // 计算缩进层级（每4个空格算一级）
+        const level = Math.floor(spaces.length / 4);
+        // 为每一级添加3个空格
+        return '   '.repeat(level) + '*' + trailing;
+    });
+
+    // 处理第一级列表（确保使用3个空格）
+    text = text.replace(/^(\s{0,2})\*(\s+)/mg, '   *$2');
 
     // 渲染 Markdown
     let html = marked.parse(text);
