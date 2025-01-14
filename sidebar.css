@@ -193,6 +193,12 @@ body {
     margin-right: auto;
     margin-left: 0;
     border-bottom-left-radius: 4px;
+    -webkit-touch-callout: none; /* iOS Safari */
+    -webkit-user-select: none;   /* Safari */
+    -khtml-user-select: none;    /* Konqueror HTML */
+    -moz-user-select: none;      /* Firefox */
+    -ms-user-select: none;       /* Internet Explorer/Edge */
+    user-select: none;           /* Non-prefixed version */
 }
 
 /* 输入区域样式 */
@@ -676,6 +682,7 @@ input:checked + .slider:before {
     backdrop-filter: blur(var(--cerebr-blur-radius));
     -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
     border: 1px solid rgba(255, 255, 255, 0.1);
+    touch-action: none; /* 防止触摸事件引起页面滚动 */
 }
 
 .context-menu-item {
@@ -1013,4 +1020,15 @@ input:checked + .slider:before {
 /* 当API设置界面显示时隐藏输入框 */
 #api-settings.visible ~ #input-container {
     display: none;
+}
+
+/* 允许代码块内的文本选择 */
+.ai-message pre,
+.ai-message code {
+    -webkit-touch-callout: text;
+    -webkit-user-select: text;
+    -khtml-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
 }

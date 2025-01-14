@@ -816,6 +816,61 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    // 添加长按触发右键菜单的支持
+    let touchTimeout;
+    let touchStartX;
+    let touchStartY;
+    const LONG_PRESS_DURATION = 200; // 长按触发时间为200ms
+
+    chatContainer.addEventListener('touchstart', (e) => {
+        const messageElement = e.target.closest('.ai-message');
+        if (!messageElement) return;
+
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+
+        touchTimeout = setTimeout(() => {
+            const codeElement = e.target.closest('pre > code');
+            currentMessageElement = messageElement;
+            currentCodeElement = codeElement;
+
+            // 根据长按元素类型显示/隐藏相应的菜单项
+            copyMessageButton.style.display = 'flex';
+            copyCodeButton.style.display = codeElement ? 'flex' : 'none';
+
+            showContextMenu({
+                event: {
+                    preventDefault: () => {},
+                    clientX: touchStartX,
+                    clientY: touchStartY
+                },
+                messageElement,
+                contextMenu,
+                stopUpdateButton,
+                onMessageElementSelect: (element) => {
+                    currentMessageElement = element;
+                }
+            });
+        }, LONG_PRESS_DURATION);
+    }, { passive: false });
+
+    chatContainer.addEventListener('touchmove', (e) => {
+        // 如果移动超过10px，取消长按
+        if (touchTimeout &&
+            (Math.abs(e.touches[0].clientX - touchStartX) > 10 ||
+             Math.abs(e.touches[0].clientY - touchStartY) > 10)) {
+            clearTimeout(touchTimeout);
+            touchTimeout = null;
+        }
+    });
+
+    chatContainer.addEventListener('touchend', () => {
+        if (touchTimeout) {
+            clearTimeout(touchTimeout);
+            touchTimeout = null;
+        }
+    });
+
     // 点击复制按钮
     copyMessageButton.addEventListener('click', () => {
         copyMessageContent({
