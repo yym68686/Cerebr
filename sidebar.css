@@ -634,7 +634,9 @@ input:checked + .slider:before {
     tab-size: 4;
     -webkit-font-smoothing: auto;
     border-radius: 8px;
-    background-color: transparent;
+    background-color: #f6f8fa;
+    color: #24292e;
+    border: 1px solid #e1e4e8;
 }
 
 /* 行内代码样式 */
@@ -651,16 +653,16 @@ input:checked + .slider:before {
 /* 滚动条样式 */
 .message pre code::-webkit-scrollbar {
     height: 8px;
-    background-color: transparent;
+    background-color: #f6f8fa;
 }
 
 .message pre code::-webkit-scrollbar-thumb {
-    background-color: rgba(255, 255, 255, 0.2);
+    background-color: #d1d5da;
     border-radius: 4px;
 }
 
 .message pre code::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(255, 255, 255, 0.3);
+    background-color: #a5a9ad;
 }
 
 /* 深色主题适配 */
@@ -1100,4 +1102,185 @@ input:checked + .slider:before {
     -moz-user-select: text;
     -ms-user-select: text;
     user-select: text;
+}
+
+/* 浅色模式代码高亮 */
+.message pre code .hljs-keyword {
+    color: #d73a49;
+}
+
+.message pre code .hljs-built_in {
+    color: #005cc5;
+}
+
+.message pre code .hljs-type {
+    color: #d73a49;
+}
+
+.message pre code .hljs-literal {
+    color: #005cc5;
+}
+
+.message pre code .hljs-number {
+    color: #005cc5;
+}
+
+.message pre code .hljs-regexp {
+    color: #032f62;
+}
+
+.message pre code .hljs-string {
+    color: #032f62;
+}
+
+.message pre code .hljs-comment {
+    color: #6a737d;
+}
+
+.message pre code .hljs-doctag {
+    color: #d73a49;
+}
+
+.message pre code .hljs-meta {
+    color: #6a737d;
+}
+
+.message pre code .hljs-title {
+    color: #6f42c1;
+}
+
+.message pre code .hljs-tag {
+    color: #22863a;
+}
+
+.message pre code .hljs-attr {
+    color: #005cc5;
+}
+
+.message pre code .hljs-attribute {
+    color: #005cc5;
+}
+
+.message pre code .hljs-template-tag {
+    color: #d73a49;
+}
+
+.message pre code .hljs-template-variable {
+    color: #d73a49;
+}
+
+.message pre code .hljs-variable {
+    color: #d73a49;
+}
+
+.message pre code .hljs-bullet {
+    color: #735c0f;
+}
+
+.message pre code .hljs-emphasis {
+    color: #24292e;
+    font-style: italic;
+}
+
+.message pre code .hljs-strong {
+    color: #24292e;
+    font-weight: bold;
+}
+
+/* 深色模式代码高亮 */
+:root.dark-theme .message pre code .hljs-keyword,
+:root.dark-theme .message pre code .hljs-type,
+:root.dark-theme .message pre code .hljs-template-tag,
+:root.dark-theme .message pre code .hljs-template-variable,
+:root.dark-theme .message pre code .hljs-variable {
+    color: #c678dd;
+}
+
+:root.dark-theme .message pre code .hljs-built_in,
+:root.dark-theme .message pre code .hljs-literal,
+:root.dark-theme .message pre code .hljs-number {
+    color: #d19a66;
+}
+
+:root.dark-theme .message pre code .hljs-regexp,
+:root.dark-theme .message pre code .hljs-string {
+    color: #98c379;
+}
+
+:root.dark-theme .message pre code .hljs-comment,
+:root.dark-theme .message pre code .hljs-meta {
+    color: #7f848e;
+}
+
+:root.dark-theme .message pre code .hljs-title {
+    color: #61afef;
+}
+
+:root.dark-theme .message pre code .hljs-tag {
+    color: #e06c75;
+}
+
+:root.dark-theme .message pre code .hljs-attr,
+:root.dark-theme .message pre code .hljs-attribute {
+    color: #d19a66;
+}
+
+:root.dark-theme .message pre code .hljs-emphasis {
+    color: #abb2bf;
+    font-style: italic;
+}
+
+:root.dark-theme .message pre code .hljs-strong {
+    color: #abb2bf;
+    font-weight: bold;
+}
+
+/* 系统深色模式适配 */
+@media (prefers-color-scheme: dark) {
+    :root:not(.light-theme) .message pre code .hljs-keyword,
+    :root:not(.light-theme) .message pre code .hljs-type,
+    :root:not(.light-theme) .message pre code .hljs-template-tag,
+    :root:not(.light-theme) .message pre code .hljs-template-variable,
+    :root:not(.light-theme) .message pre code .hljs-variable {
+        color: #c678dd;
+    }
+
+    :root:not(.light-theme) .message pre code .hljs-built_in,
+    :root:not(.light-theme) .message pre code .hljs-literal,
+    :root:not(.light-theme) .message pre code .hljs-number {
+        color: #d19a66;
+    }
+
+    :root:not(.light-theme) .message pre code .hljs-regexp,
+    :root:not(.light-theme) .message pre code .hljs-string {
+        color: #98c379;
+    }
+
+    :root:not(.light-theme) .message pre code .hljs-comment,
+    :root:not(.light-theme) .message pre code .hljs-meta {
+        color: #7f848e;
+    }
+
+    :root:not(.light-theme) .message pre code .hljs-title {
+        color: #61afef;
+    }
+
+    :root:not(.light-theme) .message pre code .hljs-tag {
+        color: #e06c75;
+    }
+
+    :root:not(.light-theme) .message pre code .hljs-attr,
+    :root:not(.light-theme) .message pre code .hljs-attribute {
+        color: #d19a66;
+    }
+
+    :root:not(.light-theme) .message pre code .hljs-emphasis {
+        color: #abb2bf;
+        font-style: italic;
+    }
+
+    :root:not(.light-theme) .message pre code .hljs-strong {
+        color: #abb2bf;
+        font-weight: bold;
+    }
 }
