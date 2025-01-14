@@ -50,7 +50,7 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "sidebar.html",
+        "index.html",
         "sidebar.js",
         "sidebar.css",
         "lib/marked.min.js",

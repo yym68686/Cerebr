@@ -205,7 +205,7 @@ class CerebrSidebar {
 
       const iframe = document.createElement('iframe');
       iframe.className = 'cerebr-sidebar__iframe';
-      iframe.src = chrome.runtime.getURL('sidebar.html');
+      iframe.src = chrome.runtime.getURL('index.html');
       iframe.allow = 'clipboard-write';
 
       content.appendChild(iframe);
