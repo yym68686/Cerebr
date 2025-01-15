@@ -66,6 +66,7 @@ export function processMathAndMarkdown(text) {
     text = text.replace(/\*\*(?=.*[^\S\n].*\*\*)([^*]+?)\*\*(?!\s)/g, '**$1** ');
     text = text.replace(/\*\*(?=.*：.*\*\*)([^*]+?)\*\*(?!\s)/g, '**$1** ');
     text = text.replace(/\@\@(.+?)\@\@#/g, '**$1** ');
+    text = text.replace(/\*\*(.+?)\*\*(?!\s)/g, '**$1** ');
 
     // 处理列表缩进，保持层级关系但使用3个空格
     text = text.replace(/^(\s{4,})\*(\s+)/mg, (match, spaces, trailing) => {
