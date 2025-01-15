@@ -189,26 +189,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log('刷新后 网页问答存储中获取域名:', domains);
 
             // 只在开关状态不一致时才更新
-            if (domains[domain] !== webpageSwitch.checked) {
-                webpageSwitch.checked = !!domains[domain];
+            if (domains[domain]) {
+                webpageSwitch.checked = domains[domain];
+                document.body.classList.add('loading-content');
 
-                if (webpageSwitch.checked) {
-                    document.body.classList.add('loading-content');
-
-                    try {
-                        const content = await getPageContent();
-                        if (content) {
-                            pageContent = content;
-                        } else {
-                            console.error('loadWebpageSwitch 获取网页内容失败');
-                        }
-                    } catch (error) {
-                        console.error('loadWebpageSwitch 获取网页内容失败:', error);
-                    } finally {
-                        document.body.classList.remove('loading-content');
+                try {
+                    const content = await getPageContent();
+                    if (content) {
+                        pageContent = content;
                     }
-                } else {
-                    pageContent = null;
+                } catch (error) {
+                    console.error('loadWebpageSwitch 获取网页内容失败:', error);
+                } finally {
+                    document.body.classList.remove('loading-content');
                 }
             }
         } catch (error) {

@@ -110,10 +110,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // 处理来自 sidebar 的网页内容请求
   if (message.type === 'GET_PAGE_CONTENT_FROM_SIDEBAR') {
     (async () => {
-      let retryCount = 0;
-      const maxRetries = 3;
-      const retryDelay = 1000; // 1秒延迟
-
       async function tryGetContent() {
         try {
           const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -136,27 +132,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
           return null;
         } catch (error) {
-          console.error(`获取页面内容失败 (尝试 ${retryCount + 1}/${maxRetries}):`, error);
+          console.error(`获取页面内容失败:`, error);
           return null;
         }
       }
 
-      async function getContentWithRetry() {
-        while (retryCount < maxRetries) {
-          const content = await tryGetContent();
-          if (content) {
-            return content;
-          }
-          retryCount++;
-          if (retryCount < maxRetries) {
-            console.log(`等待 ${retryDelay}ms 后进行第 ${retryCount + 1} 次重试...`);
-            await new Promise(resolve => setTimeout(resolve, retryDelay));
-          }
-        }
-        return null;
-      }
-
-      const content = await getContentWithRetry();
+      const content = await tryGetContent();
       sendResponse(content);
     })();
     return true;
