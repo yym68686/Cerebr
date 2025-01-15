@@ -79,6 +79,9 @@ export async function loadChatHistory({
         if (currentCount === 0) {
             // 如果当前没有消息，则加载所有历史消息
             chatHistory.forEach(msg => appendMessageToFragment(msg));
+        } else if (chatHistory.length === 0) {
+            // 新增：如果历史记录为空，清空所有消息
+            chatContainer.innerHTML = '';
         } else if (currentCount === chatHistory.length) {
             // 如果消息数量相同，只更新最后一条消息（可能是正在生成的AI消息）
             const lastMsg = chatHistory[chatHistory.length - 1];
