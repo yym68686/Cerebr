@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Cerebr",
-  "version": "1.8.5",
+  "version": "1.8.6",
   "description": "Cerebr - 智能AI聊天助手",
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
@@ -60,15 +60,22 @@
         "lib/tex-mml-chtml.js",
         "lib/pdf.js",
         "lib/pdf.worker.js",
-        "lib/fonts/woff-v2/MathJax_Zero.woff",
-        "lib/fonts/woff-v2/MathJax_Main-Regular.woff",
-        "lib/fonts/woff-v2/MathJax_Math-Italic.woff",
+        "lib/fonts/woff-v2/MathJax_AMS-Regular.woff",
         "lib/fonts/woff-v2/MathJax_Calligraphic-Regular.woff",
+        "lib/fonts/woff-v2/MathJax_Fraktur-Bold.woff",
+        "lib/fonts/woff-v2/MathJax_Fraktur-Regular.woff",
+        "lib/fonts/woff-v2/MathJax_Main-Bold.woff",
+        "lib/fonts/woff-v2/MathJax_Main-Regular.woff",
+        "lib/fonts/woff-v2/MathJax_Math-BoldItalic.woff",
+        "lib/fonts/woff-v2/MathJax_Math-Italic.woff",
         "lib/fonts/woff-v2/MathJax_Size1-Regular.woff",
         "lib/fonts/woff-v2/MathJax_Size2-Regular.woff",
-        "lib/fonts/woff-v2/MathJax_Main-Bold.woff",
+        "lib/fonts/woff-v2/MathJax_Size3-Regular.woff",
         "lib/fonts/woff-v2/MathJax_Size4-Regular.woff",
-        "lib/fonts/woff-v2/MathJax_AMS-Regular.woff",
+        "lib/fonts/woff-v2/MathJax_Typewriter-Regular.woff",
+        "lib/fonts/woff-v2/MathJax_Vector-Bold.woff",
+        "lib/fonts/woff-v2/MathJax_Vector-Regular.woff",
+        "lib/fonts/woff-v2/MathJax_Zero.woff",
         "statics/image.png"
       ],
       "matches": ["<all_urls>"]
