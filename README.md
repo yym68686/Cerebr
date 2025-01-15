@@ -22,6 +22,7 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
 
 - 🎯 **Smart Sidebar** - Quick access via hotkey (Windows: `Alt+Z` / Mac: `Ctrl+Z`) to chat with AI anytime, anywhere
 - 🔄 **Multiple API Support** - Configure multiple APIs to flexibly switch between different AI assistants
+- 🔁 **Config Sync** - Cross-browser API configuration synchronization for seamless device switching
 - 📝 **Comprehensive Q&A** - Support webpage content Q&A, PDF document Q&A, image Q&A and more
 - 🎨 **Elegant Rendering** - Perfect support for Markdown text rendering and LaTeX math formula display
 - ⚡ **Real-time Response** - Stream output for instant AI replies
@@ -31,6 +32,7 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
 ## 🛠️ Technical Features
 
 - 💾 **State Persistence** - Automatically save chat history, sidebar status, etc.
+- 🔄 **Config Sync** - Cross-device configuration sharing through browser's native sync API
 - 🔍 **Smart Extraction** - Automatically identify and extract webpage/PDF content
 - ⌨️ **Shortcut Operations** - Support hotkey to clear chat (Windows: `Alt+X` / Mac: `Ctrl+X`), up/down keys for quick history recall
 - 🔒 **Secure & Reliable** - Support multiple API key management with local data storage
