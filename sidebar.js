@@ -191,18 +191,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 只在开关状态不一致时才更新
             if (domains[domain]) {
                 webpageSwitch.checked = domains[domain];
-                document.body.classList.add('loading-content');
-
-                try {
-                    const content = await getPageContent();
-                    if (content) {
-                        pageContent = content;
+                setTimeout(async () => {
+                    try {
+                        const content = await getPageContent();
+                        if (content) {
+                            pageContent = content;
+                        }
+                    } catch (error) {
+                        console.error('loadWebpageSwitch 获取网页内容失败:', error);
                     }
-                } catch (error) {
-                    console.error('loadWebpageSwitch 获取网页内容失败:', error);
-                } finally {
-                    document.body.classList.remove('loading-content');
-                }
+                }, 0);
             }
         } catch (error) {
             console.error('加载网页问答状态失败:', error);
