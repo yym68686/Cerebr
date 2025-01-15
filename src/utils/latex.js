@@ -77,12 +77,12 @@ export function processMathAndMarkdown(text) {
 **第一封邮件（7月22日）**是
 */
 
-    // 处理列表缩进，保持层级关系但使用3个空格
+    // 处理列表缩进，保持层级关系但使用4个空格
     text = text.replace(/^(\s{4,})\*(\s+)/mg, (match, spaces, trailing) => {
         // 计算缩进层级（每4个空格算一级）
         const level = Math.floor(spaces.length / 4);
-        // 为每一级添加3个空格
-        return '   '.repeat(level) + '*' + trailing;
+        // 为每一级添加4个空格
+        return '    '.repeat(level) + '*' + trailing;
     });
 
     // // 处理第一级列表（确保使用3个空格）
