@@ -295,17 +295,29 @@ document.addEventListener('DOMContentLoaded', async () => {
             updatingMessage.classList.remove('updating');
         }
 
-        const message = messageInput.textContent.trim();
+        // 使用innerHTML获取内容，并将<br>转换为\n
+        let message = messageInput.innerHTML
+            .replace(/<div><br><\/div>/g, '\n')  // 处理换行后的空行
+            .replace(/<div>/g, '\n')             // 处理换行后的新行开始
+            .replace(/<\/div>/g, '')             // 处理换行后的新行结束
+            .replace(/<br\s*\/?>/g, '\n')        // 处理单个换行
+            .replace(/&nbsp;/g, ' ');            // 处理空格
+
+        // 将HTML实体转换回实际字符
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = message;
+        message = tempDiv.textContent;
+
         const imageTags = messageInput.querySelectorAll('.image-tag');
 
-        if (!message && imageTags.length === 0) return;
+        if (!message.trim() && imageTags.length === 0) return;
 
         try {
             // 构建消息内容
             let content;
             if (imageTags.length > 0) {
                 content = [];
-                if (message) {
+                if (message.trim()) {
                     content.push({
                         type: "text",
                         text: message
@@ -500,14 +512,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 this.removeChild(this.firstChild);
             }
         }
-
-        // 移除不必要的 br 标签
-        const brElements = this.getElementsByTagName('br');
-        Array.from(brElements).forEach(br => {
-            if (!br.nextSibling || (br.nextSibling.nodeType === Node.TEXT_NODE && br.nextSibling.textContent.trim() === '')) {
-                br.remove();
-            }
-        });
     });
 
     // 处理换行和输入

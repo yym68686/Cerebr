@@ -66,7 +66,16 @@ export function processMathAndMarkdown(text) {
     text = text.replace(/\*\*(?=.*[^\S\n].*\*\*)([^*]+?)\*\*(?!\s)/g, '**$1** ');
     text = text.replace(/\*\*(?=.*：.*\*\*)([^*]+?)\*\*(?!\s)/g, '**$1** ');
     text = text.replace(/\@\@(.+?)\@\@#/g, '**$1** ');
-    text = text.replace(/\*\*(.+?)\*\*(?!\s)/g, '**$1** ');
+    text = text.replace(/ *\*\*([^\s]+?)\*\*(?!\s)/g, ' **$1** ');
+    // text = text.replace(/\s*\*\*([^\s]+?)\*\*(?!\s)/g, '**$1**');
+    // text = text.replace(/\*\*(.+?)\*\*(?!\s)/g, '**$1** ');
+/*
+完整复述下面的字符包括换行：
+为 **Xmodel-2** 的针对**推理任务**进行
+**2. 主要贡献:**
+*   **开源:** Xmodel-2 是开源的
+**第一封邮件（7月22日）**是
+*/
 
     // 处理列表缩进，保持层级关系但使用3个空格
     text = text.replace(/^(\s{4,})\*(\s+)/mg, (match, spaces, trailing) => {
