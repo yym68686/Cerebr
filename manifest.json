@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Cerebr",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "Cerebr - 智能AI聊天助手",
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
@@ -47,11 +47,18 @@
     "service_worker": "background.js",
     "type": "module"
   },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["lib/pdf.js", "content.js"],
+      "run_at": "document_start"
+    }
+  ],
   "web_accessible_resources": [
     {
       "resources": [
         "index.html",
-        "sidebar.js",
+        "src/main.js",
         "sidebar.css",
         "lib/marked.min.js",
         "lib/highlight.min.js",
@@ -79,13 +86,6 @@
         "statics/image.png"
       ],
       "matches": ["<all_urls>"]
-    }
-  ],
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["lib/pdf.js", "content.js"],
-      "run_at": "document_start"
     }
   ]
 }

@@ -1,13 +1,23 @@
-import { setTheme } from './src/utils/theme.js';
-import { handleImageDrop } from './src/utils/image.js';
-import { loadChatHistory } from './src/utils/chat-history.js';
-import { callAPI, processImageTags } from './src/services/chat.js';
-import { processMessageContent } from './src/utils/message-utils.js';
-import { appendMessage, updateAIMessage } from './src/handlers/message-handler.js';
-import { renderAPICards, createCardCallbacks, selectCard } from './src/components/api-card/index.js';
-import { adjustTextareaHeight, showImagePreview, hideImagePreview, createImageTag } from './src/utils/ui.js';
-import { showContextMenu, hideContextMenu, copyMessageContent } from './src/components/context-menu/index.js';
-import { storageAdapter, syncStorageAdapter, browserAdapter, isExtensionEnvironment } from './src/utils/storage-adapter.js';
+import { setTheme } from './utils/theme.js';
+import { handleImageDrop } from './utils/image.js';
+import { loadChatHistory } from './utils/chat-history.js';
+import { callAPI, processImageTags } from './services/chat.js';
+import { processMessageContent } from './utils/message-utils.js';
+import { appendMessage, updateAIMessage } from './handlers/message-handler.js';
+import { renderAPICards, createCardCallbacks, selectCard } from './components/api-card/index.js';
+import { adjustTextareaHeight, showImagePreview, hideImagePreview, createImageTag } from './utils/ui.js';
+import { showContextMenu, hideContextMenu, copyMessageContent } from './components/context-menu/index.js';
+import { storageAdapter, syncStorageAdapter, browserAdapter, isExtensionEnvironment } from './utils/storage-adapter.js';
+
+// 存储用户的问题历史
+let userQuestions = [];
+
+// 初始化历史消息
+function initializeUserQuestions() {
+    const userMessages = document.querySelectorAll('.user-message');
+    userQuestions = Array.from(userMessages).map(msg => msg.textContent.trim());
+    console.log('初始化历史问题:', userQuestions);
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
     const chatContainer = document.getElementById('chat-container');
@@ -24,6 +34,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentMessageElement = null;
     let currentCodeElement = null;
     let currentController = null;  // 用于存储当前的 AbortController
+
+    // 初始化全局变量
+    const clearChat = document.querySelector('#clear-chat');
+
+    // 初始化历史消息
+    initializeUserQuestions();
+
+    // 监听聊天容器的变化，检测新的用户消息
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            mutation.addedNodes.forEach((node) => {
+                if (node.classList && node.classList.contains('user-message')) {
+                    const question = node.textContent.trim();
+                    // 只有当问题不在历史记录中时才添加
+                    if (question && !userQuestions.includes(question)) {
+                        userQuestions.push(question);
+                        console.log('保存新问题:', question);
+                        console.log('当前问题历史:', userQuestions);
+                    }
+                }
+            });
+        });
+    });
+
+    // 开始观察聊天容器的变化
+    observer.observe(chatContainer, { childList: true });
 
     // 创建UI工具配置
     const uiConfig = {
@@ -452,7 +488,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             selection.removeAllRanges();
             selection.addRange(range);
         } else if (event.data.type === 'URL_CHANGED') {
-            console.log('[收到URL变化]', event.data.url);
+            console.log('sidebar.js [收到URL变化]', event.data.url);
             if (webpageSwitch.checked) {
                 console.log('[网页问答] URL变化，重新获取页面内容');
                 document.body.classList.add('loading-content');
@@ -485,6 +521,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                         messageInput.setAttribute('placeholder', '输入消息...');
                     }, event.data.timeout);
                 }
+            }
+        } else if (event.data && event.data.type === 'CLEAR_CHAT_COMMAND') {
+            console.log('收到清空聊天记录命令');
+            const clearChatButton = document.querySelector('#clear-chat');
+            if (clearChatButton) {
+                clearChatButton.click();
             }
         }
     });
@@ -530,6 +572,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else if (e.key === 'Escape') {
             // 按 ESC 键时让输入框失去焦点
             messageInput.blur();
+        } else if (e.key === 'ArrowUp' && e.target.textContent.trim() === '') {
+            // 处理输入框特定的键盘事件
+            // 当按下向上键且输入框为空时
+            e.preventDefault(); // 阻止默认行为
+
+            // 如果有历史记录
+            if (userQuestions.length > 0) {
+                // 如果是第一次按向上键从最后一个问题开始
+                e.target.textContent = userQuestions[userQuestions.length - 1];
+                // 触发入事件以调整高度
+                e.target.dispatchEvent(new Event('input', { bubbles: true }));
+                // 移动光标到末尾
+                const range = document.createRange();
+                range.selectNodeContents(e.target);
+                range.collapse(false);
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
         }
     });
 
@@ -658,13 +719,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 从存储加载配置
     async function loadAPIConfigs() {
         try {
-            // console.log('开始加载API配置...');
-            // console.log('当前环境:', isExtensionEnvironment ? '扩展环境' : '网页环境');
-
             // 统一使用 syncStorageAdapter 来实现配置同步
-            // console.log('使用存储适配器: syncStorageAdapter');
             const result = await syncStorageAdapter.get(['apiConfigs', 'selectedConfigIndex']);
-            // console.log('从存储中读取的配置:', result);
 
             // 分别检查每个配置项
             apiConfigs = result.apiConfigs || [{
@@ -672,20 +728,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 baseUrl: 'https://api.openai.com/v1/chat/completions',
                 modelName: 'gpt-4o'
             }];
-            // console.log('设置后的 apiConfigs:', apiConfigs);
 
             // 只有当 selectedConfigIndex 为 undefined 或 null 时才使用默认值 0
             selectedConfigIndex = result.selectedConfigIndex ?? 0;
-            // console.log('设置后的 selectedConfigIndex:', selectedConfigIndex);
 
             // 只有在没有任何配置的情况下才保存默认配置
             if (!result.apiConfigs) {
-                // console.log('没有找到已存储的配置，保存默认配置...');
                 await saveAPIConfigs();
             }
         } catch (error) {
             console.error('加载 API 配置失败:', error);
-            // console.log('使用默认配置...');
             // 只有在出错的情况下才使用默认值
             apiConfigs = [{
                 apiKey: '',
@@ -695,10 +747,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             selectedConfigIndex = 0;
         }
 
-        // console.log('最终配置状态:', {
-        //     apiConfigs,
-        //     selectedConfigIndex
-        // });
         // 确保一定会渲染卡片
         renderAPICardsWithCallbacks();
     }
@@ -706,22 +754,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 保存配置到存储
     async function saveAPIConfigs() {
         try {
-            // console.log('开始保存API配置...');
-            // console.log('要保存的配置:', {
-            //     apiConfigs,
-            //     selectedConfigIndex
-            // });
-
             // 统一使用 syncStorageAdapter 来实现配置同步
-            // console.log('使用存储适配器: syncStorageAdapter');
             await syncStorageAdapter.set({
                 apiConfigs,
                 selectedConfigIndex
             });
-
-            // 验证保存是否成功
-            const savedResult = await syncStorageAdapter.get(['apiConfigs', 'selectedConfigIndex']);
-            // console.log('验证保存的配置:', savedResult);
         } catch (error) {
             console.error('保存 API 配置失败:', error);
         }
@@ -744,7 +781,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // 清空聊天记录功能
-    const clearChat = document.getElementById('clear-chat');
     clearChat.addEventListener('click', () => {
         // 如果有正在进行的请求，停止它
         if (currentController) {
@@ -768,6 +804,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         selection.removeAllRanges();
         selection.addRange(range);
     });
+    // 清空聊天记录时也清空问题历史
+    if (clearChat) {
+        clearChat.addEventListener('click', () => {
+            userQuestions = userQuestions.slice(-1);
+            console.log('清空问题历史');
+        });
+    }
 
     // 添加点击事件监听
     chatContainer.addEventListener('click', () => {

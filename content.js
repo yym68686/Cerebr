@@ -614,7 +614,7 @@ async function waitForContent() {
             const requestsCompleted = requestManager.isRequestsCompleted();
 
             if (mainElements.length > 0 && requestsCompleted) {
-                console.log(`页面内容已加载，网络请求已完成（已稳定${requestManager.relayRequestCompletedTime}秒无新请求）`);
+                console.log(`页面内容已加载，网络请求已完成（已稳定${requestManager.relayRequestCompletedTime}ms无新请求）`);
                 resolve();
             } else {
                 const reason = [];
