@@ -83,20 +83,18 @@ export async function loadChatHistory({
             // 新增：如果历史记录为空，清空所有消息
             chatContainer.innerHTML = '';
         } else if (currentCount === chatHistory.length) {
-            // 如果消息数量相同，只更新最后一条消息（可能是正在生成的AI消息）
-            const lastMsg = chatHistory[chatHistory.length - 1];
-            const lastDisplayedMsg = currentMessages[currentCount - 1];
+            // 当消息数量相同时，逐条比较内容
+            let foundMismatch = false;
+            for (let i = 0; i < currentCount; i++) {
+                const currentMsg = chatHistory[i];
+                const displayedMsg = currentMessages[i];
+                const displayedContent = displayedMsg.getAttribute('data-original-text') || '';
 
-            // 检查是否是正在更新的AI消息
-            if (lastDisplayedMsg.classList.contains('updating')) {
-                lastDisplayedMsg.remove();
-                appendMessageToFragment(lastMsg);
-            } else {
-                // 如果最后一条消息的内容不同，则更新它
-                const displayedContent = lastDisplayedMsg.getAttribute('data-original-text') || '';
-                if (getMessageContent(lastMsg) !== displayedContent) {
-                    lastDisplayedMsg.remove();
-                    appendMessageToFragment(lastMsg);
+                // 一旦发现不匹配，或之前已经发现过不匹配
+                if (foundMismatch || getMessageContent(currentMsg) !== displayedContent) {
+                    foundMismatch = true;
+                    displayedMsg.remove();
+                    appendMessageToFragment(currentMsg);
                 }
             }
         } else if (currentCount < chatHistory.length) {
