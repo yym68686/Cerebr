@@ -425,7 +425,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // 处理 PING 消息
     if (message.type === 'PING') {
-      sendResponse(true);
+      sendResponse({
+        type: 'PONG',
+        timestamp: message.timestamp,
+        responseTime: Date.now()
+      });
       return true;
     }
 

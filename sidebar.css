@@ -3,7 +3,7 @@
     --cerebr-bg-color: #ffffff;
     --cerebr-text-color: #000000;
     --cerebr-message-user-bg: #e3f2fd;
-    --cerebr-message-ai-bg: #f5f5f5;
+    --cerebr-message-ai-bg: #f8fafc;
     --cerebr-input-bg: #f8f8f8;
     --cerebr-icon-color: #666666;
     --cerebr-blur-radius: 12px;
@@ -422,7 +422,7 @@ input:checked + .slider:before {
     padding: 15px;
     position: relative;
     cursor: pointer;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(0, 0, 0, 0.15);
     transition: all 0.2s ease;
     backdrop-filter: blur(var(--cerebr-blur-radius));
     -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
@@ -504,17 +504,32 @@ input:checked + .slider:before {
 
 .form-group input {
     width: 100%;
-    background: var(--cerebr-input-bg);
-    border: none;
+    background: var(--cerebr-message-ai-bg);
+    border: 1px solid rgba(0, 0, 0, 0.15);
     padding: 8px;
     border-radius: 4px;
     color: var(--cerebr-text-color);
     font-size: 14px;
     box-sizing: border-box;
+    transition: border-color 0.2s ease;
 }
 
 .form-group input:focus {
-    outline: 1px solid rgba(0, 122, 255, 0.5);
+    outline: none;
+    border-color: rgba(0, 122, 255, 0.5);
+    box-shadow: 0 0 0 1px rgba(0, 122, 255, 0.5);
+}
+
+/* 深色主题输入框边框 */
+:root.dark-theme .form-group input {
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* 系统深色模式 */
+@media (prefers-color-scheme: dark) {
+    :root:not(.light-theme) .form-group input {
+        border-color: rgba(255, 255, 255, 0.1);
+    }
 }
 
 /* Markdown 样式 */
@@ -675,15 +690,29 @@ input:checked + .slider:before {
 .message pre::before {
     content: attr(data-language);
     position: absolute;
-    top: 0;
-    right: 0;
+    top: 1px;
+    right: 1px;
     padding: 4px 8px;
     font-size: 12px;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #57606a;
+    background-color: #f6f8fa;
+    border-bottom-left-radius: 8px;
+    opacity: 0.5;
+}
+
+/* 深色模式语言标签 */
+:root.dark-theme .message pre::before {
     color: #7d8590;
     background-color: #161b22;
-    border-bottom-left-radius: 8px;
-    opacity: 0.8;
+}
+
+/* 系统深色模式 */
+@media (prefers-color-scheme: dark) {
+    :root:not(.light-theme) .message pre::before {
+        color: #7d8590;
+        background-color: #161b22;
+    }
 }
 
 /* MathJax样式 */
@@ -1277,5 +1306,17 @@ input:checked + .slider:before {
     :root:not(.light-theme) .message pre code .hljs-strong {
         color: #abb2bf;
         font-weight: bold;
+    }
+}
+
+/* 深色主题API卡片边框 */
+:root.dark-theme .api-card {
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* 系统深色模式 */
+@media (prefers-color-scheme: dark) {
+    :root:not(.light-theme) .api-card {
+        border-color: rgba(255, 255, 255, 0.1);
     }
 }

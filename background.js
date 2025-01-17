@@ -24,6 +24,28 @@ function checkCustomShortcut(callback) {
   });
 }
 
+// 重新注入 content script 并等待连接
+async function reinjectContentScript(tabId) {
+  console.log('标签页未连接，尝试重新注入 content script...');
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['content.js']
+    });
+    console.log('已重新注入 content script');
+    // 给脚本一点时间初始化
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const isConnected = await isTabConnected(tabId);
+    if (!isConnected) {
+      console.log('重新注入后仍未连接');
+    }
+    return isConnected;
+  } catch (error) {
+    console.error('重新注入 content script 失败:', error);
+    return false;
+  }
+}
+
 // 处理标签页连接和消息发送的通用函数
 async function handleTabCommand(commandType) {
   try {
@@ -35,22 +57,37 @@ async function handleTabCommand(commandType) {
 
     // 检查标签页是否已连接
     const isConnected = await isTabConnected(tab.id);
-    if (!isConnected) {
-      console.log('标签页未连接，等待重试...');
-      // 等待一段时间后重试
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const retryConnection = await isTabConnected(tab.id);
-      if (!retryConnection) {
-        console.log('重试失败，标签页仍未连接');
-        return;
-      }
+    if (!isConnected && await reinjectContentScript(tab.id)) {
+      await chrome.tabs.sendMessage(tab.id, { type: commandType });
+      return;
     }
 
-    await chrome.tabs.sendMessage(tab.id, { type: commandType });
+    if (isConnected) {
+      await chrome.tabs.sendMessage(tab.id, { type: commandType });
+    }
   } catch (error) {
     console.error(`处理${commandType}命令失败:`, error);
   }
 }
+
+// 监听扩展图标点击
+chrome.action.onClicked.addListener(async (tab) => {
+  console.log('扩展图标被点击');
+  try {
+    // 检查标签页是否已连接
+    const isConnected = await isTabConnected(tab.id);
+    if (!isConnected && await reinjectContentScript(tab.id)) {
+      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
+      return;
+    }
+
+    if (isConnected) {
+      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
+    }
+  } catch (error) {
+    console.error('处理切换失败:', error);
+  }
+});
 
 // 简化后的命令监听器
 chrome.commands.onCommand.addListener(async (command) => {
@@ -60,29 +97,6 @@ chrome.commands.onCommand.addListener(async (command) => {
     await handleTabCommand('TOGGLE_SIDEBAR_toggle_sidebar');
   } else if (command === 'clear_chat') {
     await handleTabCommand('CLEAR_CHAT');
-  }
-});
-
-// 监听扩展图标点击
-chrome.action.onClicked.addListener(async (tab) => {
-  console.log('扩展图标被点击');
-  try {
-    // 检查标签页是否已连接
-    const isConnected = await isTabConnected(tab.id);
-    if (!isConnected) {
-      console.log('标签页未连接，等待重试...');
-      // 等待一段时间后重试
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const retryConnection = await isTabConnected(tab.id);
-      if (!retryConnection) {
-        console.log('重试失败，标签页仍未连接');
-        return;
-      }
-    }
-
-    await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
-  } catch (error) {
-    console.error('处理切换失败:', error);
   }
 });
 
@@ -194,11 +208,14 @@ chrome.runtime.onInstalled.addListener(() => {
     console.log('扩展已安装/更新:', new Date().toISOString());
 });
 
-// 简化标签页连接检查
+// 改进标签页连接检查
 async function isTabConnected(tabId) {
     try {
-        await chrome.tabs.sendMessage(tabId, { type: 'PING' });
-        return true;
+        const response = await chrome.tabs.sendMessage(tabId, {
+            type: 'PING',
+            timestamp: Date.now()
+        });
+        return response && response.type === 'PONG';
     } catch {
         return false;
     }
