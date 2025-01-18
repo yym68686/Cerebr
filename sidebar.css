@@ -134,10 +134,16 @@ body {
     position: relative;
     height: 100%;
     box-sizing: border-box;
+    margin-top: var(--chat-top-margin, 0px);
+    transition: margin-top 0.3s ease;
 }
 
 #chat-container::-webkit-scrollbar {
     display: none;
+}
+
+.keyboard-visible #chat-container {
+    padding-bottom: calc(60px + env(safe-area-inset-bottom) + var(--keyboard-height, 0px));
 }
 
 /* 消息样式 */
