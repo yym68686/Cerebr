@@ -92,7 +92,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         settingsMenu.classList.remove('visible'); // 使用 classList 来正确切换菜单状态
     });
 
-    // 添加点击事件监听器，让点击侧边栏时自动聚焦到输入框
+    // 添加点击次数跟踪变量
+    let clickCount = 0;
+
+    // 添加点击事件监听
     document.body.addEventListener('click', (e) => {
         // 如果有文本被选中，不要触发输入框聚焦
         if (window.getSelection().toString()) {
@@ -103,8 +106,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!settingsButton.contains(e.target) &&
             !settingsMenu.contains(e.target) &&
             !contextMenu.contains(e.target)) {
-            messageInput.focus();
+
+            clickCount++;
+            if (clickCount % 2 === 1) {
+                // 奇数次点击，聚焦输入框
+                messageInput.focus();
+            } else {
+                // 偶数次点击，取消聚焦
+                messageInput.blur();
+            }
         }
+    });
+
+    // 监听输入框的焦点状态
+    messageInput.addEventListener('focus', () => {
+        // 输入框获得焦点，阻止事件冒泡
+        messageInput.addEventListener('click', (e) => e.stopPropagation());
+    });
+
+    messageInput.addEventListener('blur', () => {
+        // 输入框失去焦点时，移除点击事件监听
+        messageInput.removeEventListener('click', (e) => e.stopPropagation());
     });
 
     // 聊天历史记录变量
