@@ -37,19 +37,19 @@ window.addEventListener('resize', () => {
     resizeTimeout = setTimeout(() => {
         setViewportHeight();
 
-        // 获取聊天容器
-        const chatContainer = document.getElementById('chat-container');
-        if (chatContainer) {
-            // 重新计算滚动位置
-            const scrollPosition = chatContainer.scrollTop;
-            const scrollHeight = chatContainer.scrollHeight;
-            const clientHeight = chatContainer.clientHeight;
+        // // 获取聊天容器
+        // const chatContainer = document.getElementById('chat-container');
+        // if (chatContainer) {
+        //     // 重新计算滚动位置
+        //     const scrollPosition = chatContainer.scrollTop;
+        //     const scrollHeight = chatContainer.scrollHeight;
+        //     const clientHeight = chatContainer.clientHeight;
 
-            // 如果之前滚动到底部，保持在底部
-            if (scrollHeight - scrollPosition <= clientHeight + 50) {
-                chatContainer.scrollTop = chatContainer.scrollHeight;
-            }
-        }
+        //     // 如果之前滚动到底部，保持在底部
+        //     if (scrollHeight - scrollPosition <= clientHeight + 50) {
+        //         chatContainer.scrollTop = chatContainer.scrollHeight;
+        //     }
+        // }
     }, 100);
 });
 
@@ -62,10 +62,10 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 setViewportHeight();
                 // 滚动到底部
-                const chatContainer = document.getElementById('chat-container');
-                if (chatContainer) {
-                    chatContainer.scrollTop = chatContainer.scrollHeight;
-                }
+                // const chatContainer = document.getElementById('chat-container');
+                // if (chatContainer) {
+                //     chatContainer.scrollTop = chatContainer.scrollHeight;
+                // }
             }, 300);
         });
 
