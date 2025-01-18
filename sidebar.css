@@ -778,12 +778,16 @@ input:checked + .slider:before {
     padding: 6px;
     min-width: 140px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-    z-index: 1000;
+    z-index: 2147483647;
     display: none;
     backdrop-filter: blur(var(--cerebr-blur-radius));
     -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
     border: 1px solid rgba(255, 255, 255, 0.1);
-    touch-action: none; /* 防止触摸事件引起页面滚动 */
+    touch-action: none;
+}
+
+#context-menu.visible {
+    display: block;
 }
 
 .context-menu-item {
@@ -797,6 +801,7 @@ input:checked + .slider:before {
     border-radius: 6px;
     margin: 2px 0;
     transition: background-color 0.2s ease;
+    white-space: nowrap;
 }
 
 .context-menu-item:hover {

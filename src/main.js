@@ -861,9 +861,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             currentMessageElement = messageElement;
             currentCodeElement = codeElement;
 
+            // 获取菜单元素
+            const copyMessageButton = document.getElementById('copy-message');
+            const copyCodeButton = document.getElementById('copy-code');
+            const copyMathButton = document.getElementById('copy-math');
+            const stopUpdateButton = document.getElementById('stop-update');
+
             // 根据右键点击的元素类型显示/隐藏相应的菜单项
             copyMessageButton.style.display = 'flex';
             copyCodeButton.style.display = codeElement ? 'flex' : 'none';
+            copyMathButton.style.display = 'none';  // 默认隐藏复制公式按钮
+            stopUpdateButton.style.display = messageElement.classList.contains('updating') ? 'flex' : 'none';
 
             showContextMenu({
                 event: e,
@@ -929,6 +937,109 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (touchTimeout) {
             clearTimeout(touchTimeout);
             touchTimeout = null;
+        }
+    });
+
+    document.addEventListener('contextmenu', (event) => {
+        // 检查是否点击了 MathJax 3 的任何元素
+        const isMathElement = (element) => {
+            const isMjx = element.tagName && element.tagName.toLowerCase().startsWith('mjx-');
+            const hasContainer = element.closest('mjx-container') !== null;
+            return isMjx || hasContainer;
+        };
+
+        if (isMathElement(event.target)) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            // 获取最外层的 mjx-container
+            const container = event.target.closest('mjx-container');
+
+            if (container) {
+                const mathContextMenu = document.getElementById('copy-math');
+                const copyMessageButton = document.getElementById('copy-message');
+                const copyCodeButton = document.getElementById('copy-code');
+                const stopUpdateButton = document.getElementById('stop-update');
+
+                if (mathContextMenu) {
+                    // 设置菜单项的显示状态
+                    mathContextMenu.style.display = 'flex';
+                    copyMessageButton.style.display = 'flex';  // 显示复制消息按钮
+                    copyCodeButton.style.display = 'none';
+                    stopUpdateButton.style.display = 'none';
+
+                    // 获取包含公式的 AI 消息元素
+                    const aiMessage = container.closest('.ai-message');
+                    currentMessageElement = aiMessage;  // 设置当前消息元素为 AI 消息
+
+                    // 调用 showContextMenu 函数
+                    showContextMenu({
+                        event,
+                        messageElement: aiMessage,  // 使用 AI 消息元素
+                        contextMenu,
+                        stopUpdateButton
+                    });
+
+                    // 设置数学公式内容
+                    const assistiveMml = container.querySelector('mjx-assistive-mml');
+                    let mathContent;
+
+                    // 获取原始的 LaTeX 源码
+                    const mjxTexElement = container.querySelector('script[type="math/tex; mode=display"]') ||
+                                        container.querySelector('script[type="math/tex"]');
+
+                    if (mjxTexElement) {
+                        mathContent = mjxTexElement.textContent;
+                    } else {
+                        // 如果找不到原始 LaTeX，尝试从 MathJax 内部存储获取
+                        const mjxInternal = container.querySelector('mjx-math');
+                        if (mjxInternal) {
+                            const texAttr = mjxInternal.getAttribute('aria-label');
+                            if (texAttr) {
+                                // 移除 "TeX:" 前缀（如果有的话）
+                                mathContent = texAttr.replace(/^TeX:\s*/, '');
+                            }
+                        }
+                    }
+
+                    // 如果还是没有找到，尝试其他方法
+                    if (!mathContent) {
+                        if (assistiveMml) {
+                            const texAttr = assistiveMml.getAttribute('aria-label');
+                            if (texAttr) {
+                                mathContent = texAttr.replace(/^TeX:\s*/, '');
+                            }
+                        }
+                    }
+
+                    mathContextMenu.dataset.mathContent = mathContent || container.textContent;
+                }
+            }
+        }
+    }, { capture: true, passive: false });
+
+    // 复制数学公式
+    document.getElementById('copy-math')?.addEventListener('click', async () => {
+        try {
+            // 获取数学公式内容
+            const mathContent = document.getElementById('copy-math').dataset.mathContent;
+
+            if (mathContent) {
+                await navigator.clipboard.writeText(mathContent);
+                console.log('数学公式已复制:', mathContent);
+
+                // 隐藏上下文菜单
+                hideContextMenu({
+                    contextMenu,
+                    onMessageElementReset: () => {
+                        currentMessageElement = null;
+                    }
+                });
+            } else {
+                console.error('没有找到可复制的数学公式内容');
+            }
+        } catch (err) {
+            console.error('复制公式失败:', err);
         }
     });
 
