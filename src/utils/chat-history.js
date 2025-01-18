@@ -84,25 +84,20 @@ export async function loadChatHistory({
         } else if (chatHistory.length === 0) {
             // 新增：如果历史记录为空，清空所有消息
             chatContainer.innerHTML = '';
-        } else if (currentCount === chatHistory.length) {
+        } else {
             // 当消息数量相同时，逐条比较内容
             let foundMismatch = false;
-            for (let i = 0; i < currentCount; i++) {
+            for (let i = 0; i < chatHistory.length; i++) {
                 const currentMsg = chatHistory[i];
                 const displayedMsg = currentMessages[i];
-                const displayedContent = displayedMsg.getAttribute('data-original-text') || '';
+                const displayedContent = displayedMsg?.getAttribute('data-original-text') || '';
 
                 // 一旦发现不匹配，或之前已经发现过不匹配
                 if (foundMismatch || getMessageContent(currentMsg) !== displayedContent) {
                     foundMismatch = true;
-                    displayedMsg.remove();
+                    displayedMsg?.remove();
                     await appendMessageToFragment(currentMsg);
                 }
-            }
-        } else if (currentCount < chatHistory.length) {
-            // 如果有新消息，只添加缺失的消息
-            for (let i = currentCount; i < chatHistory.length; i++) {
-                await appendMessageToFragment(chatHistory[i]);
             }
         }
 
