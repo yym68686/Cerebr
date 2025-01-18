@@ -69,6 +69,10 @@ export function processMathAndMarkdown(text) {
     text = text.replace(/\#\%(.+?)\%\#\@/g, '**$1** ');
     text = text.replace(/ *\*\*([^\s]+?)\*\*(?!\s)/g, ' **$1** ');
     text = text.replace(/(\*\*.+?\*\*)\s：/g, '$1：');
+    text = text.replace(/(\*\*.+?\*\*)\s，/g, '$1，');
+    text = text.replace(/(\*\*.+?\*\*)\s,/g, '$1,');
+    text = text.replace(/(\*\*.+?\*\*)\s\./g, '$1.');
+    text = text.replace(/(\*\*.+?\*\*)\s。/g, '$1。');
     // console.log(text);
 /*
 完整复述下面的字符包括换行：
