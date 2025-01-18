@@ -21,7 +21,7 @@ export async function loadChatHistory({
         const fragment = document.createDocumentFragment();
 
         // 辅助函数：将消息添加到文档片段
-        function appendMessageToFragment(msg) {
+        async function appendMessageToFragment(msg) {
             if (Array.isArray(msg.content)) {
                 // 处理包含图片的消息
                 let messageHtml = '';
@@ -36,7 +36,7 @@ export async function loadChatHistory({
                         messageHtml += imageTag.outerHTML;
                     }
                 });
-                appendMessage({
+                await appendMessage({
                     text: messageHtml,
                     sender: msg.role === 'user' ? 'user' : 'ai',
                     chatContainer,
@@ -45,7 +45,7 @@ export async function loadChatHistory({
                     config: messageHandlerConfig
                 });
             } else {
-                appendMessage({
+                await appendMessage({
                     text: msg.content,
                     sender: msg.role === 'user' ? 'user' : 'ai',
                     chatContainer,
@@ -78,7 +78,9 @@ export async function loadChatHistory({
 
         if (currentCount === 0) {
             // 如果当前没有消息，则加载所有历史消息
-            chatHistory.forEach(msg => appendMessageToFragment(msg));
+            for (const msg of chatHistory) {
+                await appendMessageToFragment(msg);
+            }
         } else if (chatHistory.length === 0) {
             // 新增：如果历史记录为空，清空所有消息
             chatContainer.innerHTML = '';
@@ -94,13 +96,13 @@ export async function loadChatHistory({
                 if (foundMismatch || getMessageContent(currentMsg) !== displayedContent) {
                     foundMismatch = true;
                     displayedMsg.remove();
-                    appendMessageToFragment(currentMsg);
+                    await appendMessageToFragment(currentMsg);
                 }
             }
         } else if (currentCount < chatHistory.length) {
             // 如果有新消息，只添加缺失的消息
             for (let i = currentCount; i < chatHistory.length; i++) {
-                appendMessageToFragment(chatHistory[i]);
+                await appendMessageToFragment(chatHistory[i]);
             }
         }
 

@@ -117,16 +117,24 @@ export function processMathAndMarkdown(text) {
 
 // 渲染数学公式的函数
 export function renderMathInElement(element) {
-    if (window.MathJax) {
-        MathJax.typesetPromise([element])
-            .then(() => {
-                console.log('MathJax 渲染成功');
-            })
-            .catch((err) => {
-                console.error('MathJax 渲染错误:', err);
-                console.error('错误堆栈:', err.stack);
-            });
-    } else {
-        console.error('MathJax 未加载');
-    }
+    return new Promise((resolve, reject) => {
+        const checkMathJax = () => {
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                MathJax.typesetPromise([element])
+                    .then(() => {
+                        console.log('MathJax 渲染成功');
+                        resolve();
+                    })
+                    .catch((err) => {
+                        console.error('MathJax 渲染错误:', err);
+                        console.error('错误堆栈:', err.stack);
+                        reject(err);
+                    });
+            } else {
+                console.log('等待 MathJax 加载...');
+                setTimeout(checkMathJax, 100); // 每100ms检查一次
+            }
+        };
+        checkMathJax();
+    });
 }

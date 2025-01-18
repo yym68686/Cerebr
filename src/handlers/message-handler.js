@@ -28,7 +28,7 @@ import { processImageTags } from '../services/chat.js';
  * @param {MessageHandlerConfig} params.config - 消息处理配置
  * @returns {HTMLElement} 创建的消息元素
  */
-export function appendMessage({
+export async function appendMessage({
     text,
     sender,
     chatContainer,
@@ -51,7 +51,11 @@ export function appendMessage({
     messageDiv.innerHTML = processMathAndMarkdown(text);
 
     // 渲染 LaTeX 公式
-    renderMathInElement(messageDiv);
+    try {
+        await renderMathInElement(messageDiv);
+    } catch (err) {
+        console.error('渲染LaTeX公式失败:', err);
+    }
 
     // 处理消息中的链接
     messageDiv.querySelectorAll('a').forEach(link => {
