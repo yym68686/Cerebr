@@ -120,6 +120,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 监听输入框的焦点状态
     messageInput.addEventListener('focus', () => {
+        // 输入框获得焦点时隐藏右键菜单
+        hideContextMenu({
+            contextMenu,
+            onMessageElementReset: () => { currentMessageElement = null; }
+        });
         // 输入框获得焦点，阻止事件冒泡
         messageInput.addEventListener('click', (e) => e.stopPropagation());
     });
@@ -839,17 +844,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     chatContainer.addEventListener('click', () => {
         // 击聊天区域时让输入框失去焦点
         messageInput.blur();
-    });
-
-    // 监听输入框的焦点状态
-    messageInput.addEventListener('focus', () => {
-        // 输入框获得焦点，阻止事件冒泡
-        messageInput.addEventListener('click', (e) => e.stopPropagation());
-    });
-
-    messageInput.addEventListener('blur', () => {
-        // 输入框失去焦点时，移除点击事件监听
-        messageInput.removeEventListener('click', (e) => e.stopPropagation());
     });
 
     // 监听 AI 消息的右键点击
