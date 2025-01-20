@@ -272,6 +272,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                     }, 0);
                 }
+            } else {
+                webpageSwitch.checked = false;
+                // console.log('loadWebpageSwitch 域名不在存储中:', domain);
             }
         } catch (error) {
             console.error('加载网页问答状态失败:', error);
