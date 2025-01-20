@@ -255,16 +255,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 只在开关状态不一致时才更新
             if (domains[domain]) {
                 webpageSwitch.checked = domains[domain];
-                setTimeout(async () => {
-                    try {
-                        const content = await getPageContent();
-                        if (content) {
-                            pageContent = content;
+                // 检查当前标签页是否活跃
+                const isTabActive = await browserAdapter.sendMessage({
+                    type: 'CHECK_TAB_ACTIVE'
+                });
+
+                if (isTabActive) {
+                    setTimeout(async () => {
+                        try {
+                            const content = await getPageContent();
+                            if (content) {
+                                pageContent = content;
+                            }
+                        } catch (error) {
+                            console.error('loadWebpageSwitch 获取网页内容失败:', error);
                         }
-                    } catch (error) {
-                        console.error('loadWebpageSwitch 获取网页内容失败:', error);
-                    }
-                }, 0);
+                    }, 0);
+                }
             }
         } catch (error) {
             console.error('加载网页问答状态失败:', error);
@@ -932,6 +939,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             clearTimeout(touchTimeout);
             touchTimeout = null;
         }
+        // 如果用户没有触发长按（即正常的触摸结束），则隐藏菜单
+        if (!contextMenu.style.display || contextMenu.style.display === 'none') {
+            hideContextMenu({
+                contextMenu,
+                onMessageElementReset: () => { currentMessageElement = null; }
+            });
+        }
     });
 
     document.addEventListener('contextmenu', (event) => {
@@ -1072,6 +1086,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 点击其他地方隐藏菜单
     document.addEventListener('click', (e) => {
+        if (!contextMenu.contains(e.target)) {
+            hideContextMenu({
+                contextMenu,
+                onMessageElementReset: () => { currentMessageElement = null; }
+            });
+        }
+    });
+
+    // 触摸其他地方隐藏菜单
+    document.addEventListener('touchstart', (e) => {
         if (!contextMenu.contains(e.target)) {
             hideContextMenu({
                 contextMenu,

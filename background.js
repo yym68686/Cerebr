@@ -121,6 +121,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
+  // 检查标签页是否活跃
+  if (message.type === 'CHECK_TAB_ACTIVE') {
+    (async () => {
+      try {
+        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!activeTab) {
+          sendResponse(false);
+          return;
+        }
+        sendResponse(sender.tab && sender.tab.id === activeTab.id);
+      } catch (error) {
+        console.error('检查标签页活跃状态失败:', error);
+        sendResponse(false);
+      }
+    })();
+    return true;
+  }
+
   // 处理来自 sidebar 的网页内容请求
   if (message.type === 'GET_PAGE_CONTENT_FROM_SIDEBAR') {
     (async () => {
