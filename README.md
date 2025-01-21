@@ -115,6 +115,15 @@ This project is developed using Chrome Extension Manifest V3, with main tech sta
 - 📦 Chrome Extension API
 - 🔧 PDF.js + KaTeX + Marked.js
 
+Pake pack
+
+```bash
+iconutil -c icns icon.iconset
+pake https://xxx/ --name Cerebr --hide-title-bar --icon /Users/yanyuming/Downloads/icon.icns
+```
+
+https://github.com/tw93/Pake
+
 ## 🤝 Contribution Guide
 
 Welcome to submit Issues and Pull Requests to help improve the project. Before submitting, please ensure:

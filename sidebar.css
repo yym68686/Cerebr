@@ -173,6 +173,15 @@ body {
     perspective: 1000px;
 }
 
+/* 消息中的图片样式 */
+.message img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 8px 0;
+    border-radius: 6px;
+}
+
 /* 添加更新中的消息样式 */
 .message.updating {
     transform: translateZ(0);

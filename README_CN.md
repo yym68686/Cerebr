@@ -115,6 +115,15 @@ wrangler pages deploy . --project-name cerebr --branch main
 - 📦 Chrome Extension API
 - 🔧 PDF.js + KaTeX + Marked.js
 
+Pake 打包
+
+```bash
+iconutil -c icns icon.iconset
+pake https://xxx/ --name Cerebr --hide-title-bar --icon /Users/yanyuming/Downloads/icon.icns
+```
+
+https://github.com/tw93/Pake
+
 ## 🤝 贡献指南
 
 欢迎提交 Issue 和 Pull Request 来帮助改进项目。在提交之前,请确保:
