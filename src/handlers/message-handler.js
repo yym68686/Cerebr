@@ -127,15 +127,16 @@ export async function appendMessage({
  * @param {HTMLElement} params.chatContainer - 聊天容器元素
  * @param {UpdateAIMessageConfig} params.config - 消息处理配置
  * @param {MessageHandlerConfig} params.messageHandlerConfig - 消息处理器配置
- * @returns {void}
+ * @returns {Promise<boolean>} 返回是否成功更新了消息
  */
-export function updateAIMessage({
+export async function updateAIMessage({
     text,
     chatContainer,
     config,
     messageHandlerConfig
 }) {
-    const lastMessage = chatContainer.querySelector('.ai-message:last-child');
+    const messages = chatContainer.getElementsByClassName('ai-message');
+    const lastMessage = messages.length ? messages[messages.length - 1] : null;
     let rawText = text;
 
     if (lastMessage) {
@@ -150,7 +151,7 @@ export function updateAIMessage({
             lastMessage.innerHTML = processMathAndMarkdown(text);
 
             // 渲染LaTeX公式
-            renderMathInElement(lastMessage);
+            await renderMathInElement(lastMessage);
 
             // 处理新染的链接
             lastMessage.querySelectorAll('a').forEach(link => {
@@ -160,13 +161,16 @@ export function updateAIMessage({
 
             // 更新历史记录
             config.onSaveHistory(rawText);
+            return true;
         }
+        return true; // 如果文本没有变长，也认为是成功的
     } else {
-        appendMessage({
+        await appendMessage({
             text: rawText,
             sender: 'ai',
             chatContainer,
             config: messageHandlerConfig
         });
+        return true;
     }
 }

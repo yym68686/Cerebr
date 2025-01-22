@@ -175,8 +175,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             saveChatHistory();
         },
         onShowImagePreview: showImagePreview,
-        onUpdateAIMessage: (text) => {
-            updateAIMessage({
+        onUpdateAIMessage: async (text, forceNew = false) => {
+            if (forceNew) {
+                // 如果需要强制创建新消息，直接调用appendMessage
+                await appendMessage({
+                    text,
+                    sender: 'ai',
+                    chatContainer,
+                    config: messageHandlerConfig
+                });
+                return true;
+            }
+            // 否则尝试更新现有消息
+            return await updateAIMessage({
                 text,
                 chatContainer,
                 config: updateAIMessageConfig,

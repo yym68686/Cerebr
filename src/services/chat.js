@@ -86,6 +86,8 @@ export async function callAPI({
     // 处理流式响应
     const reader = response.body.getReader();
     let aiResponse = '';
+    let updateLock = Promise.resolve(); // 添加更新锁
+    let updateFailed = false; // 添加更新失败标记
 
     const processStream = async (onUpdate) => {
         while (true) {
@@ -104,7 +106,15 @@ export async function callAPI({
                         const data = JSON.parse(content);
                         if (data.choices?.[0]?.delta?.content) {
                             aiResponse += data.choices[0].delta.content;
-                            onUpdate(aiResponse);
+                            // 使用更新锁确保顺序执行
+                            updateLock = updateLock.then(async () => {
+                                const success = await onUpdate(aiResponse);
+                                if (!success && !updateFailed) {
+                                    updateFailed = true;
+                                    // 如果更新失败，需要重新创建一个AI消息
+                                    await onUpdate(aiResponse, true);
+                                }
+                            });
                         }
                     } catch (e) {
                         console.error('解析响应出错:', e);
@@ -112,6 +122,8 @@ export async function callAPI({
                 }
             }
         }
+        // 等待所有更新完成
+        await updateLock;
         return aiResponse;
     };
 
