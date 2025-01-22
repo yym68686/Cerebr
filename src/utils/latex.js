@@ -12,6 +12,8 @@ export function processMathAndMarkdown(text) {
     text = text.replace(/%\n\s*/g, ''); // 移除换行的百分号
     // 临时替换数学公式
     text = text.replace(/(\\\\\([^]+?\\\\\))|(\\\([^]+?\\\))|(\\\[[\s\S]+?\\\])/g, (match) => {
+        // 处理除号
+        match = match.replace(/\\div\b/g, ' ÷ ');
 
         // 如果是普通括号形式公式，转换为 \(...\) 形式
         if (match.startsWith('(') && match.endsWith(')') && !match.startsWith('\\(')) {

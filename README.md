@@ -119,7 +119,7 @@ Pake pack
 
 ```bash
 iconutil -c icns icon.iconset
-pake https://xxx/ --name Cerebr --hide-title-bar --icon /Users/yanyuming/Downloads/icon.icns
+pake https://xxx/ --name Cerebr --hide-title-bar --icon ./icon.icns
 ```
 
 https://github.com/tw93/Pake
