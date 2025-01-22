@@ -135,8 +135,7 @@ export async function updateAIMessage({
     config,
     messageHandlerConfig
 }) {
-    const messages = chatContainer.getElementsByClassName('ai-message');
-    const lastMessage = messages.length ? messages[messages.length - 1] : null;
+    const lastMessage = chatContainer.querySelector('.ai-message.updating');
     let rawText = text;
 
     if (lastMessage) {
