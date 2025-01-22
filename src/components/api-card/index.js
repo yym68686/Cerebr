@@ -124,6 +124,33 @@ function createAPICard({
         input.addEventListener('focus', stopPropagation);
     });
 
+    // 添加输入法状态跟踪
+    let isComposing = false;
+
+    // 监听输入法开始
+    [apiKeyInput, baseUrlInput, modelNameInput].forEach(input => {
+        input.addEventListener('compositionstart', () => {
+            isComposing = true;
+        });
+
+        // 监听输入法结束
+        input.addEventListener('compositionend', () => {
+            isComposing = false;
+        });
+
+        // 修改键盘事件处理
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                if (isComposing) {
+                    // 如果正在使用输入法，不触发选择
+                    return;
+                }
+                e.preventDefault();
+                onSelect(template, index);
+            }
+        });
+    });
+
     // 为按钮添加点击事件阻止冒泡
     template.querySelectorAll('.card-button').forEach(button => {
         button.addEventListener('click', stopPropagation);
@@ -131,7 +158,7 @@ function createAPICard({
 
     // 添加回车键选择功能
     template.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
+        if (e.key === 'Enter' && !isComposing) {
             e.preventDefault();
             onSelect(template, index);
         }
