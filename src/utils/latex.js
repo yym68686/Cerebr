@@ -7,6 +7,8 @@ export function processMathAndMarkdown(text) {
     // 处理 \boxed 命令，将其包装在 \[ \] 中
     text = text.replace(/\\boxed\{([^}]+)\}/g, '\\[\\boxed{$1}\\]');
 
+    text = text.replace(/^---\n$/gm, '');
+
     // 处理 \textsc 命令
     text = text.replace(/\\textsc\{([^}]+)\}/g, (match, content) => {
         return content.toUpperCase();
