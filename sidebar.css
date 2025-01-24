@@ -431,6 +431,7 @@ input:checked + .slider:before {
     gap: 15px;
 }
 
+/* API卡片基础样式 */
 .api-card {
     background: var(--cerebr-message-ai-bg);
     border-radius: 8px;
@@ -494,16 +495,29 @@ input:checked + .slider:before {
     pointer-events: none;
 }
 
+.card-content {
+    max-width: 360px;
+    margin: 0 auto;
+}
+
 .api-form {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    width: 100%;
 }
 
 .form-group {
     display: flex;
     flex-direction: column;
     gap: 4px;
+    width: 100%;
+}
+
+.form-group input,
+.system-prompt {
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .form-group-header {
@@ -1337,6 +1351,92 @@ input:checked + .slider:before {
 /* 系统深色模式 */
 @media (prefers-color-scheme: dark) {
     :root:not(.light-theme) .api-card {
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+}
+
+/* 高级设置区域样式 */
+.advanced-settings {
+    margin-top: 12px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    padding-top: 12px;
+}
+
+.advanced-settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    padding: 8px 0;
+    user-select: none;
+}
+
+.advanced-settings-header:hover {
+    opacity: 0.8;
+}
+
+.toggle-icon {
+    transition: transform 0.3s ease;
+    font-size: 12px;
+    color: var(--cerebr-text-color);
+    opacity: 0.6;
+}
+
+.advanced-settings-content {
+    overflow: hidden;
+    transition: height 0.3s ease;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.setting-item {
+    margin-top: 12px;
+}
+
+.setting-item label {
+    display: block;
+    font-size: 12px;
+    margin-bottom: 4px;
+    color: var(--cerebr-text-color);
+    opacity: 0.8;
+}
+
+.system-prompt {
+    width: 100%;
+    min-height: 60px;
+    padding: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+    background: var(--cerebr-message-ai-bg);
+    color: var(--cerebr-text-color);
+    font-size: 14px;
+    line-height: 1.5;
+    resize: vertical;
+    font-family: inherit;
+}
+
+.system-prompt:focus {
+    outline: none;
+    border-color: rgba(0, 122, 255, 0.5);
+    box-shadow: 0 0 0 1px rgba(0, 122, 255, 0.5);
+}
+
+/* 深色主题适配 */
+:root.dark-theme .advanced-settings {
+    border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+:root.dark-theme .system-prompt {
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* 系统深色模式适配 */
+@media (prefers-color-scheme: dark) {
+    :root:not(.light-theme) .advanced-settings {
+        border-top-color: rgba(255, 255, 255, 0.1);
+    }
+
+    :root:not(.light-theme) .system-prompt {
         border-color: rgba(255, 255, 255, 0.1);
     }
 }

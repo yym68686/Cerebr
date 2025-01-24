@@ -4,6 +4,9 @@
  * @property {string} apiKey - API密钥
  * @property {string} baseUrl - API的基础URL
  * @property {string} modelName - 模型名称
+ * @property {Object} advancedSettings - 高级设置
+ * @property {string} advancedSettings.systemPrompt - 系统提示
+ * @property {boolean} advancedSettings.isExpanded - 高级设置是否展开
  */
 
 /**
@@ -107,10 +110,51 @@ function createAPICard({
     const apiKeyInput = template.querySelector('.api-key');
     const baseUrlInput = template.querySelector('.base-url');
     const modelNameInput = template.querySelector('.model-name');
+    const systemPromptInput = template.querySelector('.system-prompt');
+    const advancedSettingsHeader = template.querySelector('.advanced-settings-header');
+    const advancedSettingsContent = template.querySelector('.advanced-settings-content');
+    const toggleIcon = template.querySelector('.toggle-icon');
 
+    // 设置初始值
     apiKeyInput.value = config.apiKey || '';
     baseUrlInput.value = config.baseUrl || 'https://api.openai.com/v1/chat/completions';
     modelNameInput.value = config.modelName || 'gpt-4o';
+
+    // 设置系统提示的默认值
+    systemPromptInput.value = config.advancedSettings?.systemPrompt || '';
+
+    // 设置高级设置的展开/折叠状态
+    const isExpanded = config.advancedSettings?.isExpanded || false;
+    advancedSettingsContent.style.display = isExpanded ? 'block' : 'none';
+    toggleIcon.style.transform = isExpanded ? 'rotate(180deg)' : '';
+
+    // 添加高级设置的展开/折叠功能
+    advancedSettingsHeader.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isCurrentlyExpanded = advancedSettingsContent.style.display === 'block';
+        advancedSettingsContent.style.display = isCurrentlyExpanded ? 'none' : 'block';
+        toggleIcon.style.transform = isCurrentlyExpanded ? '' : 'rotate(180deg)';
+
+        // 更新配置
+        onChange(index, {
+            ...config,
+            advancedSettings: {
+                ...config.advancedSettings,
+                isExpanded: !isCurrentlyExpanded
+            }
+        });
+    });
+
+    // 监听系统提示的变化
+    systemPromptInput.addEventListener('change', () => {
+        onChange(index, {
+            ...config,
+            advancedSettings: {
+                ...config.advancedSettings,
+                systemPrompt: systemPromptInput.value
+            }
+        });
+    });
 
     // 阻止输入框和按钮点击事件冒泡
     const stopPropagation = (e) => {
@@ -119,7 +163,7 @@ function createAPICard({
     };
 
     // 为输入框添加点击事件阻止冒泡
-    [apiKeyInput, baseUrlInput, modelNameInput].forEach(input => {
+    [apiKeyInput, baseUrlInput, modelNameInput, systemPromptInput].forEach(input => {
         input.addEventListener('click', stopPropagation);
         input.addEventListener('focus', stopPropagation);
     });
@@ -128,7 +172,7 @@ function createAPICard({
     let isComposing = false;
 
     // 监听输入法开始
-    [apiKeyInput, baseUrlInput, modelNameInput].forEach(input => {
+    [apiKeyInput, baseUrlInput, modelNameInput, systemPromptInput].forEach(input => {
         input.addEventListener('compositionstart', () => {
             isComposing = true;
         });

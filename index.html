@@ -106,34 +106,48 @@
         <div class="api-cards">
             <!-- 卡片模板 -->
             <div class="api-card template" style="display: none;">
-                <div class="api-form">
-                    <div class="form-group">
-                        <div class="form-group-header">
-                            <label>API Key</label>
-                            <div class="card-actions">
-                                <button class="card-button duplicate-btn">
-                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                        <path d="M13 5H7V11H13V5Z" stroke="currentColor" stroke-width="1.5"/>
-                                        <path d="M10 3H4V9" stroke="currentColor" stroke-width="1.5"/>
-                                    </svg>
-                                </button>
-                                <button class="card-button delete-btn">
-                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                        <path d="M3 4H13" stroke="currentColor" stroke-width="1.5"/>
-                                        <path d="M5 4V12H11V4" stroke="currentColor" stroke-width="1.5"/>
-                                    </svg>
-                                </button>
+                <div class="card-content">
+                    <div class="api-form">
+                        <div class="form-group">
+                            <div class="form-group-header">
+                                <label>API Key</label>
+                                <div class="card-actions">
+                                    <button class="card-button duplicate-btn">
+                                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                            <path d="M13 5H7V11H13V5Z" stroke="currentColor" stroke-width="1.5"/>
+                                            <path d="M10 3H4V9" stroke="currentColor" stroke-width="1.5"/>
+                                        </svg>
+                                    </button>
+                                    <button class="card-button delete-btn">
+                                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                            <path d="M3 4H13" stroke="currentColor" stroke-width="1.5"/>
+                                            <path d="M5 4V12H11V4" stroke="currentColor" stroke-width="1.5"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <input type="text" class="api-key" placeholder="输入 API Key">
+                        </div>
+                        <div class="form-group">
+                            <label>Base URL</label>
+                            <input type="text" class="base-url" placeholder="输入 Base URL">
+                        </div>
+                        <div class="form-group">
+                            <label>Model Name</label>
+                            <input type="text" class="model-name" placeholder="输入模型名称">
+                        </div>
+                        <div class="advanced-settings">
+                            <div class="advanced-settings-header" tabindex="0">
+                                <span>高级设置</span>
+                                <span class="toggle-icon">▼</span>
+                            </div>
+                            <div class="advanced-settings-content" style="display: none;">
+                                <div class="setting-item">
+                                    <label for="system-prompt">系统提示</label>
+                                    <textarea id="system-prompt" class="system-prompt" rows="3"></textarea>
+                                </div>
                             </div>
                         </div>
-                        <input type="text" class="api-key" placeholder="输入 API Key">
-                    </div>
-                    <div class="form-group">
-                        <label>Base URL</label>
-                        <input type="text" class="base-url" placeholder="输入 Base URL">
-                    </div>
-                    <div class="form-group">
-                        <label>模型名称</label>
-                        <input type="text" class="model-name" placeholder="输入模型名称">
                     </div>
                 </div>
             </div>

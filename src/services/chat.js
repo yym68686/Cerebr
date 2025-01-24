@@ -46,18 +46,22 @@ export async function callAPI({
     }
 
     // 构建系统消息
+    let systemPrompt = apiConfig.advancedSettings?.systemPrompt || '';
+    systemPrompt = systemPrompt.replace(/\{\{userLanguage\}\}/gm, userLanguage)
+
     const systemMessage = {
         role: "system",
-        content: `数学公式请使用LaTeX表示，行间公式请使用\\[...\\]表示，行内公式请使用\\(...\\)表示，禁止使用$美元符号包裹数学公式。用户语言是 ${userLanguage}。请优先使用 ${userLanguage} 语言回答用户问题。${
+        content: `${systemPrompt}${
             webpageInfo ?
             `\n当前网页内容：\n标题：${webpageInfo.title}\nURL：${webpageInfo.url}\n内容：${webpageInfo.content}` :
             ''
         }`
     };
+    console.log('systemMessage', systemMessage);
 
     // 确保消息数组中有系统消息
     const processedMessages = [...messages];
-    if (processedMessages.length === 0 || processedMessages[0].role !== "system") {
+    if (systemMessage.content.trim() && (processedMessages.length === 0 || processedMessages[0].role !== "system")) {
         processedMessages.unshift(systemMessage);
     }
 
