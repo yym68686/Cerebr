@@ -495,11 +495,6 @@ input:checked + .slider:before {
     pointer-events: none;
 }
 
-.card-content {
-    max-width: 360px;
-    margin: 0 auto;
-}
-
 .api-form {
     display: flex;
     flex-direction: column;
