@@ -92,22 +92,24 @@ export function processMathAndMarkdown(text) {
 *   **OLMo 2-13B**：上下文长度为 **4096 个 token**。
 */
 
-    // 处理第一级列表（确保使用3个空格）
-    text = text.replace(/^\s{3,4}\*\s+/mg, '    *   ');
+    // // 处理第一级列表（确保使用3个空格）
+    // text = text.replace(/^ {3,4}\*\s+/mg, '    * ');
 
-    // 处理列表缩进，保持层级关系但使用4个空格
-    text = text.replace(/^(\s{4,})\*(\s+)/mg, (match, spaces, trailing) => {
-        // 找出所有列表项的最小缩进空格数
-        const minIndent = Math.min(...text.match(/^(\s*)\*/mg).map(s => s.length - 1));
-        // 计算当前项相对于最小缩进的层级（每4个空格算一级）
-        const relativeLevel = Math.floor((spaces.length - minIndent) / 4);
-        // 根据最小缩进确定最大允许层级
-        const maxLevel = minIndent === 0 ? 2 : (minIndent === 4 ? 3 : 4);
-        // 限制最终层级
-        const level = Math.min(relativeLevel, maxLevel - Math.floor(minIndent / 4));
-        // 为每一级添加4个空格
-        return '    '.repeat(level) + '*   ';
-    });
+    // // 处理列表缩进，保持层级关系但使用4个空格
+    // text = text.replace(/^( {4,})\*(\s+)/mg, (match, spaces, trailing) => {
+    //     // 找出所有列表项的最小缩进空格数
+    //     const minIndent = Math.min(...text.match(/^( *)\*/mg).map(s => s.length - 1));
+    //     // 计算当前项相对于最小缩进的层级（每4个空格算一级）
+    //     const relativeLevel = Math.floor((spaces.length - minIndent) / 4);
+    //     // 根据最小缩进确定最大允许层级
+    //     const maxLevel = minIndent === 0 ? 2 : (minIndent === 4 ? 3 : 4);
+    //     // 限制最终层级
+    //     const level = Math.min(relativeLevel, maxLevel - Math.floor(minIndent / 4));
+    //     // 为每一级添加4个空格
+    //     return '    '.repeat(level) + '* ';
+    // });
+
+    // console.log(text);
 
     // 渲染 Markdown
     let html = marked.parse(text);
