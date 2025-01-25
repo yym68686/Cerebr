@@ -1408,6 +1408,7 @@ input:checked + .slider:before {
     line-height: 1.5;
     resize: vertical;
     font-family: inherit;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .system-prompt:focus {
@@ -1425,6 +1426,11 @@ input:checked + .slider:before {
     border-color: rgba(255, 255, 255, 0.1);
 }
 
+:root.dark-theme .system-prompt:focus {
+    border-color: rgba(0, 122, 255, 0.5);
+    box-shadow: 0 0 0 1px rgba(0, 122, 255, 0.5);
+}
+
 /* 系统深色模式适配 */
 @media (prefers-color-scheme: dark) {
     :root:not(.light-theme) .advanced-settings {
@@ -1433,5 +1439,10 @@ input:checked + .slider:before {
 
     :root:not(.light-theme) .system-prompt {
         border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    :root:not(.light-theme) .system-prompt:focus {
+        border-color: rgba(0, 122, 255, 0.5);
+        box-shadow: 0 0 0 1px rgba(0, 122, 255, 0.5);
     }
 }
