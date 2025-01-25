@@ -1352,9 +1352,8 @@ input:checked + .slider:before {
 
 /* 高级设置区域样式 */
 .advanced-settings {
-    margin-top: 12px;
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
-    padding-top: 12px;
+    margin-top: 0;
+    padding-top: 4px;
 }
 
 .advanced-settings-header {
@@ -1362,12 +1361,16 @@ input:checked + .slider:before {
     justify-content: space-between;
     align-items: center;
     cursor: pointer;
-    padding: 8px 0;
+    padding: 8px 12px;
     user-select: none;
+    background: var(--cerebr-message-ai-bg);
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
 }
 
 .advanced-settings-header:hover {
-    opacity: 0.8;
+    opacity: 1;
+    background: var(--cerebr-message-user-bg);
 }
 
 .toggle-icon {
@@ -1419,7 +1422,7 @@ input:checked + .slider:before {
 
 /* 深色主题适配 */
 :root.dark-theme .advanced-settings {
-    border-top-color: rgba(255, 255, 255, 0.1);
+    border-top-color: transparent;
 }
 
 :root.dark-theme .system-prompt {
@@ -1434,7 +1437,7 @@ input:checked + .slider:before {
 /* 系统深色模式适配 */
 @media (prefers-color-scheme: dark) {
     :root:not(.light-theme) .advanced-settings {
-        border-top-color: rgba(255, 255, 255, 0.1);
+        border-top-color: transparent;
     }
 
     :root:not(.light-theme) .system-prompt {
