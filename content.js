@@ -649,10 +649,27 @@ async function waitForContent() {
 async function extractPageContent() {
   console.log('extractPageContent 开始提取页面内容');
 
-  // 检查是否是PDF
-  if (document.contentType === 'application/pdf') {
+  // 检查是否是PDF或者iframe中的PDF
+  if (document.contentType === 'application/pdf' ||
+      (window.location.href.includes('.pdf') ||
+       document.querySelector('iframe[src*="pdf.js"]') ||
+       document.querySelector('iframe[src*=".pdf"]'))) {
     console.log('检测到PDF文件，尝试提取PDF内容');
-    const pdfText = await extractTextFromPDF(window.location.href);
+    let pdfUrl = window.location.href;
+
+    // 如果是iframe中的PDF，尝试提取实际的PDF URL
+    const pdfIframe = document.querySelector('iframe[src*="pdf.js"]') || document.querySelector('iframe[src*=".pdf"]');
+    if (pdfIframe) {
+      const iframeSrc = pdfIframe.src;
+      // 尝试从iframe src中提取实际的PDF URL
+      const urlMatch = iframeSrc.match(/[?&]file=([^&]+)/);
+      if (urlMatch) {
+        pdfUrl = decodeURIComponent(urlMatch[1]);
+        console.log('从iframe中提取到PDF URL:', pdfUrl);
+      }
+    }
+
+    const pdfText = await extractTextFromPDF(pdfUrl);
     if (pdfText) {
       return {
         title: document.title,
