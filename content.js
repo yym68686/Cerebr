@@ -802,8 +802,10 @@ async function extractTextFromPDF(url) {
       fullText += pageText + '\n';
     }
 
-    console.log('PDF文本提取完成，总文本长度:', fullText.length);
-    sendPlaceholderUpdate('PDF处理完成', 2000);
+    // 计算GPT分词数量
+    const gptTokenCount = await estimateGPTTokens(fullText);
+    console.log('PDF文本提取完成，总文本长度:', fullText.length, '预计GPT tokens:', gptTokenCount);
+    sendPlaceholderUpdate(`PDF处理完成 (约 ${gptTokenCount} tokens)`, 2000);
     return fullText;
   } catch (error) {
     console.error('PDF处理过程中出错:', error);
@@ -819,5 +821,18 @@ async function extractTextFromPDF(url) {
       }
     }
     return null;
+  }
+}
+
+// 添加GPT分词估算函数
+async function estimateGPTTokens(text) {
+  try {
+    // 简单估算：平均每4个字符约为1个token
+    // 这是一个粗略估计，实际token数可能会有所不同
+    const estimatedTokens = Math.ceil(text.length / 4.25625);
+    return estimatedTokens;
+  } catch (error) {
+    console.error('计算GPT tokens时出错:', error);
+    return 0;
   }
 }
