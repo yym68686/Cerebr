@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Cerebr",
-  "version": "2.0.8",
+  "version": "2.0.9",
   "description": "Cerebr - 智能AI聊天助手",
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
@@ -32,6 +32,7 @@
     "toggle_sidebar": {
       "suggested_key": {
         "default": "Alt+Z",
+        "windows": "Alt+Z",
         "mac": "MacCtrl+Z"
       },
       "description": "打开/关闭 Cerebr 侧边栏"
@@ -39,6 +40,7 @@
     "clear_chat": {
       "suggested_key": {
         "default": "Alt+X",
+        "windows": "Alt+X",
         "mac": "MacCtrl+X"
       },
       "description": "清空聊天记录"

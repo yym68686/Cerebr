@@ -14,6 +14,12 @@ export function processMathAndMarkdown(text) {
         return content.toUpperCase();
     });
 
+    // 处理 think 标签，将其转换为引用格式
+    text = text.replace(/<think>([\s\S]*?)<\/think>/g, (match, content) => {
+        // 处理多行文本，为每一行添加引用符号
+        return content.trim().split('\n').map(line => `> ${line.trim()}`).join('\n');
+    });
+
     text = text.replace(/%\n\s*/g, ''); // 移除换行的百分号
     // 临时替换数学公式
     text = text.replace(/(\\\\\([^]+?\\\\\))|(\\\([^]+?\\\))|(\\\[[\s\S]+?\\\])/g, (match) => {
