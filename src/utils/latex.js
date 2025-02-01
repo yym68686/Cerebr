@@ -15,9 +15,19 @@ export function processMathAndMarkdown(text) {
     });
 
     // 处理 think 标签，将其转换为引用格式
+    // 首先处理完整的 <think>...</think> 标签
     text = text.replace(/<think>([\s\S]*?)<\/think>/g, (match, content) => {
         // 处理多行文本，为每一行添加引用符号
         return content.trim().split('\n').map(line => `> ${line.trim()}`).join('\n');
+    });
+
+    // 然后处理只有开始标签的情况
+    text = text.replace(/<think>\n?([\s\S]*?)(?=<\/think>|$)/g, (match, content) => {
+        if (!match.includes('</think>')) {
+            // 如果没有结束标签，将所有后续内容都转换为引用格式
+            return content.trim().split('\n').map(line => `> ${line.trim()}`).join('\n');
+        }
+        return match; // 如果有结束标签，保持原样（因为已经在上一步处理过了）
     });
 
     text = text.replace(/%\n\s*/g, ''); // 移除换行的百分号
