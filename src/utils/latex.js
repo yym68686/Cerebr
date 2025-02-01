@@ -54,7 +54,7 @@ export function processMathAndMarkdown(text) {
 
     // 配置 marked
     marked.setOptions({
-        breaks: false,
+        breaks: true,
         gfm: true,
         sanitize: false,
         highlight: function(code, lang) {
