@@ -436,7 +436,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
 
             // 构建消息数组
-            const messages = [...chatHistory.slice(0, -1)];  // 排除刚刚添加的用户消息
+            const messages = [...chatHistory];  // 排除刚刚添加的用户消息
             messages.push(userMessage);
 
             // 准备API调用参数

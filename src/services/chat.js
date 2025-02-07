@@ -57,7 +57,6 @@ export async function callAPI({
             ''
         }`
     };
-    console.log('systemMessage', systemMessage);
 
     // 确保消息数组中有系统消息
     const processedMessages = [...messages];
