@@ -12,6 +12,7 @@ export async function loadChatHistory({
     try {
         const rawHistory = await getChatHistory();
         const chatHistory = rawHistory.map(msg => processMessageContent(msg, processImageTags));
+        // console.log('chatHistory', chatHistory);
 
         // 获取当前显示的消息数量
         const currentMessages = chatContainer.querySelectorAll('.message');
@@ -37,7 +38,7 @@ export async function loadChatHistory({
                     }
                 });
                 await appendMessage({
-                    text: messageHtml,
+                    text: {"content": messageHtml, "reasoning_content": msg.reasoning_content},
                     sender: msg.role === 'user' ? 'user' : 'ai',
                     chatContainer,
                     skipHistory: true,
@@ -46,7 +47,7 @@ export async function loadChatHistory({
                 });
             } else {
                 await appendMessage({
-                    text: msg.content,
+                    text: msg,
                     sender: msg.role === 'user' ? 'user' : 'ai',
                     chatContainer,
                     skipHistory: true,

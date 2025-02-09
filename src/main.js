@@ -162,7 +162,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const updateAIMessageConfig = {
         onSaveHistory: (text) => {
             if (chatHistory.length > 0) {
-                chatHistory[chatHistory.length - 1].content = text;
+                chatHistory[chatHistory.length - 1].content = text.content;
+                if (text.reasoning_content) {
+                    chatHistory[chatHistory.length - 1].reasoning_content = text.reasoning_content;
+                }
                 saveChatHistory();
             }
         }
@@ -468,7 +471,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 config: messageHandlerConfig
             });
             // 从 chatHistory 中移除最后一条记录（用户的问题）
-            chatHistory.pop();
+            if (chatHistory.length > 0) {
+                if (chatHistory[chatHistory.length - 1].role === 'assistant') {
+                    chatHistory.pop();
+                    chatHistory.pop();
+                } else {
+                    chatHistory.pop();
+                }
+            }
             saveChatHistory();
         } finally {
             const lastMessage = chatContainer.querySelector('.ai-message:last-child');

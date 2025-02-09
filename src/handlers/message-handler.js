@@ -20,7 +20,7 @@ import { processImageTags } from '../services/chat.js';
 /**
  * 添加消息到聊天界面
  * @param {Object} params - 参数对象
- * @param {string} params.text - 消息文本内容
+ * @param {Object|string} params.text - 消息文本内容，可以是字符串或包含content和reasoning_content的对象
  * @param {string} params.sender - 发送者类型 ("user" | "assistant")
  * @param {HTMLElement} params.chatContainer - 聊天容器元素
  * @param {boolean} [params.skipHistory=false] - 是否跳过历史记录
@@ -44,11 +44,47 @@ export async function appendMessage({
         messageDiv.classList.add('batch-load');
     }
 
-    // 存储原始文本用于复制
-    messageDiv.setAttribute('data-original-text', text);
+    // 处理文本内容
+    const textContent = typeof text === 'string' ? text : text.content;
+    const reasoningContent = typeof text === 'string' ? null : text.reasoning_content;
 
-    // 处理数学公式和 Markdown
-    messageDiv.innerHTML = processMathAndMarkdown(text);
+    // 存储原始文本用于复制
+    messageDiv.setAttribute('data-original-text', textContent);
+
+    // 如果有思考内容，添加思考模块
+    if (reasoningContent) {
+        const reasoningWrapper = document.createElement('div');
+        reasoningWrapper.className = 'reasoning-wrapper';
+
+        const reasoningDiv = document.createElement('div');
+        reasoningDiv.className = 'reasoning-content';
+
+        // 添加占位文本容器
+        const placeholderDiv = document.createElement('div');
+        placeholderDiv.className = 'reasoning-placeholder';
+        placeholderDiv.textContent = '深度思考';
+        reasoningDiv.appendChild(placeholderDiv);
+
+        // 添加文本容器
+        const reasoningTextDiv = document.createElement('div');
+        reasoningTextDiv.className = 'reasoning-text';
+        reasoningTextDiv.innerHTML = processMathAndMarkdown(reasoningContent).trim();
+        reasoningDiv.appendChild(reasoningTextDiv);
+
+        // 添加点击事件处理折叠/展开
+        reasoningDiv.onclick = function() {
+            this.classList.toggle('collapsed');
+        };
+
+        reasoningWrapper.appendChild(reasoningDiv);
+        messageDiv.appendChild(reasoningWrapper);
+    }
+
+    // 添加主要内容
+    const mainContent = document.createElement('div');
+    mainContent.className = 'main-content';
+    mainContent.innerHTML = processMathAndMarkdown(textContent);
+    messageDiv.appendChild(mainContent);
 
     // 渲染 LaTeX 公式
     try {
@@ -97,10 +133,11 @@ export async function appendMessage({
 
     // 只有在不跳过历史记录时才添加到历史记录
     if (!skipHistory) {
-        const messageContent = processImageTags(text);
+        const messageContent = processImageTags(textContent);
         const message = {
             role: sender === 'user' ? 'user' : 'assistant',
-            content: messageContent
+            content: messageContent,
+            ...(reasoningContent && { reasoning_content: reasoningContent })
         };
 
         config.onSaveHistory(message);
@@ -123,7 +160,9 @@ export async function appendMessage({
 /**
  * 更新AI消息内容
  * @param {Object} params - 参数对象
- * @param {string} params.text - 新的消息文本
+ * @param {Object} params.text - 新的消息文本对象，包含content和reasoningContent
+ * @param {string} params.text.content - 主要消息内容
+ * @param {string|null} params.text.reasoning_content - 深度思考内容
  * @param {HTMLElement} params.chatContainer - 聊天容器元素
  * @param {UpdateAIMessageConfig} params.config - 消息处理配置
  * @param {MessageHandlerConfig} params.messageHandlerConfig - 消息处理器配置
@@ -136,21 +175,98 @@ export async function updateAIMessage({
     messageHandlerConfig
 }) {
     const lastMessage = chatContainer.querySelector('.ai-message.updating');
-    let rawText = text;
+
+    // 处理文本内容
+    const textContent = typeof text === 'string' ? text : text.content;
+    const reasoningContent = typeof text === 'string' ? null : text.reasoning_content;
 
     if (lastMessage) {
         // 获取当前显示的文本
         const currentText = lastMessage.getAttribute('data-original-text') || '';
         // 如果新文本比当前文本长，说有新内容需要更新
-        if (text.length > currentText.length) {
+        if (textContent.length > currentText.length || reasoningContent) {
             // 更新原始文本属性
-            lastMessage.setAttribute('data-original-text', text);
+            lastMessage.setAttribute('data-original-text', textContent);
 
-            // 处理数学公式和Markdown
-            lastMessage.innerHTML = processMathAndMarkdown(text);
+            // 处理深度思考内容
+            let reasoningDiv = lastMessage.querySelector('.reasoning-content');
+            if (reasoningContent) {
+                if (!reasoningDiv) {
+                    const reasoningWrapper = document.createElement('div');
+                    reasoningWrapper.className = 'reasoning-wrapper';
+
+                    reasoningDiv = document.createElement('div');
+                    reasoningDiv.className = 'reasoning-content';
+
+                    // 添加占位文本容器
+                    const placeholderDiv = document.createElement('div');
+                    placeholderDiv.className = 'reasoning-placeholder';
+                    placeholderDiv.textContent = '深度思考';
+                    reasoningDiv.appendChild(placeholderDiv);
+
+                    // 添加文本容器
+                    const reasoningTextDiv = document.createElement('div');
+                    reasoningTextDiv.className = 'reasoning-text';
+                    reasoningDiv.appendChild(reasoningTextDiv);
+
+                    // 添加点击事件处理折叠/展开
+                    reasoningDiv.onclick = function() {
+                        this.classList.toggle('collapsed');
+                    };
+
+                    reasoningWrapper.appendChild(reasoningDiv);
+
+                    // 确保深度思考模块在最上方
+                    if (lastMessage.firstChild) {
+                        lastMessage.insertBefore(reasoningWrapper, lastMessage.firstChild);
+                    } else {
+                        lastMessage.appendChild(reasoningWrapper);
+                    }
+                }
+
+                // 获取或创建文本容器
+                let reasoningTextDiv = reasoningDiv.querySelector('.reasoning-text');
+                if (!reasoningTextDiv) {
+                    reasoningTextDiv = document.createElement('div');
+                    reasoningTextDiv.className = 'reasoning-text';
+                    reasoningDiv.appendChild(reasoningTextDiv);
+                }
+
+                // 获取当前显示的文本
+                const currentReasoningText = reasoningTextDiv.getAttribute('data-original-text') || '';
+
+                // 如果新文本比当前文本长，说明有新内容需要更新
+                if (reasoningContent.length > currentReasoningText.length) {
+                    // 更新原始文本属性
+                    reasoningTextDiv.setAttribute('data-original-text', reasoningContent);
+                    // 更新显示内容
+                    reasoningTextDiv.innerHTML = processMathAndMarkdown(reasoningContent).trim();
+                    await renderMathInElement(reasoningTextDiv);
+                }
+            }
+
+            // 处理主要内容
+            const mainContent = document.createElement('div');
+            mainContent.className = 'main-content';
+            mainContent.innerHTML = processMathAndMarkdown(textContent);
+
+            // 清除原有的主要内容
+            Array.from(lastMessage.children).forEach(child => {
+                if (!child.classList.contains('reasoning-wrapper')) {
+                    child.remove();
+                }
+            });
+
+            // 将主要内容添加到深度思考模块之后
+            const reasoningWrapper = lastMessage.querySelector('.reasoning-wrapper');
+            if (reasoningWrapper) {
+                lastMessage.insertBefore(mainContent, reasoningWrapper.nextSibling);
+            } else {
+                lastMessage.appendChild(mainContent);
+            }
 
             // 渲染LaTeX公式
-            await renderMathInElement(lastMessage);
+            await renderMathInElement(mainContent);
 
             // 处理新染的链接
             lastMessage.querySelectorAll('a').forEach(link => {
@@ -158,14 +274,23 @@ export async function updateAIMessage({
                 link.rel = 'noopener noreferrer';
             });
 
-            // 更新历史记录
-            config.onSaveHistory(rawText);
+            // 更新历史记录（包含主要内容和思考内容）
+            const message = {
+                role: 'assistant',
+                content: textContent,
+                ...(reasoningContent && { reasoning_content: reasoningContent })
+            };
+            config.onSaveHistory(message);
             return true;
         }
         return true; // 如果文本没有变长，也认为是成功的
     } else {
+        // 创建新消息时也需要包含思考内容
         await appendMessage({
-            text: rawText,
+            text: {
+                content: textContent,
+                reasoning_content: reasoningContent
+            },
             sender: 'ai',
             chatContainer,
             config: messageHandlerConfig

@@ -59,7 +59,12 @@ export async function callAPI({
     };
 
     // 确保消息数组中有系统消息
-    const processedMessages = [...messages];
+    // 删除消息列表中的reasoning_content字段
+    const processedMessages = messages.map(msg => {
+        const { reasoning_content, ...rest } = msg;
+        return rest;
+    });
+
     if (systemMessage.content.trim() && (processedMessages.length === 0 || processedMessages[0].role !== "system")) {
         processedMessages.unshift(systemMessage);
     }
@@ -89,6 +94,7 @@ export async function callAPI({
     // 处理流式响应
     const reader = response.body.getReader();
     let aiResponse = '';
+    let reasoningContent = '';
     let updateLock = Promise.resolve(); // 添加更新锁
     let updateFailed = false; // 添加更新失败标记
 
@@ -107,7 +113,8 @@ export async function callAPI({
 
                     try {
                         const data = JSON.parse(content);
-                        if (data.choices?.[0]?.delta?.content) {
+                        const delta = data.choices?.[0]?.delta;
+                        if (delta?.content) {
                             aiResponse += data.choices[0].delta.content;
                             // 使用更新锁确保顺序执行
                             updateLock = updateLock.then(async () => {
@@ -116,6 +123,22 @@ export async function callAPI({
                                     updateFailed = true;
                                     // 如果更新失败，需要重新创建一个AI消息
                                     await onUpdate(aiResponse, true);
+                                }
+                            });
+                        }
+                        if (delta?.reasoning_content) {
+                            reasoningContent += delta.reasoning_content;
+                            updateLock = updateLock.then(async () => {
+                                const success = await onUpdate({
+                                    content: aiResponse,
+                                    reasoning_content: reasoningContent
+                                });
+                                if (!success && !updateFailed) {
+                                    updateFailed = true;
+                                    await onUpdate({
+                                        content: aiResponse,
+                                        reasoning_content: reasoningContent
+                                    }, true);
                                 }
                             });
                         }

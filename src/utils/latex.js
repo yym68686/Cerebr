@@ -148,7 +148,6 @@ export function renderMathInElement(element) {
             if (window.MathJax && window.MathJax.typesetPromise) {
                 MathJax.typesetPromise([element])
                     .then(() => {
-                        console.log('MathJax 渲染成功');
                         resolve();
                     })
                     .catch((err) => {
