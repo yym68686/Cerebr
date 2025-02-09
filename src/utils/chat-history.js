@@ -85,7 +85,6 @@ export async function loadChatHistory({
             // 新增：如果历史记录为空，清空所有消息
             chatContainer.innerHTML = '';
         } else {
-            // 当消息数量相同时，逐条比较内容
             let foundMismatch = false;
             for (let i = 0; i < chatHistory.length; i++) {
                 const currentMsg = chatHistory[i];

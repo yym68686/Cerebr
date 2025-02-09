@@ -752,6 +752,14 @@ input:checked + .slider:before {
     padding: 0.1em 0;
 }
 
+.math-display-container + br + .math-display-container {
+    margin-top: -1em;
+}
+
+.math-display-container + br {
+    display: none;
+}
+
 .MathJax_Display {
     overflow-x: visible;
     overflow-y: hidden;

@@ -26,6 +26,7 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
 - 📝 **Comprehensive Q&A** - Support webpage content Q&A, PDF document Q&A, image Q&A and more
 - 🎨 **Elegant Rendering** - Perfect support for Markdown text rendering and LaTeX math formula display
 - ⚡ **Real-time Response** - Stream output for instant AI replies
+- ⏹️ **Flexible Control** - Support stopping generation at any time, sending new messages will stop the current generation
 - 🌓 **Theme Switching** - Support light/dark themes to protect your eyes
 - 🌐 **Web Version** - Support web version, no installation required, accessable from any browser, support vercel, GitHub Pages and cloudflare pages deployment
 
@@ -59,6 +60,7 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
 
 - 📋 **Right-click Copy** - Support right-click to directly copy message text
 - 🔄 **History Records** - Use up/down arrow keys to quickly recall historical questions
+- ⏹️ **Stop Generation** - Show stop button when generating messages, can stop generation at any time
 - 🖼️ **Image Preview** - Click images to view full size
 - ⚙️ **Custom Settings** - Support customizing hotkeys, themes and more
 
@@ -100,6 +102,23 @@ The deployment will be automatically handled by GitHub Actions. You can access y
 - ☁️ Deploy your own instance for better control
 - 🔒 Secure and private deployment
 
+## 📦 Desktop Application
+
+After installing the dmg file, you need to execute the following command:
+
+```bash
+sudo xattr -r -d com.apple.quarantine /Applications/Cerebr.app
+```
+
+This project uses Pake to pack the dmg file, the command is as follows:
+
+```bash
+iconutil -c icns icon.iconset
+pake https://xxx/ --name Cerebr --hide-title-bar --icon ./icon.icns
+```
+
+https://github.com/tw93/Pake
+
 ## 🚀 Latest Updates
 
 - 🆕 Added image Q&A functionality
@@ -114,15 +133,6 @@ This project is developed using Chrome Extension Manifest V3, with main tech sta
 - 🎨 Native JavaScript + CSS
 - 📦 Chrome Extension API
 - 🔧 PDF.js + KaTeX + Marked.js
-
-Pake pack
-
-```bash
-iconutil -c icns icon.iconset
-pake https://xxx/ --name Cerebr --hide-title-bar --icon ./icon.icns
-```
-
-https://github.com/tw93/Pake
 
 ## 🤝 Contribution Guide
 
