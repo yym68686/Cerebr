@@ -1,6 +1,5 @@
 import { setTheme } from './utils/theme.js';
 import { handleImageDrop } from './utils/image.js';
-import { loadChatHistory } from './utils/chat-history.js';
 import { callAPI, processImageTags } from './services/chat.js';
 import { processMessageContent } from './utils/message-utils.js';
 import { appendMessage, updateAIMessage } from './handlers/message-handler.js';
@@ -8,7 +7,14 @@ import { renderAPICards, createCardCallbacks, selectCard } from './components/ap
 import { adjustTextareaHeight, showImagePreview, hideImagePreview, createImageTag } from './utils/ui.js';
 import { showContextMenu, hideContextMenu, copyMessageContent } from './components/context-menu/index.js';
 import { storageAdapter, syncStorageAdapter, browserAdapter, isExtensionEnvironment } from './utils/storage-adapter.js';
+import { chatManager } from './utils/chat-manager.js';
 import './utils/viewport.js';
+import {
+    hideChatList,
+    initChatListEvents,
+    loadChatContent,
+    initializeChatList
+} from './components/chat-list/index.js';
 
 // 存储用户的问题历史
 let userQuestions = [];
@@ -32,12 +38,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const feedbackButton = document.getElementById('feedback-button');
     const previewModal = document.querySelector('.image-preview-modal');
     const previewImage = previewModal.querySelector('img');
+    const chatListPage = document.getElementById('chat-list-page');
+    const newChatButton = document.getElementById('new-chat');
+    const chatListButton = document.getElementById('chat-list');
+    const apiSettings = document.getElementById('api-settings');
     let currentMessageElement = null;
     let currentCodeElement = null;
-    let currentController = null;  // 用于存储当前的 AbortController
-
-    // 初始化全局变量
-    const clearChat = document.querySelector('#clear-chat');
+    let currentController = null;
 
     // 初始化历史消息
     initializeUserQuestions();
@@ -134,48 +141,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         messageInput.removeEventListener('click', (e) => e.stopPropagation());
     });
 
-    // 聊天历史记录变量
-    let chatHistory = [];
-
-    // 修改保存聊天历史记录的函数
-    async function saveChatHistory() {
-        try {
-            // 在保存之前处理消息格式
-            const processedHistory = chatHistory.map(msg => processMessageContent(msg, processImageTags));
-            await storageAdapter.set({ chatHistory: processedHistory });
-        } catch (error) {
-            console.error('保存聊天历史记录失败:', error);
-        }
-    }
-
-    async function getChatHistoryFromStorage() {
-        try {
-            const result = await storageAdapter.get('chatHistory');
-            return result.chatHistory || [];
-        } catch (error) {
-            console.error('从存储中获取聊天历史记录失败:', error);
-            return [];
-        }
-    }
-
     // 创建AI消息更新配置
     const updateAIMessageConfig = {
-        onSaveHistory: (text) => {
-            if (chatHistory.length > 0) {
-                chatHistory[chatHistory.length - 1].content = text.content;
-                if (text.reasoning_content) {
-                    chatHistory[chatHistory.length - 1].reasoning_content = text.reasoning_content;
-                }
-                saveChatHistory();
-            }
+        onSaveHistory: async (text) => {
+            await chatManager.updateLastMessage(text);
         }
     };
 
+    // 初始化ChatManager
+    await chatManager.initialize();
+
     // 创建消息处理配置
     const messageHandlerConfig = {
-        onSaveHistory: (message) => {
-            chatHistory.push(message);
-            saveChatHistory();
+        onSaveHistory: async (message) => {
+            await chatManager.addMessageToCurrentChat(message);
         },
         onShowImagePreview: showImagePreview,
         onUpdateAIMessage: async (text, forceNew = false) => {
@@ -200,33 +179,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         imagePreviewConfig: uiConfig.imagePreview
     };
 
-    // 在事件监听器中使用新的函数
-    browserAdapter.onTabActivated(async (activeInfo) => {
-        console.log('标签页切换:', activeInfo);
-        chatHistory = await loadChatHistory({
-            chatContainer,
-            processMessageContent,
-            processImageTags,
-            createImageTag,
-            appendMessage,
-            messageHandlerConfig,
-            uiConfig,
-            getChatHistory: getChatHistoryFromStorage
-        });
-        await loadWebpageSwitch('标签页切换');
+    // 初始化对话列表组件
+    initChatListEvents({
+        chatListPage,
+        chatCards: chatListPage.querySelector('.chat-cards'),
+        chatManager,
+        loadChatContent: (chat) => loadChatContent(chat, chatContainer, messageHandlerConfig),
+        onHide: hideChatList.bind(null, chatListPage)
     });
 
-    // 初始加载历史记录
-    chatHistory = await loadChatHistory({
-        chatContainer,
-        processMessageContent,
-        processImageTags,
-        createImageTag,
-        appendMessage,
-        messageHandlerConfig,
-        uiConfig,
-        getChatHistory: getChatHistoryFromStorage
+    // 初始化聊天列表功能
+    initializeChatList({
+        chatListPage,
+        chatManager,
+        newChatButton,
+        chatListButton,
+        settingsMenu,
+        apiSettings,
+        loadChatContent: (chat) => loadChatContent(chat, chatContainer, messageHandlerConfig)
     });
+
+    // 加载当前对话内容
+    const currentChat = chatManager.getCurrentChat();
+    if (currentChat) {
+        await loadChatContent(currentChat, chatContainer, messageHandlerConfig);
+    }
 
     // 网答功能
     const webpageSwitch = document.getElementById('webpage-switch');
@@ -439,7 +416,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
 
             // 构建消息数组
-            const messages = [...chatHistory];  // 排除刚刚添加的用户消息
+            const currentChat = chatManager.getCurrentChat();
+            const messages = currentChat ? [...currentChat.messages] : [];  // 从chatManager获取消息历史
             messages.push(userMessage);
 
             // 准备API调用参数
@@ -471,15 +449,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 config: messageHandlerConfig
             });
             // 从 chatHistory 中移除最后一条记录（用户的问题）
-            if (chatHistory.length > 0) {
-                if (chatHistory[chatHistory.length - 1].role === 'assistant') {
-                    chatHistory.pop();
-                    chatHistory.pop();
+            const currentChat = chatManager.getCurrentChat();
+            const messages = currentChat ? [...currentChat.messages] : [];
+            if (messages.length > 0) {
+                if (messages[messages.length - 1].role === 'assistant') {
+                    messages.pop();
+                    messages.pop();
                 } else {
-                    chatHistory.pop();
+                    messages.pop();
                 }
             }
-            saveChatHistory();
         } finally {
             const lastMessage = chatContainer.querySelector('.ai-message:last-child');
             if (lastMessage) {
@@ -587,6 +566,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (clearChatButton) {
                 clearChatButton.click();
             }
+        } else if (event.data.type === 'NEW_CHAT') {
+            // 模拟点击新对话按钮
+            newChatButton.click();
         }
     });
 
@@ -732,7 +714,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // API 设置功能
-    const apiSettings = document.getElementById('api-settings');
     const apiSettingsToggle = document.getElementById('api-settings-toggle');
     const backButton = document.querySelector('.back-button');
     const apiCards = document.querySelector('.api-cards');
@@ -838,38 +819,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     backButton.addEventListener('click', () => {
         apiSettings.classList.remove('visible');
     });
-
-    // 清空聊天记录功能
-    clearChat.addEventListener('click', () => {
-        // 如果有正在进行的请求，停止它
-        if (currentController) {
-            currentController.abort();
-            currentController = null;
-        }
-        // 清空聊天容器
-        chatContainer.innerHTML = '';
-        // 清空聊天历史记录
-        chatHistory = [];
-        saveChatHistory();
-        // 关闭设置菜单
-        settingsMenu.classList.remove('visible');
-        // 聚焦输入框并将光标移到末尾
-        messageInput.focus();
-        // 移动光标到末尾
-        const range = document.createRange();
-        range.selectNodeContents(messageInput);
-        range.collapse(false);
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
-    });
-    // 清空聊天记录时也清空问题历史
-    if (clearChat) {
-        clearChat.addEventListener('click', () => {
-            userQuestions = userQuestions.slice(-1);
-            console.log('清空问题历史');
-        });
-    }
 
     // 添加点击事件监听
     chatContainer.addEventListener('click', () => {

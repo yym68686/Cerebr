@@ -485,6 +485,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    // 处理 NEW_CHAT 消息
+    if (message.type === 'NEW_CHAT') {
+        const iframe = sidebar?.sidebar?.querySelector('.cerebr-sidebar__iframe');
+        if (iframe) {
+            iframe.contentWindow.postMessage({ type: 'NEW_CHAT' }, '*');
+        }
+        sendResponse({ success: true });
+        return true;
+    }
+
     return true;
 });
 

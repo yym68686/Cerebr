@@ -1,5 +1,6 @@
 import { processMathAndMarkdown, renderMathInElement } from '../utils/latex.js';
 import { processImageTags } from '../services/chat.js';
+import { chatManager } from '../utils/chat-manager.js';
 
 /**
  * 消息处理配置接口
@@ -38,6 +39,16 @@ export async function appendMessage({
 }) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${sender}-message`;
+
+    // 如果是用户消息，且当前对话只有这一条消息，则更新对话标题
+    if (sender === 'user' && !skipHistory) {
+        const currentChat = chatManager.getCurrentChat();
+        if (currentChat && currentChat.messages.length === 0) {
+            const textContent = typeof text === 'string' ? text : text.content;
+            currentChat.title = textContent.substring(0, 50); // 限制标题长度为50个字符
+            chatManager.saveChats();
+        }
+    }
 
     // 如果是批量加载，添加特殊类名
     if (fragment) {

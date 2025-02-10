@@ -72,13 +72,25 @@
                     <span class="slider"></span>
                 </label>
             </div>
-            <div class="menu-item" id="clear-chat">
+            <div class="menu-item" id="new-chat">
+                <span>新的对话</span>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <div class="menu-item" id="chat-list">
+                <span>对话列表</span>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <!-- <div class="menu-item" id="clear-chat">
                 <span>清空聊天记录</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path d="M3 4H13" stroke="currentColor" stroke-width="1.5"/>
                     <path d="M5 4V12H11V4" stroke="currentColor" stroke-width="1.5"/>
                 </svg>
-            </div>
+            </div> -->
             <div class="menu-item" id="api-settings-toggle">
                 <span>API 设置</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -148,6 +160,32 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="chat-list-page">
+        <div class="settings-header">
+            <button class="back-button">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M12 4L6 10L12 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <span class="settings-title">对话列表</span>
+        </div>
+        <div class="chat-cards">
+            <!-- 对话卡片模板 -->
+            <div class="chat-card template" style="display: none;">
+                <div class="card-content">
+                    <div class="chat-title">新对话</div>
+                    <div class="card-actions">
+                        <button class="card-button delete-btn">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                <path d="M3 4H13" stroke="currentColor" stroke-width="1.5"/>
+                                <path d="M5 4V12H11V4" stroke="currentColor" stroke-width="1.5"/>
+                            </svg>
+                        </button>
                     </div>
                 </div>
             </div>
