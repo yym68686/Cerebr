@@ -93,15 +93,34 @@ export class ChatManager {
         await this.saveChats();
     }
 
-    async updateLastMessage(message) {
-        const currentChat = this.getCurrentChat();
+    async updateLastMessage(chatId, message) {
+        const currentChat = this.chats.get(chatId);
         if (!currentChat || currentChat.messages.length === 0) {
-            throw new Error('当前没有消息可以更新');
+            // throw new Error('当前没有消息可以更新');
+            return;
         }
-        currentChat.messages[currentChat.messages.length - 1].content = message.content;
+        // console.log("updateLastMessage", JSON.stringify(currentChat.messages), JSON.stringify(message));
+        if (currentChat.messages[currentChat.messages.length - 1].role === 'user') {
+            currentChat.messages.push({
+                role: 'assistant',
+                updating: true
+            });
+        }
+        if (message.content) {
+            currentChat.messages[currentChat.messages.length - 1].content = message.content;
+        }
         if (message.reasoning_content) {
             currentChat.messages[currentChat.messages.length - 1].reasoning_content = message.reasoning_content;
         }
+        await this.saveChats();
+    }
+
+    async reciveMessageFinish(chatId) {
+        const currentChat = this.chats.get(chatId);
+        if (!currentChat) {
+            throw new Error('对话不存在');
+        }
+        currentChat.messages[currentChat.messages.length - 1].updating = false;
         await this.saveChats();
     }
 

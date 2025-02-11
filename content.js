@@ -1,6 +1,6 @@
-console.log('Cerebr content script loaded at:', new Date().toISOString());
-console.log('Window location:', window.location.href);
-console.log('Document readyState:', document.readyState);
+// console.log('Cerebr content script loaded at:', new Date().toISOString());
+// console.log('Window location:', window.location.href);
+// console.log('Document readyState:', document.readyState);
 
 class CerebrSidebar {
   constructor() {
@@ -9,7 +9,7 @@ class CerebrSidebar {
     this.initialized = false;
     this.pageKey = window.location.origin + window.location.pathname;
     this.lastUrl = window.location.href;
-    console.log('CerebrSidebar 实例创建');
+    // console.log('CerebrSidebar 实例创建');
     // this.lastToggleTime = null; // 添加上次执行时间存储
     this.initializeSidebar();
     this.setupUrlChangeListener();
@@ -110,7 +110,7 @@ class CerebrSidebar {
 
   async initializeSidebar() {
     try {
-      console.log('开始初始化侧边栏');
+      // console.log('开始初始化侧边栏');
       const container = document.createElement('cerebr-root');
 
       // 防止外部JavaScript访问和修改我们的元素
@@ -240,7 +240,7 @@ class CerebrSidebar {
         childList: true
       });
 
-      console.log('侧边栏已添加到文档');
+      // console.log('侧边栏已添加到文档');
 
       this.setupEventListeners(resizer);
 
@@ -248,7 +248,7 @@ class CerebrSidebar {
       requestAnimationFrame(() => {
         this.sidebar.classList.add('initialized');
         this.initialized = true;
-        console.log('侧边栏初始化完成');
+        // console.log('侧边栏初始化完成');
       });
     } catch (error) {
       console.error('初始化侧边栏失败:', error);
@@ -309,7 +309,7 @@ class CerebrSidebar {
   }
 
   setupDragAndDrop() {
-    console.log('初始化拖放功能');
+    // console.log('初始化拖放功能');
 
     // 存储最后一次设置的图片数据
     let lastImageData = null;
@@ -411,7 +411,7 @@ class CerebrSidebar {
 let sidebar;
 try {
   sidebar = new CerebrSidebar();
-  console.log('侧边栏实例已创建');
+  // console.log('侧边栏实例已创建');
 } catch (error) {
   console.error('创建侧边栏实例失败:', error);
 }
@@ -507,13 +507,13 @@ function sendInitMessage(retryCount = 0) {
   const maxRetries = 10;
   const retryDelay = 1000;
 
-  console.log(`尝试发送初始化消息，第 ${retryCount + 1} 次尝试`);
+  // console.log(`尝试发送初始化消息，第 ${retryCount + 1} 次尝试`);
 
   chrome.runtime.sendMessage({
     type: 'CONTENT_LOADED',
     url: window.location.href
   }).then(response => {
-    console.log('Background 响应:', response);
+    // console.log('Background 响应:', response);
   }).catch(error => {
     console.log('发送消息失败:', error);
     if (retryCount < maxRetries) {
@@ -612,7 +612,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     else if (message.type === 'REQUEST_FAILED') {
         requestManager.handleRequestFailed(message.requestId);
-        console.log('请求失败，待处理请求数:', requestManager.getPendingRequestsCount());
+        // console.log('请求失败，待处理请求数:', requestManager.getPendingRequestsCount());
     }
     return true;
 });

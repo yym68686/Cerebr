@@ -6,7 +6,6 @@
 
 /**
  * 图片预览配置接口
- * @typedef {Object} ImagePreviewConfig
  * @property {HTMLElement} previewModal - 预览模态框元素
  * @property {HTMLElement} previewImage - 预览图片元素
  */
@@ -41,7 +40,6 @@ export function adjustTextareaHeight({
  * 显示图片预览
  * @param {Object} params - 参数对象
  * @param {string} params.base64Data - 图片base64数据
- * @param {ImagePreviewConfig} params.config - 预览配置
  */
 export function showImagePreview({
     base64Data,
@@ -54,7 +52,6 @@ export function showImagePreview({
 /**
  * 隐藏图片预览
  * @param {Object} params - 参数对象
- * @param {ImagePreviewConfig} params.config - 预览配置
  */
 export function hideImagePreview({
     config

@@ -33,14 +33,17 @@
 /**
  * 调用API发送消息并处理响应
  * @param {APIParams} params - API调用参数
- * @returns {Promise<{processStream: (onUpdate: (text: string) => void) => Promise<string>, controller: AbortController}>}
+ * @param {Object} chatManager - 聊天管理器实例
+ * @param {string} chatId - 当前聊天ID
+ * @param {Function} onMessageUpdate - 消息更新回调函数
+ * @returns {Promise<{processStream: () => Promise<{content: string, reasoning_content: string}>, controller: AbortController}>}
  */
 export async function callAPI({
     messages,
     apiConfig,
     userLanguage,
     webpageInfo = null,
-}) {
+}, chatManager, chatId, onMessageUpdate) {
     if (!apiConfig?.baseUrl || !apiConfig?.apiKey) {
         throw new Error('API 配置不完整');
     }
@@ -93,64 +96,64 @@ export async function callAPI({
 
     // 处理流式响应
     const reader = response.body.getReader();
-    let aiResponse = '';
-    let reasoningContent = '';
-    let updateLock = Promise.resolve(); // 添加更新锁
-    let updateFailed = false; // 添加更新失败标记
 
-    const processStream = async (onUpdate) => {
-        while (true) {
-            const {done, value} = await reader.read();
-            if (done) break;
+    const processStream = async () => {
+        try {
+            let buffer = '';
+            let currentMessage = {
+                content: '',
+                reasoning_content: ''
+            };
 
-            const chunk = new TextDecoder().decode(value);
-            const lines = chunk.split('\n');
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
 
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const content = line.slice(6);
-                    if (content.trim() === '[DONE]') continue;
+                const chunk = new TextDecoder().decode(value);
+                buffer += chunk;
 
-                    try {
-                        const data = JSON.parse(content);
-                        const delta = data.choices?.[0]?.delta;
-                        if (delta?.content) {
-                            aiResponse += data.choices[0].delta.content;
-                            // 使用更新锁确保顺序执行
-                            updateLock = updateLock.then(async () => {
-                                const success = await onUpdate(aiResponse);
-                                if (!success && !updateFailed) {
-                                    updateFailed = true;
-                                    // 如果更新失败，需要重新创建一个AI消息
-                                    await onUpdate(aiResponse, true);
-                                }
-                            });
+                let newlineIndex;
+                while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+                    const line = buffer.slice(0, newlineIndex);
+                    buffer = buffer.slice(newlineIndex + 1);
+
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') {
+                            chatManager.reciveMessageFinish(chatId);
+                            continue;
                         }
-                        if (delta?.reasoning_content) {
-                            reasoningContent += delta.reasoning_content;
-                            updateLock = updateLock.then(async () => {
-                                const success = await onUpdate({
-                                    content: aiResponse,
-                                    reasoning_content: reasoningContent
-                                });
-                                if (!success && !updateFailed) {
-                                    updateFailed = true;
-                                    await onUpdate({
-                                        content: aiResponse,
-                                        reasoning_content: reasoningContent
-                                    }, true);
-                                }
-                            });
+
+                        try {
+                            const delta = JSON.parse(data).choices[0]?.delta;
+                            if (delta?.content) {
+                                currentMessage.content += delta.content;
+                            }
+                            if (delta?.reasoning_content) {
+                                currentMessage.reasoning_content += delta.reasoning_content;
+                            }
+
+                            // 直接更新 chatManager
+                            if (chatManager && chatId && (delta?.content || delta?.reasoning_content)) {
+                                // console.log('callAPI', chatId);
+                                chatManager.updateLastMessage(chatId, currentMessage);
+                                // 通知消息更新
+                                onMessageUpdate(chatId, currentMessage);
+                            }
+                        } catch (e) {
+                            console.error('解析数据时出错:', e);
                         }
-                    } catch (e) {
-                        console.error('解析响应出错:', e);
                     }
                 }
             }
+
+            return currentMessage;
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                throw new Error('请求被取消');
+            }
+            throw error;
         }
-        // 等待所有更新完成
-        await updateLock;
-        return aiResponse;
     };
 
     return {

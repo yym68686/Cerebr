@@ -11,6 +11,9 @@ export function renderChatList(chatManager, chatCards) {
         }
     });
 
+    // 获取当前对话ID
+    const currentChatId = chatManager.getCurrentChat()?.id;
+
     // 添加所有对话卡片
     chatManager.getAllChats().forEach(chat => {
         const card = template.cloneNode(true);
@@ -21,14 +24,52 @@ export function renderChatList(chatManager, chatCards) {
         const titleElement = card.querySelector('.chat-title');
         titleElement.textContent = chat.title;
 
+        // 设置选中状态
+        if (chat.id === currentChatId) {
+            card.classList.add('selected');
+        } else {
+            card.classList.remove('selected');
+        }
+
         chatCards.appendChild(card);
     });
 }
 
+// 加载对话内容
+export async function loadChatContent(chat, chatContainer) {
+    chatContainer.innerHTML = '';
+    // 确定要遍历的消息范围
+    const messages = chat.messages[chat.messages.length - 1]?.updating ? chat.messages.slice(0, -1) : chat.messages;
+    // console.log('loadChatContent', JSON.stringify(messages));
+
+    for (const message of messages) {
+        if (message.content) {
+            await appendMessage({
+                text: message,
+                sender: message.role === 'user' ? 'user' : 'ai',
+                chatContainer,
+                skipHistory: true,
+            });
+        }
+    }
+}
+
 // 切换到指定对话
-export async function switchToChat(chatId, chatManager, loadChatContent) {
+export async function switchToChat(chatId, chatManager) {
+    // console.log('switchToChat', chatId);
     const chat = await chatManager.switchChat(chatId);
-    await loadChatContent(chat);
+    if (chat) {
+        await loadChatContent(chat, document.getElementById('chat-container'));
+
+        // 更新对话列表中的选中状态
+        document.querySelectorAll('.chat-card').forEach(card => {
+            if (card.dataset.chatId === chatId) {
+                card.classList.add('selected');
+            } else {
+                card.classList.remove('selected');
+            }
+        });
+    }
 }
 
 // 显示对话列表
@@ -48,7 +89,6 @@ export function initChatListEvents({
     chatListPage,
     chatCards,
     chatManager,
-    loadChatContent,
     onHide
 }) {
     // 为每个卡片添加点击事件
@@ -57,7 +97,7 @@ export function initChatListEvents({
         if (!card || card.classList.contains('template')) return;
 
         if (!e.target.closest('.delete-btn')) {
-            await switchToChat(card.dataset.chatId, chatManager, loadChatContent);
+            await switchToChat(card.dataset.chatId, chatManager);
             if (onHide) onHide();
         }
     });
@@ -77,7 +117,7 @@ export function initChatListEvents({
         // 如果删除的是当前对话，重新加载聊天内容
         const currentChat = chatManager.getCurrentChat();
         if (currentChat) {
-            await loadChatContent(currentChat);
+            await loadChatContent(currentChat, document.getElementById('chat-container'));
         }
     });
 
@@ -90,20 +130,6 @@ export function initChatListEvents({
     }
 }
 
-// 加载对话内容
-export async function loadChatContent(chat, chatContainer, messageHandlerConfig) {
-    chatContainer.innerHTML = '';
-    for (const message of chat.messages) {
-        await appendMessage({
-            text: message,
-            sender: message.role === 'user' ? 'user' : 'ai',
-            chatContainer,
-            skipHistory: true,
-            config: messageHandlerConfig
-        });
-    }
-}
-
 // 初始化聊天列表功能
 export function initializeChatList({
     chatListPage,
@@ -111,13 +137,12 @@ export function initializeChatList({
     newChatButton,
     chatListButton,
     settingsMenu,
-    apiSettings,
-    loadChatContent
+    apiSettings
 }) {
     // 新建对话按钮点击事件
     newChatButton.addEventListener('click', async () => {
         const newChat = chatManager.createNewChat();
-        await switchToChat(newChat.id, chatManager, loadChatContent);
+        await switchToChat(newChat.id, chatManager);
         settingsMenu.classList.remove('visible');
     });
 

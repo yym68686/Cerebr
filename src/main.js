@@ -1,13 +1,12 @@
 import { setTheme } from './utils/theme.js';
+import { callAPI } from './services/chat.js';
 import { handleImageDrop } from './utils/image.js';
-import { callAPI, processImageTags } from './services/chat.js';
-import { processMessageContent } from './utils/message-utils.js';
+import { chatManager } from './utils/chat-manager.js';
 import { appendMessage, updateAIMessage } from './handlers/message-handler.js';
 import { renderAPICards, createCardCallbacks, selectCard } from './components/api-card/index.js';
 import { adjustTextareaHeight, showImagePreview, hideImagePreview, createImageTag } from './utils/ui.js';
 import { showContextMenu, hideContextMenu, copyMessageContent } from './components/context-menu/index.js';
 import { storageAdapter, syncStorageAdapter, browserAdapter, isExtensionEnvironment } from './utils/storage-adapter.js';
-import { chatManager } from './utils/chat-manager.js';
 import './utils/viewport.js';
 import {
     hideChatList,
@@ -141,50 +140,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         messageInput.removeEventListener('click', (e) => e.stopPropagation());
     });
 
-    // 创建AI消息更新配置
-    const updateAIMessageConfig = {
-        onSaveHistory: async (text) => {
-            await chatManager.updateLastMessage(text);
-        }
-    };
-
     // 初始化ChatManager
     await chatManager.initialize();
-
-    // 创建消息处理配置
-    const messageHandlerConfig = {
-        onSaveHistory: async (message) => {
-            await chatManager.addMessageToCurrentChat(message);
-        },
-        onShowImagePreview: showImagePreview,
-        onUpdateAIMessage: async (text, forceNew = false) => {
-            if (forceNew) {
-                // 如果需要强制创建新消息，直接调用appendMessage
-                await appendMessage({
-                    text,
-                    sender: 'ai',
-                    chatContainer,
-                    config: messageHandlerConfig
-                });
-                return true;
-            }
-            // 否则尝试更新现有消息
-            return await updateAIMessage({
-                text,
-                chatContainer,
-                config: updateAIMessageConfig,
-                messageHandlerConfig
-            });
-        },
-        imagePreviewConfig: uiConfig.imagePreview
-    };
 
     // 初始化对话列表组件
     initChatListEvents({
         chatListPage,
         chatCards: chatListPage.querySelector('.chat-cards'),
         chatManager,
-        loadChatContent: (chat) => loadChatContent(chat, chatContainer, messageHandlerConfig),
+        loadChatContent: (chat) => loadChatContent(chat, chatContainer),
         onHide: hideChatList.bind(null, chatListPage)
     });
 
@@ -196,13 +160,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         chatListButton,
         settingsMenu,
         apiSettings,
-        loadChatContent: (chat) => loadChatContent(chat, chatContainer, messageHandlerConfig)
+        loadChatContent: (chat) => loadChatContent(chat, chatContainer)
     });
 
     // 加载当前对话内容
     const currentChat = chatManager.getCurrentChat();
     if (currentChat) {
-        await loadChatContent(currentChat, chatContainer, messageHandlerConfig);
+        await loadChatContent(currentChat, chatContainer);
     }
 
     // 网答功能
@@ -232,16 +196,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 修改 loadWebpageSwitch 函数
     async function loadWebpageSwitch(call_name = 'loadWebpageSwitch') {
-        console.log(`loadWebpageSwitch 从 ${call_name} 调用`);
+        // console.log(`loadWebpageSwitch 从 ${call_name} 调用`);
 
         try {
             const domain = await getCurrentDomain();
-            console.log('刷新后 网页问答 获取当前域名:', domain);
+            // console.log('刷新后 网页问答 获取当前域名:', domain);
             if (!domain) return;
 
             const result = await storageAdapter.get('webpageSwitchDomains');
             const domains = result.webpageSwitchDomains || {};
-            console.log('刷新后 网页问答存储中获取域名:', domains);
+            // console.log('刷新后 网页问答存储中获取域名:', domains);
 
             // 只在开关状态不一致时才更新
             if (domains[domain]) {
@@ -334,13 +298,54 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .replace(/^www\./, '')  // 移除www前缀
                 .toLowerCase();         // 转换为小写
 
-            console.log('规范化域名:', hostname, '->', normalizedDomain);
+            // console.log('规范化域名:', hostname, '->', normalizedDomain);
             return normalizedDomain;
         } catch (error) {
             // console.error('获取当前域名失败:', error);
             return null;
         }
     }
+
+    // 添加一个锁变量和队列
+    let isUpdating = false;
+    const updateQueue = [];
+
+    // 创建消息同步函数
+    const syncMessage = async (updatedChatId, message) => {
+        const currentChat = chatManager.getCurrentChat();
+        // 只有当更新的消息属于当前显示的对话时才更新界面
+        if (currentChat && currentChat.id === updatedChatId) {
+            // 将更新任务添加到队列
+            updateQueue.push(message);
+
+            // 如果当前没有更新在进行，开始处理队列
+            if (!isUpdating) {
+                await processUpdateQueue();
+            }
+        }
+    };
+
+    // 处理更新队列的函数
+    const processUpdateQueue = async () => {
+        if (isUpdating || updateQueue.length === 0) return;
+
+        try {
+            isUpdating = true;
+            while (updateQueue.length > 0) {
+                const message = updateQueue.shift();
+                await updateAIMessage({
+                    text: message,
+                    chatContainer
+                });
+            }
+        } finally {
+            isUpdating = false;
+            // 检查是否在处理过程中有新的更新加入队列
+            if (updateQueue.length > 0) {
+                await processUpdateQueue();
+            }
+        }
+    };
 
     async function sendMessage() {
         // 如果有正在更新的AI消息，停止它
@@ -405,7 +410,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 text: messageInput.innerHTML,
                 sender: 'user',
                 chatContainer,
-                config: messageHandlerConfig
             });
 
             // 清空输入框并调整高度
@@ -419,6 +423,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const currentChat = chatManager.getCurrentChat();
             const messages = currentChat ? [...currentChat.messages] : [];  // 从chatManager获取消息历史
             messages.push(userMessage);
+            chatManager.addMessageToCurrentChat(userMessage);
 
             // 准备API调用参数
             const apiParams = {
@@ -429,11 +434,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
 
             // 调用 API
-            const { processStream, controller } = await callAPI(apiParams);
+            const { processStream, controller } = await callAPI(apiParams, chatManager, currentChat.id, syncMessage);
             currentController = controller;
 
             // 处理流式响应
-            await processStream(messageHandlerConfig.onUpdateAIMessage);
+            await processStream();
 
         } catch (error) {
             if (error.name === 'AbortError') {
@@ -446,7 +451,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 sender: 'ai',
                 chatContainer,
                 skipHistory: true,
-                config: messageHandlerConfig
             });
             // 从 chatHistory 中移除最后一条记录（用户的问题）
             const currentChat = chatManager.getCurrentChat();

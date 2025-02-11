@@ -1,15 +1,7 @@
 import { processMathAndMarkdown, renderMathInElement } from '../utils/latex.js';
-import { processImageTags } from '../services/chat.js';
 import { chatManager } from '../utils/chat-manager.js';
-
-/**
- * 消息处理配置接口
- * @typedef {Object} MessageHandlerConfig
- * @property {function} onSaveHistory - 保存历史记录的回调函数
- * @property {function} onShowImagePreview - 显示图片预览的回调函数，接收 base64Data 和 config 参数
- * @property {function} onUpdateAIMessage - 更新AI消息的回调函数
- * @property {Object} imagePreviewConfig - 图片预览配置对象
- */
+import { showImagePreview, createImageTag } from '../utils/ui.js';
+import { processImageTags } from '../services/chat.js';
 
 /**
  * 消息接口
@@ -26,7 +18,6 @@ import { chatManager } from '../utils/chat-manager.js';
  * @param {HTMLElement} params.chatContainer - 聊天容器元素
  * @param {boolean} [params.skipHistory=false] - 是否跳过历史记录
  * @param {DocumentFragment} [params.fragment=null] - 文档片段（用于批量加载）
- * @param {MessageHandlerConfig} params.config - 消息处理配置
  * @returns {HTMLElement} 创建的消息元素
  */
 export async function appendMessage({
@@ -34,21 +25,10 @@ export async function appendMessage({
     sender,
     chatContainer,
     skipHistory = false,
-    fragment = null,
-    config
+    fragment = null
 }) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${sender}-message`;
-
-    // 如果是用户消息，且当前对话只有这一条消息，则更新对话标题
-    if (sender === 'user' && !skipHistory) {
-        const currentChat = chatManager.getCurrentChat();
-        if (currentChat && currentChat.messages.length === 0) {
-            const textContent = typeof text === 'string' ? text : text.content;
-            currentChat.title = textContent.substring(0, 50); // 限制标题长度为50个字符
-            chatManager.saveChats();
-        }
-    }
 
     // 如果是批量加载，添加特殊类名
     if (fragment) {
@@ -56,7 +36,62 @@ export async function appendMessage({
     }
 
     // 处理文本内容
-    const textContent = typeof text === 'string' ? text : text.content;
+    let textContent = typeof text === 'string' ? text : text.content;
+
+    const previewModal = document.querySelector('.image-preview-modal');
+    const previewImage = previewModal.querySelector('img');
+    const messageInput = document.getElementById('message-input');
+
+    if (Array.isArray(textContent)) {
+        let messageHtml = '';
+        textContent.forEach(item => {
+            if (item.type === "text") {
+                messageHtml += item.text;
+            } else if (item.type === "image_url") {
+                const imageTag = createImageTag({
+                    base64Data: item.image_url.url,
+                    config: {
+                        onImageClick: (base64Data) => {
+                            showImagePreview({
+                                base64Data,
+                                config: {
+                                    previewModal,
+                                    previewImage
+                                }
+                            });
+                        },
+                        onDeleteClick: (container) => {
+                            container.remove();
+                            messageInput.dispatchEvent(new Event('input'));
+                        }
+                    }
+                });
+                messageHtml += imageTag.outerHTML;
+            }
+        });
+        textContent = messageHtml;
+    }
+
+    // 如果是用户消息，且当前对话只有这一条消息，则更新对话标题
+    if (sender === 'user' && !skipHistory) {
+        let title = '';
+        const result = processImageTags(textContent);
+        if (Array.isArray(result)) {
+            result.forEach(item => {
+                if (item.type === 'text') {
+                    title += item.text;
+                }
+            });
+        } else {
+            title = result;
+        }
+        const currentChat = chatManager.getCurrentChat();
+        if (currentChat && currentChat.messages.length === 0) {
+            currentChat.title = title;
+            chatManager.saveChats();
+        }
+    }
+
     const reasoningContent = typeof text === 'string' ? null : text.reasoning_content;
 
     // 存储原始文本用于复制
@@ -118,9 +153,12 @@ export async function appendMessage({
             img.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                config.onShowImagePreview({
+                showImagePreview({
                     base64Data,
-                    config: config.imagePreviewConfig
+                    config: {
+                        previewModal,
+                        previewImage
+                    }
                 });
             });
         }
@@ -144,15 +182,6 @@ export async function appendMessage({
 
     // 只有在不跳过历史记录时才添加到历史记录
     if (!skipHistory) {
-        const messageContent = processImageTags(textContent);
-        const message = {
-            role: sender === 'user' ? 'user' : 'assistant',
-            content: messageContent,
-            ...(reasoningContent && { reasoning_content: reasoningContent })
-        };
-
-        config.onSaveHistory(message);
-
         if (sender === 'ai') {
             messageDiv.classList.add('updating');
         }
@@ -162,28 +191,17 @@ export async function appendMessage({
 }
 
 /**
- * AI消息更新配置接口
- * @typedef {Object} UpdateAIMessageConfig
- * @property {function} onSaveHistory - 保存历史记录的回调函数
- * @property {function} onShowImagePreview - 显示图片预览的回调函数
- */
-
-/**
  * 更新AI消息内容
  * @param {Object} params - 参数对象
  * @param {Object} params.text - 新的消息文本对象，包含content和reasoningContent
  * @param {string} params.text.content - 主要消息内容
  * @param {string|null} params.text.reasoning_content - 深度思考内容
  * @param {HTMLElement} params.chatContainer - 聊天容器元素
- * @param {UpdateAIMessageConfig} params.config - 消息处理配置
- * @param {MessageHandlerConfig} params.messageHandlerConfig - 消息处理器配置
  * @returns {Promise<boolean>} 返回是否成功更新了消息
  */
 export async function updateAIMessage({
     text,
-    chatContainer,
-    config,
-    messageHandlerConfig
+    chatContainer
 }) {
     const lastMessage = chatContainer.querySelector('.ai-message.updating');
 
@@ -285,26 +303,19 @@ export async function updateAIMessage({
                 link.rel = 'noopener noreferrer';
             });
 
-            // 更新历史记录（包含主要内容和思考内容）
-            const message = {
-                role: 'assistant',
-                content: textContent,
-                ...(reasoningContent && { reasoning_content: reasoningContent })
-            };
-            config.onSaveHistory(message);
             return true;
         }
         return true; // 如果文本没有变长，也认为是成功的
     } else {
         // 创建新消息时也需要包含思考内容
+        // console.log('updateAIMessage');
         await appendMessage({
             text: {
                 content: textContent,
                 reasoning_content: reasoningContent
             },
             sender: 'ai',
-            chatContainer,
-            config: messageHandlerConfig
+            chatContainer
         });
         return true;
     }
