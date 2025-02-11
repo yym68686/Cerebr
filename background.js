@@ -5,7 +5,7 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker 已激活', new Date().toISOString());
+  // console.log('Service Worker 已激活', new Date().toISOString());
   event.waitUntil(self.clients.claim());
 });
 
@@ -115,7 +115,7 @@ chrome.runtime.onConnect.addListener((p) => {
 
 // 监听来自 content script 的消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log('收到消息:', message, '来自:', sender.tab?.id);
+  // console.log('收到消息:', message, '来自:', sender.tab?.id);
 
   if (message.type === 'CONTENT_LOADED') {
     console.log('内容脚本已加载:', message.url);
@@ -218,7 +218,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 // 简化Service Worker活跃保持
 const HEARTBEAT_INTERVAL = 20000;
 const keepAliveInterval = setInterval(() => {
-    console.log('Service Worker 心跳:', new Date().toISOString());
+    // console.log('Service Worker 心跳:', new Date().toISOString());
 }, HEARTBEAT_INTERVAL);
 
 self.addEventListener('beforeunload', () => clearInterval(keepAliveInterval));
@@ -342,9 +342,9 @@ async function getPDFArrayBuffer(url) {
 // 修改 downloadPDF 函数
 async function downloadPDF(url) {
     try {
-        console.log('开始下载PDF文件:', url);
+        // console.log('开始下载PDF文件:', url);
         const arrayBuffer = await getPDFArrayBuffer(url);
-        console.log('PDF文件下载完成，大小:', arrayBuffer.byteLength, 'bytes');
+        // console.log('PDF文件下载完成，大小:', arrayBuffer.byteLength, 'bytes');
 
         // 将ArrayBuffer转换为Uint8Array
         const uint8Array = new Uint8Array(arrayBuffer);

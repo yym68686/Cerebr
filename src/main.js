@@ -183,7 +183,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 获取网页内容
     async function getPageContent() {
         try {
-            console.log('getPageContent 发送获取网页内容请求');
+            // console.log('getPageContent 发送获取网页内容请求');
             const response = await browserAdapter.sendMessage({
                 type: 'GET_PAGE_CONTENT_FROM_SIDEBAR'
             });
@@ -555,7 +555,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     });
             }
         } else if (event.data.type === 'UPDATE_PLACEHOLDER') {
-            console.log('收到更新placeholder消息:', event.data);
+            // console.log('收到更新placeholder消息:', event.data);
             if (messageInput) {
                 messageInput.setAttribute('placeholder', event.data.placeholder);
                 if (event.data.timeout) {

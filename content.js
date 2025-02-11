@@ -420,7 +420,7 @@ try {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type != 'REQUEST_STARTED' && message.type != 'REQUEST_COMPLETED' &&
         message.type != 'REQUEST_FAILED' && message.type != 'PING') {
-      console.log('content.js 收到消息:', message.type);
+      // console.log('content.js 收到消息:', message.type);
     }
 
     // 处理 PING 消息
@@ -470,7 +470,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // 处理获取页面内容请求
     if (message.type === 'GET_PAGE_CONTENT_INTERNAL') {
-        console.log('收到获取页面内容请求');
+        // console.log('收到获取页面内容请求');
         isProcessing = true;
 
         extractPageContent().then(content => {
@@ -657,14 +657,14 @@ async function waitForContent() {
 
 // 修改 extractPageContent 函数
 async function extractPageContent() {
-  console.log('extractPageContent 开始提取页面内容');
+  // console.log('extractPageContent 开始提取页面内容');
 
   // 检查是否是PDF或者iframe中的PDF
   if (document.contentType === 'application/pdf' ||
       (window.location.href.includes('.pdf') ||
        document.querySelector('iframe[src*="pdf.js"]') ||
        document.querySelector('iframe[src*=".pdf"]'))) {
-    console.log('检测到PDF文件，尝试提取PDF内容');
+    // console.log('检测到PDF文件，尝试提取PDF内容');
     let pdfUrl = window.location.href;
 
     // 如果是iframe中的PDF，尝试提取实际的PDF URL
@@ -757,7 +757,7 @@ async function extractTextFromPDF(url) {
 
     // 发送更新placeholder消息
     const sendPlaceholderUpdate = (message, timeout = 0) => {
-      console.log('发送placeholder更新:', message);
+      // console.log('发送placeholder更新:', message);
       iframe.contentWindow.postMessage({
         type: 'UPDATE_PLACEHOLDER',
         placeholder: message,
@@ -781,7 +781,7 @@ async function extractTextFromPDF(url) {
     }
 
     const { totalChunks, totalSize } = initResponse;
-    console.log(`PDF文件大小: ${totalSize} bytes, 总块数: ${totalChunks}`);
+    // console.log(`PDF文件大小: ${totalSize} bytes, 总块数: ${totalChunks}`);
 
     // 分块接收数据
     const chunks = new Array(totalChunks);
@@ -812,20 +812,20 @@ async function extractTextFromPDF(url) {
 
     sendPlaceholderUpdate('正在解析PDF文件...');
 
-    console.log('开始解析PDF文件');
+    // console.log('开始解析PDF文件');
     const loadingTask = pdfjsLib.getDocument({data: completeData});
     const pdf = await loadingTask.promise;
-    console.log('PDF加载成功，总页数:', pdf.numPages);
+    // console.log('PDF加载成功，总页数:', pdf.numPages);
 
     let fullText = '';
     // 遍历所有页面
     for (let i = 1; i <= pdf.numPages; i++) {
       sendPlaceholderUpdate(`正在提取文本 (${i}/${pdf.numPages})...`);
-      console.log(`开始处理第 ${i}/${pdf.numPages} 页`);
+      // console.log(`开始处理第 ${i}/${pdf.numPages} 页`);
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
       const pageText = textContent.items.map(item => item.str).join(' ');
-      console.log(`第 ${i} 页提取的文本长度:`, pageText.length);
+      // console.log(`第 ${i} 页提取的文本长度:`, pageText.length);
       fullText += pageText + '\n';
     }
 
