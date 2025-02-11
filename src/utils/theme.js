@@ -23,6 +23,18 @@ export function setTheme(isDark, { root, themeSwitch, saveTheme }) {
         saveTheme(isDark ? 'dark' : 'light');
     }
 
+    // 更新 Mermaid 主题并重新渲染
+    if (window.mermaid) {
+        window.mermaid.initialize({
+            theme: isDark ? 'dark' : 'default'
+        });
+
+        // 重新渲染所有图表
+        if (window.renderMermaidDiagrams) {
+            window.renderMermaidDiagrams();
+        }
+    }
+
     // // 更新浏览器 UI 颜色
     // updateThemeColor(isDark);
 }

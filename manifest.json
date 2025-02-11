@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Cerebr",
-  "version": "2.2.3",
+  "version": "2.2.4",
   "description": "Cerebr - 智能AI聊天助手",
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
@@ -70,6 +70,8 @@
         "lib/tex-chtml-full.js",
         "lib/pdf.js",
         "lib/pdf.worker.js",
+        "lib/mermaid.min.js",
+        "lib/mermaid-init.js",
         "lib/fonts/woff-v2/MathJax_AMS-Regular.woff",
         "lib/fonts/woff-v2/MathJax_Calligraphic-Regular.woff",
         "lib/fonts/woff-v2/MathJax_Fraktur-Bold.woff",

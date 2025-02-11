@@ -79,6 +79,9 @@ export function processMathAndMarkdown(text) {
         gfm: true,
         sanitize: false,
         highlight: function(code, lang) {
+            if (lang === 'mermaid') {
+                return `<div class="mermaid">${code}</div>`;
+            }
             if (lang && hljs.getLanguage(lang)) {
                 try {
                     return hljs.highlight(code, { language: lang }).value;
@@ -93,6 +96,9 @@ export function processMathAndMarkdown(text) {
                 // 检查是否包含数学表达式占位符
                 if (code.includes('%%MATH_EXPRESSION_')) {
                     return code;  // 如果包含数学表达式，直接返回原文本
+                }
+                if (language === 'mermaid') {
+                    return `<div class="mermaid">${code}</div>`;
                 }
                 const validLanguage = language && hljs.getLanguage(language) ? language : '';
                 const highlighted = this.options.highlight(code, validLanguage);
@@ -158,6 +164,13 @@ export function processMathAndMarkdown(text) {
 
     // 移除数学公式容器外的 p 标签
     html = html.replace(/<p>\s*(<div class="math-display-container">[\s\S]*?<\/div>)\s*<\/p>/g, '$1');
+
+    // 在下一个微任务中渲染 Mermaid 图表
+    setTimeout(() => {
+        if (window.renderMermaidDiagrams) {
+            window.renderMermaidDiagrams();
+        }
+    }, 0);
 
     return html;
 }
