@@ -42,13 +42,14 @@ export async function loadChatContent(chat, chatContainer) {
     const messages = chat.messages[chat.messages.length - 1]?.updating ? chat.messages.slice(0, -1) : chat.messages;
     // console.log('loadChatContent', JSON.stringify(messages));
 
-    for (const message of messages) {
+    for (let i = 0; i < messages.length; i++) {
+        const message = messages[i];
         if (message.content) {
             await appendMessage({
                 text: message,
                 sender: message.role === 'user' ? 'user' : 'ai',
                 chatContainer,
-                skipHistory: true,
+                skipHistory: i < messages.length - 1, // 只有最后一条消息skipHistory为false
             });
         }
     }
