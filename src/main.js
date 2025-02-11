@@ -12,7 +12,8 @@ import {
     hideChatList,
     initChatListEvents,
     loadChatContent,
-    initializeChatList
+    initializeChatList,
+    renderChatList
 } from './components/chat-list/index.js';
 
 // 存储用户的问题历史
@@ -573,6 +574,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else if (event.data.type === 'NEW_CHAT') {
             // 模拟点击新对话按钮
             newChatButton.click();
+            messageInput.focus();
         }
     });
 
@@ -767,19 +769,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             const result = await syncStorageAdapter.get(['apiConfigs', 'selectedConfigIndex']);
 
             // 分别检查每个配置项
-            apiConfigs = result.apiConfigs || [{
-                apiKey: '',
-                baseUrl: 'https://api.openai.com/v1/chat/completions',
-                modelName: 'gpt-4o'
-            }];
+            if (result.apiConfigs) {
+                apiConfigs = result.apiConfigs;
+            } else {
+                apiConfigs = [{
+                    apiKey: '',
+                    baseUrl: 'https://api.openai.com/v1/chat/completions',
+                    modelName: 'gpt-4o'
+                }];
+                // 只有在没有任何配置的情况下才保存默认配置
+                await saveAPIConfigs();
+            }
 
             // 只有当 selectedConfigIndex 为 undefined 或 null 时才使用默认值 0
             selectedConfigIndex = result.selectedConfigIndex ?? 0;
 
-            // 只有在没有任何配置的情况下才保存默认配置
-            if (!result.apiConfigs) {
-                await saveAPIConfigs();
-            }
+            // 确保一定会渲染卡片
+            renderAPICardsWithCallbacks();
         } catch (error) {
             console.error('加载 API 配置失败:', error);
             // 只有在出错的情况下才使用默认值
@@ -789,12 +795,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                 modelName: 'gpt-4o'
             }];
             selectedConfigIndex = 0;
+            renderAPICardsWithCallbacks();
         }
-
-        // 确保一定会渲染卡片
-        renderAPICardsWithCallbacks();
     }
 
+    // 监听标签页切换
+    browserAdapter.onTabActivated(async () => {
+        // 同步API配置
+        await loadAPIConfigs();
+        renderAPICardsWithCallbacks();
+
+        // 同步对话列表
+        await chatManager.initialize();
+        await renderChatList(
+            chatManager,
+            chatListPage.querySelector('.chat-cards')
+        );
+    });
     // 保存配置到存储
     async function saveAPIConfigs() {
         try {
