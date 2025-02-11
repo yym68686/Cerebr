@@ -124,6 +124,15 @@ export class ChatManager {
         await this.saveChats();
     }
 
+    async popMessage() {
+        const currentChat = this.getCurrentChat();
+        if (!currentChat) {
+            throw new Error('对话不存在');
+        }
+        currentChat.messages.pop();
+        await this.saveChats();
+    }
+
     async saveChats() {
         await this.storage.set({ [CHATS_KEY]: Array.from(this.chats.values()) });
     }

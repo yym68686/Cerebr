@@ -457,10 +457,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const messages = currentChat ? [...currentChat.messages] : [];
             if (messages.length > 0) {
                 if (messages[messages.length - 1].role === 'assistant') {
-                    messages.pop();
-                    messages.pop();
+                    chatManager.popMessage();
+                    chatManager.popMessage();
                 } else {
-                    messages.pop();
+                    chatManager.popMessage();
                 }
             }
         } finally {
