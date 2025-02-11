@@ -849,7 +849,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 监听 AI 消息的右键点击
     chatContainer.addEventListener('contextmenu', (e) => {
-        const messageElement = e.target.closest('.ai-message');
+        const messageElement = e.target.closest('.ai-message, .user-message');
         const codeElement = e.target.closest('pre > code');
 
         if (messageElement) {
@@ -861,12 +861,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             const copyCodeButton = document.getElementById('copy-code');
             const copyMathButton = document.getElementById('copy-math');
             const stopUpdateButton = document.getElementById('stop-update');
+            const deleteMessageButton = document.getElementById('delete-message');
 
             // 根据右键点击的元素类型显示/隐藏相应的菜单项
             copyMessageButton.style.display = 'flex';
+            deleteMessageButton.style.display = 'flex';
             copyCodeButton.style.display = codeElement ? 'flex' : 'none';
             copyMathButton.style.display = 'none';  // 默认隐藏复制公式按钮
-            stopUpdateButton.style.display = messageElement.classList.contains('updating') ? 'flex' : 'none';
+
+            // 只有AI消息且正在更新时才显示停止更新按钮
+            stopUpdateButton.style.display = (messageElement.classList.contains('ai-message') && messageElement.classList.contains('updating')) ? 'flex' : 'none';
 
             showContextMenu({
                 event: e,
@@ -887,7 +891,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const LONG_PRESS_DURATION = 200; // 长按触发时间为200ms
 
     chatContainer.addEventListener('touchstart', (e) => {
-        const messageElement = e.target.closest('.ai-message');
+        const messageElement = e.target.closest('.ai-message, .user-message');
         if (!messageElement) return;
 
         touchStartX = e.touches[0].clientX;
@@ -900,7 +904,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 根据长按元素类型显示/隐藏相应的菜单项
             copyMessageButton.style.display = 'flex';
+            deleteMessageButton.style.display = 'flex';
             copyCodeButton.style.display = codeElement ? 'flex' : 'none';
+            stopUpdateButton.style.display = (messageElement.classList.contains('ai-message') && messageElement.classList.contains('updating')) ? 'flex' : 'none';
 
             showContextMenu({
                 event: {
@@ -1275,6 +1281,38 @@ document.addEventListener('DOMContentLoaded', async () => {
             hideContextMenu({
                 contextMenu,
                 onMessageElementReset: () => { currentMessageElement = null; }
+            });
+        }
+    });
+
+    // 添加删除消息按钮的点击事件处理
+    const deleteMessageButton = document.getElementById('delete-message');
+    deleteMessageButton.addEventListener('click', () => {
+        if (currentMessageElement) {
+            // 如果消息正在更新，先中止请求
+            if (currentMessageElement.classList.contains('updating') && currentController) {
+                currentController.abort();
+                currentController = null;
+            }
+
+            // 从DOM中移除消息元素
+            const messageIndex = Array.from(chatContainer.children).indexOf(currentMessageElement);
+            currentMessageElement.remove();
+
+            // 从chatManager中删除对应的消息
+            const currentChat = chatManager.getCurrentChat();
+            if (currentChat && messageIndex !== -1) {
+                currentChat.messages.splice(messageIndex, 1);
+                chatManager.saveChats();
+            }
+
+            // 隐藏右键菜单
+            hideContextMenu({
+                contextMenu,
+                onMessageElementReset: () => {
+                    currentMessageElement = null;
+                    currentCodeElement = null;
+                }
             });
         }
     });

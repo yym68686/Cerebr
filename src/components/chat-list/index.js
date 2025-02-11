@@ -49,7 +49,7 @@ export async function loadChatContent(chat, chatContainer) {
                 text: message,
                 sender: message.role === 'user' ? 'user' : 'ai',
                 chatContainer,
-                skipHistory: i < messages.length - 1, // 只有最后一条消息skipHistory为false
+                skipHistory: true,
             });
         }
     }

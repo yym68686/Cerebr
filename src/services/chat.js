@@ -64,7 +64,7 @@ export async function callAPI({
     // 确保消息数组中有系统消息
     // 删除消息列表中的reasoning_content字段
     const processedMessages = messages.map(msg => {
-        const { reasoning_content, ...rest } = msg;
+        const { reasoning_content, updating, ...rest } = msg;
         return rest;
     });
 
@@ -153,6 +153,8 @@ export async function callAPI({
                 throw new Error('请求被取消');
             }
             throw error;
+        } finally {
+            chatManager.reciveMessageFinish(chatId);
         }
     };
 
