@@ -1569,14 +1569,15 @@ input:checked + .slider:before {
     border-left: 1px solid var(--border-color);
     z-index: 1000;
     overflow-y: auto;
-    transition: transform 0.3s ease;
     display: flex;
     flex-direction: column;
     transform: translateX(100%);
+    display: none;
 }
 
 #chat-list-page.show {
     transform: translateX(0);
+    display: block;
 }
 
 .chat-cards {
