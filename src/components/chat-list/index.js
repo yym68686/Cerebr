@@ -140,11 +140,13 @@ export function initializeChatList({
     settingsMenu,
     apiSettings
 }) {
+    const messageInput = document.getElementById('message-input');
     // 新建对话按钮点击事件
     newChatButton.addEventListener('click', async () => {
         const newChat = chatManager.createNewChat();
         await switchToChat(newChat.id, chatManager);
         settingsMenu.classList.remove('visible');
+        messageInput.focus();
     });
 
     // 对话列表按钮点击事件
