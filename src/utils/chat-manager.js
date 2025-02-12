@@ -64,12 +64,14 @@ export class ChatManager {
 
         // 如果删除的是当前对话，切换到其他对话
         if (chatId === this.currentChatId) {
-            const nextChat = this.chats.values().next().value;
+            const nextChat = Array.from(this.chats.values()).pop();
             if (nextChat) {
                 await this.switchChat(nextChat.id);
+                this.currentChatId = nextChat.id;
             } else {
                 const newChat = this.createNewChat('默认对话');
                 await this.switchChat(newChat.id);
+                this.currentChatId = newChat.id;
             }
         }
     }

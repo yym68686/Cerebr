@@ -12,8 +12,7 @@ export function renderChatList(chatManager, chatCards) {
     });
 
     // 获取当前对话ID
-    const currentChatId = chatManager.getAllChats()[0]?.id;
-    // const currentChatId = chatManager.getCurrentChat()?.id;
+    const currentChatId = chatManager.getCurrentChat()?.id;
 
     // 添加所有对话卡片
     chatManager.getAllChats().forEach(chat => {
@@ -117,8 +116,7 @@ export function initChatListEvents({
         renderChatList(chatManager, chatCards);
 
         // 如果删除的是当前对话，重新加载聊天内容
-        // const currentChat = chatManager.getCurrentChat();
-        const currentChat = chatManager.getAllChats()[0];
+        const currentChat = chatManager.getCurrentChat();
         if (currentChat) {
             await loadChatContent(currentChat, document.getElementById('chat-container'));
         }
