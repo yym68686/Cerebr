@@ -105,10 +105,10 @@ chrome.commands.onCommand.addListener(async (command) => {
 // 创建一个持久连接
 let port = null;
 chrome.runtime.onConnect.addListener((p) => {
-  console.log('建立持久连接');
+  // console.log('建立持久连接');
   port = p;
   port.onDisconnect.addListener(() => {
-    console.log('连接断开，尝试重新连接');
+    // console.log('连接断开，尝试重新连接', p.sender.tab.id, p.sender.tab.url);
     port = null;
   });
 });
@@ -118,7 +118,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // console.log('收到消息:', message, '来自:', sender.tab?.id);
 
   if (message.type === 'CONTENT_LOADED') {
-    console.log('内容脚本已加载:', message.url);
+    // console.log('内容脚本已加载:', message.url);
     sendResponse({ status: 'ok', timestamp: new Date().toISOString() });
     return false;
   }
@@ -166,7 +166,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
           return null;
         } catch (error) {
-          console.error(`获取页面内容失败:`, error);
+          console.warn('获取页面内容失败（可安全忽略）:', error);
           return null;
         }
       }
@@ -235,6 +235,7 @@ async function isTabConnected(tabId) {
             type: 'PING',
             timestamp: Date.now()
         });
+        // console.log('isTabConnected:', response.type);
         return response && response.type === 'PONG';
     } catch {
         return false;

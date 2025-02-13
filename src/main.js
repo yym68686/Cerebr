@@ -58,8 +58,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // 只有当问题不在历史记录中时才添加
                     if (question && !userQuestions.includes(question)) {
                         userQuestions.push(question);
-                        console.log('保存新问题:', question);
-                        console.log('当前问题历史:', userQuestions);
+                        // console.log('保存新问题:', question);
+                        // console.log('当前问题历史:', userQuestions);
                     }
                 }
             });
