@@ -39,7 +39,7 @@ export function renderChatList(chatManager, chatCards) {
 export async function loadChatContent(chat, chatContainer) {
     chatContainer.innerHTML = '';
     // 确定要遍历的消息范围
-    const messages = chat.messages[chat.messages.length - 1]?.updating ? chat.messages.slice(0, -1) : chat.messages;
+    const messages = chat.messages;
     // console.log('loadChatContent', JSON.stringify(messages));
 
     for (let i = 0; i < messages.length; i++) {

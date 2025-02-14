@@ -53,6 +53,8 @@ export function processMathAndMarkdown(text) {
         // 处理除号
         match = match.replace(/\\div\b/g, ' ÷ ');
         match = match.replace(/\\\[\s*(.+?)\s*\\+\]/g, '\\[ $1 \\]');
+        match = match.replace(/\\\(\s*(.+?)\s*\\）/g, '\\( $1 \\)');
+        match = match.replace(/\\\(\s*(.+?)\s*\\，/g, '\\( $1 \\)，');
         match = match.replace(/</g, '&lt;');
         match = match.replace(/>/g, '&gt;');
         match = match.replace(/%\s/g, '');

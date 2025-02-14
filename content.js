@@ -628,7 +628,7 @@ async function waitForContent() {
             const requestsCompleted = requestManager.isRequestsCompleted();
 
             if (mainElements.length > 0 && requestsCompleted) {
-                console.log(`页面内容已加载，网络请求已完成（已稳定${requestManager.relayRequestCompletedTime}ms无新请求）`);
+                // console.log(`页面内容已加载，网络请求已完成（已稳定${requestManager.relayRequestCompletedTime}ms无新请求）`);
                 resolve();
             } else {
                 const reason = [];
@@ -645,7 +645,7 @@ async function waitForContent() {
                         reason.push('等待首个请求完成');
                     }
                 }
-                console.log('等待页面加载...', reason.join(', '));
+                // console.log('等待页面加载...', reason.join(', '));
                 setTimeout(checkContent, 1000);
             }
         };
@@ -723,8 +723,9 @@ async function extractPageContent() {
       return null;
   }
 
-  console.log('页面内容提取完成，内容:', mainContent);
-  console.log('页面内容提取完成，内容长度:', mainContent.length);
+  // console.log('页面内容提取完成，内容:', mainContent);
+  const gptTokenCount = await estimateGPTTokens(mainContent);
+  console.log('页面内容提取完成，内容长度:', mainContent.length, 'GPT tokens:', gptTokenCount);
 
   return {
       title: document.title,

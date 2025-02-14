@@ -10,7 +10,7 @@ self.addEventListener('activate', (event) => {
 });
 
 // 添加启动日志
-console.log('Background script loaded at:', new Date().toISOString());
+// console.log('Background script loaded at:', new Date().toISOString());
 
 function checkCustomShortcut(callback) {
   chrome.commands.getAll((commands) => {

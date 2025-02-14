@@ -203,15 +203,21 @@ export async function updateAIMessage({
     text,
     chatContainer
 }) {
-    const lastMessage = chatContainer.querySelector('.ai-message.updating');
+    let lastMessage = chatContainer.querySelector('.message:last-child');
+    const currentText = lastMessage.getAttribute('data-original-text') || '';
+
 
     // 处理文本内容
     const textContent = typeof text === 'string' ? text : text.content;
     const reasoningContent = typeof text === 'string' ? null : text.reasoning_content;
 
-    if (lastMessage) {
+    // 如果新文本的开头与当前文本不一致，则认为消息不连续，置空lastMessage
+    if (!textContent.startsWith(currentText) && currentText !== '') {
+        lastMessage = null;
+    }
+
+    if (lastMessage && lastMessage.classList.contains('ai-message')) {
         // 获取当前显示的文本
-        const currentText = lastMessage.getAttribute('data-original-text') || '';
         // 如果新文本比当前文本长，说有新内容需要更新
         if (textContent.length > currentText.length || reasoningContent) {
             // 更新原始文本属性

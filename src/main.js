@@ -23,7 +23,7 @@ let userQuestions = [];
 function initializeUserQuestions() {
     const userMessages = document.querySelectorAll('.user-message');
     userQuestions = Array.from(userMessages).map(msg => msg.textContent.trim());
-    console.log('初始化历史问题:', userQuestions);
+    // console.log('初始化历史问题:', userQuestions);
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -801,6 +801,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 监听标签页切换
     browserAdapter.onTabActivated(async () => {
+        // console.log('标签页切换，重新加载API配置');
+        await loadWebpageSwitch();
         // 同步API配置
         await loadAPIConfigs();
         renderAPICardsWithCallbacks();

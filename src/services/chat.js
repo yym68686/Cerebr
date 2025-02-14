@@ -120,7 +120,6 @@ export async function callAPI({
                     if (line.startsWith('data: ')) {
                         const data = line.slice(6);
                         if (data === '[DONE]') {
-                            chatManager.reciveMessageFinish(chatId);
                             continue;
                         }
 
@@ -153,8 +152,6 @@ export async function callAPI({
                 throw new Error('请求被取消');
             }
             throw error;
-        } finally {
-            chatManager.reciveMessageFinish(chatId);
         }
     };
 

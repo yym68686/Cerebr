@@ -117,15 +117,6 @@ export class ChatManager {
         await this.saveChats();
     }
 
-    async reciveMessageFinish(chatId) {
-        const currentChat = this.chats.get(chatId);
-        if (!currentChat) {
-            throw new Error('对话不存在');
-        }
-        currentChat.messages[currentChat.messages.length - 1].updating = false;
-        await this.saveChats();
-    }
-
     async popMessage() {
         const currentChat = this.getCurrentChat();
         if (!currentChat) {
