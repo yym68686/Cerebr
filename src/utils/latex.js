@@ -48,6 +48,7 @@ export function processMathAndMarkdown(text) {
     });
 
     text = text.replace(/%\n\s*/g, ''); // 移除换行的百分号
+    text = text.replace(/（\\\((.+?)\\）/g, '（\\($1\\)）');
     // 临时替换数学公式
     text = text.replace(/(\\\\\([^]+?\\\\\))|(\\\([^]+?\\\))|(\\\[[\s\S]+?\\\])/g, (match) => {
         // 处理除号
