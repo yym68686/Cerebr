@@ -1525,7 +1525,6 @@ input:checked + .slider:before {
 }
 
 .reasoning-text {
-    white-space: pre-wrap;
     word-break: break-word;
     transition: all 0.2s ease;
 }
