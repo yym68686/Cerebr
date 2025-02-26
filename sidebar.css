@@ -1167,6 +1167,11 @@ input:checked + .slider:before {
     color: #ff4d4d;
 }
 
+#delete-message:hover {
+    background-color: var(--cerebr-message-user-bg);
+    color: #ff4d4d;
+}
+
 /* 当API设置界面显示时隐藏输入框 */
 #api-settings.visible ~ #input-container {
     display: none;
