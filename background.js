@@ -331,8 +331,27 @@ async function getPDFArrayBuffer(url) {
         }
         return response.arrayBuffer();
     } else {
+        const headers = {
+            'Accept': 'application/pdf,*/*',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+        };
+
+        // 如果是ScienceDirect的URL，添加特殊处理
+        if (url.includes('sciencedirectassets.com')) {
+            // 从原始页面获取必要的cookie和referer
+            headers['Accept'] = '*/*';  // ScienceDirect需要这个
+            headers['Referer'] = 'https://www.sciencedirect.com/';
+            headers['Origin'] = 'https://www.sciencedirect.com';
+            headers['Connection'] = 'keep-alive';
+        }
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: headers,
+          credentials: 'include',
+          mode: 'cors'
+        });
         // 处理在线文件
-        const response = await fetch(url);
         if (!response.ok) {
             throw new Error('PDF文件下载失败');
         }
