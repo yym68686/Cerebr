@@ -1,4 +1,4 @@
-import { processMathAndMarkdown, renderMathInElement } from '../utils/latex.js';
+import { processMathAndMarkdown, renderMathInElement } from '../../htmd/latex.js';
 import { chatManager } from '../utils/chat-manager.js';
 import { showImagePreview, createImageTag } from '../utils/ui.js';
 import { processImageTags } from '../services/chat.js';

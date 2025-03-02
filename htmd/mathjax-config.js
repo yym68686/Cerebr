@@ -8,7 +8,7 @@ window.MathJax = {
         skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
     },
     chtml: {
-        fontURL: 'lib/fonts/woff-v2'
+        fontURL: 'htmd/fonts/woff-v2'
     },
     menuOptions: {
         settings: {
