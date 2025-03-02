@@ -1,4 +1,4 @@
-import { appendMessage } from '../../handlers/message-handler.js';
+import { appendMessage } from '../handlers/message-handler.js';
 
 // 渲染对话列表
 export function renderChatList(chatManager, chatCards) {

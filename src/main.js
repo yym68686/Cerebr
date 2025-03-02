@@ -3,9 +3,9 @@ import { callAPI } from './services/chat.js';
 import { handleImageDrop } from './utils/image.js';
 import { chatManager } from './utils/chat-manager.js';
 import { appendMessage, updateAIMessage } from './handlers/message-handler.js';
-import { renderAPICards, createCardCallbacks, selectCard } from './components/api-card/index.js';
+import { renderAPICards, createCardCallbacks, selectCard } from './components/api-card.js';
 import { adjustTextareaHeight, showImagePreview, hideImagePreview, createImageTag } from './utils/ui.js';
-import { showContextMenu, hideContextMenu, copyMessageContent } from './components/context-menu/index.js';
+import { showContextMenu, hideContextMenu, copyMessageContent } from './components/context-menu.js';
 import { storageAdapter, syncStorageAdapter, browserAdapter, isExtensionEnvironment } from './utils/storage-adapter.js';
 import './utils/viewport.js';
 import {
@@ -14,7 +14,7 @@ import {
     loadChatContent,
     initializeChatList,
     renderChatList
-} from './components/chat-list/index.js';
+} from './components/chat-list.js';
 
 // 存储用户的问题历史
 let userQuestions = [];
@@ -564,12 +564,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         messageInput.setAttribute('placeholder', '输入消息...');
                     }, event.data.timeout);
                 }
-            }
-        } else if (event.data && event.data.type === 'CLEAR_CHAT_COMMAND') {
-            console.log('收到清空聊天记录命令');
-            const clearChatButton = document.querySelector('#clear-chat');
-            if (clearChatButton) {
-                clearChatButton.click();
             }
         } else if (event.data.type === 'NEW_CHAT') {
             // 模拟点击新对话按钮
