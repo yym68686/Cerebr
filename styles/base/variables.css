@@ -1,0 +1,68 @@
+/* 根变量（默认浅色主题） */
+:root {
+    --cerebr-bg-color: #ffffff;
+    --cerebr-text-color: #000000;
+    --cerebr-message-user-bg: #e3f2fd;
+    --cerebr-message-ai-bg: #f8fafc;
+    --cerebr-input-bg: #f8f8f8;
+    --cerebr-icon-color: #666666;
+    --cerebr-blur-radius: 12px;
+    --cerebr-card-border-color: rgba(0, 0, 0, 0.15);
+    --cerebr-highlight-border-color: rgba(0, 122, 255, 0.5);
+    --cerebr-button-hover-bg: rgba(0, 0, 0, 0.1);
+    --cerebr-focus-border-color: rgba(0, 122, 255, 0.3);
+    --cerebr-inline-code-bg: rgba(175, 184, 193, 0.2);
+    --cerebr-popup-shadow: rgba(0, 0, 0, 0.2);
+    --cerebr-modal-overlay-bg: rgba(0, 0, 0, 0.8);
+    --cerebr-close-button-bg: rgba(0, 0, 0, 0.6);
+    --cerebr-image-tag-bg: rgba(0, 122, 255, 0.08);
+    --cerebr-image-tag-border-color: rgba(0, 122, 255, 0.15);
+    --cerebr-image-tag-shadow: rgba(0, 0, 0, 0.05);
+    --cerebr-image-tag-hover-bg: rgba(0, 122, 255, 0.12);
+}
+
+/* 深色主题变量 */
+:root.dark-theme {
+    --cerebr-bg-color: #262B33;
+    --cerebr-text-color: #abb2bf;
+    --cerebr-message-user-bg: #3E4451;
+    --cerebr-message-ai-bg: #2c313c;
+    --cerebr-input-bg: #21252b;
+    --cerebr-icon-color: #abb2bf;
+    --cerebr-card-border-color: rgba(255, 255, 255, 0.1);
+    --cerebr-highlight-border-color: rgba(0, 122, 255, 0.5);
+    --cerebr-button-hover-bg: rgba(0, 0, 0, 0.25);
+    --cerebr-focus-border-color: rgba(0, 122, 255, 0.3);
+    --cerebr-inline-code-bg: rgba(99, 110, 123, 0.4);
+    --cerebr-popup-shadow: rgba(0, 0, 0, 0.3);
+    --cerebr-modal-overlay-bg: rgba(0, 0, 0, 0.8);
+    --cerebr-close-button-bg: rgba(0, 0, 0, 0.6);
+    --cerebr-image-tag-bg: rgba(10, 132, 255, 0.12);
+    --cerebr-image-tag-border-color: rgba(10, 132, 255, 0.2);
+    --cerebr-image-tag-shadow: rgba(0, 0, 0, 0.2);
+    --cerebr-image-tag-hover-bg: rgba(10, 132, 255, 0.18);
+}
+
+/* 系统深色主题 */
+@media (prefers-color-scheme: dark) {
+    :root:not(.light-theme) {
+        --cerebr-bg-color: #262B33;
+        --cerebr-text-color: #abb2bf;
+        --cerebr-message-user-bg: #3E4451;
+        --cerebr-message-ai-bg: #2c313c;
+        --cerebr-input-bg: #21252b;
+        --cerebr-icon-color: #abb2bf;
+        --cerebr-card-border-color: rgba(255, 255, 255, 0.1);
+        --cerebr-highlight-border-color: rgba(0, 122, 255, 0.5);
+        --cerebr-button-hover-bg: rgba(0, 0, 0, 0.25);
+        --cerebr-focus-border-color: rgba(0, 122, 255, 0.3);
+        --cerebr-inline-code-bg: rgba(99, 110, 123, 0.4);
+        --cerebr-popup-shadow: rgba(0, 0, 0, 0.3);
+        --cerebr-modal-overlay-bg: rgba(0, 0, 0, 0.8);
+        --cerebr-close-button-bg: rgba(0, 0, 0, 0.6);
+        --cerebr-image-tag-bg: rgba(10, 132, 255, 0.12);
+        --cerebr-image-tag-border-color: rgba(10, 132, 255, 0.2);
+        --cerebr-image-tag-shadow: rgba(0, 0, 0, 0.2);
+        --cerebr-image-tag-hover-bg: rgba(10, 132, 255, 0.18);
+    }
+}

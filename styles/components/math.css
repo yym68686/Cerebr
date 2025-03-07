@@ -1,0 +1,56 @@
+/* MathJax样式 */
+.MathJax {
+    font-size: 1em !important;
+}
+
+.math-display-container {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    margin: 0.1em 0;
+    padding: 0.1em 0;
+}
+
+.math-display-container + br + .math-display-container {
+    margin-top: -1em;
+}
+
+.math-display-container + br {
+    display: none;
+}
+
+.MathJax_Display {
+    overflow-x: visible;
+    overflow-y: hidden;
+    margin: 0;
+}
+
+.MathJax_SVG_Display {
+    text-align: center;
+    margin: 0;
+    position: relative;
+}
+
+.MathJax_SVG {
+    display: inline-block;
+    font-style: normal;
+    font-weight: normal;
+    line-height: normal;
+    font-size: 1.21em;
+    text-indent: 0;
+    text-align: left;
+    text-transform: none;
+    letter-spacing: normal;
+    word-spacing: normal;
+    word-wrap: normal;
+    white-space: nowrap;
+    float: none;
+    direction: ltr;
+    max-width: none;
+    max-height: none;
+    min-width: 0;
+    min-height: 0;
+    border: 0;
+    padding: 0;
+    margin: 0;
+}

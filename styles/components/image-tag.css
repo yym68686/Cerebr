@@ -1,0 +1,70 @@
+/* 图片组件样式 */
+.image-tag {
+    display: inline-flex;
+    align-items: center;
+    background: var(--cerebr-image-tag-bg);
+    border: 1px solid var(--cerebr-image-tag-border-color);
+    border-radius: 6px;
+    padding: 4px 6px;
+    margin: 0 4px;
+    height: 24px;
+    cursor: pointer;
+    user-select: none;
+    vertical-align: middle;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    gap: 6px;
+    line-height: 1;
+    box-sizing: border-box;
+    box-shadow: 0 1px 2px var(--cerebr-image-tag-shadow);
+}
+
+.image-tag:hover {
+    background: var(--cerebr-image-tag-hover-bg);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px var(--cerebr-button-hover-bg);
+}
+
+.image-tag:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px var(--cerebr-image-tag-shadow);
+}
+
+.image-tag img {
+    width: 16px;
+    height: 16px;
+    object-fit: cover;
+    border-radius: 4px;
+    margin: 0;
+}
+
+.image-tag .delete-btn {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    color: var(--cerebr-text-color);
+    opacity: 0.6;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.image-tag .delete-btn:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.image-tag .delete-btn:active {
+    transform: scale(0.95);
+}
+
+.image-tag .delete-btn svg {
+    width: 12px;
+    height: 12px;
+    stroke: currentColor;
+    stroke-width: 2;
+}

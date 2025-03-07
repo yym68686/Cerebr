@@ -1,0 +1,336 @@
+/* 代码块基础样式 */
+.message pre {
+    margin: 12px 0;
+    position: relative;
+    border-radius: 8px;
+    background-color: #0d1117;
+    overflow: hidden;
+}
+
+.message pre code {
+    display: block;
+    padding: 16px;
+    overflow-x: auto;
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    tab-size: 4;
+    -webkit-font-smoothing: auto;
+    border-radius: 8px;
+    background-color: #f6f8fa;
+    color: #24292e;
+    border: 1px solid #e1e4e8;
+}
+
+/* Markdown 样式 */
+.message pre code {
+    display: block;
+    overflow-x: auto;
+    padding: 1em;
+    border-radius: 6px;
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    white-space: pre;
+    /* 浅色模式默认样式 */
+    background: #f6f8fa;
+    color: #24292e;
+    border: 1px solid #e1e4e8;
+}
+
+/* 行内代码样式 */
+.message code:not(pre code) {
+    padding: 2px 6px;
+    margin: 0 2px;
+    border-radius: 4px;
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 0.9em;
+    background-color: var(--cerebr-inline-code-bg);
+    color: var(--cerebr-text-color);
+}
+
+/* 所有代码样式 */
+.message code {
+    background: var(--cerebr-button-hover-bg);
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+}
+
+/* 滚动条样式 */
+.message pre code::-webkit-scrollbar {
+    height: 8px;
+    background-color: #f6f8fa;
+}
+
+.message pre code::-webkit-scrollbar-thumb {
+    background-color: #d1d5da;
+    border-radius: 4px;
+}
+
+.message pre code::-webkit-scrollbar-thumb:hover {
+    background-color: #a5a9ad;
+}
+
+/* 语言标签 */
+.message pre::before {
+    content: attr(data-language);
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    padding: 4px 8px;
+    font-size: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #57606a;
+    background-color: #f6f8fa;
+    border-bottom-left-radius: 8px;
+    opacity: 0.5;
+}
+
+/* 浅色模式代码高亮 */
+.message pre code .hljs-keyword {
+    color: #d73a49;
+}
+
+.message pre code .hljs-built_in {
+    color: #005cc5;
+}
+
+.message pre code .hljs-type {
+    color: #d73a49;
+}
+
+.message pre code .hljs-literal {
+    color: #005cc5;
+}
+
+.message pre code .hljs-number {
+    color: #005cc5;
+}
+
+.message pre code .hljs-regexp {
+    color: #032f62;
+}
+
+.message pre code .hljs-string {
+    color: #032f62;
+}
+
+.message pre code .hljs-comment {
+    color: #6a737d;
+}
+
+.message pre code .hljs-doctag {
+    color: #d73a49;
+}
+
+.message pre code .hljs-meta {
+    color: #6a737d;
+}
+
+.message pre code .hljs-title {
+    color: #6f42c1;
+}
+
+.message pre code .hljs-tag {
+    color: #22863a;
+}
+
+.message pre code .hljs-attr {
+    color: #005cc5;
+}
+
+.message pre code .hljs-attribute {
+    color: #005cc5;
+}
+
+.message pre code .hljs-template-tag {
+    color: #d73a49;
+}
+
+.message pre code .hljs-template-variable {
+    color: #d73a49;
+}
+
+.message pre code .hljs-variable {
+    color: #d73a49;
+}
+
+.message pre code .hljs-bullet {
+    color: #735c0f;
+}
+
+.message pre code .hljs-emphasis {
+    color: #24292e;
+    font-style: italic;
+}
+
+.message pre code .hljs-strong {
+    color: #24292e;
+    font-weight: bold;
+}
+
+/* 允许代码块内的文本选择 */
+.ai-message pre,
+.ai-message code {
+    -webkit-touch-callout: text;
+    -webkit-user-select: text;
+    -khtml-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+}
+
+/* 深色模式样式 */
+:root.dark-theme .message pre code {
+    background: #282c34;
+    color: #abb2bf;
+    border: none;
+    /* 滚动条样式 */
+    scrollbar-width: thin;
+    scrollbar-color: #4b5263 #282c34;
+}
+
+:root.dark-theme .message pre::before {
+    color: #7d8590;
+    background-color: #161b22;
+}
+
+:root.dark-theme .message pre code::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+:root.dark-theme .message pre code::-webkit-scrollbar-track {
+    background: #282c34;
+}
+
+:root.dark-theme .message pre code::-webkit-scrollbar-thumb {
+    background-color: #4b5263;
+    border-radius: 4px;
+    border: 2px solid #282c34;
+}
+
+/* 深色模式代码高亮 */
+:root.dark-theme .message pre code .hljs-keyword,
+:root.dark-theme .message pre code .hljs-type,
+:root.dark-theme .message pre code .hljs-template-tag,
+:root.dark-theme .message pre code .hljs-template-variable,
+:root.dark-theme .message pre code .hljs-variable {
+    color: #c678dd;
+}
+
+:root.dark-theme .message pre code .hljs-built_in,
+:root.dark-theme .message pre code .hljs-literal,
+:root.dark-theme .message pre code .hljs-number {
+    color: #d19a66;
+}
+
+:root.dark-theme .message pre code .hljs-regexp,
+:root.dark-theme .message pre code .hljs-string {
+    color: #98c379;
+}
+
+:root.dark-theme .message pre code .hljs-comment,
+:root.dark-theme .message pre code .hljs-meta {
+    color: #7f848e;
+}
+
+:root.dark-theme .message pre code .hljs-title {
+    color: #61afef;
+}
+
+:root.dark-theme .message pre code .hljs-tag {
+    color: #e06c75;
+}
+
+:root.dark-theme .message pre code .hljs-attr,
+:root.dark-theme .message pre code .hljs-attribute {
+    color: #d19a66;
+}
+
+:root.dark-theme .message pre code .hljs-emphasis {
+    color: #abb2bf;
+    font-style: italic;
+}
+
+:root.dark-theme .message pre code .hljs-strong {
+    color: #abb2bf;
+    font-weight: bold;
+}
+
+/* 系统深色模式适配 */
+@media (prefers-color-scheme: dark) {
+    :root:not(.light-theme) .message pre code::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    :root:not(.light-theme) .message pre code::-webkit-scrollbar-track {
+        background: #282c34;
+    }
+
+    :root:not(.light-theme) .message pre code::-webkit-scrollbar-thumb {
+        background-color: #4b5263;
+        border-radius: 4px;
+        border: 2px solid #282c34;
+    }
+    :root:not(.light-theme) .message pre code {
+        background: #282c34;
+        color: #abb2bf;
+        border: none;
+        /* 滚动条样式 */
+        scrollbar-width: thin;
+        scrollbar-color: #4b5263 #282c34;
+    }
+
+    :root:not(.light-theme) .message pre::before {
+        color: #7d8590;
+        background-color: #161b22;
+    }
+
+    :root:not(.light-theme) .message pre code .hljs-keyword,
+    :root:not(.light-theme) .message pre code .hljs-type,
+    :root:not(.light-theme) .message pre code .hljs-template-tag,
+    :root:not(.light-theme) .message pre code .hljs-template-variable,
+    :root:not(.light-theme) .message pre code .hljs-variable {
+        color: #c678dd;
+    }
+
+    :root:not(.light-theme) .message pre code .hljs-built_in,
+    :root:not(.light-theme) .message pre code .hljs-literal,
+    :root:not(.light-theme) .message pre code .hljs-number {
+        color: #d19a66;
+    }
+
+    :root:not(.light-theme) .message pre code .hljs-regexp,
+    :root:not(.light-theme) .message pre code .hljs-string {
+        color: #98c379;
+    }
+
+    :root:not(.light-theme) .message pre code .hljs-comment,
+    :root:not(.light-theme) .message pre code .hljs-meta {
+        color: #7f848e;
+    }
+
+    :root:not(.light-theme) .message pre code .hljs-title {
+        color: #61afef;
+    }
+
+    :root:not(.light-theme) .message pre code .hljs-tag {
+        color: #e06c75;
+    }
+
+    :root:not(.light-theme) .message pre code .hljs-attr,
+    :root:not(.light-theme) .message pre code .hljs-attribute {
+        color: #d19a66;
+    }
+
+    :root:not(.light-theme) .message pre code .hljs-emphasis {
+        color: #abb2bf;
+        font-style: italic;
+    }
+
+    :root:not(.light-theme) .message pre code .hljs-strong {
+        color: #abb2bf;
+        font-weight: bold;
+    }
+}

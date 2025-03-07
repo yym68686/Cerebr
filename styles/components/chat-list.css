@@ -1,0 +1,120 @@
+/* 聊天列表页面样式 */
+#chat-list-page {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background-color: var(--cerebr-bg-color);
+    border-left: 1px solid var(--border-color);
+    z-index: 1000;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    display: none;
+}
+
+#chat-list-page.show {
+    transform: translateX(0);
+    display: block;
+}
+
+.chat-cards {
+    padding: 16px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.chat-card {
+    background: var(--cerebr-message-ai-bg);
+    border-radius: 8px;
+    position: relative;
+    cursor: pointer;
+    border: 1px solid var(--cerebr-card-border-color);
+    transition: all 0.2s ease;
+    backdrop-filter: blur(var(--cerebr-blur-radius));
+    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
+    outline: none;
+    margin-bottom: 12px;
+}
+
+.chat-card:hover,
+.chat-card:focus {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px var(--cerebr-card-border-color);
+}
+
+.chat-card.selected {
+    border-color: var(--cerebr-highlight-border-color);
+    box-shadow: 0 0 0 1px var(--cerebr-highlight-border-color);
+}
+
+.chat-card .card-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+}
+
+.chat-card .chat-title {
+    font-size: 14px;
+    color: var(--cerebr-text-color);
+    flex-grow: 1;
+    margin-right: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chat-card .card-actions {
+    display: flex;
+    gap: 8px;
+    z-index: 3;
+}
+
+.chat-card .card-button {
+    background: none;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+    color: var(--cerebr-text-color);
+    opacity: 0.6;
+    transition: opacity 0.2s, background-color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    position: relative;
+}
+
+.chat-card .card-button:hover {
+    opacity: 1;
+    background-color: var(--cerebr-button-hover-bg);
+}
+
+.chat-card .card-button svg {
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.5;
+}
+
+/* 深色主题适配 */
+:root.dark-theme .chat-card {
+    border-color: var(--cerebr-card-border-color);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not(.light-theme) .chat-card {
+        border-color: var(--cerebr-card-border-color);
+    }
+
+    :root:not(.light-theme) .chat-card .card-button:hover {
+        background-color: var(--cerebr-card-border-color);
+    }
+}

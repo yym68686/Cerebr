@@ -1,0 +1,205 @@
+/* API设置页面样式 */
+#api-settings {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--cerebr-bg-color);
+    display: none;
+    flex-direction: column;
+    padding: 20px;
+    overflow-y: auto;
+    backdrop-filter: blur(var(--cerebr-blur-radius));
+    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
+    z-index: 200;
+}
+
+#api-settings.visible {
+    display: flex;
+}
+
+/* 当API设置界面显示时隐藏输入框 */
+#api-settings.visible ~ #input-container {
+    display: none;
+}
+
+.settings-header {
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--cerebr-bg-color);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.back-button {
+    background: none;
+    border: none;
+    padding: 8px;
+    margin-right: 12px;
+    cursor: pointer;
+    color: var(--cerebr-text-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
+}
+
+.back-button:hover {
+    background-color: var(--cerebr-message-user-bg);
+}
+
+.settings-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--cerebr-text-color);
+}
+
+.api-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+/* API卡片基础样式 */
+.api-card {
+    background: var(--cerebr-message-ai-bg);
+    border-radius: 8px;
+    padding: 15px;
+    position: relative;
+    cursor: pointer;
+    border: 1px solid var(--cerebr-card-border-color);
+    transition: all 0.2s ease;
+    backdrop-filter: blur(var(--cerebr-blur-radius));
+    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
+    outline: none;
+}
+
+.api-card:hover,
+.api-card:focus {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px var(--cerebr-card-border-color);
+}
+
+.api-card.selected {
+    border-color: var(--cerebr-highlight-border-color);
+    box-shadow: 0 0 0 1px var(--cerebr-highlight-border-color);
+}
+
+.api-card:focus:not(.selected) {
+    border-color: var(--cerebr-focus-border-color);
+    box-shadow: 0 0 0 1px var(--cerebr-focus-border-color);
+}
+
+.card-actions {
+    display: flex;
+    gap: 8px;
+    z-index: 3;
+}
+
+.card-button {
+    background: none;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+    color: var(--cerebr-text-color);
+    opacity: 0.6;
+    transition: opacity 0.2s, background-color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    position: relative;
+}
+
+.card-button:hover {
+    opacity: 1;
+    background-color: var(--cerebr-button-hover-bg);
+}
+
+.card-button svg {
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.5;
+}
+
+.api-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+}
+
+.form-group input,
+.system-prompt {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.form-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.form-group label {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+.form-group input {
+    width: 100%;
+    background: var(--cerebr-message-ai-bg);
+    border: 1px solid var(--cerebr-card-border-color);
+    padding: 8px;
+    border-radius: 4px;
+    color: var(--cerebr-text-color);
+    font-size: 14px;
+    box-sizing: border-box;
+    transition: border-color 0.2s ease;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--cerebr-highlight-border-color);
+    box-shadow: 0 0 0 1px var(--cerebr-highlight-border-color);
+}
+
+/* 深色主题输入框边框 */
+:root.dark-theme .form-group input {
+    border-color: var(--cerebr-card-border-color);
+}
+
+/* 系统深色模式 */
+@media (prefers-color-scheme: dark) {
+    :root:not(.light-theme) .form-group input {
+        border-color: var(--cerebr-card-border-color);
+    }
+    :root:not(.light-theme) .api-card {
+        border-color: var(--cerebr-card-border-color);
+    }
+    .card-button:hover {
+        background-color: var(--cerebr-card-border-color);
+    }
+}
+
+/* 深色主题API卡片边框 */
+:root.dark-theme .api-card {
+    border-color: var(--cerebr-card-border-color);
+}

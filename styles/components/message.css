@@ -1,0 +1,127 @@
+/* 消息基础样式 */
+.message {
+    margin: 8px 0;
+    padding: 12px 16px;
+    border-radius: 8px;
+    width: fit-content;
+    max-width: calc(100% - 32px);
+    word-wrap: break-word;
+    font-size: 14px;
+    line-height: 1.5;
+    position: relative;
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+    animation: messageAppear 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    will-change: transform, opacity;
+    backdrop-filter: blur(var(--cerebr-blur-radius));
+    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
+    box-shadow: 0 2px 6px var(--cerebr-button-hover-bg);
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+}
+
+/* 消息中的图片样式 */
+.message img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 8px 0;
+    border-radius: 6px;
+}
+
+/* 添加更新中的消息样式 */
+.message.updating {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    -webkit-transform-style: preserve-3d;
+    transform-style: preserve-3d;
+}
+
+.user-message {
+    background-color: var(--cerebr-message-user-bg);
+    margin-left: auto;
+    margin-right: 0;
+    border-bottom-right-radius: 4px;
+}
+
+.ai-message {
+    background-color: var(--cerebr-message-ai-bg);
+    margin-right: auto;
+    margin-left: 0;
+    border-bottom-left-radius: 4px;
+    -webkit-touch-callout: none; /* iOS Safari */
+}
+
+.message p {
+    margin: 0;
+    line-height: 1.5;
+}
+
+.message p + p {
+    margin-top: 0.5em;
+}
+
+.message ul, .message ol {
+    margin: 0.5em 0;
+    padding-left: 24px;
+}
+
+/* 链接样式 */
+.message a {
+    color: #0366d6;
+    text-decoration: none;
+}
+
+.message a:hover {
+    text-decoration: underline;
+}
+
+.message blockquote {
+    margin: 0.5em 0;
+    padding-left: 12px;
+    border-left: 4px solid var(--cerebr-popup-shadow);
+    color: rgba(0, 0, 0, 0.7);
+}
+
+.message:hover {
+    transform: translateY(-1px) translateZ(0);
+    box-shadow: 0 4px 12px var(--cerebr-card-border-color);
+}
+
+/* 深色模式适配 */
+@media (prefers-color-scheme: dark) {
+    .message blockquote {
+        border-left-color: rgba(255, 255, 255, 0.2);
+        color: rgba(255, 255, 255, 0.7);
+    }
+    .message a {
+        color: #58a6ff;
+    }
+
+    .message {
+        box-shadow: 0 1px 2px var(--cerebr-card-border-color);
+    }
+
+    .message:hover {
+        box-shadow: 0 2px 4px var(--cerebr-popup-shadow);
+    }
+}
+
+/* 批量加载时的消息样式 */
+.message.batch-load {
+    animation: none;
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+}
+
+.message.batch-load.show {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
