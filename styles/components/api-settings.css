@@ -16,6 +16,10 @@
     display: flex;
 }
 
+#api-settings::-webkit-scrollbar {
+    display: none;
+}
+
 .settings-header {
     padding: 16px;
     display: flex;

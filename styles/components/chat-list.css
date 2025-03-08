@@ -16,6 +16,10 @@
     display: block;
 }
 
+#chat-list-page::-webkit-scrollbar {
+    display: none;
+}
+
 .chat-cards {
     padding: 16px;
     flex: 1;
