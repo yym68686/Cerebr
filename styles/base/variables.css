@@ -2,7 +2,7 @@
 :root {
     --cerebr-bg-color: #ffffff;
     --cerebr-text-color: #000000;
-    --cerebr-message-user-bg: #e3f2fd;
+    --cerebr-message-user-bg: #e6eaf0;
     --cerebr-message-ai-bg: #f8fafc;
     --cerebr-input-bg: #f8f8f8;
     --cerebr-icon-color: #666666;
@@ -37,7 +37,7 @@
 /* 深色主题变量 */
 :root.dark-theme {
     --cerebr-bg-color: #262B33;
-    --cerebr-text-color: #abb2bf;
+    --cerebr-text-color: #d8dde6;
     --cerebr-message-user-bg: #3E4451;
     --cerebr-message-ai-bg: #2c313c;
     --cerebr-input-bg: #21252b;
@@ -61,7 +61,7 @@
     --cerebr-link-color: #58a6ff;
     --cerebr-toggle-hover-bg: rgba(255, 255, 255, 0.08);
     --cerebr-reasoning-bg: rgba(255, 255, 255, 0.03);
-    --cerebr-reasoning-text-color: #999;
+    --cerebr-reasoning-text-color: #b3b3b3;
     --cerebr-reasoning-hover-bg: rgba(255, 255, 255, 0.05);
     --cerebr-toggle-bg-off: rgba(255, 255, 255, 0.15);
     --cerebr-toggle-bg-on: #32d74b;
@@ -73,7 +73,7 @@
 @media (prefers-color-scheme: dark) {
     :root:not(.light-theme) {
         --cerebr-bg-color: #262B33;
-        --cerebr-text-color: #abb2bf;
+        --cerebr-text-color: #d8dde6;
         --cerebr-message-user-bg: #3E4451;
         --cerebr-message-ai-bg: #2c313c;
         --cerebr-input-bg: #21252b;
@@ -97,7 +97,7 @@
         --cerebr-link-color: #58a6ff;
         --cerebr-toggle-hover-bg: rgba(255, 255, 255, 0.08);
         --cerebr-reasoning-bg: rgba(255, 255, 255, 0.03);
-        --cerebr-reasoning-text-color: #999;
+        --cerebr-reasoning-text-color: #b3b3b3;
         --cerebr-reasoning-hover-bg: rgba(255, 255, 255, 0.05);
         --cerebr-toggle-bg-off: rgba(255, 255, 255, 0.15);
         --cerebr-toggle-bg-on: #32d74b;
