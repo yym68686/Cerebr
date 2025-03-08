@@ -7,17 +7,12 @@
     bottom: 0;
     z-index: 1000;
     display: none;
-    overflow-y: auto;
     flex-direction: column;
     background: var(--cerebr-bg-color);
 }
 
 #chat-list-page.show {
-    display: block;
-}
-
-#chat-list-page::-webkit-scrollbar {
-    display: none;
+    display: flex;
 }
 
 .chat-cards {
@@ -27,16 +22,14 @@
 }
 
 .chat-card {
-    background: var(--cerebr-message-ai-bg);
+    outline: none;
+    cursor: pointer;
     border-radius: 8px;
     position: relative;
-    cursor: pointer;
-    border: 1px solid var(--cerebr-card-border-color);
-    transition: all 0.2s ease;
-    backdrop-filter: blur(var(--cerebr-blur-radius));
-    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
-    outline: none;
     margin-bottom: 12px;
+    background: var(--cerebr-message-ai-bg);
+    border: 1px solid var(--cerebr-card-border-color);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .chat-card:hover,

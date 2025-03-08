@@ -16,8 +16,23 @@
     display: flex;
 }
 
-#api-settings::-webkit-scrollbar {
-    display: none;
+.api-cards {
+    padding: 16px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* API卡片基础样式 */
+.api-card {
+    outline: none;
+    cursor: pointer;
+    border-radius: 8px;
+    position: relative;
+    margin-bottom: 12px;
+    background: var(--cerebr-message-ai-bg);
+    border: 1px solid var(--cerebr-card-border-color);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    padding: 15px;
 }
 
 .settings-header {
@@ -53,27 +68,6 @@
     font-size: 16px;
     font-weight: 500;
     color: var(--cerebr-text-color);
-}
-
-.api-cards {
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-}
-
-/* API卡片基础样式 */
-.api-card {
-    background: var(--cerebr-message-ai-bg);
-    border-radius: 8px;
-    padding: 15px;
-    position: relative;
-    cursor: pointer;
-    border: 1px solid var(--cerebr-card-border-color);
-    transition: all 0.2s ease;
-    backdrop-filter: blur(var(--cerebr-blur-radius));
-    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
-    outline: none;
 }
 
 .api-card:hover,
@@ -161,14 +155,12 @@
 }
 
 .form-group input {
-    width: 100%;
     background: var(--cerebr-message-ai-bg);
     border: 1px solid var(--cerebr-card-border-color);
     padding: 8px;
     border-radius: 4px;
     color: var(--cerebr-text-color);
     font-size: 14px;
-    box-sizing: border-box;
     transition: border-color 0.2s ease;
 }
 
@@ -176,27 +168,4 @@
     outline: none;
     border-color: var(--cerebr-highlight-border-color);
     box-shadow: 0 0 0 1px var(--cerebr-highlight-border-color);
-}
-
-/* 深色主题输入框边框 */
-:root.dark-theme .form-group input {
-    border-color: var(--cerebr-card-border-color);
-}
-
-/* 系统深色模式 */
-@media (prefers-color-scheme: dark) {
-    :root:not(.light-theme) .form-group input {
-        border-color: var(--cerebr-card-border-color);
-    }
-    :root:not(.light-theme) .api-card {
-        border-color: var(--cerebr-card-border-color);
-    }
-    .card-button:hover {
-        background-color: var(--cerebr-card-border-color);
-    }
-}
-
-/* 深色主题API卡片边框 */
-:root.dark-theme .api-card {
-    border-color: var(--cerebr-card-border-color);
 }
