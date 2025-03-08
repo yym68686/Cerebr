@@ -9,9 +9,6 @@
     left: 0;
     right: 0;
     flex-shrink: 0;
-    backdrop-filter: blur(var(--cerebr-blur-radius));
-    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
-    box-shadow: 0 -1px 0 var(--cerebr-button-hover-bg);
     padding-bottom: env(safe-area-inset-bottom);
     z-index: 100;
     min-height: 48px;
