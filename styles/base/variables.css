@@ -1,7 +1,7 @@
 /* 根变量（默认浅色主题） */
 :root {
     --cerebr-bg-color: #ffffff;
-    --cerebr-text-color: #000000;
+    --cerebr-text-color: #333333;
     --cerebr-message-user-bg: #e6eaf0;
     --cerebr-message-ai-bg: #f8fafc;
     --cerebr-input-bg: #f8f8f8;
