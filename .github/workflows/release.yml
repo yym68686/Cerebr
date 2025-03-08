@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'  # 这会递归地检出所有子模块
 
       - name: Set up Node.js
         uses: actions/setup-node@v3
