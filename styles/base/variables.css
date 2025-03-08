@@ -19,6 +19,19 @@
     --cerebr-image-tag-border-color: rgba(0, 122, 255, 0.15);
     --cerebr-image-tag-shadow: rgba(0, 0, 0, 0.05);
     --cerebr-image-tag-hover-bg: rgba(0, 122, 255, 0.12);
+    --cerebr-blockquote-text-color: rgba(0, 0, 0, 0.7);
+    --cerebr-blockquote-border-color: rgba(0, 0, 0, 0.2);
+    --cerebr-message-hover-shadow: rgba(0, 0, 0, 0.15);
+    --cerebr-message-shadow: rgba(0, 0, 0, 0.1);
+    --cerebr-link-color: #0366d6;
+    --cerebr-toggle-hover-bg: rgba(0, 0, 0, 0.06);
+    --cerebr-reasoning-bg: rgba(0, 0, 0, 0.03);
+    --cerebr-reasoning-text-color: #666;
+    --cerebr-reasoning-hover-bg: rgba(0, 0, 0, 0.05);
+    --cerebr-toggle-bg-off: rgba(128, 128, 128, 0.3);
+    --cerebr-toggle-bg-on: #34c759;
+    --cerebr-input-border-color: rgba(0, 0, 0, 0.15);
+    --cerebr-sidebar-box-shadow: -2px 0 15px rgba(0, 0, 0, 0.1);
 }
 
 /* 深色主题变量 */
@@ -41,6 +54,19 @@
     --cerebr-image-tag-border-color: rgba(10, 132, 255, 0.2);
     --cerebr-image-tag-shadow: rgba(0, 0, 0, 0.2);
     --cerebr-image-tag-hover-bg: rgba(10, 132, 255, 0.18);
+    --cerebr-blockquote-text-color: rgba(255, 255, 255, 0.7);
+    --cerebr-blockquote-border-color: rgba(255, 255, 255, 0.2);
+    --cerebr-message-hover-shadow: rgba(0, 0, 0, 0.2);
+    --cerebr-message-shadow: rgba(0, 0, 0, 0.15);
+    --cerebr-link-color: #58a6ff;
+    --cerebr-toggle-hover-bg: rgba(255, 255, 255, 0.08);
+    --cerebr-reasoning-bg: rgba(255, 255, 255, 0.03);
+    --cerebr-reasoning-text-color: #999;
+    --cerebr-reasoning-hover-bg: rgba(255, 255, 255, 0.05);
+    --cerebr-toggle-bg-off: rgba(255, 255, 255, 0.15);
+    --cerebr-toggle-bg-on: #32d74b;
+    --cerebr-input-border-color: rgba(255, 255, 255, 0.15);
+    --cerebr-sidebar-box-shadow: -2px 0 15px rgba(0, 0, 0, 0.2);
 }
 
 /* 系统深色主题 */
@@ -64,5 +90,18 @@
         --cerebr-image-tag-border-color: rgba(10, 132, 255, 0.2);
         --cerebr-image-tag-shadow: rgba(0, 0, 0, 0.2);
         --cerebr-image-tag-hover-bg: rgba(10, 132, 255, 0.18);
+        --cerebr-blockquote-text-color: rgba(255, 255, 255, 0.7);
+        --cerebr-blockquote-border-color: rgba(255, 255, 255, 0.2);
+        --cerebr-message-hover-shadow: rgba(0, 0, 0, 0.2);
+        --cerebr-message-shadow: rgba(0, 0, 0, 0.15);
+        --cerebr-link-color: #58a6ff;
+        --cerebr-toggle-hover-bg: rgba(255, 255, 255, 0.08);
+        --cerebr-reasoning-bg: rgba(255, 255, 255, 0.03);
+        --cerebr-reasoning-text-color: #999;
+        --cerebr-reasoning-hover-bg: rgba(255, 255, 255, 0.05);
+        --cerebr-toggle-bg-off: rgba(255, 255, 255, 0.15);
+        --cerebr-toggle-bg-on: #32d74b;
+        --cerebr-input-border-color: rgba(255, 255, 255, 0.15);
+        --cerebr-sidebar-box-shadow: -2px 0 15px rgba(0, 0, 0, 0.2);
     }
 }

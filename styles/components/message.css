@@ -15,7 +15,7 @@
     will-change: transform, opacity;
     backdrop-filter: blur(var(--cerebr-blur-radius));
     -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
-    box-shadow: 0 2px 6px var(--cerebr-button-hover-bg);
+    box-shadow: 0 2px 6px var(--cerebr-message-shadow);
     transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
                 box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     -webkit-font-smoothing: antialiased;
@@ -74,7 +74,7 @@
 
 /* 链接样式 */
 .message a {
-    color: #0366d6;
+    color: var(--cerebr-link-color);
     text-decoration: none;
 }
 
@@ -85,32 +85,13 @@
 .message blockquote {
     margin: 0.5em 0;
     padding-left: 12px;
-    border-left: 4px solid var(--cerebr-popup-shadow);
-    color: rgba(0, 0, 0, 0.7);
+    border-left: 4px solid var(--cerebr-blockquote-border-color);
+    color: var(--cerebr-blockquote-text-color);
 }
 
 .message:hover {
     transform: translateY(-1px) translateZ(0);
-    box-shadow: 0 4px 12px var(--cerebr-card-border-color);
-}
-
-/* 深色模式适配 */
-@media (prefers-color-scheme: dark) {
-    .message blockquote {
-        border-left-color: rgba(255, 255, 255, 0.2);
-        color: rgba(255, 255, 255, 0.7);
-    }
-    .message a {
-        color: #58a6ff;
-    }
-
-    .message {
-        box-shadow: 0 1px 2px var(--cerebr-card-border-color);
-    }
-
-    .message:hover {
-        box-shadow: 0 2px 4px var(--cerebr-popup-shadow);
-    }
+    box-shadow: 0 4px 12px var(--cerebr-message-hover-shadow);
 }
 
 /* 批量加载时的消息样式 */

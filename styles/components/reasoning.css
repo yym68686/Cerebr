@@ -8,7 +8,7 @@
 .reasoning-toggle {
     cursor: pointer;
     background: transparent;
-    color: #666;
+    color: var(--cerebr-reasoning-text-color);
     font-size: 0.9em;
     padding: 6px 12px;
     border: none;
@@ -20,16 +20,16 @@
 }
 
 .reasoning-toggle:hover {
-    background: rgba(0, 0, 0, 0.06);
+    background: var(--cerebr-toggle-hover-bg);
     color: #333;
 }
 
 .reasoning-content {
     cursor: pointer;
-    background-color: rgba(0, 0, 0, 0.03);
+    background-color: var(--cerebr-reasoning-bg);
     border-radius: 6px;
     font-size: 0.95em;
-    color: #666;
+    color: var(--cerebr-reasoning-text-color);
     line-height: 1.5;
     overflow: hidden;
     transition: all 0.2s ease;
@@ -37,13 +37,13 @@
 }
 
 .reasoning-content:hover {
-    background-color: var(--cerebr-image-tag-shadow);
+    background-color: var(--cerebr-reasoning-hover-bg);
 }
 
 .reasoning-placeholder {
     display: none;
     font-size: 0.9em;
-    color: #666;
+    color: var(--cerebr-reasoning-text-color);
 }
 
 .reasoning-text {
@@ -62,20 +62,4 @@
 
 .reasoning-content.collapsed .reasoning-text {
     display: none;
-}
-
-/* 深色模式样式 */
-@media (prefers-color-scheme: dark) {
-    .reasoning-content {
-        background-color: rgba(255, 255, 255, 0.03);
-        color: #999;
-    }
-
-    .reasoning-content:hover {
-        background-color: rgba(255, 255, 255, 0.05);
-    }
-
-    .reasoning-placeholder {
-        color: #999;
-    }
 }

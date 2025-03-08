@@ -30,7 +30,7 @@
 }
 
 .loading-content #webpage-switch:checked + .slider {
-    background-color: rgba(128, 128, 128, 0.3);
+    background-color: var(--cerebr-toggle-bg-off);
 }
 
 .loading-content #webpage-switch:checked + .slider:before {

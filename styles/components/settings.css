@@ -86,7 +86,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(128, 128, 128, 0.3);
+    background-color: var(--cerebr-toggle-bg-off);
     transition: .3s;
     border-radius: 20px;
 }
@@ -105,7 +105,7 @@
 }
 
 input:checked + .slider {
-    background-color: #34c759;
+    background-color: var(--cerebr-toggle-bg-on);
 }
 
 input:checked + .slider:before {
@@ -165,7 +165,7 @@ input:checked + .slider:before {
     width: 100%;
     min-height: 60px;
     padding: 8px;
-    border: 1px solid var(--cerebr-card-border-color);
+    border: 1px solid var(--cerebr-input-border-color);
     border-radius: 4px;
     background: var(--cerebr-message-ai-bg);
     color: var(--cerebr-text-color);
@@ -180,42 +180,4 @@ input:checked + .slider:before {
     outline: none;
     border-color: var(--cerebr-highlight-border-color);
     box-shadow: 0 0 0 1px var(--cerebr-highlight-border-color);
-}
-
-/* 深色主题适配 */
-:root.dark-theme .advanced-settings {
-    border-top-color: transparent;
-}
-
-:root.dark-theme .system-prompt {
-    border-color: var(--cerebr-card-border-color);
-}
-
-:root.dark-theme .system-prompt:focus {
-    border-color: var(--cerebr-highlight-border-color);
-    box-shadow: 0 0 0 1px var(--cerebr-highlight-border-color);
-}
-
-/* 系统深色模式适配 */
-@media (prefers-color-scheme: dark) {
-    :root:not(.light-theme) .advanced-settings {
-        border-top-color: transparent;
-    }
-
-    :root:not(.light-theme) .system-prompt {
-        border-color: var(--cerebr-card-border-color);
-    }
-
-    :root:not(.light-theme) .system-prompt:focus {
-        border-color: var(--cerebr-highlight-border-color);
-        box-shadow: 0 0 0 1px var(--cerebr-highlight-border-color);
-    }
-
-    .slider {
-        background-color: rgba(255, 255, 255, 0.15);
-    }
-
-    input:checked + .slider {
-        background-color: #32d74b;
-    }
 }

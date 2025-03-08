@@ -7,7 +7,7 @@
     height: calc(100vh - 40px);
     background: var(--cerebr-bg-color);
     color: var(--cerebr-text-color);
-    box-shadow: -2px 0 15px rgba(0,0,0,0.1);
+    box-shadow: var(--cerebr-sidebar-box-shadow);
     z-index: 2147483647;
     border-radius: 12px;
     margin-right: 20px;
