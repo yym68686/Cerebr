@@ -10,17 +10,14 @@
     line-height: 1.5;
     position: relative;
     opacity: 0;
-    transform: translateY(8px) scale(0.98);
+    transform: translateY(8px) scale(0.98) translateZ(0);
     animation: messageAppear 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
     will-change: transform, opacity;
-    backdrop-filter: blur(var(--cerebr-blur-radius));
-    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
     box-shadow: 0 2px 6px var(--cerebr-message-shadow);
     transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
                 box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    transform: translateZ(0);
     backface-visibility: hidden;
     perspective: 1000px;
 }
@@ -36,7 +33,6 @@
 
 /* 添加更新中的消息样式 */
 .message.updating {
-    transform: translateZ(0);
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;
     -webkit-transform-style: preserve-3d;
