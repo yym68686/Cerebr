@@ -2,21 +2,17 @@
 #chat-list-page {
     position: fixed;
     top: 0;
+    left: 0;
     right: 0;
     bottom: 0;
-    left: 0;
-    background-color: var(--cerebr-bg-color);
-    border-left: 1px solid var(--border-color);
     z-index: 1000;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    transform: translateX(100%);
     display: none;
+    overflow-y: auto;
+    flex-direction: column;
+    background: var(--cerebr-bg-color);
 }
 
 #chat-list-page.show {
-    transform: translateX(0);
     display: block;
 }
 
@@ -102,19 +98,4 @@
     stroke: currentColor;
     fill: none;
     stroke-width: 1.5;
-}
-
-/* 深色主题适配 */
-:root.dark-theme .chat-card {
-    border-color: var(--cerebr-card-border-color);
-}
-
-@media (prefers-color-scheme: dark) {
-    :root:not(.light-theme) .chat-card {
-        border-color: var(--cerebr-card-border-color);
-    }
-
-    :root:not(.light-theme) .chat-card .card-button:hover {
-        background-color: var(--cerebr-card-border-color);
-    }
 }

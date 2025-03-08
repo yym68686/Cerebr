@@ -1,27 +1,19 @@
 /* API设置页面样式 */
 #api-settings {
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: var(--cerebr-bg-color);
+    z-index: 1000;
     display: none;
-    flex-direction: column;
-    padding: 20px;
     overflow-y: auto;
-    backdrop-filter: blur(var(--cerebr-blur-radius));
-    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
-    z-index: 200;
+    flex-direction: column;
+    background: var(--cerebr-bg-color);
 }
 
 #api-settings.visible {
     display: flex;
-}
-
-/* 当API设置界面显示时隐藏输入框 */
-#api-settings.visible ~ #input-container {
-    display: none;
 }
 
 .settings-header {
@@ -60,6 +52,7 @@
 }
 
 .api-cards {
+    padding: 16px;
     display: flex;
     flex-direction: column;
     gap: 15px;
