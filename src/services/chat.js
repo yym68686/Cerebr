@@ -149,7 +149,7 @@ export async function callAPI({
             return currentMessage;
         } catch (error) {
             if (error.name === 'AbortError') {
-                throw new Error('请求被取消');
+                return;
             }
             throw error;
         }

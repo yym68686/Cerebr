@@ -37,6 +37,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const chatListButton = document.getElementById('chat-list');
     const apiSettings = document.getElementById('api-settings');
     const deleteMessageButton = document.getElementById('delete-message');
+
+    // 修改: 创建一个对象引用来保存当前控制器
+    const abortControllerRef = { current: null };
     let currentController = null;
 
     // 创建UI工具配置
@@ -74,9 +77,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         chatContainer,
         messageInput,
         contextMenu,
-        sendMessage,
-        currentController: { current: currentController },
-        uiConfig,
         userQuestions,
         chatManager
     });
@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         copyCodeButton,
         stopUpdateButton,
         deleteMessageButton,
-        abortController: { current: currentController }
+        abortController: abortControllerRef
     });
 
     // 初始化消息输入组件
@@ -320,6 +320,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (updatingMessage && currentController) {
             currentController.abort();
             currentController = null;
+            abortControllerRef.current = null; // 同步更新引用对象
             updatingMessage.classList.remove('updating');
         }
 
@@ -365,6 +366,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 调用 API
             const { processStream, controller } = await callAPI(apiParams, chatManager, currentChat.id, chatContainerManager.syncMessage);
             currentController = controller;
+            abortControllerRef.current = controller; // 同步更新引用对象
 
             // 处理流式响应
             await processStream();
