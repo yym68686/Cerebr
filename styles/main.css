@@ -10,7 +10,6 @@
 @import './components/settings.css';
 @import './components/reasoning.css';
 @import './components/chat-list.css';
-@import './components/math.css';
 @import './components/message.css';
 @import './components/code.css';
 @import './components/sidebar.css';
@@ -19,3 +18,5 @@
 @import './components/image-preview.css';
 @import './components/api-settings.css';
 @import './components/chat-container.css';
+
+@import '../htmd/styles/math.css';
