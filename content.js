@@ -674,6 +674,25 @@ async function extractPageContent() {
   // 等待内容加载和网络请求完成
   await waitForContent();
 
+  const iframes = document.querySelectorAll('iframe');
+  // console.log('页面中的iframe数量:', iframes.length);
+  let frameContent = '';
+  for (const iframe of iframes) {
+    console.log('尝试处理iframe:', iframe.id);
+    try {
+      // 检查iframe是否可访问
+      if (iframe.contentDocument || iframe.contentWindow) {
+        const iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
+        const content = iframeDocument.body.innerText;
+        console.log('成功从iframe中提取内容');
+        console.log('content:', content);
+        frameContent += content;
+      }
+    } catch (e) {
+      console.log('无法访问该iframe内容:', e.message);
+    }
+  }
+
   // 创建一个文档片段来处理内容
   const tempContainer = document.createElement('div');
   tempContainer.innerHTML = document.body.innerHTML;
@@ -692,6 +711,7 @@ async function extractPageContent() {
   });
 
   let mainContent = tempContainer.innerText;
+  mainContent += frameContent;
 
   // 理文本
   mainContent = mainContent
