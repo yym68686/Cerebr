@@ -516,7 +516,21 @@ if (document.readyState === 'loading') {
 }
 
 window.addEventListener('error', (event) => {
+  if (event.message && event.message.includes('ResizeObserver loop')) {
+    // console.debug('忽略 ResizeObserver 警告:', event.message);
+    return; // 不记录为错误
+  }
   console.error('全局错误:', event.error);
+  // 添加更多错误信息记录
+  console.error('错误详情:', {
+    message: event.message,
+    filename: event.filename,
+    lineno: event.lineno,
+    colno: event.colno,
+    type: event.type,
+    timeStamp: event.timeStamp,
+    eventPhase: event.eventPhase
+  });
 });
 
 window.addEventListener('unhandledrejection', (event) => {
