@@ -455,7 +455,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // console.log('收到获取页面内容请求');
         isProcessing = true;
 
-        extractPageContent().then(content => {
+        extractPageContent(message.skipWaitContent).then(content => {
             isProcessing = false;
             sendResponse(content);
         }).catch(error => {
@@ -652,16 +652,17 @@ async function waitForContent() {
 }
 
 // 修改 extractPageContent 函数
-async function extractPageContent() {
+async function extractPageContent(skipWaitContent = false) {
   // console.log('extractPageContent 开始提取页面内容');
 
   // 检查是否是PDF或者iframe中的PDF
+  let pdfUrl = null;
   if (document.contentType === 'application/pdf' ||
       (window.location.href.includes('.pdf') ||
        document.querySelector('iframe[src*="pdf.js"]') ||
        document.querySelector('iframe[src*=".pdf"]'))) {
     // console.log('检测到PDF文件，尝试提取PDF内容');
-    let pdfUrl = window.location.href;
+    pdfUrl = window.location.href;
 
     // 如果是iframe中的PDF，尝试提取实际的PDF URL
     const pdfIframe = document.querySelector('iframe[src*="pdf.js"]') || document.querySelector('iframe[src*=".pdf"]');
@@ -675,18 +676,27 @@ async function extractPageContent() {
       }
     }
 
-    const pdfText = await extractTextFromPDF(pdfUrl);
-    if (pdfText) {
-      return {
-        title: document.title,
-        url: window.location.href,
-        content: pdfText
-      };
-    }
   }
 
-  // 等待内容加载和网络请求完成
-  await waitForContent();
+  // 等待内容加载和网络请求完成 - 如果 skipWaitContent 为 true，则跳过等待
+  if (!skipWaitContent) {
+    if (pdfUrl) {
+      const pdfText = await extractTextFromPDF(pdfUrl);
+      if (pdfText) {
+        return {
+          title: document.title,
+          url: window.location.href,
+          content: pdfText
+        };
+      }
+    }
+    await waitForContent();
+  } else {
+    console.log('跳过页面内容等待步骤');
+    if (pdfUrl) {
+      return null;
+    }
+  }
 
   const iframes = document.querySelectorAll('iframe');
   // console.log('页面中的iframe数量:', iframes.length);

@@ -159,7 +159,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
           if (await isTabConnected(activeTab.id)) {
             return await chrome.tabs.sendMessage(activeTab.id, {
-              type: 'GET_PAGE_CONTENT_INTERNAL'
+              type: 'GET_PAGE_CONTENT_INTERNAL',
+              skipWaitContent: message.skipWaitContent || false
             });
           }
           return null;

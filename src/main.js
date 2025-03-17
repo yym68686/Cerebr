@@ -148,11 +148,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     let pageContent = null;
 
     // 获取网页内容
-    async function getPageContent() {
+    async function getPageContent(skipWaitContent = false) {
         try {
             // console.log('getPageContent 发送获取网页内容请求');
             const response = await browserAdapter.sendMessage({
-                type: 'GET_PAGE_CONTENT_FROM_SIDEBAR'
+                type: 'GET_PAGE_CONTENT_FROM_SIDEBAR',
+                skipWaitContent: skipWaitContent // 传递是否跳过等待内容加载的参数
             });
             return response;
         } catch (error) {
@@ -330,6 +331,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!message.trim() && imageTags.length === 0) return;
 
         try {
+            // 如果网页问答功能开启，重新获取页面内容，不等待内容加载
+            if (webpageSwitch.checked) {
+                // console.log('发送消息时网页问答已打开，重新获取页面内容');
+                try {
+                    const content = await getPageContent(true); // 跳过等待内容加载
+                    if (content) {
+                        pageContent = content;
+                        console.log('成功更新 pageContent 内容');
+                    }
+                } catch (error) {
+                    console.error('发送消息时获取页面内容失败:', error);
+                }
+            }
+
             // 构建消息内容
             const content = buildMessageContent(message, imageTags);
 
