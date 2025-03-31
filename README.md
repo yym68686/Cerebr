@@ -144,4 +144,4 @@ Welcome to submit Issues and Pull Requests to help improve the project. Before s
 
 ## 📄 License
 
-This project is licensed under the MIT License
+This project is licensed under the GPLv3 License
