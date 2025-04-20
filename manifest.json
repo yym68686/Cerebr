@@ -17,13 +17,14 @@
     "unlimitedStorage",
     "<all_urls>"
   ],
-  "action": {
+  "browser_action": {
     "default_title": "打开 Cerebr 侧边栏",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
-    }
+    },
+    "default_popup": "index.html"
   },
   "commands": {
     "toggle_sidebar": {
