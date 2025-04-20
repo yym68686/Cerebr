@@ -152,32 +152,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       (async () => {
         async function tryGetContent(tabId) {
           try {
-            if (!tabId) {
-              console.log('获取页面内容失败：未提供有效的标签页ID');
-              return { error: '未提供有效的标签页ID' };
-            }
-      
             if (await isTabConnected(tabId)) {
-              try {
-                const response = await browser.tabs.sendMessage(tabId, {
-                  type: 'GET_PAGE_CONTENT_INTERNAL',
-                  skipWaitContent: message.skipWaitContent || false
-                });
-                if (response && typeof response === 'object') {
-                  return response;
-                } else {
-                  console.warn('获取页面内容失败：未收到有效响应', response);
-                  return { error: '未收到有效响应' };
-                }
-              } catch (error) {
-                console.warn('获取页面内容失败：发送消息时出错', error);
-                return { error: '发送消息时出错', details: error.message };
+              const response = await browser.tabs.sendMessage(tabId, {
+                type: 'GET_PAGE_CONTENT_INTERNAL',
+                skipWaitContent: message.skipWaitContent || false
+              });
+              if (response && typeof response === 'object') {
+                return response;
+              } else {
+                console.error('获取页面内容失败：未收到有效响应', response);
+                return { error: '未收到有效响应' };
               }
+            } else {
+              console.error('获取页面内容失败：标签页未连接');
+              return { error: '标签页未连接' };
             }
-            console.warn('获取页面内容失败：标签页未连接');
-            return { error: '标签页未连接' };
           } catch (error) {
-            console.warn('获取页面内容失败（可安全忽略）:', error);
+            console.error('获取页面内容失败：', error);
             return { error: '获取页面内容失败', details: error.message };
           }
         }
