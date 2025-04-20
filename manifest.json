@@ -15,7 +15,8 @@
     "tabs",
     "webRequest",
     "unlimitedStorage",
-    "<all_urls>"
+    "<all_urls>",
+    "clipboardWrite"
   ],
   "browser_action": {
     "default_title": "打开 Cerebr 侧边栏",
