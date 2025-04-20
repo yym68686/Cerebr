@@ -417,3 +417,93 @@ async function getPDFChunk(url, chunkIndex) {
         };
     }
 }
+// 监听来自 UI 脚本的消息
+browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.type === "getCurrentDomain") {
+        browser.tabs.query({ active: true, currentWindow: true }).then(tabs => {
+            if (!tabs || tabs.length === 0) {
+                sendResponse({ domain: null });
+                return;
+            }
+
+            const tab = tabs[0];
+            const url = tab.url;
+            if (!url) {
+                sendResponse({ domain: null });
+                return;
+            }
+
+            // 处理特殊 URL
+            if (url.startsWith('about:') || url.startsWith('moz-extension://') || url.startsWith('chrome-extension://')) {
+                sendResponse({ domain: null });
+                return;
+            }
+
+            // 如果是本地文件，直接返回特定标识
+            if (url.startsWith('file://')) {
+                sendResponse({ domain: 'local_pdf' });
+                return;
+            }
+
+            // 处理普通 URL
+            const hostname = new URL(url).hostname;
+            // 规范化域名
+            const normalizedDomain = hostname
+                .replace(/^www\./, '')  // 移除 www 前缀
+                .toLowerCase();         // 转换为小写
+
+            sendResponse({ domain: normalizedDomain });
+        }).catch(error => {
+            console.error('获取当前域名失败:', error);
+            sendResponse({ domain: null });
+        });
+        return true; // 支持异步响应
+    } else if (request.type === "getCurrentTab") {
+        browser.tabs.query({ active: true, currentWindow: true }).then(tabs => {
+            if (!tabs || tabs.length === 0) {
+                sendResponse({ tab: null });
+                return;
+            }
+
+            const tab = tabs[0];
+            if (!tab.url) {
+                sendResponse({ tab: null });
+                return;
+            }
+
+            // 处理本地文件
+            if (tab.url.startsWith('file://')) {
+                sendResponse({
+                    tab: {
+                        url: 'file://',
+                        title: 'Local PDF',
+                        hostname: 'local_pdf'
+                    }
+                });
+                return;
+            }
+
+            const url = new URL(tab.url);
+            sendResponse({
+                tab: {
+                    url: tab.url,
+                    title: tab.title,
+                    hostname: url.hostname
+                }
+            });
+        }).catch(error => {
+            console.error('获取当前标签页信息失败:', error);
+            sendResponse({ tab: null });
+        });
+        return true; // 支持异步响应
+    }
+});
+
+// 监听标签页激活事件
+browser.tabs.onActivated.addListener((activeInfo) => {
+    browser.runtime.sendMessage({
+        type: "tabActivated"
+    }).catch(error => {
+        console.error('发送标签页激活消息失败:', error);
+    });
+});

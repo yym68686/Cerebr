@@ -184,25 +184,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 获取当前域名
     async function getCurrentDomain() {
         try {
-            const tab = await browserAdapter.getCurrentTab();
-            if (!tab) return null;
-
-            // 如果是本地文件，直接返回hostname
-            if (tab.hostname === 'local_pdf') {
-                return tab.hostname;
+            const response = await browser.runtime.sendMessage({
+                type: "getCurrentDomain"
+            });
+            if (response && response.domain) {
+                return response.domain;
+            } else {
+                console.error('无法从后台脚本获取域名:', response);
+                return null;
             }
-
-            // 处理普通URL
-            const hostname = tab.hostname;
-            // 规范化域名
-            const normalizedDomain = hostname
-                .replace(/^www\./, '')  // 移除www前缀
-                .toLowerCase();         // 转换为小写
-
-            // console.log('规范化域名:', hostname, '->', normalizedDomain);
-            return normalizedDomain;
         } catch (error) {
-            // console.error('获取当前域名失败:', error);
+            console.error('获取当前域名失败:', error);
             return null;
         }
     }
