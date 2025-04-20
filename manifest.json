@@ -1,11 +1,9 @@
 {
-  "manifest_version": 3,
+  "manifest_version": 2,
   "name": "Cerebr",
   "version": "2.3.29",
   "description": "Cerebr - 智能AI聊天助手",
-  "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
-  },
+  "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -13,14 +11,12 @@
   },
   "permissions": [
     "storage",
-    "commands",
-    "scripting",
     "activeTab",
     "tabs",
     "webRequest",
-    "unlimitedStorage"
+    "unlimitedStorage",
+    "<all_urls>"
   ],
-  "host_permissions": ["<all_urls>", "file:///*"],
   "action": {
     "default_title": "打开 Cerebr 侧边栏",
     "default_icon": {
@@ -48,8 +44,7 @@
     }
   },
   "background": {
-    "service_worker": "background.js",
-    "type": "module"
+    "scripts": ["background.js"]
   },
   "content_scripts": [
     {
@@ -59,38 +54,38 @@
     }
   ],
   "web_accessible_resources": [
-    {
-      "resources": [
-        "index.html",
-        "src/main.js",
-        "styles/main.css",
-        "htmd/marked.min.js",
-        "htmd/highlight.min.js",
-        "htmd/mathjax-config.js",
-        "htmd/tex-chtml-full.js",
-        "lib/pdf.js",
-        "lib/pdf.worker.js",
-        "htmd/mermaid.min.js",
-        "htmd/mermaid-init.js",
-        "htmd/fonts/woff-v2/MathJax_AMS-Regular.woff",
-        "htmd/fonts/woff-v2/MathJax_Calligraphic-Regular.woff",
-        "htmd/fonts/woff-v2/MathJax_Fraktur-Bold.woff",
-        "htmd/fonts/woff-v2/MathJax_Fraktur-Regular.woff",
-        "htmd/fonts/woff-v2/MathJax_Main-Bold.woff",
-        "htmd/fonts/woff-v2/MathJax_Main-Regular.woff",
-        "htmd/fonts/woff-v2/MathJax_Math-BoldItalic.woff",
-        "htmd/fonts/woff-v2/MathJax_Math-Italic.woff",
-        "htmd/fonts/woff-v2/MathJax_Size1-Regular.woff",
-        "htmd/fonts/woff-v2/MathJax_Size2-Regular.woff",
-        "htmd/fonts/woff-v2/MathJax_Size3-Regular.woff",
-        "htmd/fonts/woff-v2/MathJax_Size4-Regular.woff",
-        "htmd/fonts/woff-v2/MathJax_Typewriter-Regular.woff",
-        "htmd/fonts/woff-v2/MathJax_Vector-Bold.woff",
-        "htmd/fonts/woff-v2/MathJax_Vector-Regular.woff",
-        "htmd/fonts/woff-v2/MathJax_Zero.woff",
-        "statics/image.png"
-      ],
-      "matches": ["<all_urls>"]
+    "index.html",
+    "src/main.js",
+    "styles/main.css",
+    "htmd/marked.min.js",
+    "htmd/highlight.min.js",
+    "htmd/mathjax-config.js",
+    "htmd/tex-chtml-full.js",
+    "lib/pdf.js",
+    "lib/pdf.worker.js",
+    "htmd/mermaid.min.js",
+    "htmd/mermaid-init.js",
+    "htmd/fonts/woff-v2/MathJax_AMS-Regular.woff",
+    "htmd/fonts/woff-v2/MathJax_Calligraphic-Regular.woff",
+    "htmd/fonts/woff-v2/MathJax_Fraktur-Bold.woff",
+    "htmd/fonts/woff-v2/MathJax_Fraktur-Regular.woff",
+    "htmd/fonts/woff-v2/MathJax_Main-Bold.woff",
+    "htmd/fonts/woff-v2/MathJax_Main-Regular.woff",
+    "htmd/fonts/woff-v2/MathJax_Math-BoldItalic.woff",
+    "htmd/fonts/woff-v2/MathJax_Math-Italic.woff",
+    "htmd/fonts/woff-v2/MathJax_Size1-Regular.woff",
+    "htmd/fonts/woff-v2/MathJax_Size2-Regular.woff",
+    "htmd/fonts/woff-v2/MathJax_Size3-Regular.woff",
+    "htmd/fonts/woff-v2/MathJax_Size4-Regular.woff",
+    "htmd/fonts/woff-v2/MathJax_Typewriter-Regular.woff",
+    "htmd/fonts/woff-v2/MathJax_Vector-Bold.woff",
+    "htmd/fonts/woff-v2/MathJax_Vector-Regular.woff",
+    "htmd/fonts/woff-v2/MathJax_Zero.woff",
+    "statics/image.png"
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "cerebr-ai-firefox@example.com"
     }
-  ]
+  }
 }

@@ -1,12 +1,12 @@
-// 检测是否在Chrome扩展环境中
-export const isExtensionEnvironment = typeof chrome !== 'undefined' && chrome.runtime;
+// 检测是否在浏览器扩展环境中
+export const isExtensionEnvironment = typeof browser !== 'undefined' && browser.runtime;
 
 // 存储适配器
 export const storageAdapter = {
     // 获取存储的数据
     async get(key) {
         if (isExtensionEnvironment) {
-            return await chrome.storage.local.get(key);
+            return await browser.storage.local.get(key);
         } else {
             const value = localStorage.getItem(key);
             return value ? { [key]: JSON.parse(value) } : {};
@@ -16,7 +16,7 @@ export const storageAdapter = {
     // 设置存储的数据
     async set(data) {
         if (isExtensionEnvironment) {
-            await chrome.storage.local.set(data);
+            await browser.storage.local.set(data);
         } else {
             for (const [key, value] of Object.entries(data)) {
                 localStorage.setItem(key, JSON.stringify(value));
@@ -30,7 +30,7 @@ export const syncStorageAdapter = {
     // 获取存储的数据
     async get(key) {
         if (isExtensionEnvironment) {
-            return await chrome.storage.sync.get(key);
+            return await browser.storage.sync.get(key);
         } else {
             // 处理数组形式的 key
             if (Array.isArray(key)) {
@@ -53,7 +53,7 @@ export const syncStorageAdapter = {
     // 设置存储的数据
     async set(data) {
         if (isExtensionEnvironment) {
-            await chrome.storage.sync.set(data);
+            await browser.storage.sync.set(data);
         } else {
             for (const [key, value] of Object.entries(data)) {
                 localStorage.setItem(`sync_${key}`, JSON.stringify(value));
@@ -67,7 +67,7 @@ export const browserAdapter = {
     // 获取当前标签页信息
     async getCurrentTab() {
         if (isExtensionEnvironment) {
-            const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
+            const [tab] = await browser.tabs.query({active: true, currentWindow: true});
             if (!tab?.url) return null;
 
             // 处理本地文件
@@ -106,7 +106,7 @@ export const browserAdapter = {
     // 发送消息
     async sendMessage(message) {
         if (isExtensionEnvironment) {
-            return await chrome.runtime.sendMessage(message);
+            return await browser.runtime.sendMessage(message);
         } else {
             console.warn('Message passing is not supported in web environment:', message);
             return null;
@@ -116,7 +116,7 @@ export const browserAdapter = {
     // 添加标签页变化监听器
     onTabActivated(callback) {
         if (isExtensionEnvironment) {
-            chrome.tabs.onActivated.addListener(callback);
+            browser.tabs.onActivated.addListener(callback);
         } else {
             // Web环境下不需要监听标签页变化
             console.info('Tab activation listening is not supported in web environment');
