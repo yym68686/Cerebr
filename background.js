@@ -147,42 +147,46 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // 处理来自 sidebar 的网页内容请求
-  if (message.type === 'GET_PAGE_CONTENT_FROM_SIDEBAR') {
-    (async () => {
-      async function tryGetContent() {
-        try {
-          const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-          if (!activeTab) {
-            return null;
+    // 处理来自 sidebar 的网页内容请求
+    if (message.type === 'GET_PAGE_CONTENT_FROM_SIDEBAR') {
+      (async () => {
+        async function tryGetContent(tabId) {
+          try {
+            if (!tabId) {
+              console.log('获取页面内容失败：未提供有效的标签页ID');
+              return { error: '未提供有效的标签页ID' };
+            }
+      
+            if (await isTabConnected(tabId)) {
+              try {
+                const response = await browser.tabs.sendMessage(tabId, {
+                  type: 'GET_PAGE_CONTENT_INTERNAL',
+                  skipWaitContent: message.skipWaitContent || false
+                });
+                if (response && typeof response === 'object') {
+                  return response;
+                } else {
+                  console.warn('获取页面内容失败：未收到有效响应', response);
+                  return { error: '未收到有效响应' };
+                }
+              } catch (error) {
+                console.warn('获取页面内容失败：发送消息时出错', error);
+                return { error: '发送消息时出错', details: error.message };
+              }
+            }
+            console.warn('获取页面内容失败：标签页未连接');
+            return { error: '标签页未连接' };
+          } catch (error) {
+            console.warn('获取页面内容失败（可安全忽略）:', error);
+            return { error: '获取页面内容失败', details: error.message };
           }
-
-          if (sender.tab && sender.tab.id !== activeTab.id) {
-            return null;
-          }
-
-          if (!sender.url || !sender.url.includes('index.html')) {
-            return null;
-          }
-
-          if (await isTabConnected(activeTab.id)) {
-            return await browser.tabs.sendMessage(activeTab.id, {
-              type: 'GET_PAGE_CONTENT_INTERNAL',
-              skipWaitContent: message.skipWaitContent || false
-            });
-          }
-          return null;
-        } catch (error) {
-          console.warn('获取页面内容失败（可安全忽略）:', error);
-          return null;
         }
-      }
-
-      const content = await tryGetContent();
-      sendResponse(content);
-    })();
-    return true;
-  }
+  
+        const content = await tryGetContent(message.tabId);
+        sendResponse(content);
+      })();
+      return true;
+    }
 
   // 处理PDF下载请求
   if (message.action === 'downloadPDF') {
@@ -422,26 +426,26 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === "getCurrentDomain") {
         browser.tabs.query({ active: true, currentWindow: true }).then(tabs => {
             if (!tabs || tabs.length === 0) {
-                sendResponse({ domain: null });
+                sendResponse({ domain: null, tabId: null });
                 return;
             }
 
             const tab = tabs[0];
             const url = tab.url;
             if (!url) {
-                sendResponse({ domain: null });
+                sendResponse({ domain: null, tabId: null });
                 return;
             }
 
             // 处理特殊 URL
             if (url.startsWith('about:') || url.startsWith('moz-extension://') || url.startsWith('chrome-extension://')) {
-                sendResponse({ domain: null });
+                sendResponse({ domain: null, tabId: null });
                 return;
             }
 
             // 如果是本地文件，直接返回特定标识
             if (url.startsWith('file://')) {
-                sendResponse({ domain: 'local_pdf' });
+                sendResponse({ domain: 'local_pdf', tabId: tab.id });
                 return;
             }
 
@@ -452,10 +456,10 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 .replace(/^www\./, '')  // 移除 www 前缀
                 .toLowerCase();         // 转换为小写
 
-            sendResponse({ domain: normalizedDomain });
+            sendResponse({ domain: normalizedDomain, tabId: tab.id });
         }).catch(error => {
             console.error('获取当前域名失败:', error);
-            sendResponse({ domain: null });
+            sendResponse({ domain: null, tabId: null });
         });
         return true; // 支持异步响应
     } else if (request.type === "getCurrentTab") {
@@ -504,6 +508,10 @@ browser.tabs.onActivated.addListener((activeInfo) => {
     browser.runtime.sendMessage({
         type: "tabActivated"
     }).catch(error => {
-        console.error('发送标签页激活消息失败:', error);
+        if (error.message?.includes("Receiving end does not exist")) {
+            // UI 未打开，正常情况，不记录错误
+        } else {
+            console.error('发送标签页激活消息失败:', error);
+        }
     });
 });

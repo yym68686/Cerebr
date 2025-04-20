@@ -148,12 +148,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     let pageContent = null;
 
     // 获取网页内容
-    async function getPageContent(skipWaitContent = false) {
+    async function getPageContent(skipWaitContent = false, tabId = null) {
         try {
             // console.log('getPageContent 发送获取网页内容请求');
             const response = await browserAdapter.sendMessage({
                 type: 'GET_PAGE_CONTENT_FROM_SIDEBAR',
-                skipWaitContent: skipWaitContent // 传递是否跳过等待内容加载的参数
+                skipWaitContent: skipWaitContent, // 传递是否跳过等待内容加载的参数
+                tabId: tabId // 传递标签页ID
             });
             return response;
         } catch (error) {
@@ -188,45 +189,49 @@ document.addEventListener('DOMContentLoaded', async () => {
                 type: "getCurrentDomain"
             });
             if (response && response.domain) {
-                return response.domain;
+                return { domain: response.domain, tabId: response.tabId };
             } else {
                 console.error('无法从后台脚本获取域名:', response);
-                return null;
+                return { domain: null, tabId: null };
             }
         } catch (error) {
             console.error('获取当前域名失败:', error);
-            return null;
+            return { domain: null, tabId: null };
         }
     }
 
     // 修改网页问答开关监听器
     webpageSwitch.addEventListener('change', async () => {
         try {
-            const domain = await getCurrentDomain();
+            const { domain, tabId } = await getCurrentDomain();
             console.log('网页问答开关状态改变后，获取当前域名:', domain);
-
+    
             if (!domain) {
                 console.log('无法获取域名，保持开关状态不变');
                 webpageSwitch.checked = !webpageSwitch.checked; // 恢复开关状态
                 return;
             }
-
+    
             console.log('网页问答开关状态改变后，获取网页问答开关状态:', webpageSwitch.checked);
-
+    
             if (webpageSwitch.checked) {
                 document.body.classList.add('loading-content');
-
+    
                 try {
-                    const content = await getPageContent();
+                    const content = await getPageContent(false, tabId);
                     if (content) {
-                        pageContent = content;
-                        await saveWebpageSwitch(domain, true);
-                        console.log('修改网页问答为已开启');
+                        if (content.error) {
+                            console.error('获取网页内容失败：', content.error, content.details || '');
+                        } else {
+                            pageContent = content;
+                            await saveWebpageSwitch(domain, true);
+                            console.log('修改网页问答为已开启');
+                        }
                     } else {
-                        console.error('获取网页内容失败。');
+                        console.error('获取网页内容失败：未收到响应');
                     }
                 } catch (error) {
-                    console.error('获取网页内容失败:', error);
+                    console.error('获取网页内容失败:', error.message || error);
                 } finally {
                     document.body.classList.remove('loading-content');
                 }
@@ -257,24 +262,31 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.log('[网页问答] URL变化，重新获取页面内容');
                 document.body.classList.add('loading-content');
 
-                getPageContent()
-                    .then(async content => {
-                        if (content) {
-                            pageContent = content;
-                            const domain = await getCurrentDomain();
-                            if (domain) {
-                                await saveWebpageSwitch(domain, true);
+                (async () => {
+                    const { tabId } = await getCurrentDomain();
+                    getPageContent(false, tabId)
+                        .then(async content => {
+                            if (content) {
+                                if (content.error) {
+                                    console.error('URL_CHANGED 获取网页内容失败：', content.error, content.details || '');
+                                } else {
+                                    pageContent = content;
+                                    const { domain } = await getCurrentDomain();
+                                    if (domain) {
+                                        await saveWebpageSwitch(domain, true);
+                                    }
+                                }
+                            } else {
+                                console.error('URL_CHANGED 无法获取网页内容：未收到响应');
                             }
-                        } else {
-                            console.error('URL_CHANGED 无法获取网页内容');
-                        }
-                    })
-                    .catch(async error => {
-                        console.error('URL_CHANGED 获取网页内容失败:', error);
-                    })
-                    .finally(() => {
-                        document.body.classList.remove('loading-content');
-                    });
+                        })
+                        .catch(async error => {
+                            console.error('URL_CHANGED 获取网页内容失败:', error.message || error);
+                        })
+                        .finally(() => {
+                            document.body.classList.remove('loading-content');
+                        });
+                })();
             }
         }
     });
@@ -303,12 +315,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (isTabActive) {
                     setTimeout(async () => {
                         try {
-                            const content = await getPageContent();
+                            const { tabId } = await getCurrentDomain();
+                            const content = await getPageContent(false, tabId);
                             if (content) {
-                                pageContent = content;
+                                if (content.error) {
+                                    console.error('loadWebpageSwitch 获取网页内容失败：', content.error, content.details || '');
+                                } else {
+                                    pageContent = content;
+                                }
                             }
                         } catch (error) {
-                            console.error('loadWebpageSwitch 获取网页内容失败:', error);
+                            console.error('loadWebpageSwitch 获取网页内容失败:', error.message || error);
                         }
                     }, 0);
                 }
@@ -344,13 +361,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (webpageSwitch.checked) {
                 // console.log('发送消息时网页问答已打开，重新获取页面内容');
                 try {
-                    const content = await getPageContent(true); // 跳过等待内容加载
+                    const { tabId } = await getCurrentDomain();
+                    const content = await getPageContent(true, tabId); // 跳过等待内容加载
                     if (content) {
-                        pageContent = content;
-                        console.log('成功更新 pageContent 内容');
+                        if (content.error) {
+                            console.error('发送消息时获取页面内容失败：', content.error, content.details || '');
+                        } else {
+                            pageContent = content;
+                            console.log('成功更新 pageContent 内容');
+                        }
                     }
                 } catch (error) {
-                    console.error('发送消息时获取页面内容失败:', error);
+                    console.error('发送消息时获取页面内容失败:', error.message || error);
                 }
             }
 
