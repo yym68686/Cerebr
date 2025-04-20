@@ -28,7 +28,7 @@ function checkCustomShortcut(callback) {
 async function reinjectContentScript(tabId) {
   console.log('标签页未连接，尝试重新注入 content script...');
   try {
-    await chrome.scripting.executeScript({
+    await browser.scripting.executeScript({
       target: { tabId },
       files: ['content.js']
     });
@@ -49,21 +49,29 @@ async function reinjectContentScript(tabId) {
 // 处理标签页连接和消息发送的通用函数
 async function handleTabCommand(commandType) {
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab) {
-      console.log('没有找到活动标签页');
+    const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+    // 增加更严格的检查，确保 tabs 数组有效且包含具有 id 的 tab 对象
+    if (!tabs || tabs.length === 0 || !tabs[0] || typeof tabs[0].id === 'undefined') {
+      console.log('没有找到有效的活动标签页或标签页 ID');
       return;
     }
+    const tab = tabs[0]; // 获取第一个标签页
 
     // 检查标签页是否已连接
+    // 使用上面获取的 tab.id
     const isConnected = await isTabConnected(tab.id);
     if (!isConnected && await reinjectContentScript(tab.id)) {
-      await chrome.tabs.sendMessage(tab.id, { type: commandType });
+      // 尝试重新注入后发送消息
+      await browser.tabs.sendMessage(tab.id, { type: commandType });
       return;
     }
 
     if (isConnected) {
-      await chrome.tabs.sendMessage(tab.id, { type: commandType });
+      // 如果已连接，直接发送消息
+      await browser.tabs.sendMessage(tab.id, { type: commandType });
+    } else {
+      // 如果重新注入后仍未连接或注入失败
+      console.log(`标签页 ${tab.id} 未连接，无法发送 ${commandType} 命令`);
     }
   } catch (error) {
     console.error(`处理${commandType}命令失败:`, error);
@@ -77,12 +85,12 @@ browser.browserAction.onClicked.addListener(async (tab) => {
     // 检查标签页是否已连接
     const isConnected = await isTabConnected(tab.id);
     if (!isConnected && await reinjectContentScript(tab.id)) {
-      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
+      await browser.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
       return;
     }
 
     if (isConnected) {
-      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
+      await browser.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
     }
   } catch (error) {
     console.error('处理切换失败:', error);
@@ -158,7 +166,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
 
           if (await isTabConnected(activeTab.id)) {
-            return await chrome.tabs.sendMessage(activeTab.id, {
+            return await browser.tabs.sendMessage(activeTab.id, {
               type: 'GET_PAGE_CONTENT_INTERNAL',
               skipWaitContent: message.skipWaitContent || false
             });
@@ -230,7 +238,7 @@ chrome.runtime.onInstalled.addListener(() => {
 // 改进标签页连接检查
 async function isTabConnected(tabId) {
     try {
-        const response = await chrome.tabs.sendMessage(tabId, {
+        const response = await browser.tabs.sendMessage(tabId, {
             type: 'PING',
             timestamp: Date.now()
         });
@@ -244,7 +252,7 @@ async function isTabConnected(tabId) {
 // 简化消息发送
 async function sendMessageToTab(tabId, message) {
     if (await isTabConnected(tabId)) {
-        return chrome.tabs.sendMessage(tabId, message);
+        return browser.tabs.sendMessage(tabId, message);
     }
     return null;
 }
@@ -269,7 +277,7 @@ chrome.webRequest.onBeforeRequest.addListener(
             const tabData = tabRequests.get(tabId);
             tabData.pending.add(requestId);
             // 使用非异步方式发送消息
-            chrome.tabs.sendMessage(tabId, {
+            browser.tabs.sendMessage(tabId, {
                 type: 'REQUEST_STARTED',
                 requestId,
                 pendingCount: tabData.pending.size
@@ -290,7 +298,7 @@ chrome.webRequest.onCompleted.addListener(
             }
 
             // 使用非异步方式发送消息
-            chrome.tabs.sendMessage(tabId, {
+            browser.tabs.sendMessage(tabId, {
                 type: 'REQUEST_COMPLETED',
                 requestId,
                 pendingCount: tabData.pending.size,
@@ -308,7 +316,7 @@ chrome.webRequest.onErrorOccurred.addListener(
             tabData.pending.delete(requestId);
 
             // 使用非异步方式发送消息
-            chrome.tabs.sendMessage(tabId, {
+            browser.tabs.sendMessage(tabId, {
                 type: 'REQUEST_FAILED',
                 requestId,
                 pendingCount: tabData.pending.size
