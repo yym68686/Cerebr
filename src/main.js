@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const chatListButton = document.getElementById('chat-list');
     const apiSettings = document.getElementById('api-settings');
     const deleteMessageButton = document.getElementById('delete-message');
+    const webpageSwitch = document.getElementById('webpage-switch');
 
     // 修改: 创建一个对象引用来保存当前控制器
     const abortControllerRef = { current: null };
@@ -137,7 +138,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // 网答功能
-    const webpageSwitch = document.getElementById('webpage-switch');
     const webpageQAContainer = document.getElementById('webpage-qa');
 
     // 如果不是扩展环境，隐藏网页问答功能
