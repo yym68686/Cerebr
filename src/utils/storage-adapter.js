@@ -1,6 +1,37 @@
 // 检测是否在Chrome扩展环境中
 export const isExtensionEnvironment = typeof chrome !== 'undefined' && chrome.runtime;
 
+const IDB_DB_NAME = 'CerebrData';
+const IDB_DB_VERSION = 1;
+const IDB_STORE_NAME = 'keyValueStore';
+
+let dbPromise = null;
+
+function getDb() {
+    if (!isExtensionEnvironment && !dbPromise) { //仅在非插件环境且dbPromise未初始化时创建
+        dbPromise = new Promise((resolve, reject) => {
+            const request = indexedDB.open(IDB_DB_NAME, IDB_DB_VERSION);
+
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains(IDB_STORE_NAME)) {
+                    db.createObjectStore(IDB_STORE_NAME);
+                }
+            };
+
+            request.onsuccess = (event) => {
+                resolve(event.target.result);
+            };
+
+            request.onerror = (event) => {
+                console.error('IndexedDB database error:', event.target.error);
+                reject(event.target.error);
+            };
+        });
+    }
+    return dbPromise;
+}
+
 // 存储适配器
 export const storageAdapter = {
     // 获取存储的数据
@@ -8,8 +39,27 @@ export const storageAdapter = {
         if (isExtensionEnvironment) {
             return await chrome.storage.local.get(key);
         } else {
-            const value = localStorage.getItem(key);
-            return value ? { [key]: JSON.parse(value) } : {};
+            try {
+                const db = await getDb();
+                if (!db) return { [key]: undefined }; // 如果数据库打开失败
+
+                return new Promise((resolve, reject) => {
+                    const transaction = db.transaction([IDB_STORE_NAME], 'readonly');
+                    const store = transaction.objectStore(IDB_STORE_NAME);
+                    const request = store.get(key);
+
+                    request.onsuccess = () => {
+                        resolve({ [key]: request.result });
+                    };
+                    request.onerror = (event) => {
+                        console.error(`IndexedDB get error for key ${key}:`, event.target.error);
+                        reject(event.target.error);
+                    };
+                });
+            } catch (error) {
+                console.error('Failed to get data from IndexedDB for key ' + key + ':', error);
+                return { [key]: undefined };
+            }
         }
     },
 
@@ -18,8 +68,57 @@ export const storageAdapter = {
         if (isExtensionEnvironment) {
             await chrome.storage.local.set(data);
         } else {
-            for (const [key, value] of Object.entries(data)) {
-                localStorage.setItem(key, JSON.stringify(value));
+            try {
+                const db = await getDb();
+                if (!db) throw new Error("IndexedDB not available");
+
+                // 假设 data 是一个对象，我们需要迭代它来存储每个键值对
+                // 或者，如果 ChatManager 总是用一个固定的主键（如 'cerebr_chats'）来保存所有聊天，
+                // 那么这里的逻辑可以简化。
+                // 当前 ChatManager 的 saveChats 是 this.storage.set({ [CHATS_KEY]: Array.from(this.chats.values()) });
+                // 所以 data 是 { 'cerebr_chats': [...] }
+
+                const entries = Object.entries(data);
+                if (entries.length === 0) return Promise.resolve();
+
+                return new Promise((resolve, reject) => {
+                    const transaction = db.transaction([IDB_STORE_NAME], 'readwrite');
+                    const store = transaction.objectStore(IDB_STORE_NAME);
+                    let completedOperations = 0;
+
+                    entries.forEach(([key, value]) => {
+                        const request = store.put(value, key);
+                        request.onsuccess = () => {
+                            completedOperations++;
+                            if (completedOperations === entries.length) {
+                                // resolve(); // 事务完成后再 resolve
+                            }
+                        };
+                        request.onerror = (event) => {
+                            // 如果任何一个 put 失败，我们应该中止事务并 reject
+                            console.error(`IndexedDB set error for key ${key}:`, event.target.error);
+                            transaction.abort(); // 中止事务
+                            reject(event.target.error);
+                        };
+                    });
+
+                    transaction.oncomplete = () => {
+                        resolve();
+                    };
+                    transaction.onerror = (event) => {
+                        console.error('IndexedDB set transaction error:', event.target.error);
+                        reject(event.target.error);
+                    };
+                     transaction.onabort = (event) => {
+                        console.error('IndexedDB set transaction aborted:', event.target.error);
+                        reject(new Error('Transaction aborted, possibly due to an earlier error.'));
+                    };
+                });
+
+            } catch (error) {
+                console.error('Failed to set data in IndexedDB:', error);
+                // 根据应用的需要决定如何处理这个错误，例如向上抛出
+                throw error;
             }
         }
     }
@@ -32,20 +131,33 @@ export const syncStorageAdapter = {
         if (isExtensionEnvironment) {
             return await chrome.storage.sync.get(key);
         } else {
-            // 处理数组形式的 key
+            // 对于 sync，localStorage 可能是个更简单的回退，因为它本身容量就小
+            // 或者您也可以为 sync 实现单独的 IndexedDB 存储（例如不同的 object store）
+            // 这里暂时保持 localStorage 作为示例，但请注意其容量限制
+            console.warn("Sync storage in web environment is using localStorage fallback, which has size limitations.");
             if (Array.isArray(key)) {
                 const result = {};
                 for (const k of key) {
                     const value = localStorage.getItem(`sync_${k}`);
                     if (value) {
-                        result[k] = JSON.parse(value);
+                        try {
+                            result[k] = JSON.parse(value);
+                        } catch (e) {
+                             console.error(`Error parsing sync_ ${k} from localStorage`, e);
+                        }
                     }
                 }
                 return result;
             } else {
-                // 处理单个 key
                 const value = localStorage.getItem(`sync_${key}`);
-                return value ? { [key]: JSON.parse(value) } : {};
+                if (value) {
+                    try {
+                        return { [key]: JSON.parse(value) };
+                    } catch (e) {
+                        console.error(`Error parsing sync_ ${key} from localStorage`, e);
+                    }
+                }
+                return {};
             }
         }
     },
@@ -55,8 +167,15 @@ export const syncStorageAdapter = {
         if (isExtensionEnvironment) {
             await chrome.storage.sync.set(data);
         } else {
+            console.warn("Sync storage in web environment is using localStorage fallback, which has size limitations.");
             for (const [key, value] of Object.entries(data)) {
-                localStorage.setItem(`sync_${key}`, JSON.stringify(value));
+                try {
+                    localStorage.setItem(`sync_${key}`, JSON.stringify(value));
+                } catch (e) {
+                    console.error(`Error setting sync_ ${key} to localStorage`, e);
+                    // 如果 localStorage 也满了，这里可能会抛出 QuotaExceededError
+                    throw e;
+                }
             }
         }
     }
@@ -124,10 +243,9 @@ export const browserAdapter = {
     }
 };
 
-// 新增：记录存储空间占用的函数
+// 记录存储空间占用的函数
 function logStorageUsage() {
     if (isExtensionEnvironment) {
-        // 确保 chrome.storage.local API 可用
         if (chrome && chrome.storage && chrome.storage.local && typeof chrome.storage.local.getBytesInUse === 'function') {
             chrome.storage.local.getBytesInUse(null).then((bytesInUse) => {
                 console.log("[Cerebr] 插件占用的本地存储空间: " + (bytesInUse / (1024 * 1024)).toFixed(2) + " MB");
@@ -138,19 +256,16 @@ function logStorageUsage() {
             console.warn("[Cerebr] chrome.storage.local.getBytesInUse API 在插件环境中不可用或未正确初始化。");
         }
     } else {
-        // 在网页环境中，计算 localStorage 的占用空间 (近似值)
-        try {
-            let totalLocalStorageBytes = 0;
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (key === null) continue;
-                const value = localStorage.getItem(key);
-                if (value === null) continue;
-                totalLocalStorageBytes += (key.length + value.length) * 2; // 估算UTF-16字节
-            }
-            console.log("[Cerebr] 网页占用的 localStorage 空间 (近似UTF-16): " + (totalLocalStorageBytes / (1024 * 1024)).toFixed(2) + " MB");
-        } catch (e) {
-            console.error("[Cerebr] 计算 localStorage 占用空间失败:", e);
+        // 网页环境 - IndexedDB
+        if (navigator.storage && navigator.storage.estimate) {
+            navigator.storage.estimate().then(estimate => {
+                console.log(`[Cerebr] 网页预估存储使用 (IndexedDB等): ${(estimate.usage / (1024 * 1024)).toFixed(2)} MB / 配额: ${(estimate.quota / (1024 * 1024)).toFixed(2)} MB`);
+            }).catch(error => {
+                console.warn("[Cerebr] 无法通过 navigator.storage.estimate() 获取网页存储信息:", error);
+                console.log("[Cerebr] 网页环境使用 IndexedDB。具体大小请通过浏览器开发者工具查看。");
+            });
+        } else {
+            console.log("[Cerebr] 网页环境使用 IndexedDB。具体大小请通过浏览器开发者工具查看。");
         }
     }
 }
