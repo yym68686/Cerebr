@@ -123,3 +123,37 @@ export const browserAdapter = {
         }
     }
 };
+
+// 新增：记录存储空间占用的函数
+function logStorageUsage() {
+    if (isExtensionEnvironment) {
+        // 确保 chrome.storage.local API 可用
+        if (chrome && chrome.storage && chrome.storage.local && typeof chrome.storage.local.getBytesInUse === 'function') {
+            chrome.storage.local.getBytesInUse(null).then((bytesInUse) => {
+                console.log("[Cerebr] 插件占用的本地存储空间: " + (bytesInUse / (1024 * 1024)).toFixed(2) + " MB");
+            }).catch(error => {
+                console.error("[Cerebr] 获取插件本地存储空间失败:", error);
+            });
+        } else {
+            console.warn("[Cerebr] chrome.storage.local.getBytesInUse API 在插件环境中不可用或未正确初始化。");
+        }
+    } else {
+        // 在网页环境中，计算 localStorage 的占用空间 (近似值)
+        try {
+            let totalLocalStorageBytes = 0;
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key === null) continue;
+                const value = localStorage.getItem(key);
+                if (value === null) continue;
+                totalLocalStorageBytes += (key.length + value.length) * 2; // 估算UTF-16字节
+            }
+            console.log("[Cerebr] 网页占用的 localStorage 空间 (近似UTF-16): " + (totalLocalStorageBytes / (1024 * 1024)).toFixed(2) + " MB");
+        } catch (e) {
+            console.error("[Cerebr] 计算 localStorage 占用空间失败:", e);
+        }
+    }
+}
+
+// 在模块加载时执行日志记录
+logStorageUsage();

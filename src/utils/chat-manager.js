@@ -141,8 +141,3 @@ export class ChatManager {
 
 // 创建并导出单例实例
 export const chatManager = new ChatManager();
-
-chrome.storage.local.getBytesInUse(null, function(bytesInUse) {
-//   console.log("当前插件占用的空间 (bytes): " + bytesInUse);
-  console.log("[Cerebr] 占用的空间: " + (bytesInUse / (1024 * 1024)).toFixed(2) + " MB");
-});
