@@ -373,7 +373,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 先添加用户消息到界面和历史记录
             appendMessage({
-                text: messageInput.innerHTML,
+                text: userMessage,
                 sender: 'user',
                 chatContainer,
             });
