@@ -28,7 +28,7 @@ function checkCustomShortcut(callback) {
 async function reinjectContentScript(tabId) {
   console.log('标签页未连接，尝试重新注入 content script...');
   try {
-    await chrome.scripting.executeScript({
+    await browser.scripting.executeScript({
       target: { tabId },
       files: ['content.js']
     });
@@ -49,21 +49,29 @@ async function reinjectContentScript(tabId) {
 // 处理标签页连接和消息发送的通用函数
 async function handleTabCommand(commandType) {
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab) {
-      console.log('没有找到活动标签页');
+    const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+    // 增加更严格的检查，确保 tabs 数组有效且包含具有 id 的 tab 对象
+    if (!tabs || tabs.length === 0 || !tabs[0] || typeof tabs[0].id === 'undefined') {
+      console.log('没有找到有效的活动标签页或标签页 ID');
       return;
     }
+    const tab = tabs[0]; // 获取第一个标签页
 
     // 检查标签页是否已连接
+    // 使用上面获取的 tab.id
     const isConnected = await isTabConnected(tab.id);
     if (!isConnected && await reinjectContentScript(tab.id)) {
-      await chrome.tabs.sendMessage(tab.id, { type: commandType });
+      // 尝试重新注入后发送消息
+      await browser.tabs.sendMessage(tab.id, { type: commandType });
       return;
     }
 
     if (isConnected) {
-      await chrome.tabs.sendMessage(tab.id, { type: commandType });
+      // 如果已连接，直接发送消息
+      await browser.tabs.sendMessage(tab.id, { type: commandType });
+    } else {
+      // 如果重新注入后仍未连接或注入失败
+      console.log(`标签页 ${tab.id} 未连接，无法发送 ${commandType} 命令`);
     }
   } catch (error) {
     console.error(`处理${commandType}命令失败:`, error);
@@ -71,18 +79,18 @@ async function handleTabCommand(commandType) {
 }
 
 // 监听扩展图标点击
-chrome.action.onClicked.addListener(async (tab) => {
+browser.browserAction.onClicked.addListener(async (tab) => {
   console.log('扩展图标被点击');
   try {
     // 检查标签页是否已连接
     const isConnected = await isTabConnected(tab.id);
     if (!isConnected && await reinjectContentScript(tab.id)) {
-      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
+      await browser.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
       return;
     }
 
     if (isConnected) {
-      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
+      await browser.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
     }
   } catch (error) {
     console.error('处理切换失败:', error);
@@ -139,42 +147,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // 处理来自 sidebar 的网页内容请求
-  if (message.type === 'GET_PAGE_CONTENT_FROM_SIDEBAR') {
-    (async () => {
-      async function tryGetContent() {
-        try {
-          const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-          if (!activeTab) {
-            return null;
+    // 处理来自 sidebar 的网页内容请求
+    if (message.type === 'GET_PAGE_CONTENT_FROM_SIDEBAR') {
+      (async () => {
+        async function tryGetContent(tabId) {
+          try {
+            if (await isTabConnected(tabId)) {
+              const response = await browser.tabs.sendMessage(tabId, {
+                type: 'GET_PAGE_CONTENT_INTERNAL',
+                skipWaitContent: message.skipWaitContent || false
+              });
+              if (response && typeof response === 'object') {
+                return response;
+              } else {
+                console.error('获取页面内容失败：未收到有效响应', response);
+                return { error: '未收到有效响应' };
+              }
+            } else {
+              console.error('获取页面内容失败：标签页未连接');
+              return { error: '标签页未连接' };
+            }
+          } catch (error) {
+            console.error('获取页面内容失败：', error);
+            return { error: '获取页面内容失败', details: error.message };
           }
-
-          if (sender.tab && sender.tab.id !== activeTab.id) {
-            return null;
-          }
-
-          if (!sender.url || !sender.url.includes('index.html')) {
-            return null;
-          }
-
-          if (await isTabConnected(activeTab.id)) {
-            return await chrome.tabs.sendMessage(activeTab.id, {
-              type: 'GET_PAGE_CONTENT_INTERNAL',
-              skipWaitContent: message.skipWaitContent || false
-            });
-          }
-          return null;
-        } catch (error) {
-          console.warn('获取页面内容失败（可安全忽略）:', error);
-          return null;
         }
-      }
-
-      const content = await tryGetContent();
-      sendResponse(content);
-    })();
-    return true;
-  }
+  
+        const content = await tryGetContent(message.tabId);
+        sendResponse(content);
+      })();
+      return true;
+    }
 
   // 处理PDF下载请求
   if (message.action === 'downloadPDF') {
@@ -230,7 +233,7 @@ chrome.runtime.onInstalled.addListener(() => {
 // 改进标签页连接检查
 async function isTabConnected(tabId) {
     try {
-        const response = await chrome.tabs.sendMessage(tabId, {
+        const response = await browser.tabs.sendMessage(tabId, {
             type: 'PING',
             timestamp: Date.now()
         });
@@ -244,7 +247,7 @@ async function isTabConnected(tabId) {
 // 简化消息发送
 async function sendMessageToTab(tabId, message) {
     if (await isTabConnected(tabId)) {
-        return chrome.tabs.sendMessage(tabId, message);
+        return browser.tabs.sendMessage(tabId, message);
     }
     return null;
 }
@@ -269,7 +272,7 @@ chrome.webRequest.onBeforeRequest.addListener(
             const tabData = tabRequests.get(tabId);
             tabData.pending.add(requestId);
             // 使用非异步方式发送消息
-            chrome.tabs.sendMessage(tabId, {
+            browser.tabs.sendMessage(tabId, {
                 type: 'REQUEST_STARTED',
                 requestId,
                 pendingCount: tabData.pending.size
@@ -290,7 +293,7 @@ chrome.webRequest.onCompleted.addListener(
             }
 
             // 使用非异步方式发送消息
-            chrome.tabs.sendMessage(tabId, {
+            browser.tabs.sendMessage(tabId, {
                 type: 'REQUEST_COMPLETED',
                 requestId,
                 pendingCount: tabData.pending.size,
@@ -308,7 +311,7 @@ chrome.webRequest.onErrorOccurred.addListener(
             tabData.pending.delete(requestId);
 
             // 使用非异步方式发送消息
-            chrome.tabs.sendMessage(tabId, {
+            browser.tabs.sendMessage(tabId, {
                 type: 'REQUEST_FAILED',
                 requestId,
                 pendingCount: tabData.pending.size
@@ -409,3 +412,97 @@ async function getPDFChunk(url, chunkIndex) {
         };
     }
 }
+// 监听来自 UI 脚本的消息
+browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.type === "getCurrentDomain") {
+        browser.tabs.query({ active: true, currentWindow: true }).then(tabs => {
+            if (!tabs || tabs.length === 0) {
+                sendResponse({ domain: null, tabId: null });
+                return;
+            }
+
+            const tab = tabs[0];
+            const url = tab.url;
+            if (!url) {
+                sendResponse({ domain: null, tabId: null });
+                return;
+            }
+
+            // 处理特殊 URL
+            if (url.startsWith('about:') || url.startsWith('moz-extension://') || url.startsWith('chrome-extension://')) {
+                sendResponse({ domain: null, tabId: null });
+                return;
+            }
+
+            // 如果是本地文件，直接返回特定标识
+            if (url.startsWith('file://')) {
+                sendResponse({ domain: 'local_pdf', tabId: tab.id });
+                return;
+            }
+
+            // 处理普通 URL
+            const hostname = new URL(url).hostname;
+            // 规范化域名
+            const normalizedDomain = hostname
+                .replace(/^www\./, '')  // 移除 www 前缀
+                .toLowerCase();         // 转换为小写
+
+            sendResponse({ domain: normalizedDomain, tabId: tab.id });
+        }).catch(error => {
+            console.error('获取当前域名失败:', error);
+            sendResponse({ domain: null, tabId: null });
+        });
+        return true; // 支持异步响应
+    } else if (request.type === "getCurrentTab") {
+        browser.tabs.query({ active: true, currentWindow: true }).then(tabs => {
+            if (!tabs || tabs.length === 0) {
+                sendResponse({ tab: null });
+                return;
+            }
+
+            const tab = tabs[0];
+            if (!tab.url) {
+                sendResponse({ tab: null });
+                return;
+            }
+
+            // 处理本地文件
+            if (tab.url.startsWith('file://')) {
+                sendResponse({
+                    tab: {
+                        url: 'file://',
+                        title: 'Local PDF',
+                        hostname: 'local_pdf'
+                    }
+                });
+                return;
+            }
+
+            const url = new URL(tab.url);
+            sendResponse({
+                tab: {
+                    url: tab.url,
+                    title: tab.title,
+                    hostname: url.hostname
+                }
+            });
+        }).catch(error => {
+            console.error('获取当前标签页信息失败:', error);
+            sendResponse({ tab: null });
+        });
+        return true; // 支持异步响应
+    }
+});
+
+// 监听标签页激活事件
+browser.tabs.onActivated.addListener((activeInfo) => {
+    browser.runtime.sendMessage({
+        type: "tabActivated"
+    }).catch(error => {
+        if (error.message?.includes("Receiving end does not exist")) {
+            // UI 未打开，正常情况，不记录错误
+        } else {
+            console.error('发送标签页激活消息失败:', error);
+        }
+    });
+});
