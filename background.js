@@ -13,7 +13,7 @@ self.addEventListener('activate', (event) => {
 // console.log('Background script loaded at:', new Date().toISOString());
 
 function checkCustomShortcut(callback) {
-  chrome.commands.getAll((commands) => {
+  browser.commands.getAll((commands) => {
       const toggleCommand = commands.find(command => command.name === '_execute_action' || command.name === '_execute_browser_action');
       if (toggleCommand && toggleCommand.shortcut) {
           console.log('当前设置的快捷键:', toggleCommand.shortcut);
@@ -98,7 +98,7 @@ browser.browserAction.onClicked.addListener(async (tab) => {
 });
 
 // 简化后的命令监听器
-chrome.commands.onCommand.addListener(async (command) => {
+browser.commands.onCommand.addListener(async (command) => {
   console.log('onCommand:', command);
 
   if (command === 'toggle_sidebar') {
@@ -110,7 +110,7 @@ chrome.commands.onCommand.addListener(async (command) => {
 
 // 创建一个持久连接
 let port = null;
-chrome.runtime.onConnect.addListener((p) => {
+browser.runtime.onConnect.addListener((p) => {
   // console.log('建立持久连接');
   port = p;
   port.onDisconnect.addListener(() => {
@@ -120,7 +120,7 @@ chrome.runtime.onConnect.addListener((p) => {
 });
 
 // 监听来自 content script 的消息
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // console.log('收到消息:', message, '来自:', sender.tab?.id);
 
   if (message.type === 'CONTENT_LOADED') {
@@ -133,7 +133,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'CHECK_TAB_ACTIVE') {
     (async () => {
       try {
-        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
         if (!activeTab) {
           sendResponse(false);
           return;
@@ -209,11 +209,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // 监听存储变化
-chrome.storage.onChanged.addListener((changes, areaName) => {
+browser.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === 'local' && changes.webpageSwitchDomains) {
         const { newValue = {}, oldValue = {} } = changes.webpageSwitchDomains;
         const domains = { ...oldValue, ...newValue };
-        chrome.storage.local.set({ webpageSwitchDomains: domains });
+        browser.storage.local.set({ webpageSwitchDomains: domains });
     }
 });
 
@@ -226,7 +226,7 @@ const keepAliveInterval = setInterval(() => {
 self.addEventListener('beforeunload', () => clearInterval(keepAliveInterval));
 
 // 简化初始化检查
-chrome.runtime.onInstalled.addListener(() => {
+browser.runtime.onInstalled.addListener(() => {
     console.log('扩展已安装/更新:', new Date().toISOString());
 });
 
@@ -265,7 +265,7 @@ function initTabRequests(tabId) {
 }
 
 // 简化请求监听器
-chrome.webRequest.onBeforeRequest.addListener(
+browser.webRequest.onBeforeRequest.addListener(
     ({ tabId, requestId }) => {
         if (tabId !== -1) {
             initTabRequests(tabId);
@@ -282,7 +282,7 @@ chrome.webRequest.onBeforeRequest.addListener(
     { urls: ["<all_urls>"] }
 );
 
-chrome.webRequest.onCompleted.addListener(
+browser.webRequest.onCompleted.addListener(
     ({ tabId, requestId }) => {
         if (tabId !== -1 && tabRequests.has(tabId)) {
             const tabData = tabRequests.get(tabId);
@@ -304,7 +304,7 @@ chrome.webRequest.onCompleted.addListener(
     { urls: ["<all_urls>"] }
 );
 
-chrome.webRequest.onErrorOccurred.addListener(
+browser.webRequest.onErrorOccurred.addListener(
     ({ tabId, requestId }) => {
         if (tabId !== -1 && tabRequests.has(tabId)) {
             const tabData = tabRequests.get(tabId);
@@ -321,7 +321,7 @@ chrome.webRequest.onErrorOccurred.addListener(
     { urls: ["<all_urls>"] }
 );
 
-chrome.tabs.onRemoved.addListener(tabId => tabRequests.delete(tabId));
+browser.tabs.onRemoved.addListener(tabId => tabRequests.delete(tabId));
 
 // 添加公共的PDF文件获取函数
 async function getPDFArrayBuffer(url) {

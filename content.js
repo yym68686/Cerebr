@@ -76,7 +76,7 @@ class CerebrSidebar {
 
   async saveState() {
     try {
-      const states = await chrome.storage.local.get('sidebarStates') || { sidebarStates: {} };
+      const states = await browser.storage.local.get('sidebarStates') || { sidebarStates: {} };
       if (!states.sidebarStates) {
         states.sidebarStates = {};
       }
@@ -84,7 +84,7 @@ class CerebrSidebar {
         isVisible: this.isVisible,
         width: this.sidebarWidth
       };
-      await chrome.storage.local.set(states);
+      await browser.storage.local.set(states);
     } catch (error) {
       console.error('保存侧边栏状态失败:', error);
     }
@@ -92,7 +92,7 @@ class CerebrSidebar {
 
   async loadState() {
     try {
-      const states = await chrome.storage.local.get('sidebarStates');
+      const states = await browser.storage.local.get('sidebarStates');
       if (states.sidebarStates && states.sidebarStates[this.pageKey]) {
         const state = states.sidebarStates[this.pageKey];
         this.isVisible = state.isVisible;
@@ -205,7 +205,7 @@ class CerebrSidebar {
 
       const iframe = document.createElement('iframe');
       iframe.className = 'cerebr-sidebar__iframe';
-      iframe.src = chrome.runtime.getURL('index.html');
+      iframe.src = browser.runtime.getURL('index.html');
       content.appendChild(iframe);
       this.sidebar.appendChild(header);
       this.sidebar.appendChild(resizer);
@@ -415,7 +415,7 @@ try {
 }
 
 // 修改消息监听器
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type != 'REQUEST_STARTED' && message.type != 'REQUEST_COMPLETED' &&
         message.type != 'REQUEST_FAILED' && message.type != 'PING') {
       // console.log('content.js 收到消息:', message.type);
@@ -478,7 +478,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
 });
 
-const port = chrome.runtime.connect({ name: 'cerebr-sidebar' });
+const port = browser.runtime.connect({ name: 'cerebr-sidebar' });
 port.onDisconnect.addListener(() => {
   console.log('与 background 的连接已断开');
 });
@@ -489,7 +489,7 @@ function sendInitMessage(retryCount = 0) {
 
   // console.log(`尝试发送初始化消息，第 ${retryCount + 1} 次尝试`);
 
-  chrome.runtime.sendMessage({
+  browser.runtime.sendMessage({
     type: 'CONTENT_LOADED',
     url: window.location.href
   }).then(response => {
@@ -596,7 +596,7 @@ class RequestManager {
 const requestManager = new RequestManager();
 
 // 监听来自 background.js 的网络请求状态更新
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // 处理网络请求状态更新
     if (message.type === 'REQUEST_STARTED') {
         requestManager.handleRequestStarted(message.requestId);
@@ -759,8 +759,8 @@ async function extractPageContent(skipWaitContent = false) {
 }
 
 // PDF.js 库的路径
-const PDFJS_PATH = chrome.runtime.getURL('lib/pdf.js');
-const PDFJS_WORKER_PATH = chrome.runtime.getURL('lib/pdf.worker.js');
+const PDFJS_PATH = browser.runtime.getURL('lib/pdf.js');
+const PDFJS_WORKER_PATH = browser.runtime.getURL('lib/pdf.worker.js');
 
 // 设置 PDF.js worker 路径
 pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_PATH;
@@ -794,7 +794,7 @@ async function extractTextFromPDF(url) {
 
     console.log('开始下载PDF:', url);
     // 首先获取PDF文件的初始信息
-    const initResponse = await chrome.runtime.sendMessage({
+    const initResponse = await browser.runtime.sendMessage({
       action: 'downloadPDF',
       url: url
     });
@@ -813,7 +813,7 @@ async function extractTextFromPDF(url) {
     for (let i = 0; i < totalChunks; i++) {
       sendPlaceholderUpdate(`正在下载PDF文件 (${Math.round((i + 1) / totalChunks * 100)}%)...`);
 
-      const chunkResponse = await chrome.runtime.sendMessage({
+      const chunkResponse = await browser.runtime.sendMessage({
         action: 'getPDFChunk',
         url: url,
         chunkIndex: i
