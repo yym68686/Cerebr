@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const chatListButton = document.getElementById('chat-list');
     const apiSettings = document.getElementById('api-settings');
     const deleteMessageButton = document.getElementById('delete-message');
-    const webpageSwitch = document.getElementById('webpage-switch');
+    const webpageQAButton = document.getElementById('webpage-qa-button');
 
     // 修改: 创建一个对象引用来保存当前控制器
     const abortControllerRef = { current: null };
@@ -163,24 +163,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // 修改 saveWebpageSwitch 函数，改进存储和错误处理
-    async function saveWebpageSwitch(domain, enabled) {
-        console.log('开始保存网页问答开关状态:', domain, enabled);
-
-        try {
-            const result = await storageAdapter.get('webpageSwitchDomains');
-            let domains = result.webpageSwitchDomains || {};
-
-            // 只在状态发生变化时才更新
-            if (domains[domain] !== enabled) {
-                domains[domain] = enabled;
-                await storageAdapter.set({ webpageSwitchDomains: domains });
-                console.log('网页问答状态已保存:', domain, enabled);
-            }
-        } catch (error) {
-            console.error('保存网页问答状态失败:', error, domain, enabled);
-        }
-    }
+    // 移除域名保存逻辑，新方案不再需要记忆域名状态
 
     // 获取当前域名
     async function getCurrentDomain() {
@@ -200,21 +183,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // 修改网页问答开关监听器
-    webpageSwitch.addEventListener('change', async () => {
+    // 网页问答按钮状态
+    let webpageQAEnabled = false;
+
+    // 更新按钮状态
+    function updateWebpageQAButton(enabled) {
+        webpageQAEnabled = enabled;
+        if (enabled) {
+            webpageQAButton.classList.remove('webpage-qa-off');
+            webpageQAButton.classList.add('webpage-qa-on');
+        } else {
+            webpageQAButton.classList.remove('webpage-qa-on');
+            webpageQAButton.classList.add('webpage-qa-off');
+        }
+    }
+
+    // 网页问答按钮点击事件
+    webpageQAButton.addEventListener('click', async () => {
         try {
             const { domain, tabId } = await getCurrentDomain();
-            console.log('网页问答开关状态改变后，获取当前域名:', domain);
+            console.log('网页问答按钮点击，获取当前域名:', domain);
     
             if (!domain) {
-                console.log('无法获取域名，保持开关状态不变');
-                webpageSwitch.checked = !webpageSwitch.checked; // 恢复开关状态
+                console.log('无法获取域名，无法切换状态');
                 return;
             }
     
-            console.log('网页问答开关状态改变后，获取网页问答开关状态:', webpageSwitch.checked);
+            const newState = !webpageQAEnabled;
+            console.log('网页问答按钮切换状态:', newState);
     
-            if (webpageSwitch.checked) {
+            if (newState) {
+                // 开启网页问答
+                webpageQAButton.classList.add('loading');
                 document.body.classList.add('loading-content');
     
                 try {
@@ -222,29 +222,37 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (content) {
                         if (content.error) {
                             console.error('获取网页内容失败：', content.error, content.details || '');
+                            return;
                         } else {
                             pageContent = content;
-                            await saveWebpageSwitch(domain, true);
-                            console.log('修改网页问答为已开启');
+                            updateWebpageQAButton(true);
+                            console.log('网页问答已开启');
                         }
                     } else {
                         console.error('获取网页内容失败：未收到响应');
+                        return;
                     }
                 } catch (error) {
                     console.error('获取网页内容失败:', error.message || error);
+                    return;
                 } finally {
+                    webpageQAButton.classList.remove('loading');
                     document.body.classList.remove('loading-content');
                 }
             } else {
+                // 关闭网页问答
                 pageContent = null;
-                await saveWebpageSwitch(domain, false);
-                console.log('修改网页问答为已关闭');
+                updateWebpageQAButton(false);
+                console.log('网页问答已关闭');
             }
         } catch (error) {
-            console.error('处理网页问答开关变化失败:', error);
-            webpageSwitch.checked = !webpageSwitch.checked; // 恢复开关状态
+            console.error('处理网页问答按钮点击失败:', error);
+            webpageQAButton.classList.remove('loading');
         }
     });
+
+    // 初始化按钮状态为关闭
+    updateWebpageQAButton(false);
 
     // 监听来自 content script 的消息
     window.addEventListener('message', (event) => {
@@ -258,88 +266,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 处理URL变化事件，因为这涉及到网页问答功能，保留在main.js中
         if (event.data.type === 'URL_CHANGED') {
             console.log('sidebar.js [收到URL变化]', event.data.url);
-            if (webpageSwitch.checked) {
-                console.log('[网页问答] URL变化，重新获取页面内容');
-                document.body.classList.add('loading-content');
-
-                (async () => {
-                    const { tabId } = await getCurrentDomain();
-                    getPageContent(false, tabId)
-                        .then(async content => {
-                            if (content) {
-                                if (content.error) {
-                                    console.error('URL_CHANGED 获取网页内容失败：', content.error, content.details || '');
-                                } else {
-                                    pageContent = content;
-                                    const { domain } = await getCurrentDomain();
-                                    if (domain) {
-                                        await saveWebpageSwitch(domain, true);
-                                    }
-                                }
-                            } else {
-                                console.error('URL_CHANGED 无法获取网页内容：未收到响应');
-                            }
-                        })
-                        .catch(async error => {
-                            console.error('URL_CHANGED 获取网页内容失败:', error.message || error);
-                        })
-                        .finally(() => {
-                            document.body.classList.remove('loading-content');
-                        });
-                })();
+            // URL变化时自动关闭网页问答
+            if (webpageQAEnabled) {
+                console.log('[网页问答] URL变化，自动关闭网页问答');
+                pageContent = null;
+                updateWebpageQAButton(false);
             }
         }
     });
 
-    // 修改 loadWebpageSwitch 函数
-    async function loadWebpageSwitch(call_name = 'loadWebpageSwitch') {
-        // console.log(`loadWebpageSwitch 从 ${call_name} 调用`);
 
-        try {
-            const domain = await getCurrentDomain();
-            // console.log('刷新后 网页问答 获取当前域名:', domain);
-            if (!domain) return;
-
-            const result = await storageAdapter.get('webpageSwitchDomains');
-            const domains = result.webpageSwitchDomains || {};
-            // console.log('刷新后 网页问答存储中获取域名:', domains);
-
-            // 只在开关状态不一致时才更新
-            if (domains[domain]) {
-                webpageSwitch.checked = domains[domain];
-                // 检查当前标签页是否活跃
-                const isTabActive = await browserAdapter.sendMessage({
-                    type: 'CHECK_TAB_ACTIVE'
-                });
-
-                if (isTabActive) {
-                    setTimeout(async () => {
-                        try {
-                            const { tabId } = await getCurrentDomain();
-                            const content = await getPageContent(false, tabId);
-                            if (content) {
-                                if (content.error) {
-                                    console.error('loadWebpageSwitch 获取网页内容失败：', content.error, content.details || '');
-                                } else {
-                                    pageContent = content;
-                                }
-                            }
-                        } catch (error) {
-                            console.error('loadWebpageSwitch 获取网页内容失败:', error.message || error);
-                        }
-                    }, 0);
-                }
-            } else {
-                webpageSwitch.checked = false;
-                // console.log('loadWebpageSwitch 域名不在存储中:', domain);
-            }
-        } catch (error) {
-            console.error('加载网页问答状态失败:', error);
-        }
-    }
-
-    // 在 DOMContentLoaded 事件处理程序中添加加载网页问答状态
-    await loadWebpageSwitch();
 
     async function sendMessage() {
         // 如果有正在更新的AI消息，停止它
@@ -358,7 +294,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             // 如果网页问答功能开启，重新获取页面内容，不等待内容加载
-            if (webpageSwitch.checked) {
+            if (webpageQAEnabled) {
                 // console.log('发送消息时网页问答已打开，重新获取页面内容');
                 try {
                     const { tabId } = await getCurrentDomain();
@@ -406,7 +342,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 messages,
                 apiConfig: apiConfigs[selectedConfigIndex],
                 userLanguage: navigator.language,
-                webpageInfo: webpageSwitch.checked ? pageContent : null
+                webpageInfo: webpageQAEnabled ? pageContent : null
             };
 
             // 调用 API
@@ -645,7 +581,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 监听标签页切换
     browserAdapter.onTabActivated(async () => {
         // console.log('标签页切换，重新加载API配置');
-        await loadWebpageSwitch();
+        // 移除loadWebpageSwitch调用，新方案不再需要
         // 同步API配置
         await loadAPIConfigs();
         renderAPICardsWithCallbacks();
