@@ -14,6 +14,7 @@ class CerebrSidebar {
     this.initializeSidebar();
     this.setupUrlChangeListener();
     this.setupDragAndDrop(); // 添加拖放事件监听器
+    this.setupFontSizeListener(); // 添加字体大小监听器
   }
 
   setupUrlChangeListener() {
@@ -163,6 +164,14 @@ class CerebrSidebar {
             box-shadow: -2px 0 20px rgba(0,0,0,0.3);
           }
         }
+        /* 字体大小变量支持 */
+        .cerebr-sidebar {
+          --cerebr-font-size: 14px;
+          --cerebr-font-size-small: 12px;
+          --cerebr-font-size-medium: 14px;
+          --cerebr-font-size-large: 16px;
+          --cerebr-font-size-extra-large: 18px;
+        }
         .cerebr-sidebar.visible {
           transform: translateX(-450px);
         }
@@ -307,101 +316,119 @@ class CerebrSidebar {
   }
 
   setupDragAndDrop() {
-    // console.log('初始化拖放功能');
+    // 监听拖拽事件
+    document.addEventListener('dragover', (e) => {
+      e.preventDefault();
+    });
 
-    // 存储最后一次设置的图片数据
-    let lastImageData = null;
-
-    // 检查是否在侧边栏范围内的函数
-    const isInSidebarBounds = (x, y) => {
-      if (!this.sidebar) return false;
-      const sidebarRect = this.sidebar.getBoundingClientRect();
-      return (
-        x >= sidebarRect.left &&
-        x <= sidebarRect.right &&
-        y >= sidebarRect.top &&
-        y <= sidebarRect.bottom
-      );
-    };
-
-    // 监听页面上的所有图片
-    document.addEventListener('dragstart', (e) => {
-      console.log('拖动开始，目标元素:', e.target.tagName);
-      const img = e.target;
-      if (img.tagName === 'IMG') {
-        console.log('检测到图片拖动，图片src:', img.src);
-        // 尝试直接获取图片的 src
+    document.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      
+      // 检查是否有文件被拖拽
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length === 0) return;
+      
+      // 过滤出图片文件
+      const imageFiles = files.filter(file => file.type.startsWith('image/'));
+      if (imageFiles.length === 0) return;
+      
+      // 处理图片文件
+      for (const file of imageFiles) {
         try {
-          // 对于跨域图片，尝试使用 fetch 获取
-          console.log('尝试获取图片数据');
-          fetch(img.src)
-            .then(response => response.blob())
-            .then(blob => {
-              console.log('成功获取图片blob数据，大小:', blob.size);
-              const reader = new FileReader();
-              reader.onloadend = () => {
-                const base64Data = reader.result;
-                console.log('成功转换为base64数据');
-                const imageData = {
-                  type: 'image',
-                  data: base64Data,
-                  name: img.alt || '拖放图片'
-                };
-                console.log('设置拖动数据:', imageData.name);
-                lastImageData = imageData;  // 保存最后一次的图片数据
-                // 使用自定义事件类型，避免数据丢失
-                e.dataTransfer.setData('application/x-cerebr-image', JSON.stringify(imageData));
-                e.dataTransfer.effectAllowed = 'copy';
-              };
-              reader.readAsDataURL(blob);
-            })
-            .catch(error => {
-              console.error('获取图片数据失败:', error);
-              // 如果 fetch 失败，回退到 canvas 方法
-              console.log('尝试使用Canvas方法获取图片数据');
-              try {
-                const canvas = document.createElement('canvas');
-                canvas.width = img.naturalWidth;
-                canvas.height = img.naturalHeight;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0);
-                const base64Data = canvas.toDataURL(img.src.match(/\.png$/i) ? 'image/png' : 'image/jpeg');
-                console.log('成功使用Canvas获取图片数据');
-                const imageData = {
-                  type: 'image',
-                  data: base64Data,
-                  name: img.alt || '拖放图片'
-                };
-                console.log('设置拖动数据:', imageData.name);
-                lastImageData = imageData;  // 保存最后一次的图片数据
-                // 使用自定义事件类型，避免数据丢失
-                e.dataTransfer.setData('application/x-cerebr-image', JSON.stringify(imageData));
-                e.dataTransfer.effectAllowed = 'copy';
-              } catch (canvasError) {
-                console.error('Canvas获取图片数据失败:', canvasError);
-              }
-            });
+          const base64Data = await this.fileToBase64(file);
+          const imageData = {
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            data: base64Data
+          };
+          
+          // 发送图片数据到iframe
+          const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
+          if (iframe) {
+            console.log('设置拖动数据:', imageData.name);
+            iframe.contentWindow.postMessage({
+              type: 'IMAGE_DROPPED',
+              imageData: imageData
+            }, '*');
+          }
         } catch (error) {
-          console.error('处理图片拖动失败:', error);
+          console.error('处理拖拽图片失败:', error);
         }
       }
     });
 
-    // 监听拖动结束事件
-    document.addEventListener('dragend', (e) => {
-      const inSidebar = isInSidebarBounds(e.clientX, e.clientY);
-      console.log('拖动结束，是否在侧边栏内:', inSidebar, '坐标:', e.clientX, e.clientY);
-
-      const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
-      if (iframe && inSidebar && lastImageData && this.isVisible) {  // 确保侧边栏可见
-        console.log('在侧边栏内放下，发送图片数据到iframe');
-        iframe.contentWindow.postMessage({
-          type: 'DROP_IMAGE',
-          imageData: lastImageData
-        }, '*');
+    // 监听来自页面的拖拽事件（用于处理页面内的图片拖拽）
+    document.addEventListener('dragstart', (e) => {
+      if (e.target.tagName === 'IMG') {
+        try {
+          // 创建一个canvas来获取图片的base64数据
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          const img = new Image();
+          
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+            
+            try {
+              const base64Data = canvas.toDataURL();
+              const imageData = {
+                name: e.target.alt || 'dragged-image.png',
+                type: 'image/png',
+                size: base64Data.length,
+                data: base64Data,
+                src: e.target.src
+              };
+              
+              // 存储最后一次设置的图片数据
+              this.lastDraggedImage = imageData;
+              console.log('设置拖动数据:', imageData.name);
+            } catch (error) {
+              console.error('无法获取图片数据:', error);
+            }
+          };
+          
+          img.src = e.target.src;
+        } catch (error) {
+          console.error('处理图片拖拽失败:', error);
+        }
       }
-      // 重置状态
-      lastImageData = null;
+    });
+  }
+
+  setupFontSizeListener() {
+    // 监听来自iframe的字体大小设置消息
+    window.addEventListener('message', (event) => {
+      if (event.data.type === 'FONT_SIZE_CHANGED') {
+        const fontSize = event.data.fontSize;
+        this.updateSidebarFontSize(fontSize);
+      }
+    });
+  }
+
+  updateSidebarFontSize(size) {
+    if (!this.sidebar) return;
+    
+    const sizeMap = {
+      'small': '12px',
+      'medium': '14px', 
+      'large': '16px',
+      'extra-large': '18px'
+    };
+    
+    const fontSize = sizeMap[size] || '14px';
+    this.sidebar.style.setProperty('--cerebr-font-size', fontSize);
+  }
+
+  async fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
     });
   }
 }

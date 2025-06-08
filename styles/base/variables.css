@@ -32,6 +32,13 @@
     --cerebr-toggle-bg-on: #34c759;
     --cerebr-input-border-color: rgba(0, 0, 0, 0.15);
     --cerebr-sidebar-box-shadow: -2px 0 15px rgba(0, 0, 0, 0.1);
+    
+    /* 字体大小变量 */
+    --cerebr-font-size: 14px;
+    --cerebr-font-size-small: 12px;
+    --cerebr-font-size-medium: 14px;
+    --cerebr-font-size-large: 16px;
+    --cerebr-font-size-extra-large: 18px;
 }
 
 /* 深色主题变量 */
@@ -67,6 +74,13 @@
     --cerebr-toggle-bg-on: #32d74b;
     --cerebr-input-border-color: rgba(255, 255, 255, 0.15);
     --cerebr-sidebar-box-shadow: -2px 0 15px rgba(0, 0, 0, 0.2);
+    
+    /* 字体大小变量 */
+    --cerebr-font-size: 14px;
+    --cerebr-font-size-small: 12px;
+    --cerebr-font-size-medium: 14px;
+    --cerebr-font-size-large: 16px;
+    --cerebr-font-size-extra-large: 18px;
 }
 
 /* 系统深色主题 */
@@ -103,5 +117,12 @@
         --cerebr-toggle-bg-on: #32d74b;
         --cerebr-input-border-color: rgba(255, 255, 255, 0.15);
         --cerebr-sidebar-box-shadow: -2px 0 15px rgba(0, 0, 0, 0.2);
+        
+        /* 字体大小变量 */
+        --cerebr-font-size: 14px;
+        --cerebr-font-size-small: 12px;
+        --cerebr-font-size-medium: 14px;
+        --cerebr-font-size-large: 16px;
+        --cerebr-font-size-extra-large: 18px;
     }
 }

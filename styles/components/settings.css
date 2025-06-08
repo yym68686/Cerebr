@@ -112,6 +112,27 @@ input:checked + .slider:before {
     transform: translateX(16px);
 }
 
+/* 字体大小选择器样式 */
+#font-size-select {
+    background-color: var(--cerebr-message-ai-bg);
+    color: var(--cerebr-text-color);
+    border: 1px solid var(--cerebr-input-border-color);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s ease;
+}
+
+#font-size-select:focus {
+    border-color: var(--cerebr-highlight-border-color);
+}
+
+#font-size-select:hover {
+    background-color: var(--cerebr-message-user-bg);
+}
+
 /* 高级设置区域样式 */
 .advanced-settings {
     margin-top: 0;

@@ -502,6 +502,65 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 初始化主题
     await initTheme();
 
+    // 字体大小设置
+    const fontSizeSelect = document.getElementById('font-size-select');
+
+    // 初始化字体大小
+    async function initFontSize() {
+        try {
+            const result = await syncStorageAdapter.get('fontSize');
+            const fontSize = result.fontSize || 'medium';
+            fontSizeSelect.value = fontSize;
+            setFontSize(fontSize);
+        } catch (error) {
+            console.error('初始化字体大小失败:', error);
+            setFontSize('medium');
+        }
+    }
+
+    // 设置字体大小
+    function setFontSize(size) {
+        const root = document.documentElement;
+        switch (size) {
+            case 'small':
+                root.style.setProperty('--cerebr-font-size', '12px');
+                break;
+            case 'medium':
+                root.style.setProperty('--cerebr-font-size', '14px');
+                break;
+            case 'large':
+                root.style.setProperty('--cerebr-font-size', '16px');
+                break;
+            case 'extra-large':
+                root.style.setProperty('--cerebr-font-size', '18px');
+                break;
+            default:
+                root.style.setProperty('--cerebr-font-size', '14px');
+        }
+    }
+
+    // 监听字体大小变化
+    fontSizeSelect.addEventListener('change', async () => {
+        const fontSize = fontSizeSelect.value;
+        setFontSize(fontSize);
+        try {
+            await syncStorageAdapter.set({ fontSize });
+        } catch (error) {
+            console.error('保存字体大小设置失败:', error);
+        }
+        
+        // 通知父窗口字体大小已更改
+        if (window.parent !== window) {
+            window.parent.postMessage({
+                type: 'FONT_SIZE_CHANGED',
+                fontSize: fontSize
+            }, '*');
+        }
+    });
+
+    // 初始化字体大小
+    await initFontSize();
+
     // API 设置功能
     const apiSettingsToggle = document.getElementById('api-settings-toggle');
     const backButton = document.querySelector('.back-button');
