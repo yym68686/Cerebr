@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Cerebr",
-  "version": "2.3.29",
+  "version": "2.3.34",
   "description": "Cerebr - 智能AI聊天助手",
   "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'",
   "icons": {

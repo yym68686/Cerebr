@@ -1,7 +1,6 @@
-import { processMathAndMarkdown, renderMathInElement } from '../../htmd/latex.js';
 import { chatManager } from '../utils/chat-manager.js';
 import { showImagePreview, createImageTag } from '../utils/ui.js';
-import { processImageTags } from '../services/chat.js';
+import { processMathAndMarkdown, renderMathInElement } from '../../htmd/latex.js';
 
 /**
  * 消息接口
@@ -42,11 +41,12 @@ export async function appendMessage({
     const previewImage = previewModal.querySelector('img');
     const messageInput = document.getElementById('message-input');
 
+    let messageHtml = '';
     if (Array.isArray(textContent)) {
-        let messageHtml = '';
         textContent.forEach(item => {
             if (item.type === "text") {
                 messageHtml += item.text;
+                textContent = item.text;
             } else if (item.type === "image_url") {
                 const imageTag = createImageTag({
                     base64Data: item.image_url.url,
@@ -69,25 +69,15 @@ export async function appendMessage({
                 messageHtml += imageTag.outerHTML;
             }
         });
-        textContent = messageHtml;
+    } else {
+        messageHtml = textContent;
     }
 
     // 如果是用户消息，且当前对话只有这一条消息，则更新对话标题
     if (sender === 'user' && !skipHistory) {
-        let title = '';
-        const result = processImageTags(textContent);
-        if (Array.isArray(result)) {
-            result.forEach(item => {
-                if (item.type === 'text') {
-                    title += item.text;
-                }
-            });
-        } else {
-            title = result;
-        }
         const currentChat = chatManager.getCurrentChat();
         if (currentChat && currentChat.messages.length === 0) {
-            currentChat.title = title;
+            currentChat.title = textContent;
             chatManager.saveChats();
         }
     }
@@ -129,7 +119,7 @@ export async function appendMessage({
     // 添加主要内容
     const mainContent = document.createElement('div');
     mainContent.className = 'main-content';
-    mainContent.innerHTML = processMathAndMarkdown(textContent);
+    mainContent.innerHTML = processMathAndMarkdown(messageHtml);
     messageDiv.appendChild(mainContent);
 
     // 渲染 LaTeX 公式
