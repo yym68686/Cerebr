@@ -1,26 +1,36 @@
 /**
  * 设置主题的工具函数
- * @param {boolean} isDark - 是否为深色主题
+ * @param {string} themeMode - 主题模式：'light', 'dark', 'auto'
  * @param {Object} config - 配置对象
  * @param {HTMLElement} config.root - 根元素（通常是document.documentElement）
- * @param {HTMLInputElement} config.themeSwitch - 主题切换开关元素
+ * @param {HTMLSelectElement} config.themeSelect - 主题选择器元素
  * @param {Function} config.saveTheme - 保存主题的回调函数
  */
-export function setTheme(isDark, { root, themeSwitch, saveTheme }) {
+export function setTheme(themeMode, { root, themeSelect, saveTheme }) {
     // 移除现有的主题类
     root.classList.remove('dark-theme', 'light-theme');
+
+    let isDark = false;
+    
+    if (themeMode === 'auto') {
+        // 跟随系统主题
+        isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    } else {
+        // 手动设置的主题
+        isDark = themeMode === 'dark';
+    }
 
     // 添加新的主题类
     root.classList.add(isDark ? 'dark-theme' : 'light-theme');
 
-    // 更新开关状态
-    if (themeSwitch) {
-        themeSwitch.checked = isDark;
+    // 更新选择器状态
+    if (themeSelect) {
+        themeSelect.value = themeMode;
     }
 
     // 保存主题设置
     if (saveTheme) {
-        saveTheme(isDark ? 'dark' : 'light');
+        saveTheme(themeMode);
     }
 
     // 更新 Mermaid 主题并重新渲染

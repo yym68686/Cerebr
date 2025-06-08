@@ -463,12 +463,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // 主题切换
-    const themeSwitch = document.getElementById('theme-switch');
+    const themeSelect = document.getElementById('theme-select');
 
     // 创建主题配置对象
     const themeConfig = {
         root: document.documentElement,
-        themeSwitch,
+        themeSelect,
         saveTheme: async (theme) => await syncStorageAdapter.set({ theme })
     };
 
@@ -476,26 +476,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function initTheme() {
         try {
             const result = await syncStorageAdapter.get('theme');
-            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            const isDark = result.theme === 'dark' || (!result.theme && prefersDark);
-            setTheme(isDark, themeConfig);
+            // 默认跟随系统，如果没有保存的设置
+            const themeMode = result.theme || 'auto';
+            setTheme(themeMode, themeConfig);
         } catch (error) {
             console.error('初始化主题失败:', error);
-            // 如果出错，使用系统主题
-            setTheme(window.matchMedia('(prefers-color-scheme: dark)').matches, themeConfig);
+            // 如果出错，使用跟随系统模式
+            setTheme('auto', themeConfig);
         }
     }
 
     // 监听主题切换
-    themeSwitch.addEventListener('change', () => {
-        setTheme(themeSwitch.checked, themeConfig);
+    themeSelect.addEventListener('change', () => {
+        setTheme(themeSelect.value, themeConfig);
     });
 
     // 监听系统主题变化
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', async (e) => {
         const data = await syncStorageAdapter.get('theme');
-        if (!data.theme) {  // 只有在用户没有手动设置主题时才跟随系统
-            setTheme(e.matches, themeConfig);
+        // 只有在设置为跟随系统时才响应系统主题变化
+        if (data.theme === 'auto' || !data.theme) {
+            setTheme('auto', themeConfig);
         }
     });
 
