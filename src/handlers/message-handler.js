@@ -155,6 +155,15 @@ export async function appendMessage({
         }
     });
 
+    // 处理通过<think>标签生成的推理内容的点击事件
+    messageDiv.querySelectorAll('.reasoning-content').forEach(reasoningDiv => {
+        if (!reasoningDiv.onclick) {
+            reasoningDiv.onclick = function() {
+                this.classList.toggle('collapsed');
+            };
+        }
+    });
+
     // 如果提供了文档片段，添加到片段中；否则直接添加到聊天容器
     if (fragment) {
         fragment.appendChild(messageDiv);
@@ -294,10 +303,19 @@ export async function updateAIMessage({
             // 渲染LaTeX公式
             await renderMathInElement(mainContent);
 
-            // 处理新染的链接
+            // 处理新渲染的链接
             lastMessage.querySelectorAll('a').forEach(link => {
                 link.target = '_blank';
                 link.rel = 'noopener noreferrer';
+            });
+
+            // 处理通过<think>标签生成的推理内容的点击事件
+            lastMessage.querySelectorAll('.reasoning-content').forEach(reasoningDiv => {
+                if (!reasoningDiv.onclick) {
+                    reasoningDiv.onclick = function() {
+                        this.classList.toggle('collapsed');
+                    };
+                }
             });
 
             return true;

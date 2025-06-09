@@ -348,10 +348,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             const lastAiMessage = chatContainer.querySelector('.ai-message:last-child');
             if (lastAiMessage) {
-                const reasoningDiv = lastAiMessage.querySelector('.reasoning-content');
-                if (reasoningDiv && !reasoningDiv.classList.contains('collapsed')) {
-                    reasoningDiv.classList.add('collapsed');
-                }
+                // 自动折叠所有推理内容（包括reasoning_content和<think>标签生成的）
+                const reasoningDivs = lastAiMessage.querySelectorAll('.reasoning-content');
+                reasoningDivs.forEach(reasoningDiv => {
+                    if (!reasoningDiv.classList.contains('collapsed')) {
+                        reasoningDiv.classList.add('collapsed');
+                    }
+                });
             }
 
             // 检查是否是首轮对话完成，如果是则生成标题
