@@ -303,11 +303,14 @@ class CerebrSidebar {
       // 保存状态
       this.saveState();
 
-      // 如果从不可见变为可见，通知iframe并聚焦输入框
+      // 如果从不可见变为可见，通知iframe并聚焦输入框，同时自动启用网页问答
       if (!wasVisible && this.isVisible) {
         const iframe = this.sidebar.querySelector('.cerebr-sidebar__iframe');
         if (iframe) {
-          iframe.contentWindow.postMessage({ type: 'FOCUS_INPUT' }, '*');
+          iframe.contentWindow.postMessage({ 
+            type: 'FOCUS_INPUT',
+            autoEnableWebpageQA: true // 添加自动启用网页问答的标志
+          }, '*');
         }
       }
     } catch (error) {

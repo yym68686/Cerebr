@@ -193,7 +193,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // 网页问答按钮点击事件
-    webpageQAButton.addEventListener('click', async () => {
+    webpageQAButton.addEventListener('click', async (event) => {
         try {
             const { domain, tabId } = await getCurrentDomain();
             console.log('网页问答按钮点击，获取当前域名:', domain);
@@ -203,8 +203,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
     
-            const newState = !webpageQAEnabled;
-            console.log('网页问答按钮切换状态:', newState);
+            // 检查是否是自动触发（通过Alt+Z快捷键）
+            const isAutoTrigger = event.isTrusted && webpageQAEnabled === false;
+            const newState = isAutoTrigger ? true : !webpageQAEnabled;
+            console.log('网页问答按钮切换状态:', newState, isAutoTrigger ? '(自动触发)' : '(手动切换)');
     
             if (newState) {
                 // 开启网页问答
