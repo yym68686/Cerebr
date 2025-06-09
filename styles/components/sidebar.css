@@ -13,7 +13,7 @@
     margin-right: 20px;
     overflow: hidden;
     visibility: hidden;
-    transform: translateX(0);
+    
     pointer-events: none;
     contain: style layout size;
     isolation: isolate;
