@@ -1,5 +1,6 @@
 import { setTheme } from './utils/theme.js';
 import { callAPI } from './services/chat.js';
+import { generateTitleForChat } from './services/title-generator.js';
 import { chatManager } from './utils/chat-manager.js';
 import { appendMessage } from './handlers/message-handler.js';
 import { hideContextMenu } from './components/context-menu.js';
@@ -270,6 +271,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     async function sendMessage() {
+        let currentChat = null;
         if (editingState.isEditing) {
             await chatManager.truncateMessages(editingState.messageIndex);
 
@@ -318,7 +320,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             clearMessageInput(messageInput, uiConfig);
 
-            const currentChat = chatManager.getCurrentChat();
+            currentChat = chatManager.getCurrentChat();
             const messages = currentChat ? [...currentChat.messages] : [];
             messages.push(userMessage);
             chatManager.addMessageToCurrentChat(userMessage);
@@ -344,6 +346,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
 
+            // 检查是否是首轮对话完成，如果是则生成标题
+            currentChat = chatManager.getCurrentChat();
+            if (currentChat && currentChat.messages.length === 2) {
+                // 不等待标题生成，让其在后台运行
+                generateTitleForChat(currentChat.messages, apiConfigs[selectedConfigIndex]).then(newTitle => {
+                    if (newTitle) {
+                        chatManager.updateChatTitle(currentChat.id, newTitle);
+                    }
+                });
+            }
+
         } catch (error) {
             if (error.name === 'AbortError') {
                 console.log('用户手动停止更新');
@@ -356,7 +369,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 chatContainer,
                 skipHistory: true,
             });
-            const currentChat = chatManager.getCurrentChat();
+            currentChat = chatManager.getCurrentChat();
             if (currentChat && currentChat.messages.length > 0) {
                 if (currentChat.messages[currentChat.messages.length - 1].role === 'assistant') {
                     chatManager.popMessage();

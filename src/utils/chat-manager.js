@@ -145,6 +145,16 @@ export class ChatManager {
             await this.saveChats();
         }
     }
+
+    async updateChatTitle(chatId, newTitle) {
+        const chat = this.chats.get(chatId);
+        if (chat && newTitle) {
+            chat.title = newTitle;
+            await this.saveChats();
+            // 派发事件通知UI更新
+            document.dispatchEvent(new CustomEvent('chat-list-updated', { detail: { chatId } }));
+        }
+    }
 }
 
 // 创建并导出单例实例
