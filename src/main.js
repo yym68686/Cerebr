@@ -29,7 +29,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const stopUpdateButton = document.getElementById('stop-update');
     const settingsButton = document.getElementById('settings-button');
     const settingsMenu = document.getElementById('settings-menu');
-    const feedbackButton = document.getElementById('feedback-button');
     const previewModal = document.querySelector('.image-preview-modal');
     const previewImage = previewModal.querySelector('img');
     const chatListPage = document.getElementById('chat-list-page');
@@ -66,12 +65,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    // 添加反馈按钮点击事件
-    feedbackButton.addEventListener('click', () => {
-        const newIssueUrl = 'https://github.com/yym68686/Cerebr/issues/new';
-        window.open(newIssueUrl, '_blank');
-        settingsMenu.classList.remove('visible'); // 使用 classList 来正确切换菜单状态
-    });
+
 
     // 初始化聊天容器
     const chatContainerManager = initChatContainer({
