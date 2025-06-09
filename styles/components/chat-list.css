@@ -55,6 +55,7 @@
     flex-direction: column;
     flex-grow: 1;
     margin-right: 12px;
+    min-width: 0;
 }
 
 .chat-card .chat-title {
@@ -76,6 +77,12 @@
 
 .chat-card .chat-source a {
     color: var(--cerebr-link-color);
+    display: block;
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-decoration: none;
 }
 
 .chat-card .card-actions {
