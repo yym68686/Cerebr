@@ -95,6 +95,14 @@ export class ChatManager {
         await this.saveChats();
     }
 
+    async truncateMessages(messageIndex) {
+        const currentChat = this.getCurrentChat();
+        if (currentChat && messageIndex >= 0 && messageIndex < currentChat.messages.length) {
+            currentChat.messages.splice(messageIndex);
+            await this.saveChats();
+        }
+    }
+
     async updateLastMessage(chatId, message) {
         const currentChat = this.chats.get(chatId);
         if (!currentChat || currentChat.messages.length === 0) {

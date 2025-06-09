@@ -20,12 +20,19 @@ import {
 // 存储用户的问题历史
 let userQuestions = [];
 
+// 编辑状态
+let editingState = {
+    isEditing: false,
+    messageIndex: -1
+};
+
 document.addEventListener('DOMContentLoaded', async () => {
     const chatContainer = document.getElementById('chat-container');
     const messageInput = document.getElementById('message-input');
     const contextMenu = document.getElementById('context-menu');
     const copyMessageButton = document.getElementById('copy-message');
     const copyCodeButton = document.getElementById('copy-code');
+    const editMessageButton = document.getElementById('edit-message');
     const stopUpdateButton = document.getElementById('stop-update');
     const settingsButton = document.getElementById('settings-button');
     const settingsMenu = document.getElementById('settings-menu');
@@ -65,8 +72,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-
-
     // 初始化聊天容器
     const chatContainerManager = initChatContainer({
         chatContainer,
@@ -82,6 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         copyCodeButton,
         stopUpdateButton,
         deleteMessageButton,
+        editMessageButton,
         abortController: abortControllerRef
     });
 
@@ -144,11 +150,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 获取网页内容
     async function getPageContent(skipWaitContent = false, tabId = null) {
         try {
-            // console.log('getPageContent 发送获取网页内容请求');
             const response = await browserAdapter.sendMessage({
                 type: 'GET_PAGE_CONTENT_FROM_SIDEBAR',
-                skipWaitContent: skipWaitContent, // 传递是否跳过等待内容加载的参数
-                tabId: tabId // 传递标签页ID
+                skipWaitContent: skipWaitContent,
+                tabId: tabId
             });
             return response;
         } catch (error) {
@@ -156,8 +161,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             return null;
         }
     }
-
-    // 移除域名保存逻辑，新方案不再需要记忆域名状态
 
     // 获取当前域名
     async function getCurrentDomain() {
@@ -196,50 +199,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     webpageQAButton.addEventListener('click', async (event) => {
         try {
             const { domain, tabId } = await getCurrentDomain();
-            console.log('网页问答按钮点击，获取当前域名:', domain);
-    
             if (!domain) {
-                console.log('无法获取域名，无法切换状态');
                 return;
             }
     
-            // 检查是否是自动触发（通过Alt+Z快捷键）
             const isAutoTrigger = event.isTrusted && webpageQAEnabled === false;
             const newState = isAutoTrigger ? true : !webpageQAEnabled;
-            console.log('网页问答按钮切换状态:', newState, isAutoTrigger ? '(自动触发)' : '(手动切换)');
     
             if (newState) {
-                // 开启网页问答
                 webpageQAButton.classList.add('loading');
                 document.body.classList.add('loading-content');
     
                 try {
                     const content = await getPageContent(false, tabId);
-                    if (content) {
-                        if (content.error) {
-                            console.error('获取网页内容失败：', content.error, content.details || '');
-                            return;
-                        } else {
-                            pageContent = content;
-                            updateWebpageQAButton(true);
-                            console.log('网页问答已开启');
-                        }
-                    } else {
-                        console.error('获取网页内容失败：未收到响应');
-                        return;
+                    if (content && !content.error) {
+                        pageContent = content;
+                        updateWebpageQAButton(true);
+                    } else if (content && content.error) {
+                        console.error('获取网页内容失败：', content.error, content.details || '');
                     }
                 } catch (error) {
                     console.error('获取网页内容失败:', error.message || error);
-                    return;
                 } finally {
                     webpageQAButton.classList.remove('loading');
                     document.body.classList.remove('loading-content');
                 }
             } else {
-                // 关闭网页问答
                 pageContent = null;
                 updateWebpageQAButton(false);
-                console.log('网页问答已关闭');
             }
         } catch (error) {
             console.error('处理网页问答按钮点击失败:', error);
@@ -252,88 +239,90 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 监听来自 content script 的消息
     window.addEventListener('message', (event) => {
-        // 使用消息输入组件的窗口消息处理函数
         handleWindowMessage(event, {
             messageInput,
             newChatButton,
             uiConfig
         });
 
-        // 处理URL变化事件，因为这涉及到网页问答功能，保留在main.js中
         if (event.data.type === 'URL_CHANGED') {
-            console.log('sidebar.js [收到URL变化]', event.data.url);
-            // URL变化时自动关闭网页问答
             if (webpageQAEnabled) {
-                console.log('[网页问答] URL变化，自动关闭网页问答');
                 pageContent = null;
                 updateWebpageQAButton(false);
             }
         }
     });
 
-
+    // 函数：开始编辑
+    window.startEditing = (messageIndex, messageText) => {
+        editingState = {
+            isEditing: true,
+            messageIndex: messageIndex
+        };
+        messageInput.textContent = messageText;
+        messageInput.focus();
+        const range = document.createRange();
+        range.selectNodeContents(messageInput);
+        range.collapse(false);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+    };
 
     async function sendMessage() {
-        // 如果有正在更新的AI消息，停止它
-        const updatingMessage = chatContainer.querySelector('.ai-message.updating');
-        if (updatingMessage && currentController) {
-            currentController.abort();
-            currentController = null;
-            abortControllerRef.current = null; // 同步更新引用对象
-            updatingMessage.classList.remove('updating');
+        if (editingState.isEditing) {
+            await chatManager.truncateMessages(editingState.messageIndex);
+
+            const messages = Array.from(chatContainer.children);
+            for (let i = messages.length - 1; i >= editingState.messageIndex; i--) {
+                messages[i].remove();
+            }
+
+            editingState = {
+                isEditing: false,
+                messageIndex: -1
+            };
         }
 
-        // 获取格式化后的消息内容
-        const { message, imageTags } = getFormattedMessageContent(messageInput);
+        if (chatContainer.querySelector('.ai-message.updating') && currentController) {
+            currentController.abort();
+            currentController = null;
+            abortControllerRef.current = null;
+            chatContainer.querySelector('.ai-message.updating').classList.remove('updating');
+        }
 
+        const { message, imageTags } = getFormattedMessageContent(messageInput);
         if (!message.trim() && imageTags.length === 0) return;
 
         try {
-            // 如果网页问答功能开启，重新获取页面内容，不等待内容加载
             if (webpageQAEnabled) {
-                // console.log('发送消息时网页问答已打开，重新获取页面内容');
                 try {
                     const { tabId } = await getCurrentDomain();
-                    const content = await getPageContent(true, tabId); // 跳过等待内容加载
-                    if (content) {
-                        if (content.error) {
-                            console.error('发送消息时获取页面内容失败：', content.error, content.details || '');
-                        } else {
-                            pageContent = content;
-                            console.log('成功更新 pageContent 内容');
-                        }
+                    const content = await getPageContent(true, tabId);
+                    if (content && !content.error) {
+                        pageContent = content;
                     }
                 } catch (error) {
                     console.error('发送消息时获取页面内容失败:', error.message || error);
                 }
             }
 
-            // 构建消息内容
             const content = buildMessageContent(message, imageTags);
+            const userMessage = { role: "user", content: content };
 
-            // 构建用户消息
-            const userMessage = {
-                role: "user",
-                content: content
-            };
-
-            // 先添加用户消息到界面和历史记录
             appendMessage({
                 text: userMessage,
                 sender: 'user',
                 chatContainer,
             });
 
-            // 清空输入框并调整高度
             clearMessageInput(messageInput, uiConfig);
 
-            // 构建消息数组
             const currentChat = chatManager.getCurrentChat();
-            const messages = currentChat ? [...currentChat.messages] : [];  // 从chatManager获取消息历史
+            const messages = currentChat ? [...currentChat.messages] : [];
             messages.push(userMessage);
             chatManager.addMessageToCurrentChat(userMessage);
 
-            // 准备API调用参数
             const apiParams = {
                 messages,
                 apiConfig: apiConfigs[selectedConfigIndex],
@@ -341,15 +330,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 webpageInfo: webpageQAEnabled ? pageContent : null
             };
 
-            // 调用 API
             const { processStream, controller } = await callAPI(apiParams, chatManager, currentChat.id, chatContainerManager.syncMessage);
             currentController = controller;
-            abortControllerRef.current = controller; // 同步更新引用对象
+            abortControllerRef.current = controller;
 
-            // 处理流式响应
             await processStream();
             
-            // 流式输出结束后，自动折叠深度思考内容
             const lastAiMessage = chatContainer.querySelector('.ai-message:last-child');
             if (lastAiMessage) {
                 const reasoningDiv = lastAiMessage.querySelector('.reasoning-content');
@@ -370,11 +356,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 chatContainer,
                 skipHistory: true,
             });
-            // 从 chatHistory 中移除最后一条记录（用户的问题）
             const currentChat = chatManager.getCurrentChat();
-            const messages = currentChat ? [...currentChat.messages] : [];
-            if (messages.length > 0) {
-                if (messages[messages.length - 1].role === 'assistant') {
+            if (currentChat && currentChat.messages.length > 0) {
+                if (currentChat.messages[currentChat.messages.length - 1].role === 'assistant') {
                     chatManager.popMessage();
                     chatManager.popMessage();
                 } else {
@@ -389,65 +373,50 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // 修改点击事件监听器
     document.addEventListener('click', (e) => {
-        // 如果点击的不是设置按钮本身和设置菜单，就关闭菜单
         if (!settingsButton.contains(e.target) && !settingsMenu.contains(e.target)) {
             settingsMenu.classList.remove('visible');
         }
     });
 
-    // 确保设置按钮的点击事件在文档点击事件之前处理
     settingsButton.addEventListener('click', (e) => {
         e.stopPropagation();
         settingsMenu.classList.toggle('visible');
     });
 
-    // 主题切换
     const themeSelect = document.getElementById('theme-select');
-
-    // 创建主题配置对象
     const themeConfig = {
         root: document.documentElement,
         themeSelect,
         saveTheme: async (theme) => await syncStorageAdapter.set({ theme })
     };
 
-    // 初始化主题
     async function initTheme() {
         try {
             const result = await syncStorageAdapter.get('theme');
-            // 默认跟随系统，如果没有保存的设置
             const themeMode = result.theme || 'auto';
             setTheme(themeMode, themeConfig);
         } catch (error) {
             console.error('初始化主题失败:', error);
-            // 如果出错，使用跟随系统模式
             setTheme('auto', themeConfig);
         }
     }
 
-    // 监听主题切换
     themeSelect.addEventListener('change', () => {
         setTheme(themeSelect.value, themeConfig);
     });
 
-    // 监听系统主题变化
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', async (e) => {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', async () => {
         const data = await syncStorageAdapter.get('theme');
-        // 只有在设置为跟随系统时才响应系统主题变化
         if (data.theme === 'auto' || !data.theme) {
             setTheme('auto', themeConfig);
         }
     });
 
-    // 初始化主题
     await initTheme();
 
-    // 字体大小设置
     const fontSizeSelect = document.getElementById('font-size-select');
 
-    // 初始化字体大小
     async function initFontSize() {
         try {
             const result = await syncStorageAdapter.get('fontSize');
@@ -460,7 +429,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // 设置字体大小
     function setFontSize(size) {
         const root = document.documentElement;
         switch (size) {
@@ -481,7 +449,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // 监听字体大小变化
     fontSizeSelect.addEventListener('change', async () => {
         const fontSize = fontSizeSelect.value;
         setFontSize(fontSize);
@@ -491,7 +458,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error('保存字体大小设置失败:', error);
         }
         
-        // 通知父窗口字体大小已更改
         if (window.parent !== window) {
             window.parent.postMessage({
                 type: 'FONT_SIZE_CHANGED',
@@ -500,19 +466,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // 初始化字体大小
     await initFontSize();
 
-    // API 设置功能
     const apiSettingsToggle = document.getElementById('api-settings-toggle');
-    const backButton = document.querySelector('.back-button');
+    const backButton = document.querySelector('#api-settings .back-button');
     const apiCards = document.querySelector('.api-cards');
 
-    // 加载保存的 API 配置
     let apiConfigs = [];
     let selectedConfigIndex = 0;
 
-    // 使用新的selectCard函数
     const handleCardSelect = (template, index) => {
         selectCard({
             template,
@@ -523,13 +485,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             onSave: saveAPIConfigs,
             cardSelector: '.api-card',
             onSelect: () => {
-                // 关闭API设置面板
                 apiSettings.classList.remove('visible');
             }
         });
     };
 
-    // 创建渲染API卡片的辅助函数
     const renderAPICardsWithCallbacks = () => {
         renderAPICards({
             apiConfigs,
@@ -546,33 +506,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     };
 
-    // 从存储加载配置
     async function loadAPIConfigs() {
         try {
-            // 统一使用 syncStorageAdapter 来实现配置同步
             const result = await syncStorageAdapter.get(['apiConfigs', 'selectedConfigIndex']);
-
-            // 分别检查每个配置项
-            if (result.apiConfigs) {
-                apiConfigs = result.apiConfigs;
-            } else {
-                apiConfigs = [{
-                    apiKey: '',
-                    baseUrl: 'https://api.openai.com/v1/chat/completions',
-                    modelName: 'gpt-4o'
-                }];
-                // 只有在没有任何配置的情况下才保存默认配置
+            apiConfigs = result.apiConfigs || [{
+                apiKey: '',
+                baseUrl: 'https://api.openai.com/v1/chat/completions',
+                modelName: 'gpt-4o'
+            }];
+            selectedConfigIndex = result.selectedConfigIndex ?? 0;
+            if (!result.apiConfigs) {
                 await saveAPIConfigs();
             }
-
-            // 只有当 selectedConfigIndex 为 undefined 或 null 时才使用默认值 0
-            selectedConfigIndex = result.selectedConfigIndex ?? 0;
-
-            // 确保一定会渲染卡片
             renderAPICardsWithCallbacks();
         } catch (error) {
             console.error('加载 API 配置失败:', error);
-            // 只有在出错的情况下才使用默认值
             apiConfigs = [{
                 apiKey: '',
                 baseUrl: 'https://api.openai.com/v1/chat/completions',
@@ -583,25 +531,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // 监听标签页切换
     browserAdapter.onTabActivated(async () => {
-        // console.log('标签页切换，重新加载API配置');
-        // 移除loadWebpageSwitch调用，新方案不再需要
-        // 同步API配置
         await loadAPIConfigs();
         renderAPICardsWithCallbacks();
-
-        // 同步对话列表
         await chatManager.initialize();
         await renderChatList(
             chatManager,
             chatListPage.querySelector('.chat-cards')
         );
     });
-    // 保存配置到存储
+
     async function saveAPIConfigs() {
         try {
-            // 统一使用 syncStorageAdapter 来实现配置同步
             await syncStorageAdapter.set({
                 apiConfigs,
                 selectedConfigIndex
@@ -611,25 +552,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // 等待 DOM 加载完成后再初始化
     await loadAPIConfigs();
 
-    // 显示/隐藏 API 设置
     apiSettingsToggle.addEventListener('click', () => {
         apiSettings.classList.add('visible');
         settingsMenu.classList.remove('visible');
-        // 确保每次打开设置时都重新渲染卡片
         renderAPICardsWithCallbacks();
     });
 
-    // 返回聊天界面
     backButton.addEventListener('click', () => {
         apiSettings.classList.remove('visible');
     });
 
-    // 图片预览功能
     const closeButton = previewModal.querySelector('.image-preview-close');
-
     closeButton.addEventListener('click', () => {
         hideImagePreview({ config: uiConfig.imagePreview });
     });

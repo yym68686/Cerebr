@@ -66,10 +66,12 @@ export function initChatContainer({
             const copyMathButton = document.getElementById('copy-math');
             const stopUpdateButton = document.getElementById('stop-update');
             const deleteMessageButton = document.getElementById('delete-message');
+            const editMessageButton = document.getElementById('edit-message');
 
             // 根据右键点击的元素类型显示/隐藏相应的菜单项
             copyMessageButton.style.display = 'flex';
             deleteMessageButton.style.display = 'flex';
+            editMessageButton.style.display = messageElement.classList.contains('user-message') ? 'flex' : 'none';
             copyCodeButton.style.display = codeElement ? 'flex' : 'none';
             copyMathButton.style.display = 'none';  // 默认隐藏复制公式按钮
 
@@ -237,8 +239,30 @@ export function initChatContainer({
         copyCodeButton,
         stopUpdateButton,
         deleteMessageButton,
+        editMessageButton,
         abortController
     }) {
+        // 点击编辑按钮
+        editMessageButton.addEventListener('click', () => {
+            if (currentMessageElement) {
+                const messageIndex = Array.from(chatContainer.children).indexOf(currentMessageElement);
+                const originalText = currentMessageElement.getAttribute('data-original-text');
+                
+                // 调用全局函数启动编辑模式
+                if (window.startEditing) {
+                    window.startEditing(messageIndex, originalText);
+                }
+
+                hideContextMenu({
+                    contextMenu,
+                    onMessageElementReset: () => {
+                        currentMessageElement = null;
+                        currentCodeElement = null;
+                    }
+                });
+            }
+        });
+
         // 点击复制按钮
         copyMessageButton.addEventListener('click', () => {
             copyMessageContent({
