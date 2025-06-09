@@ -93,7 +93,8 @@ export async function appendMessage({
         reasoningWrapper.className = 'reasoning-wrapper';
 
         const reasoningDiv = document.createElement('div');
-        reasoningDiv.className = 'reasoning-content';
+        // 如果是历史对话，默认折叠深度思考
+        reasoningDiv.className = skipHistory ? 'reasoning-content collapsed' : 'reasoning-content';
 
         // 添加占位文本容器
         const placeholderDiv = document.createElement('div');

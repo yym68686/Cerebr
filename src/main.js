@@ -346,6 +346,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 处理流式响应
             await processStream();
+            
+            // 流式输出结束后，自动折叠深度思考内容
+            const lastAiMessage = chatContainer.querySelector('.ai-message:last-child');
+            if (lastAiMessage) {
+                const reasoningDiv = lastAiMessage.querySelector('.reasoning-content');
+                if (reasoningDiv && !reasoningDiv.classList.contains('collapsed')) {
+                    reasoningDiv.classList.add('collapsed');
+                }
+            }
 
         } catch (error) {
             if (error.name === 'AbortError') {
