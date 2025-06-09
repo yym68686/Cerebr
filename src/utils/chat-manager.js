@@ -39,7 +39,9 @@ export class ChatManager {
             id: chatId,
             title: title,
             messages: [],
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            pageTitle: null,
+            pageUrl: null
         };
         this.chats.set(chatId, chat);
         this.saveChats();
@@ -132,6 +134,20 @@ export class ChatManager {
         }
         currentChat.messages.pop();
         await this.saveChats();
+    }
+
+    getChatById(chatId) {
+        return this.chats.get(chatId);
+    }
+
+    async setChatSource(chatId, pageTitle, pageUrl) {
+        const chat = this.chats.get(chatId);
+        if (chat) {
+            chat.pageTitle = pageTitle;
+            chat.pageUrl = pageUrl;
+            await this.saveChats();
+            document.dispatchEvent(new CustomEvent('chat-list-updated', { detail: { chatId } }));
+        }
     }
 
     async saveChats() {

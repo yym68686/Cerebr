@@ -65,6 +65,30 @@
             删除消息
         </div>
     </div>
+    <div id="chat-card-context-menu">
+        <div class="context-menu-item" id="copy-chat-title">
+            <svg viewBox="0 0 24 24">
+                <rect x="8" y="8" width="12" height="12" rx="1"/>
+                <path d="M4 16V4a1 1 0 0 1 1-1h11"/>
+            </svg>
+            复制标题
+        </div>
+        <div class="context-menu-item" id="copy-chat-link">
+            <svg viewBox="0 0 24 24">
+                <path d="M10 13a5 5 0 0 0 7.07 0l1.83-1.83a5 5 0 0 0-7.07-7.07L10 5"/>
+                <path d="M14 11a5 5 0 0 0-7.07 0L5.1 12.83a5 5 0 0 0 7.07 7.07L14 18"/>
+            </svg>
+            复制链接
+        </div>
+        <div class="context-menu-item" id="open-chat-link">
+            <svg viewBox="0 0 24 24">
+                <path d="M14 3h7v7"/>
+                <path d="M10 14L21 3"/>
+                <path d="M5 7v14h14v-5"/>
+            </svg>
+            打开链接
+        </div>
+    </div>
     <div id="input-container">
         <button id="settings-button">
             <svg viewBox="0 0 24 24">
@@ -197,7 +221,10 @@
             <!-- 对话卡片模板 -->
             <div class="chat-card template" style="display: none;">
                 <div class="card-content">
-                    <div class="chat-title">新对话</div>
+                    <div class="chat-info">
+                        <div class="chat-title">新对话</div>
+                        <div class="chat-source"></div>
+                    </div>
                     <div class="card-actions">
                         <button class="card-button delete-btn">
                             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">

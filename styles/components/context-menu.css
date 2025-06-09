@@ -59,3 +59,46 @@
     background-color: var(--cerebr-message-user-bg);
     color: #ff4d4d;
 }
+
+/* 聊天卡片右键菜单样式 */
+#chat-card-context-menu {
+    position: fixed;
+    background: var(--cerebr-bg-color);
+    border-radius: 8px;
+    padding: 6px;
+    min-width: 140px;
+    box-shadow: 0 4px 20px var(--cerebr-popup-shadow);
+    z-index: 2147483647;
+    display: none;
+    backdrop-filter: blur(var(--cerebr-blur-radius));
+    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
+    border: 1px solid var(--cerebr-card-border-color);
+    touch-action: none;
+}
+
+#chat-card-context-menu .context-menu-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--cerebr-text-color);
+    font-size: 13px;
+    border-radius: 6px;
+    margin: 2px 0;
+    transition: background-color 0.2s ease;
+    white-space: nowrap;
+}
+
+#chat-card-context-menu .context-menu-item:hover {
+    background-color: var(--cerebr-message-user-bg);
+}
+
+#chat-card-context-menu .context-menu-item svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    flex-shrink: 0;
+}

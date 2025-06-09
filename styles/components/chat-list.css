@@ -50,14 +50,32 @@
     padding: 15px;
 }
 
+.chat-card .chat-info {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    margin-right: 12px;
+}
+
 .chat-card .chat-title {
     font-size: 14px;
     color: var(--cerebr-text-color);
-    flex-grow: 1;
-    margin-right: 12px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.chat-card .chat-source {
+    font-size: 12px;
+    color: var(--cerebr-link-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 4px;
+}
+
+.chat-card .chat-source a {
+    color: var(--cerebr-link-color);
 }
 
 .chat-card .card-actions {

@@ -321,9 +321,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             clearMessageInput(messageInput, uiConfig);
 
             currentChat = chatManager.getCurrentChat();
+            const isFirstMessage = currentChat && currentChat.messages.length === 0;
             const messages = currentChat ? [...currentChat.messages] : [];
             messages.push(userMessage);
             chatManager.addMessageToCurrentChat(userMessage);
+
+            if (isFirstMessage) {
+                const tabInfo = await browserAdapter.getCurrentTab();
+                if (tabInfo) {
+                    chatManager.setChatSource(currentChat.id, tabInfo.title, tabInfo.url);
+                }
+            }
 
             const apiParams = {
                 messages,

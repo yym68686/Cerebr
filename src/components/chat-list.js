@@ -24,6 +24,13 @@ export function renderChatList(chatManager, chatCards) {
         const titleElement = card.querySelector('.chat-title');
         titleElement.textContent = chat.title;
 
+        const sourceElement = card.querySelector('.chat-source');
+        if (chat.pageTitle && chat.pageUrl) {
+            sourceElement.innerHTML = `<a href="${chat.pageUrl}" target="_blank">${chat.pageTitle}</a>`;
+        } else {
+            sourceElement.textContent = '';
+        }
+
         // 设置选中状态
         if (chat.id === currentChatId) {
             card.classList.add('selected');
@@ -129,6 +136,56 @@ export function initChatListEvents({
             if (onHide) onHide();
         });
     }
+
+    const chatContextMenu = document.getElementById('chat-card-context-menu');
+    const copyTitleItem = document.getElementById('copy-chat-title');
+    const copyLinkItem = document.getElementById('copy-chat-link');
+    const openLinkItem = document.getElementById('open-chat-link');
+    let currentChatId = null;
+
+    function hideChatContextMenu() {
+        chatContextMenu.style.display = 'none';
+    }
+
+    chatCards.addEventListener('contextmenu', (e) => {
+        const card = e.target.closest('.chat-card');
+        if (!card || card.classList.contains('template')) return;
+        e.preventDefault();
+        currentChatId = card.dataset.chatId;
+        const menuWidth = chatContextMenu.offsetWidth;
+        const menuHeight = chatContextMenu.offsetHeight;
+        let x = e.clientX;
+        let y = e.clientY;
+        if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth;
+        if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight;
+        chatContextMenu.style.left = x + 'px';
+        chatContextMenu.style.top = y + 'px';
+        chatContextMenu.style.display = 'block';
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!chatContextMenu.contains(e.target)) {
+            hideChatContextMenu();
+        }
+    });
+
+    copyTitleItem.addEventListener('click', () => {
+        const chat = chatManager.getChatById(currentChatId);
+        if (chat?.pageTitle) navigator.clipboard.writeText(chat.pageTitle);
+        hideChatContextMenu();
+    });
+
+    copyLinkItem.addEventListener('click', () => {
+        const chat = chatManager.getChatById(currentChatId);
+        if (chat?.pageUrl) navigator.clipboard.writeText(chat.pageUrl);
+        hideChatContextMenu();
+    });
+
+    openLinkItem.addEventListener('click', () => {
+        const chat = chatManager.getChatById(currentChatId);
+        if (chat?.pageUrl) window.open(chat.pageUrl, '_blank');
+        hideChatContextMenu();
+    });
 }
 
 // 初始化聊天列表功能
@@ -162,4 +219,8 @@ export function initializeChatList({
     if (chatListBackButton) {
         chatListBackButton.addEventListener('click', () => hideChatList(chatListPage));
     }
+
+    document.addEventListener('chat-list-updated', () => {
+        renderChatList(chatManager, chatListPage.querySelector('.chat-cards'));
+    });
 }
