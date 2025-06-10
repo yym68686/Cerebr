@@ -1,0 +1,82 @@
+/* 网页问答按钮样式 */
+#webpage-qa-button {
+    padding: 12px 8px 12px 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--cerebr-icon-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+#webpage-qa-button svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+    opacity: 0.6;
+    transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55),
+                opacity 0.2s ease,
+                color 0.2s ease;
+}
+
+#webpage-qa-button:hover svg {
+    transform: scale(1.25);
+    opacity: 1;
+}
+
+#webpage-qa-button:active svg {
+    transform: scale(0.95);
+    opacity: 0.8;
+}
+
+/* 关闭状态 */
+#webpage-qa-button.webpage-qa-off {
+    color: var(--cerebr-icon-color);
+}
+
+#webpage-qa-button.webpage-qa-off svg {
+    opacity: 0.4;
+}
+
+/* 开启状态 */
+#webpage-qa-button.webpage-qa-on {
+    color: #007AFF; /* 蓝色表示激活状态 */
+}
+
+#webpage-qa-button.webpage-qa-on svg {
+    opacity: 1;
+    color: #007AFF;
+}
+
+#webpage-qa-button.webpage-qa-on:hover svg {
+    color: #0056CC;
+}
+
+/* 加载状态 */
+#webpage-qa-button.loading svg {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 深色主题适配 */
+[data-theme="dark"] #webpage-qa-button.webpage-qa-on {
+    color: #0A84FF;
+}
+
+[data-theme="dark"] #webpage-qa-button.webpage-qa-on svg {
+    color: #0A84FF;
+}
+
+[data-theme="dark"] #webpage-qa-button.webpage-qa-on:hover svg {
+    color: #409CFF;
+}

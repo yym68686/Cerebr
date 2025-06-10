@@ -399,6 +399,15 @@ export function handleWindowMessage(event, config) {
         const selection = window.getSelection();
         selection.removeAllRanges();
         selection.addRange(range);
+        
+        // 如果设置了自动启用网页问答标志，且当前网页问答未开启，则自动启用
+        if (event.data.autoEnableWebpageQA) {
+            const webpageQAButton = document.getElementById('webpage-qa-button');
+            if (webpageQAButton && webpageQAButton.classList.contains('webpage-qa-off')) {
+                console.log('[自动启用] 检测到Alt+Z触发，自动启用网页问答功能');
+                webpageQAButton.click();
+            }
+        }
     } else if (event.data.type === 'UPDATE_PLACEHOLDER') {
         setPlaceholder({
             messageInput,

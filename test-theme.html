@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>主题测试</title>
+    <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+    <div style="padding: 20px;">
+        <h1>主题模式测试</h1>
+        
+        <div style="margin: 20px 0;">
+            <label for="theme-select">选择主题模式：</label>
+            <select id="theme-select" style="margin-left: 10px; padding: 5px;">
+                <option value="light">浅色</option>
+                <option value="dark">深色</option>
+                <option value="auto">跟随系统</option>
+            </select>
+        </div>
+        
+        <div style="background: var(--cerebr-message-ai-bg); padding: 15px; margin: 10px 0; border-radius: 8px;">
+            <p>这是一个AI消息示例</p>
+            <p>背景色会根据主题变化</p>
+        </div>
+        
+        <div style="background: var(--cerebr-message-user-bg); padding: 15px; margin: 10px 0; border-radius: 8px;">
+            <p>这是一个用户消息示例</p>
+            <p>背景色会根据主题变化</p>
+        </div>
+        
+        <div style="border: 1px solid var(--cerebr-border-color); padding: 15px; margin: 10px 0; border-radius: 8px;">
+            <p>这是一个带边框的容器</p>
+            <p>边框颜色会根据主题变化</p>
+        </div>
+    </div>
+    
+    <script type="module">
+        import { setTheme } from './src/utils/theme.js';
+        
+        const themeSelect = document.getElementById('theme-select');
+        
+        const themeConfig = {
+            root: document.documentElement,
+            themeSelect,
+            saveTheme: (theme) => {
+                localStorage.setItem('theme', theme);
+                console.log('保存主题:', theme);
+            }
+        };
+        
+        // 初始化主题
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'auto';
+            setTheme(savedTheme, themeConfig);
+        }
+        
+        // 监听主题切换
+        themeSelect.addEventListener('change', () => {
+            setTheme(themeSelect.value, themeConfig);
+        });
+        
+        // 监听系统主题变化
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'auto' || !savedTheme) {
+                setTheme('auto', themeConfig);
+            }
+        });
+        
+        // 初始化
+        initTheme();
+    </script>
+</body>
+</html>
