@@ -1,6 +1,6 @@
 {
   "manifest_version": 2,
-  "name": "Cerebr",
+  "name": "Cerebr-FF",
   "version": "2.3.34",
   "description": "Cerebr - 智能AI聊天助手",
   "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'",
@@ -87,7 +87,7 @@
   ],
   "browser_specific_settings": {
     "gecko": {
-      "id": "cerebr-ai-firefox@example.com"
+      "id": "cerebr-ai-firefox@ai.com"
     }
   }
 }
