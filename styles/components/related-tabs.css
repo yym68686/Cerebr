@@ -364,6 +364,48 @@
     to { transform: rotate(360deg); }
 }
 
+/* 上下文信息提示 */
+.context-info {
+    margin: 8px 0;
+    padding: 0;
+}
+
+.context-info-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--cerebr-message-ai-bg);
+    border: 1px solid var(--cerebr-card-border-color);
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--cerebr-text-color);
+    opacity: 0.8;
+}
+
+.context-info-content.success {
+    background: rgba(52, 199, 89, 0.1);
+    border-color: rgba(52, 199, 89, 0.3);
+    color: #34c759;
+}
+
+.context-info-content.warning {
+    background: rgba(255, 149, 0, 0.1);
+    border-color: rgba(255, 149, 0, 0.3);
+    color: #ff9500;
+}
+
+.context-info-content.error {
+    background: rgba(255, 59, 48, 0.1);
+    border-color: rgba(255, 59, 48, 0.3);
+    color: #ff3b30;
+}
+
+.context-info-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
 /* 响应式设计 */
 @media (max-width: 480px) {
     .related-tabs-content {

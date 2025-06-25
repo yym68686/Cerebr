@@ -227,16 +227,17 @@ ${tabsInfo}
  * 获取相关标签页的内容
  * @param {Array} relevantTabIds - 相关标签页ID数组
  * @param {Function} getPageContentFn - 获取页面内容的函数
- * @returns {Promise<Array>} 相关标签页内容数组
+ * @returns {Promise<Object>} 包含成功内容数组和统计信息的对象
  */
 export async function getRelevantTabsContent(relevantTabIds, getPageContentFn) {
     const contents = [];
-    
+    const failedTabs = [];
+
     for (const tabInfo of relevantTabIds) {
         try {
             console.log(`获取标签页 ${tabInfo.id} 的内容...`);
             const content = await getPageContentFn(true, tabInfo.id); // skipWaitContent = true
-            
+
             if (content && !content.error && content.content) {
                 contents.push({
                     tabId: tabInfo.id,
@@ -248,14 +249,34 @@ export async function getRelevantTabsContent(relevantTabIds, getPageContentFn) {
                 });
                 console.log(`成功获取标签页 ${tabInfo.id} 的内容，长度: ${content.content.length}`);
             } else {
-                console.log(`标签页 ${tabInfo.id} 内容获取失败:`, content?.error || '无内容');
+                const failureReason = content?.error || '页面可能已被回收或无法访问';
+                failedTabs.push({
+                    tabId: tabInfo.id,
+                    title: tabInfo.title || '未知标题',
+                    reason: failureReason
+                });
+                console.log(`标签页 ${tabInfo.id} 内容获取失败:`, failureReason);
             }
         } catch (error) {
+            const failureReason = error.message || '网络错误或页面无响应';
+            failedTabs.push({
+                tabId: tabInfo.id,
+                title: tabInfo.title || '未知标题',
+                reason: failureReason
+            });
             console.error(`获取标签页 ${tabInfo.id} 内容失败:`, error);
         }
     }
-    
-    return contents;
+
+    return {
+        contents,
+        stats: {
+            total: relevantTabIds.length,
+            success: contents.length,
+            failed: failedTabs.length,
+            failedTabs
+        }
+    };
 }
 
 /**
@@ -273,7 +294,7 @@ export function formatMultiPageContext(currentPageContent, relevantTabsContent) 
 
     if (relevantTabsContent && relevantTabsContent.length > 0) {
         contextContent += '\n\n相关页面：';
-        
+
         relevantTabsContent.forEach((tabContent, index) => {
             contextContent += `\n\n${index + 1}. 标题：${tabContent.title}\nURL：${tabContent.url}\n相关性：${tabContent.relevanceReason}\n内容：${tabContent.content}`;
         });

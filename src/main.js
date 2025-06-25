@@ -190,33 +190,61 @@ document.addEventListener('DOMContentLoaded', async () => {
     let relatedTabsData = [];
     let selectedRelatedTabs = [];
 
-    // 加载相关标签页设置
+    // 加载相关标签页设置（按域名）
     async function loadRelatedTabsSettings() {
         try {
+            // 获取当前域名
+            const { domain } = await getCurrentDomain();
+            if (!domain) {
+                relatedTabsEnabled = false;
+                selectedRelatedTabs = [];
+                updateRelatedTabsButton(false, 0);
+                return;
+            }
+
             const settings = await storageAdapter.get('relatedTabsSettings');
-            if (settings.relatedTabsSettings) {
-                relatedTabsEnabled = settings.relatedTabsSettings.enabled || false;
-                selectedRelatedTabs = settings.relatedTabsSettings.selectedTabs || [];
-                updateRelatedTabsButton(relatedTabsEnabled, selectedRelatedTabs.length);
+            if (settings.relatedTabsSettings && settings.relatedTabsSettings[domain]) {
+                selectedRelatedTabs = settings.relatedTabsSettings[domain].selectedTabs || [];
+                // 只有当用户实际选择了标签页时，按钮才变蓝色
+                const hasSelectedTabs = selectedRelatedTabs.length > 0;
+                relatedTabsEnabled = hasSelectedTabs;
+                updateRelatedTabsButton(hasSelectedTabs, selectedRelatedTabs.length);
             } else {
                 // 默认状态：灰色，未启用
+                relatedTabsEnabled = false;
+                selectedRelatedTabs = [];
                 updateRelatedTabsButton(false, 0);
             }
         } catch (error) {
             console.error('加载相关标签页设置失败:', error);
+            relatedTabsEnabled = false;
+            selectedRelatedTabs = [];
             updateRelatedTabsButton(false, 0);
         }
     }
 
-    // 保存相关标签页设置
+    // 保存相关标签页设置（按域名）
     async function saveRelatedTabsSettings() {
         try {
+            // 获取当前域名
+            const { domain } = await getCurrentDomain();
+            if (!domain) {
+                console.error('无法获取当前域名，无法保存设置');
+                return;
+            }
+
+            // 获取现有设置
+            const settings = await storageAdapter.get('relatedTabsSettings');
+            const relatedTabsSettings = settings.relatedTabsSettings || {};
+
+            // 更新当前域名的设置
+            relatedTabsSettings[domain] = {
+                selectedTabs: selectedRelatedTabs,
+                lastUpdated: Date.now()
+            };
+
             await storageAdapter.set({
-                relatedTabsSettings: {
-                    enabled: relatedTabsEnabled,
-                    selectedTabs: selectedRelatedTabs,
-                    lastUpdated: Date.now()
-                }
+                relatedTabsSettings: relatedTabsSettings
             });
         } catch (error) {
             console.error('保存相关标签页设置失败:', error);
@@ -348,6 +376,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 加载相关标签页设置
     await loadRelatedTabsSettings();
 
+    // 监听标签页切换，重新加载相关标签页设置
+    let currentDomain = null;
+    setInterval(async () => {
+        try {
+            const { domain } = await getCurrentDomain();
+            if (domain && domain !== currentDomain) {
+                currentDomain = domain;
+                await loadRelatedTabsSettings();
+            }
+        } catch (error) {
+            // 忽略错误，可能是在非网页标签页中
+        }
+    }, 1000); // 每秒检查一次
+
     // 相关标签页按钮点击事件
     relatedTabsButton.addEventListener('click', async () => {
         if (!webpageQAEnabled) {
@@ -436,8 +478,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 document.getElementById('related-tabs-list').style.display = 'block';
                 relatedTabsControls.style.display = 'flex';
             } else {
+                // 即使没有相关标签页，也要显示控制按钮让用户可以确认"不使用"
+                selectedRelatedTabs = [];
                 document.getElementById('related-tabs-empty').style.display = 'block';
-                relatedTabsControls.style.display = 'none';
+                relatedTabsControls.style.display = 'flex';
+                updateConfirmButton();
             }
 
         } catch (error) {
@@ -454,16 +499,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         const listContainer = document.getElementById('related-tabs-list');
         listContainer.innerHTML = '';
 
-        // 如果没有预选的标签页，清空选择
-        if (!selectedRelatedTabs || selectedRelatedTabs.length === 0) {
-            selectedRelatedTabs = [];
-        }
+        // 过滤出仍然存在于当前相关列表中的已选择标签页
+        const currentRelevantTabIds = relevantTabs.map(tab => tab.id);
+        selectedRelatedTabs = selectedRelatedTabs.filter(selectedTab =>
+            currentRelevantTabIds.includes(selectedTab.id)
+        );
 
         relevantTabs.forEach(tabInfo => {
             const tab = allTabs.find(t => t.id === tabInfo.id);
             if (!tab) return;
 
-            // 检查这个标签页是否之前被选中过
+            // 检查这个标签页是否之前被选中过（且仍在当前相关列表中）
             const isSelected = selectedRelatedTabs.some(selectedTab => selectedTab.id === tab.id);
 
             const item = document.createElement('div');
@@ -506,13 +552,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             listContainer.appendChild(item);
         });
+
+        // 渲染完成后更新确认按钮状态
+        updateConfirmButton();
     }
 
     // 更新确认按钮状态
     function updateConfirmButton() {
         const count = selectedRelatedTabs.length;
         selectedTabsCount.textContent = count;
-        relatedTabsConfirm.disabled = count === 0;
+        // 移除禁用逻辑 - 用户应该能够选择"不使用任何相关标签页"
+        relatedTabsConfirm.disabled = false;
+
+        // 更新按钮文本以反映当前状态
+        if (count === 0) {
+            relatedTabsConfirm.textContent = '确认（不使用相关标签页）';
+        } else {
+            relatedTabsConfirm.textContent = `确认使用 (${count})`;
+        }
     }
 
     // 模态框事件处理
@@ -634,9 +691,64 @@ document.addEventListener('DOMContentLoaded', async () => {
                         // 如果启用了相关标签页功能且有选中的相关标签页
                         if (relatedTabsEnabled && selectedRelatedTabs.length > 0) {
                             console.log('获取相关标签页内容...');
-                            const relatedContents = await getRelevantTabsContent(selectedRelatedTabs, getPageContent);
-                            pageContent = formatMultiPageContext(content, relatedContents);
-                            console.log('多页面内容聚合完成，相关页面数量:', relatedContents.length);
+
+                            // 显示获取相关标签页内容的提示
+                            const contextInfo = document.createElement('div');
+                            contextInfo.className = 'context-info';
+                            contextInfo.innerHTML = `
+                                <div class="context-info-content">
+                                    <span class="context-info-icon">📄</span>
+                                    <span>正在获取 ${selectedRelatedTabs.length} 个相关标签页的内容...</span>
+                                </div>
+                            `;
+                            chatContainer.appendChild(contextInfo);
+
+                            try {
+                                const result = await getRelevantTabsContent(selectedRelatedTabs, getPageContent);
+                                const { contents: relatedContents, stats } = result;
+
+                                pageContent = formatMultiPageContext(content, relatedContents);
+
+                                // 根据结果更新提示状态
+                                if (stats.failed === 0) {
+                                    // 全部成功
+                                    contextInfo.innerHTML = `
+                                        <div class="context-info-content success">
+                                            <span class="context-info-icon">✅</span>
+                                            <span>已成功获取 ${stats.success} 个相关标签页的内容作为上下文</span>
+                                        </div>
+                                    `;
+                                } else if (stats.success > 0) {
+                                    // 部分成功
+                                    const failedTitles = stats.failedTabs.map(tab => tab.title).join('、');
+                                    contextInfo.innerHTML = `
+                                        <div class="context-info-content warning">
+                                            <span class="context-info-icon">⚠️</span>
+                                            <span>已获取 ${stats.success}/${stats.total} 个相关标签页内容，${stats.failed} 个失败（${failedTitles}）</span>
+                                        </div>
+                                    `;
+                                } else {
+                                    // 全部失败
+                                    contextInfo.innerHTML = `
+                                        <div class="context-info-content error">
+                                            <span class="context-info-icon">❌</span>
+                                            <span>所有相关标签页内容获取失败，仅使用当前页面内容</span>
+                                        </div>
+                                    `;
+                                }
+
+                                console.log('多页面内容聚合完成，成功:', stats.success, '失败:', stats.failed);
+                            } catch (error) {
+                                // 更新提示为错误状态
+                                contextInfo.innerHTML = `
+                                    <div class="context-info-content error">
+                                        <span class="context-info-icon">❌</span>
+                                        <span>获取相关标签页内容失败，仅使用当前页面内容</span>
+                                    </div>
+                                `;
+                                pageContent = content;
+                                console.error('获取相关标签页内容失败:', error);
+                            }
                         } else {
                             pageContent = content;
                         }
