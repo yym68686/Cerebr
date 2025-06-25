@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>字体大小测试</title>
+    <link rel="stylesheet" href="styles/base/reset.css">
+    <link rel="stylesheet" href="styles/base/variables.css">
+    <link rel="stylesheet" href="styles/components/message.css">
+    <link rel="stylesheet" href="styles/components/input.css">
+    <link rel="stylesheet" href="styles/components/settings.css">
+    <style>
+        body {
+            background-color: var(--cerebr-bg-color);
+            color: var(--cerebr-text-color);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            padding: 20px;
+        }
+        .test-container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .font-size-control {
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: var(--cerebr-message-ai-bg);
+            border-radius: 8px;
+        }
+        .test-message {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>字体大小设置测试</h1>
+        
+        <div class="font-size-control">
+            <label for="font-size-select">字体大小：</label>
+            <select id="font-size-select">
+                <option value="small">小 (12px)</option>
+                <option value="medium" selected>中 (14px)</option>
+                <option value="large">大 (16px)</option>
+                <option value="extra-large">特大 (18px)</option>
+            </select>
+        </div>
+        
+        <div class="message user-message test-message">
+            这是一条用户消息，用来测试字体大小设置功能。
+        </div>
+        
+        <div class="message ai-message test-message">
+            这是一条AI回复消息，字体大小应该会根据设置进行调整。当你选择不同的字体大小选项时，这些文字的大小应该会相应变化。
+        </div>
+        
+        <div id="message-input" contenteditable="true" placeholder="输入消息测试..." style="border: 1px solid var(--cerebr-input-border-color); padding: 10px; border-radius: 4px; background-color: var(--cerebr-input-bg); margin-top: 10px;"></div>
+    </div>
+    
+    <script>
+        // 字体大小设置功能
+        const fontSizeSelect = document.getElementById('font-size-select');
+        
+        function setFontSize(size) {
+            const root = document.documentElement;
+            switch (size) {
+                case 'small':
+                    root.style.setProperty('--cerebr-font-size', '12px');
+                    break;
+                case 'medium':
+                    root.style.setProperty('--cerebr-font-size', '14px');
+                    break;
+                case 'large':
+                    root.style.setProperty('--cerebr-font-size', '16px');
+                    break;
+                case 'extra-large':
+                    root.style.setProperty('--cerebr-font-size', '18px');
+                    break;
+                default:
+                    root.style.setProperty('--cerebr-font-size', '14px');
+            }
+        }
+        
+        fontSizeSelect.addEventListener('change', () => {
+            const fontSize = fontSizeSelect.value;
+            setFontSize(fontSize);
+            console.log('字体大小已设置为:', fontSize);
+        });
+        
+        // 初始化
+        setFontSize('medium');
+    </script>
+</body>
+</html>

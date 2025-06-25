@@ -93,7 +93,8 @@ export async function appendMessage({
         reasoningWrapper.className = 'reasoning-wrapper';
 
         const reasoningDiv = document.createElement('div');
-        reasoningDiv.className = 'reasoning-content';
+        // 如果是历史对话，默认折叠深度思考
+        reasoningDiv.className = skipHistory ? 'reasoning-content collapsed' : 'reasoning-content';
 
         // 添加占位文本容器
         const placeholderDiv = document.createElement('div');
@@ -151,6 +152,15 @@ export async function appendMessage({
                     }
                 });
             });
+        }
+    });
+
+    // 处理通过<think>标签生成的推理内容的点击事件
+    messageDiv.querySelectorAll('.reasoning-content').forEach(reasoningDiv => {
+        if (!reasoningDiv.onclick) {
+            reasoningDiv.onclick = function() {
+                this.classList.toggle('collapsed');
+            };
         }
     });
 
@@ -293,10 +303,19 @@ export async function updateAIMessage({
             // 渲染LaTeX公式
             await renderMathInElement(mainContent);
 
-            // 处理新染的链接
+            // 处理新渲染的链接
             lastMessage.querySelectorAll('a').forEach(link => {
                 link.target = '_blank';
                 link.rel = 'noopener noreferrer';
+            });
+
+            // 处理通过<think>标签生成的推理内容的点击事件
+            lastMessage.querySelectorAll('.reasoning-content').forEach(reasoningDiv => {
+                if (!reasoningDiv.onclick) {
+                    reasoningDiv.onclick = function() {
+                        this.classList.toggle('collapsed');
+                    };
+                }
             });
 
             return true;

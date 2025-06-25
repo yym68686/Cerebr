@@ -39,7 +39,9 @@ export class ChatManager {
             id: chatId,
             title: title,
             messages: [],
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            pageTitle: null,
+            pageUrl: null
         };
         this.chats.set(chatId, chat);
         this.saveChats();
@@ -95,6 +97,14 @@ export class ChatManager {
         await this.saveChats();
     }
 
+    async truncateMessages(messageIndex) {
+        const currentChat = this.getCurrentChat();
+        if (currentChat && messageIndex >= 0 && messageIndex < currentChat.messages.length) {
+            currentChat.messages.splice(messageIndex);
+            await this.saveChats();
+        }
+    }
+
     async updateLastMessage(chatId, message) {
         const currentChat = this.chats.get(chatId);
         if (!currentChat || currentChat.messages.length === 0) {
@@ -126,6 +136,20 @@ export class ChatManager {
         await this.saveChats();
     }
 
+    getChatById(chatId) {
+        return this.chats.get(chatId);
+    }
+
+    async setChatSource(chatId, pageTitle, pageUrl) {
+        const chat = this.chats.get(chatId);
+        if (chat) {
+            chat.pageTitle = pageTitle;
+            chat.pageUrl = pageUrl;
+            await this.saveChats();
+            document.dispatchEvent(new CustomEvent('chat-list-updated', { detail: { chatId } }));
+        }
+    }
+
     async saveChats() {
         await this.storage.set({ [CHATS_KEY]: Array.from(this.chats.values()) });
     }
@@ -135,6 +159,16 @@ export class ChatManager {
         if (currentChat) {
             currentChat.messages = [];
             await this.saveChats();
+        }
+    }
+
+    async updateChatTitle(chatId, newTitle) {
+        const chat = this.chats.get(chatId);
+        if (chat && newTitle) {
+            chat.title = newTitle;
+            await this.saveChats();
+            // 派发事件通知UI更新
+            document.dispatchEvent(new CustomEvent('chat-list-updated', { detail: { chatId } }));
         }
     }
 }

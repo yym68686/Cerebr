@@ -30,6 +30,13 @@
             </svg>
             复制消息
         </div>
+<div class="context-menu-item" id="edit-message">
+            <svg viewBox="0 0 24 24">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+            </svg>
+            编辑消息
+        </div>
         <div class="context-menu-item" id="copy-code">
             <svg viewBox="0 0 24 24">
                 <path d="M16 18L22 12L16 6"/>
@@ -58,6 +65,30 @@
             删除消息
         </div>
     </div>
+    <div id="chat-card-context-menu">
+        <div class="context-menu-item" id="copy-chat-title">
+            <svg viewBox="0 0 24 24">
+                <rect x="8" y="8" width="12" height="12" rx="1"/>
+                <path d="M4 16V4a1 1 0 0 1 1-1h11"/>
+            </svg>
+            复制标题
+        </div>
+        <div class="context-menu-item" id="copy-chat-link">
+            <svg viewBox="0 0 24 24">
+                <path d="M10 13a5 5 0 0 0 7.07 0l1.83-1.83a5 5 0 0 0-7.07-7.07L10 5"/>
+                <path d="M14 11a5 5 0 0 0-7.07 0L5.1 12.83a5 5 0 0 0 7.07 7.07L14 18"/>
+            </svg>
+            复制链接
+        </div>
+        <div class="context-menu-item" id="open-chat-link">
+            <svg viewBox="0 0 24 24">
+                <path d="M14 3h7v7"/>
+                <path d="M10 14L21 3"/>
+                <path d="M5 7v14h14v-5"/>
+            </svg>
+            打开链接
+        </div>
+    </div>
     <div id="input-container">
         <button id="settings-button">
             <svg viewBox="0 0 24 24">
@@ -66,20 +97,48 @@
                 <circle cx="12" cy="18" r="2"/>
             </svg>
         </button>
+        <button id="webpage-qa-button" class="webpage-qa-off">
+            <svg viewBox="0 0 24 24">
+                <!-- 网页文档图标 -->
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                <!-- 问号图标 -->
+                <circle cx="16" cy="16" r="6" fill="currentColor" opacity="0.9"/>
+                <path d="M14.5 14.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5c0 .5-.25.94-.64 1.21L16 16.5v.5" stroke="white" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+                <circle cx="16" cy="18.5" r="0.5" fill="white"/>
+            </svg>
+        </button>
+        <button id="related-tabs-button" class="related-tabs-off" title="相关标签页">
+            <svg viewBox="0 0 24 24">
+                <!-- 主文档图标，与网页问答按钮风格一致 -->
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                <!-- 第二个文档图标（稍微偏移） -->
+                <path d="M16 4H8a1 1 0 0 0-1 1v2" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6"/>
+                <!-- 连接图标 -->
+                <circle cx="16" cy="16" r="6" fill="currentColor" opacity="0.9"/>
+                <path d="M13 16h6M16 13v6" stroke="white" stroke-width="1.2" stroke-linecap="round"/>
+            </svg>
+            <span id="related-tabs-count" class="tab-count" style="display: none;">0</span>
+        </button>
         <div id="settings-menu">
-            <div class="menu-item" id="theme-toggle">
-                <span>深色模式</span>
-                <label class="switch">
-                    <input type="checkbox" id="theme-switch">
-                    <span class="slider"></span>
-                </label>
+            <div class="menu-item" id="theme-setting">
+                <span>主题模式</span>
+                <select id="theme-select">
+                    <option value="light">浅色</option>
+                    <option value="dark">深色</option>
+                    <option value="auto">跟随系统</option>
+                </select>
             </div>
-            <div class="menu-item" id="webpage-qa">
-                <span>网页问答</span>
-                <label class="switch">
-                    <input type="checkbox" id="webpage-switch">
-                    <span class="slider"></span>
-                </label>
+
+            <div class="menu-item" id="font-size-setting">
+                <span>字体大小</span>
+                <select id="font-size-select">
+                    <option value="small">小</option>
+                    <option value="medium" selected>中</option>
+                    <option value="large">大</option>
+                    <option value="extra-large">特大</option>
+                </select>
             </div>
             <div class="menu-item" id="new-chat">
                 <span>新的对话</span>
@@ -99,12 +158,7 @@
                     <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
             </div>
-            <div class="menu-item" id="feedback-button">
-                <span>用户反馈</span>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M11 2H14V5M14 2L7 9M14 8V13C14 13.5523 13.5523 14 13 14H3C2.44772 14 2 13.5523 2 13V3C2 2.44772 2.44772 2 3 2H8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </div>
+
         </div>
         <div id="message-input" contenteditable="true" placeholder="输入消息..." role="textbox"></div>
     </div>
@@ -180,7 +234,10 @@
             <!-- 对话卡片模板 -->
             <div class="chat-card template" style="display: none;">
                 <div class="card-content">
-                    <div class="chat-title">新对话</div>
+                    <div class="chat-info">
+                        <div class="chat-title">新对话</div>
+                        <div class="chat-source"></div>
+                    </div>
                     <div class="card-actions">
                         <button class="card-button delete-btn">
                             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -201,6 +258,50 @@
                     <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-linecap="round"/>
                 </svg>
             </button>
+        </div>
+    </div>
+    <div id="related-tabs-modal" class="related-tabs-modal" style="display: none;">
+        <div class="related-tabs-content">
+            <div class="related-tabs-header">
+                <h3>相关标签页</h3>
+                <button class="related-tabs-close">
+                    <svg viewBox="0 0 24 24" fill="none">
+                        <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="related-tabs-status">
+                <div id="related-tabs-loading" style="display: none;">
+                    <div class="loading-spinner"></div>
+                    <span>正在分析相关页面...</span>
+                </div>
+                <div id="related-tabs-controls" class="related-tabs-controls" style="display: none;">
+                    <button id="select-all-tabs" class="select-all-btn">
+                        <svg viewBox="0 0 16 16" width="14" height="14">
+                            <path d="M2 8l3 3 7-7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        全选
+                    </button>
+                    <button id="deselect-all-tabs" class="select-all-btn">
+                        <svg viewBox="0 0 16 16" width="14" height="14">
+                            <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        取消全选
+                    </button>
+                </div>
+                <div id="related-tabs-list" class="related-tabs-list">
+                    <!-- 相关标签页列表将在这里动态生成 -->
+                </div>
+                <div id="related-tabs-empty" style="display: none;">
+                    <p>未找到相关的标签页</p>
+                </div>
+            </div>
+            <div class="related-tabs-actions">
+                <button id="related-tabs-confirm" class="btn-primary" disabled>
+                    确认使用 (<span id="selected-tabs-count">0</span> 个页面)
+                </button>
+                <button id="related-tabs-cancel" class="btn-secondary">取消</button>
+            </div>
         </div>
     </div>
     <script src="src/main.js" type="module"></script>
