@@ -1,6 +1,7 @@
 import { setTheme } from './utils/theme.js';
 import { callAPI } from './services/chat.js';
 import { generateTitleForChat } from './services/title-generator.js';
+import { analyzeTabRelevance, getRelevantTabsContent, formatMultiPageContext } from './services/tab-relevance.js';
 import { chatManager } from './utils/chat-manager.js';
 import { appendMessage } from './handlers/message-handler.js';
 import { hideContextMenu } from './components/context-menu.js';
@@ -184,6 +185,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 网页问答按钮状态
     let webpageQAEnabled = false;
 
+    // 相关标签页功能状态
+    let relatedTabsEnabled = false;
+    let relatedTabsData = [];
+    let selectedRelatedTabs = [];
+
+    // 加载相关标签页设置
+    async function loadRelatedTabsSettings() {
+        try {
+            const settings = await storageAdapter.get('relatedTabsSettings');
+            if (settings.relatedTabsSettings) {
+                relatedTabsEnabled = settings.relatedTabsSettings.enabled || false;
+                selectedRelatedTabs = settings.relatedTabsSettings.selectedTabs || [];
+                updateRelatedTabsButton(relatedTabsEnabled, selectedRelatedTabs.length);
+            } else {
+                // 默认状态：灰色，未启用
+                updateRelatedTabsButton(false, 0);
+            }
+        } catch (error) {
+            console.error('加载相关标签页设置失败:', error);
+            updateRelatedTabsButton(false, 0);
+        }
+    }
+
+    // 保存相关标签页设置
+    async function saveRelatedTabsSettings() {
+        try {
+            await storageAdapter.set({
+                relatedTabsSettings: {
+                    enabled: relatedTabsEnabled,
+                    selectedTabs: selectedRelatedTabs,
+                    lastUpdated: Date.now()
+                }
+            });
+        } catch (error) {
+            console.error('保存相关标签页设置失败:', error);
+        }
+    }
+
     // 更新按钮状态
     function updateWebpageQAButton(enabled) {
         webpageQAEnabled = enabled;
@@ -238,6 +277,291 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 初始化按钮状态为关闭
     updateWebpageQAButton(false);
 
+    // 相关标签页按钮和模态框元素
+    const relatedTabsButton = document.getElementById('related-tabs-button');
+    const relatedTabsModal = document.getElementById('related-tabs-modal');
+    const relatedTabsClose = document.querySelector('.related-tabs-close');
+    const relatedTabsConfirm = document.getElementById('related-tabs-confirm');
+    const relatedTabsCancel = document.getElementById('related-tabs-cancel');
+    const relatedTabsCount = document.getElementById('related-tabs-count');
+    const selectedTabsCount = document.getElementById('selected-tabs-count');
+    const selectAllTabsBtn = document.getElementById('select-all-tabs');
+    const deselectAllTabsBtn = document.getElementById('deselect-all-tabs');
+    const relatedTabsControls = document.getElementById('related-tabs-controls');
+
+    // 获取所有标签页信息
+    async function getAllTabs() {
+        try {
+            const response = await browserAdapter.sendMessage({
+                type: 'getAllTabs'
+            });
+            return response?.tabs || [];
+        } catch (error) {
+            console.error('获取所有标签页失败:', error);
+            return [];
+        }
+    }
+
+    // 更新相关标签页按钮状态
+    function updateRelatedTabsButton(enabled, count = 0) {
+        relatedTabsEnabled = enabled;
+
+        // 移除加载状态
+        relatedTabsButton.classList.remove('loading');
+
+        if (enabled && count > 0) {
+            relatedTabsButton.classList.remove('related-tabs-off');
+            relatedTabsButton.classList.add('related-tabs-on');
+            relatedTabsCount.textContent = count;
+            relatedTabsCount.style.display = 'flex';
+        } else {
+            relatedTabsButton.classList.remove('related-tabs-on');
+            relatedTabsButton.classList.add('related-tabs-off');
+            relatedTabsCount.style.display = 'none';
+        }
+    }
+
+    // 设置按钮加载状态
+    function setRelatedTabsButtonLoading(loading) {
+        if (loading) {
+            relatedTabsButton.classList.add('loading');
+        } else {
+            relatedTabsButton.classList.remove('loading');
+        }
+    }
+
+    // 显示相关标签页模态框
+    function showRelatedTabsModal() {
+        relatedTabsModal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+
+    // 隐藏相关标签页模态框
+    function hideRelatedTabsModal() {
+        relatedTabsModal.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+
+    // 初始化相关标签页按钮状态（默认灰色）
+    updateRelatedTabsButton(false, 0);
+
+    // 加载相关标签页设置
+    await loadRelatedTabsSettings();
+
+    // 相关标签页按钮点击事件
+    relatedTabsButton.addEventListener('click', async () => {
+        if (!webpageQAEnabled) {
+            // 如果网页问答未启用，自动启用
+            console.log('自动启用网页问答功能');
+
+            // 创建一个Promise来等待网页问答启用完成
+            const waitForWebpageQA = new Promise((resolve, reject) => {
+                let attempts = 0;
+                const maxAttempts = 20; // 最多等待10秒
+
+                const checkStatus = () => {
+                    attempts++;
+                    if (webpageQAEnabled) {
+                        resolve();
+                    } else if (attempts >= maxAttempts) {
+                        reject(new Error('网页问答启用超时'));
+                    } else {
+                        setTimeout(checkStatus, 500);
+                    }
+                };
+
+                // 触发网页问答按钮点击
+                webpageQAButton.click();
+
+                // 开始检查状态
+                setTimeout(checkStatus, 100);
+            });
+
+            try {
+                await waitForWebpageQA;
+                console.log('网页问答功能已启用');
+            } catch (error) {
+                console.error('启用网页问答失败:', error);
+                alert('无法启用网页问答功能，请检查当前页面或手动启用');
+                return;
+            }
+        }
+
+        try {
+            // 开始加载状态
+            setRelatedTabsButtonLoading(true);
+
+            // 获取当前页面信息
+            const { domain, tabId } = await getCurrentDomain();
+            if (!domain) {
+                alert('无法获取当前页面信息');
+                return;
+            }
+
+            // 获取所有标签页
+            const allTabs = await getAllTabs();
+            if (allTabs.length <= 1) {
+                alert('当前只有一个标签页，无法分析相关性');
+                return;
+            }
+
+            // 获取当前页面内容以获取标题
+            const currentContent = await getPageContent(true, tabId);
+            if (!currentContent || currentContent.error) {
+                alert('无法获取当前页面内容');
+                return;
+            }
+
+            showRelatedTabsModal();
+
+            // 显示加载状态
+            document.getElementById('related-tabs-loading').style.display = 'flex';
+            document.getElementById('related-tabs-list').style.display = 'none';
+            document.getElementById('related-tabs-empty').style.display = 'none';
+            relatedTabsControls.style.display = 'none';
+
+            // 分析相关性
+            const relevantTabs = await analyzeTabRelevance(
+                currentContent.title,
+                allTabs,
+                apiConfigs[selectedConfigIndex]
+            );
+
+            // 隐藏加载状态
+            document.getElementById('related-tabs-loading').style.display = 'none';
+
+            if (relevantTabs.length > 0) {
+                relatedTabsData = relevantTabs;
+                renderRelatedTabsList(relevantTabs, allTabs);
+                document.getElementById('related-tabs-list').style.display = 'block';
+                relatedTabsControls.style.display = 'flex';
+            } else {
+                document.getElementById('related-tabs-empty').style.display = 'block';
+                relatedTabsControls.style.display = 'none';
+            }
+
+        } catch (error) {
+            console.error('分析相关标签页失败:', error);
+            alert('分析相关标签页失败，请重试');
+            hideRelatedTabsModal();
+        } finally {
+            setRelatedTabsButtonLoading(false);
+        }
+    });
+
+    // 渲染相关标签页列表
+    function renderRelatedTabsList(relevantTabs, allTabs) {
+        const listContainer = document.getElementById('related-tabs-list');
+        listContainer.innerHTML = '';
+
+        // 如果没有预选的标签页，清空选择
+        if (!selectedRelatedTabs || selectedRelatedTabs.length === 0) {
+            selectedRelatedTabs = [];
+        }
+
+        relevantTabs.forEach(tabInfo => {
+            const tab = allTabs.find(t => t.id === tabInfo.id);
+            if (!tab) return;
+
+            // 检查这个标签页是否之前被选中过
+            const isSelected = selectedRelatedTabs.some(selectedTab => selectedTab.id === tab.id);
+
+            const item = document.createElement('div');
+            item.className = 'related-tab-item';
+            if (isSelected) {
+                item.classList.add('selected');
+            }
+
+            item.innerHTML = `
+                <input type="checkbox" class="related-tab-checkbox" data-tab-id="${tab.id}" ${isSelected ? 'checked' : ''}>
+                <div class="related-tab-info">
+                    <div class="related-tab-title">${tab.title}</div>
+                    <div class="related-tab-url">${tab.url}</div>
+                    <div class="related-tab-reason">${tabInfo.reason}</div>
+                    <div class="related-tab-score">相关性: ${Math.round(tabInfo.relevance_score * 100)}%</div>
+                </div>
+            `;
+
+            // 点击整个项目来切换选择状态
+            item.addEventListener('click', (e) => {
+                if (e.target.type !== 'checkbox') {
+                    const checkbox = item.querySelector('.related-tab-checkbox');
+                    checkbox.checked = !checkbox.checked;
+                    checkbox.dispatchEvent(new Event('change'));
+                }
+            });
+
+            // 复选框变化事件
+            const checkbox = item.querySelector('.related-tab-checkbox');
+            checkbox.addEventListener('change', () => {
+                if (checkbox.checked) {
+                    item.classList.add('selected');
+                    selectedRelatedTabs.push(tabInfo);
+                } else {
+                    item.classList.remove('selected');
+                    selectedRelatedTabs = selectedRelatedTabs.filter(t => t.id !== tabInfo.id);
+                }
+                updateConfirmButton();
+            });
+
+            listContainer.appendChild(item);
+        });
+    }
+
+    // 更新确认按钮状态
+    function updateConfirmButton() {
+        const count = selectedRelatedTabs.length;
+        selectedTabsCount.textContent = count;
+        relatedTabsConfirm.disabled = count === 0;
+    }
+
+    // 模态框事件处理
+    relatedTabsClose.addEventListener('click', hideRelatedTabsModal);
+    relatedTabsCancel.addEventListener('click', hideRelatedTabsModal);
+
+    relatedTabsConfirm.addEventListener('click', async () => {
+        // 无论是否选择了标签页，都要更新状态
+        if (selectedRelatedTabs.length > 0) {
+            // 有选择：按钮变蓝色，显示数量
+            updateRelatedTabsButton(true, selectedRelatedTabs.length);
+        } else {
+            // 无选择：按钮保持灰色
+            updateRelatedTabsButton(false, 0);
+        }
+
+        await saveRelatedTabsSettings();
+        hideRelatedTabsModal();
+    });
+
+    // 全选按钮事件
+    selectAllTabsBtn.addEventListener('click', () => {
+        const checkboxes = document.querySelectorAll('.related-tab-checkbox');
+        checkboxes.forEach(checkbox => {
+            if (!checkbox.checked) {
+                checkbox.checked = true;
+                checkbox.dispatchEvent(new Event('change'));
+            }
+        });
+    });
+
+    // 取消全选按钮事件
+    deselectAllTabsBtn.addEventListener('click', () => {
+        const checkboxes = document.querySelectorAll('.related-tab-checkbox');
+        checkboxes.forEach(checkbox => {
+            if (checkbox.checked) {
+                checkbox.checked = false;
+                checkbox.dispatchEvent(new Event('change'));
+            }
+        });
+    });
+
+    // 点击模态框背景关闭
+    relatedTabsModal.addEventListener('click', (e) => {
+        if (e.target === relatedTabsModal) {
+            hideRelatedTabsModal();
+        }
+    });
+
     // 监听来自 content script 的消息
     window.addEventListener('message', (event) => {
         handleWindowMessage(event, {
@@ -250,6 +574,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (webpageQAEnabled) {
                 pageContent = null;
                 updateWebpageQAButton(false);
+            }
+            if (relatedTabsEnabled) {
+                selectedRelatedTabs = [];
+                relatedTabsData = [];
+                updateRelatedTabsButton(false);
             }
         }
     });
@@ -302,7 +631,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const { tabId } = await getCurrentDomain();
                     const content = await getPageContent(true, tabId);
                     if (content && !content.error) {
-                        pageContent = content;
+                        // 如果启用了相关标签页功能且有选中的相关标签页
+                        if (relatedTabsEnabled && selectedRelatedTabs.length > 0) {
+                            console.log('获取相关标签页内容...');
+                            const relatedContents = await getRelevantTabsContent(selectedRelatedTabs, getPageContent);
+                            pageContent = formatMultiPageContext(content, relatedContents);
+                            console.log('多页面内容聚合完成，相关页面数量:', relatedContents.length);
+                        } else {
+                            pageContent = content;
+                        }
                     }
                 } catch (error) {
                     console.error('发送消息时获取页面内容失败:', error.message || error);

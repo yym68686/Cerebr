@@ -108,6 +108,19 @@
                 <circle cx="16" cy="18.5" r="0.5" fill="white"/>
             </svg>
         </button>
+        <button id="related-tabs-button" class="related-tabs-off" title="相关标签页">
+            <svg viewBox="0 0 24 24">
+                <!-- 主文档图标，与网页问答按钮风格一致 -->
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                <!-- 第二个文档图标（稍微偏移） -->
+                <path d="M16 4H8a1 1 0 0 0-1 1v2" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6"/>
+                <!-- 连接图标 -->
+                <circle cx="16" cy="16" r="6" fill="currentColor" opacity="0.9"/>
+                <path d="M13 16h6M16 13v6" stroke="white" stroke-width="1.2" stroke-linecap="round"/>
+            </svg>
+            <span id="related-tabs-count" class="tab-count" style="display: none;">0</span>
+        </button>
         <div id="settings-menu">
             <div class="menu-item" id="theme-setting">
                 <span>主题模式</span>
@@ -245,6 +258,50 @@
                     <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-linecap="round"/>
                 </svg>
             </button>
+        </div>
+    </div>
+    <div id="related-tabs-modal" class="related-tabs-modal" style="display: none;">
+        <div class="related-tabs-content">
+            <div class="related-tabs-header">
+                <h3>相关标签页</h3>
+                <button class="related-tabs-close">
+                    <svg viewBox="0 0 24 24" fill="none">
+                        <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="related-tabs-status">
+                <div id="related-tabs-loading" style="display: none;">
+                    <div class="loading-spinner"></div>
+                    <span>正在分析相关页面...</span>
+                </div>
+                <div id="related-tabs-controls" class="related-tabs-controls" style="display: none;">
+                    <button id="select-all-tabs" class="select-all-btn">
+                        <svg viewBox="0 0 16 16" width="14" height="14">
+                            <path d="M2 8l3 3 7-7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        全选
+                    </button>
+                    <button id="deselect-all-tabs" class="select-all-btn">
+                        <svg viewBox="0 0 16 16" width="14" height="14">
+                            <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        取消全选
+                    </button>
+                </div>
+                <div id="related-tabs-list" class="related-tabs-list">
+                    <!-- 相关标签页列表将在这里动态生成 -->
+                </div>
+                <div id="related-tabs-empty" style="display: none;">
+                    <p>未找到相关的标签页</p>
+                </div>
+            </div>
+            <div class="related-tabs-actions">
+                <button id="related-tabs-confirm" class="btn-primary" disabled>
+                    确认使用 (<span id="selected-tabs-count">0</span> 个页面)
+                </button>
+                <button id="related-tabs-cancel" class="btn-secondary">取消</button>
+            </div>
         </div>
     </div>
     <script src="src/main.js" type="module"></script>

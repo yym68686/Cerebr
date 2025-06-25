@@ -453,6 +453,46 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
             sendResponse({ domain: null, tabId: null });
         });
         return true; // 支持异步响应
+    } else if (request.type === "getAllTabs") {
+        // 获取当前窗口所有标签页信息
+        browser.tabs.query({ currentWindow: true }).then(tabs => {
+            if (!tabs || tabs.length === 0) {
+                sendResponse({ tabs: [] });
+                return;
+            }
+
+            const tabsInfo = tabs.map(tab => {
+                // 过滤掉特殊页面
+                if (!tab.url ||
+                    tab.url.startsWith('about:') ||
+                    tab.url.startsWith('moz-extension://') ||
+                    tab.url.startsWith('chrome-extension://')) {
+                    return null;
+                }
+
+                return {
+                    id: tab.id,
+                    title: tab.title || 'Untitled',
+                    url: tab.url,
+                    active: tab.active,
+                    // 提取域名用于相关性判断
+                    hostname: tab.url.startsWith('file://') ? 'local_file' :
+                             (() => {
+                                 try {
+                                     return new URL(tab.url).hostname;
+                                 } catch (e) {
+                                     return 'unknown';
+                                 }
+                             })()
+                };
+            }).filter(tab => tab !== null); // 过滤掉null值
+
+            sendResponse({ tabs: tabsInfo });
+        }).catch(error => {
+            console.error('获取所有标签页信息失败:', error);
+            sendResponse({ tabs: [] });
+        });
+        return true; // 支持异步响应
     } else if (request.type === "getCurrentTab") {
         browser.tabs.query({ active: true, currentWindow: true }).then(tabs => {
             if (!tabs || tabs.length === 0) {

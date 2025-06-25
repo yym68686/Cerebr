@@ -1,0 +1,390 @@
+/* 相关标签页按钮样式 - 与网页问答按钮保持一致 */
+#related-tabs-button {
+    position: relative;
+    padding: 12px 8px 12px 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--cerebr-icon-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    margin-left: 4px;
+}
+
+#related-tabs-button svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+    opacity: 0.6;
+    transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55),
+                opacity 0.2s ease,
+                color 0.2s ease;
+}
+
+#related-tabs-button:hover svg {
+    transform: scale(1.25);
+    opacity: 1;
+}
+
+#related-tabs-button:active svg {
+    transform: scale(0.95);
+    opacity: 0.8;
+}
+
+/* 关闭状态 */
+#related-tabs-button.related-tabs-off {
+    color: var(--cerebr-icon-color);
+}
+
+#related-tabs-button.related-tabs-off svg {
+    opacity: 0.4;
+    color: var(--cerebr-icon-color);
+}
+
+/* 加载状态 */
+#related-tabs-button.loading svg {
+    animation: spin 1s linear infinite;
+}
+
+/* 开启状态 */
+#related-tabs-button.related-tabs-on {
+    color: #007AFF; /* 蓝色表示激活状态，与网页问答按钮一致 */
+}
+
+#related-tabs-button.related-tabs-on svg {
+    opacity: 1;
+    color: #007AFF;
+}
+
+#related-tabs-button.related-tabs-on:hover svg {
+    color: #0056CC;
+}
+
+/* 加载状态 */
+#related-tabs-button.loading svg {
+    animation: spin 1s linear infinite;
+}
+
+/* 深色主题适配 */
+[data-theme="dark"] #related-tabs-button.related-tabs-on {
+    color: #0A84FF;
+}
+
+[data-theme="dark"] #related-tabs-button.related-tabs-on svg {
+    color: #0A84FF;
+}
+
+[data-theme="dark"] #related-tabs-button.related-tabs-on:hover svg {
+    color: #409CFF;
+}
+
+/* 标签页数量指示器 */
+.tab-count {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: var(--accent-color);
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 4px;
+    border-radius: 8px;
+    min-width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+/* 相关标签页模态框 */
+.related-tabs-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.related-tabs-content {
+    background: var(--cerebr-bg-color);
+    border-radius: 8px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 85vh;
+    overflow: hidden;
+    box-shadow: 0 4px 20px var(--cerebr-popup-shadow);
+    border: 1px solid var(--cerebr-card-border-color);
+}
+
+.related-tabs-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--cerebr-card-border-color);
+    background: var(--cerebr-message-ai-bg);
+}
+
+.related-tabs-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--cerebr-text-color);
+}
+
+.related-tabs-close {
+    background: none;
+    border: none;
+    color: var(--cerebr-icon-color);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.related-tabs-close:hover {
+    background: var(--cerebr-button-hover-bg);
+    color: var(--cerebr-text-color);
+}
+
+.related-tabs-close svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* 相关标签页状态区域 */
+.related-tabs-status {
+    padding: 20px;
+    min-height: 200px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+#related-tabs-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--cerebr-icon-color);
+    min-height: 160px;
+}
+
+.loading-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--cerebr-card-border-color);
+    border-top: 3px solid #007AFF;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+/* 相关标签页控制按钮 */
+.related-tabs-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.select-all-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--cerebr-message-ai-bg);
+    border: 1px solid var(--cerebr-card-border-color);
+    border-radius: 6px;
+    color: var(--cerebr-text-color);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.select-all-btn:hover {
+    background: var(--cerebr-button-hover-bg);
+    border-color: #007AFF;
+}
+
+.select-all-btn svg {
+    flex-shrink: 0;
+}
+
+/* 相关标签页列表 */
+.related-tabs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.related-tab-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    border: 2px solid var(--cerebr-card-border-color);
+    border-radius: 8px;
+    background: var(--cerebr-bg-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-bottom: 8px;
+}
+
+.related-tab-item:hover {
+    background: var(--cerebr-message-ai-bg);
+    border-color: #007AFF;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px var(--cerebr-message-shadow);
+}
+
+.related-tab-item.selected {
+    background: #007AFF;
+    border-color: #007AFF;
+    color: white;
+}
+
+.related-tab-item.selected .related-tab-title,
+.related-tab-item.selected .related-tab-url,
+.related-tab-item.selected .related-tab-reason,
+.related-tab-item.selected .related-tab-score {
+    color: white;
+}
+
+.related-tab-checkbox {
+    margin-top: 2px;
+    accent-color: #007AFF;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.related-tab-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.related-tab-title {
+    font-weight: 500;
+    color: var(--cerebr-text-color);
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.related-tab-url {
+    font-size: 12px;
+    color: var(--cerebr-icon-color);
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.related-tab-reason {
+    font-size: 12px;
+    color: var(--cerebr-reasoning-text-color);
+    font-style: italic;
+}
+
+.related-tab-score {
+    font-size: 11px;
+    color: #007AFF;
+    font-weight: 600;
+    margin-top: 4px;
+}
+
+/* 空状态 */
+#related-tabs-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 160px;
+    color: var(--cerebr-icon-color);
+    text-align: center;
+}
+
+/* 操作按钮区域 */
+.related-tabs-actions {
+    display: flex;
+    gap: 8px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--cerebr-card-border-color);
+    background: var(--cerebr-message-ai-bg);
+}
+
+.btn-primary, .btn-secondary {
+    flex: 1;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-primary {
+    background: #007AFF;
+    color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: #0056CC;
+}
+
+.btn-primary:disabled {
+    background: var(--cerebr-card-border-color);
+    color: var(--cerebr-icon-color);
+    cursor: not-allowed;
+}
+
+.btn-secondary {
+    background: var(--cerebr-bg-color);
+    color: var(--cerebr-text-color);
+    border: 1px solid var(--cerebr-card-border-color);
+}
+
+.btn-secondary:hover {
+    background: var(--cerebr-button-hover-bg);
+}
+
+/* 动画 */
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* 响应式设计 */
+@media (max-width: 480px) {
+    .related-tabs-content {
+        width: 95%;
+        margin: 10px;
+    }
+    
+    .related-tabs-header {
+        padding: 12px 16px;
+    }
+    
+    .related-tabs-status {
+        padding: 16px;
+    }
+    
+    .related-tabs-actions {
+        padding: 12px 16px;
+        flex-direction: column;
+    }
+    
+    .btn-primary, .btn-secondary {
+        flex: none;
+    }
+}
