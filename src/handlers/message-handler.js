@@ -15,7 +15,7 @@ import { processMathAndMarkdown, renderMathInElement } from '../../htmd/latex.js
  * @param {Object|string} params.text - 消息文本内容，可以是字符串或包含content和reasoning_content的对象
  * @param {string} params.sender - 发送者类型 ("user" | "assistant")
  * @param {HTMLElement} params.chatContainer - 聊天容器元素
- * @param {boolean} [params.skipHistory=false] - 是否跳过历史记录
+ * @param {boolean} [params.skipHistory=false] - 是否跳过历史记录，skipHistory 的实际作用是：作为一个标志，告诉 appendMessage 函数，当前这条消息只是一个临时的、用于界面展示的通知，而不应该被当作正式的对话内容来处理。
  * @param {DocumentFragment} [params.fragment=null] - 文档片段（用于批量加载）
  * @returns {HTMLElement} 创建的消息元素
  */
@@ -108,6 +108,9 @@ export async function appendMessage({
         reasoningDiv.appendChild(reasoningTextDiv);
 
         // 添加点击事件处理折叠/展开
+        if (textContent) {
+            reasoningDiv.classList.add('collapsed');
+        }
         reasoningDiv.onclick = function() {
             this.classList.toggle('collapsed');
         };
@@ -270,6 +273,10 @@ export async function updateAIMessage({
                 }
             }
 
+            if (textContent && reasoningDiv && !reasoningDiv.classList.contains('collapsed')) {
+                reasoningDiv.classList.add('collapsed');
+            }
+
             // 处理主要内容
             const mainContent = document.createElement('div');
             mainContent.className = 'main-content';
@@ -304,7 +311,6 @@ export async function updateAIMessage({
         return true; // 如果文本没有变长，也认为是成功的
     } else {
         // 创建新消息时也需要包含思考内容
-        // console.log('updateAIMessage');
         await appendMessage({
             text: {
                 content: textContent,

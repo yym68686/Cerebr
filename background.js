@@ -409,3 +409,18 @@ async function getPDFChunk(url, chunkIndex) {
         };
     }
 }
+
+// 监听标签页激活事件，并通知相关方，兼容 Firefox 需要
+chrome.tabs.onActivated.addListener(activeInfo => {
+  chrome.runtime.sendMessage({
+    type: 'TAB_ACTIVATED',
+    payload: activeInfo
+  }).catch(error => {
+    // 忽略错误，因为可能没有页面在监听
+    if (error.message.includes('Could not establish connection') || error.message.includes('Receiving end does not exist')) {
+      // This is expected if no content script is listening
+    } else {
+      console.error('Error sending TAB_ACTIVATED message:', error);
+    }
+  });
+});

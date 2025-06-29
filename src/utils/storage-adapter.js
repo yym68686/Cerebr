@@ -235,7 +235,16 @@ export const browserAdapter = {
     // 添加标签页变化监听器
     onTabActivated(callback) {
         if (isExtensionEnvironment) {
-            chrome.tabs.onActivated.addListener(callback);
+            // In a non-background script, we can't directly access chrome.tabs.
+            // We listen for messages from the background script instead.
+            // chrome.tabs.onActivated.addListener(callback);
+
+            // 兼容 Firefox 需要
+            chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+                if (message.type === 'TAB_ACTIVATED') {
+                    callback(message.payload);
+                }
+            });
         } else {
             // Web环境下不需要监听标签页变化
             console.info('Tab activation listening is not supported in web environment');
@@ -245,16 +254,29 @@ export const browserAdapter = {
 
 // 记录存储空间占用的函数
 function logStorageUsage() {
-    if (isExtensionEnvironment) {
-        if (chrome && chrome.storage && chrome.storage.local && typeof chrome.storage.local.getBytesInUse === 'function') {
-            chrome.storage.local.getBytesInUse(null).then((bytesInUse) => {
-                console.log("[Cerebr] 插件占用的本地存储空间: " + (bytesInUse / (1024 * 1024)).toFixed(2) + " MB");
-            }).catch(error => {
-                console.error("[Cerebr] 获取插件本地存储空间失败:", error);
-            });
-        } else {
-            console.warn("[Cerebr] chrome.storage.local.getBytesInUse API 在插件环境中不可用或未正确初始化。");
-        }
+    if (isExtensionEnvironment && typeof chrome.storage.local.getBytesInUse === 'function') {
+        chrome.storage.local.getBytesInUse(null).then((bytesInUse) => {
+            console.log(`[Cerebr] 插件(Chrome)本地存储精确占用: ${(bytesInUse / (1024 * 1024)).toFixed(2)} MB`);
+        }).catch(error => {
+            console.warn("[Cerebr] 获取插件本地存储空间失败:", error);
+        });
+    }
+    // 在 Firefox 等其他插件环境中，使用手动计算作为回退，兼容 Firefox 需要
+    else if (isExtensionEnvironment) {
+        chrome.storage.local.get(null, (items) => {
+            if (chrome.runtime.lastError) {
+                console.error("[Cerebr] 手动计算存储失败 (获取数据出错):", chrome.runtime.lastError);
+                return;
+            }
+            try {
+                const jsonString = JSON.stringify(items);
+                // 使用 Blob 来获取 UTF-8 编码的字节大小，这比简单地计算字符串长度更准确
+                const bytes = new Blob([jsonString]).size;
+                console.log(`[Cerebr] 插件(Firefox/其他)本地存储估算占用: ${(bytes / (1024 * 1024)).toFixed(2)} MB`);
+            } catch (e) {
+                console.error("[Cerebr] 手动计算存储失败 (JSON序列化出错):", e);
+            }
+        });
     } else {
         // 网页环境 - IndexedDB
         if (navigator.storage && navigator.storage.estimate) {

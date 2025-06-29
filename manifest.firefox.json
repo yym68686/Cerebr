@@ -48,7 +48,7 @@
     }
   },
   "background": {
-    "service_worker": "background.js",
+    "scripts": ["background.js"],
     "type": "module"
   },
   "content_scripts": [
@@ -92,5 +92,11 @@
       ],
       "matches": ["<all_urls>"]
     }
-  ]
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "addon@cerebr.app",
+      "strict_min_version": "109.0"
+    }
+  }
 }
