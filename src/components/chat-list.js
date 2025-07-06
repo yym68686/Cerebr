@@ -1,8 +1,9 @@
 import { appendMessage } from '../handlers/message-handler.js';
 
 // 渲染对话列表
-export function renderChatList(chatManager, chatCards) {
+export function renderChatList(chatManager, chatCards, searchTerm = '') {
     const template = chatCards.querySelector('.chat-card.template');
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
 
     // 清除现有的卡片（除了模板）
     Array.from(chatCards.children).forEach(card => {
@@ -14,8 +15,25 @@ export function renderChatList(chatManager, chatCards) {
     // 获取当前对话ID
     const currentChatId = chatManager.getCurrentChat()?.id;
 
-    // 添加所有对话卡片
-    chatManager.getAllChats().forEach(chat => {
+    // 获取所有对话
+    const allChats = chatManager.getAllChats();
+
+    // 筛选对话
+    const filteredChats = allChats.filter(chat => {
+        if (!searchTerm) return true; // 如果没有搜索词，则显示所有
+        const titleMatch = chat.title.toLowerCase().includes(lowerCaseSearchTerm);
+        const contentMatch = chat.messages.some(message =>
+            message.content &&
+            (
+                (typeof message.content === 'string' && message.content.toLowerCase().includes(lowerCaseSearchTerm)) ||
+                (Array.isArray(message.content) && message.content.some(part => part.type === 'text' && part.text.toLowerCase().includes(lowerCaseSearchTerm)))
+            )
+        );
+        return titleMatch || contentMatch;
+    });
+
+    // 添加筛选后的对话卡片
+    filteredChats.forEach(chat => {
         const card = template.cloneNode(true);
         card.classList.remove('template');
         card.style.display = '';
@@ -152,9 +170,29 @@ export function initializeChatList({
     // 对话列表按钮点击事件
     chatListButton.addEventListener('click', () => {
         showChatList(chatListPage, apiSettings, () => {
-            renderChatList(chatManager, chatListPage.querySelector('.chat-cards'));
+            const searchInput = document.getElementById('chat-search-input');
+            const chatCards = chatListPage.querySelector('.chat-cards');
+            searchInput.value = ''; // 清空搜索框
+            renderChatList(chatManager, chatCards);
         });
         settingsMenu.classList.remove('visible');
+    });
+
+    // 搜索框事件
+    const searchInput = document.getElementById('chat-search-input');
+    const clearSearchBtn = chatListPage.querySelector('.clear-search-btn');
+    const chatCards = chatListPage.querySelector('.chat-cards');
+
+    searchInput.addEventListener('input', () => {
+        const searchTerm = searchInput.value;
+        renderChatList(chatManager, chatCards, searchTerm);
+        clearSearchBtn.style.display = searchTerm ? 'flex' : 'none';
+    });
+
+    clearSearchBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        searchInput.dispatchEvent(new Event('input'));
+        searchInput.focus();
     });
 
     // 对话列表返回按钮点击事件
