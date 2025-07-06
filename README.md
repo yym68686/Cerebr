@@ -6,6 +6,12 @@
 <a href="https://chromewebstore.google.com/detail/cerebr/kjojanemcpiamhohkcpcddpkbnciojkj">
     <img src="https://img.shields.io/chrome-web-store/v/kjojanemcpiamhohkcpcddpkbnciojkj?color=blue&label=Chrome%20Store&logo=google-chrome&logoColor=white" alt="Chrome Web Store">
 </a>
+<a href="https://microsoftedge.microsoft.com/addons/detail/cerebr/gafelkdahhgmlccdmpnohckjfkmcdlfe">
+    <img src="https://img.shields.io/badge/dynamic/json?label=Edge%20Add-on&query=%24.version&url=https%3A%2F%2Fmicrosoftedge.microsoft.com%2Faddons%2Fgetproductdetailsbycrxid%2Fgafelkdahhgmlccdmpnohckjfkmcdlfe&logo=microsoft-edge&logoColor=white" alt="Edge Add-on">
+</a>
+<a href="https://addons.mozilla.org/en-US/firefox/addon/cerebr/">
+    <img src="https://img.shields.io/amo/v/cerebr?label=Firefox%20Add-on&logo=firefox&logoColor=white" alt="Firefox Add-on">
+</a>
 </p>
 
 [English](./README.md) | [Simplified Chinese](./README_CN.md)
