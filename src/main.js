@@ -228,9 +228,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const content = await getPageContent();
                     if (content) {
                         pageContent = content;
-                        await saveWebpageSwitch(domain, true);
                         console.log('修改网页问答为已开启');
                     }
+                    await saveWebpageSwitch(domain, true);
                 } catch (error) {
                     console.error('获取网页内容失败:', error);
                 } finally {
