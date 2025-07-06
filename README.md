@@ -20,7 +20,7 @@
 
 ![screenshot](./statics/image.png)
 
-The name "Cerebr" comes from a Latin root related to "brain" or "cerebrum". This etymology reflects our vision: to integrate powerful AI capabilities from Claude, OpenAI, and others, making Cerebr your second brain for deep reading and understanding. Cerebr is a powerful Chrome browser AI assistant extension focused on enhancing your work efficiency and learning experience.
+The name "Cerebr" comes from a Latin root related to "brain" or "cerebrum". This etymology reflects our vision: to integrate powerful AI capabilities from Claude, OpenAI, and others, making Cerebr your second brain for deep reading and understanding. Cerebr is a powerful browser AI assistant extension, available for Chrome, Firefox, and Edge, focused on enhancing your work efficiency and learning experience.
 
 Born from a need for a clean, efficient browser AI assistant, Cerebr stands out with its minimalist design and powerful features. While other solutions often come with limitations or cluttered interfaces, Cerebr focuses on delivering a seamless, distraction-free experience for your web browsing needs.
 
@@ -29,6 +29,7 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
 - 🎯 **Smart Sidebar** - Quick access via hotkey (Windows: `Alt+Z` / Mac: `Ctrl+Z`) to chat with AI anytime, anywhere
 - 🔄 **Multiple API Support** - Configure multiple APIs to flexibly switch between different AI assistants
 - 🔁 **Config Sync** - Cross-browser API configuration synchronization for seamless device switching
+- 💻 **Multi-Platform Support** - Available for Chrome, Firefox, and Edge, bringing a consistent experience across browsers.
 - 📝 **Comprehensive Q&A** - Support webpage content Q&A, PDF document Q&A, image Q&A and more
 - 🎨 **Elegant Rendering** - Perfect support for Markdown text rendering and LaTeX math formula display
 - ⚡ **Real-time Response** - Stream output for instant AI replies
@@ -43,7 +44,7 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
 - 🔍 **Smart Extraction** - Automatically identify and extract webpage/PDF content
 - ⌨️ **Shortcut Operations** - Support hotkey to clear chat (Windows: `Alt+X` / Mac: `Ctrl+X`), up/down keys for quick history recall
 - 🔒 **Secure & Reliable** - Support multiple API key management with local data storage
-- 🎭 **High Compatibility** - Support mainstream browsers, adapt to various webpage environments
+- 🎭 **High Compatibility** - Officially supports Chrome, Firefox, and Edge, adapting to various webpage environments.
 
 ## 🎮 User Guide
 
