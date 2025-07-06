@@ -1,5 +1,5 @@
 // 检测是否在Chrome扩展环境中
-export const isExtensionEnvironment = typeof chrome !== 'undefined' && chrome.runtime;
+export const isExtensionEnvironment = !!(typeof chrome !== 'undefined' && chrome.runtime);
 
 const IDB_DB_NAME = 'CerebrData';
 const IDB_DB_VERSION = 1;
@@ -186,7 +186,7 @@ export const browserAdapter = {
     // 获取当前标签页信息
     async getCurrentTab() {
         if (isExtensionEnvironment) {
-            const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
+            const tab = await chrome.runtime.sendMessage({ type: "GET_CURRENT_TAB" });
             if (!tab?.url) return null;
 
             // 处理本地文件

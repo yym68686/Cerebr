@@ -115,6 +115,19 @@ chrome.runtime.onConnect.addListener((p) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // console.log('收到消息:', message, '来自:', sender.tab?.id);
 
+  if (message.type === 'GET_CURRENT_TAB') {
+    (async () => {
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        sendResponse(tab);
+      } catch (e) {
+        console.error("Failed to get current tab:", e);
+        sendResponse(null);
+      }
+    })();
+    return true; // Indicates that the response is sent asynchronously.
+  }
+
   if (message.type === 'CONTENT_LOADED') {
     // console.log('内容脚本已加载:', message.url);
     sendResponse({ status: 'ok', timestamp: new Date().toISOString() });
