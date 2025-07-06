@@ -230,8 +230,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         pageContent = content;
                         await saveWebpageSwitch(domain, true);
                         console.log('修改网页问答为已开启');
-                    } else {
-                        console.error('获取网页内容失败。');
                     }
                 } catch (error) {
                     console.error('获取网页内容失败:', error);
@@ -257,34 +255,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             newChatButton,
             uiConfig
         });
-
-        // 处理URL变化事件，因为这涉及到网页问答功能，保留在main.js中
-        if (event.data.type === 'URL_CHANGED') {
-            console.log('sidebar.js [收到URL变化]', event.data.url);
-            if (webpageSwitch.checked) {
-                console.log('[网页问答] URL变化，重新获取页面内容');
-                document.body.classList.add('loading-content');
-
-                getPageContent()
-                    .then(async content => {
-                        if (content) {
-                            pageContent = content;
-                            const domain = await getCurrentDomain();
-                            if (domain) {
-                                await saveWebpageSwitch(domain, true);
-                            }
-                        } else {
-                            console.error('URL_CHANGED 无法获取网页内容');
-                        }
-                    })
-                    .catch(async error => {
-                        console.error('URL_CHANGED 获取网页内容失败:', error);
-                    })
-                    .finally(() => {
-                        document.body.classList.remove('loading-content');
-                    });
-            }
-        }
     });
 
     // 修改 loadWebpageSwitch 函数

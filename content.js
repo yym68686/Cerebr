@@ -1,7 +1,3 @@
-// console.log('Cerebr content script loaded at:', new Date().toISOString());
-// console.log('Window location:', window.location.href);
-// console.log('Document readyState:', document.readyState);
-
 class CerebrSidebar {
   constructor() {
     this.isVisible = false;
@@ -9,69 +5,8 @@ class CerebrSidebar {
     this.initialized = false;
     this.pageKey = window.location.origin + window.location.pathname;
     this.lastUrl = window.location.href;
-    // console.log('CerebrSidebar 实例创建');
-    // this.lastToggleTime = null; // 添加上次执行时间存储
     this.initializeSidebar();
-    this.setupUrlChangeListener();
     this.setupDragAndDrop(); // 添加拖放事件监听器
-  }
-
-  setupUrlChangeListener() {
-    let lastUrl = window.location.href;
-
-    // 检查URL是否发生实质性变化
-    const hasUrlChanged = (currentUrl) => {
-        if (currentUrl === lastUrl) return false;
-        if (document.contentType === 'application/pdf') return false;
-
-        const oldUrl = new URL(lastUrl);
-        const newUrl = new URL(currentUrl);
-        return oldUrl.pathname !== newUrl.pathname || oldUrl.search !== newUrl.search;
-    };
-
-    // 处理URL变化
-    const handleUrlChange = () => {
-        const currentUrl = window.location.href;
-        if (hasUrlChanged(currentUrl)) {
-            console.log('URL变化:', '从:', lastUrl, '到:', currentUrl);
-            lastUrl = currentUrl;
-
-            // 获取iframe并发送消息
-            const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
-            if (iframe) {
-                console.log('发送URL变化消息到iframe');
-                iframe.contentWindow.postMessage({
-                    type: 'URL_CHANGED',
-                    url: currentUrl
-                }, '*');
-            }
-        }
-    };
-
-    // 监听popstate事件
-    window.addEventListener('popstate', () => {
-        console.log('popstate事件触发');
-        handleUrlChange();
-    });
-
-    // 重写history方法
-    const originalPushState = history.pushState;
-    const originalReplaceState = history.replaceState;
-
-    history.pushState = function() {
-        originalPushState.apply(this, arguments);
-        console.log('pushState被调用');
-        handleUrlChange();
-    };
-
-    history.replaceState = function() {
-        originalReplaceState.apply(this, arguments);
-        console.log('replaceState被调用');
-        handleUrlChange();
-    };
-
-    // 添加定期检查
-    setInterval(handleUrlChange, 1000);
   }
 
   async saveState() {
@@ -418,10 +353,7 @@ try {
 
 // 修改消息监听器
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type != 'REQUEST_STARTED' && message.type != 'REQUEST_COMPLETED' &&
-        message.type != 'REQUEST_FAILED' && message.type != 'PING') {
-      // console.log('content.js 收到消息:', message.type);
-    }
+    // console.log('content.js 收到消息:', message.type);
 
     // 处理 PING 消息
     if (message.type === 'PING') {
@@ -537,119 +469,6 @@ window.addEventListener('unhandledrejection', (event) => {
   console.error('未处理的 Promise 拒绝:', event.reason);
 });
 
-// 网络请求状态管理
-class RequestManager {
-    constructor() {
-        this.pendingRequests = new Set();
-        this.isInitialRequestsCompleted = false;
-        this.lastRequestCompletedTime = null;
-        this.requestCompletionTimer = null;
-        this.relayRequestCompletedTime = 300;
-    }
-
-    checkRequestsCompletion() {
-        const now = Date.now();
-        if (this.lastRequestCompletedTime && (now - this.lastRequestCompletedTime) >= this.relayRequestCompletedTime) {
-            this.isInitialRequestsCompleted = true;
-        }
-    }
-
-    resetCompletionTimer() {
-        if (this.requestCompletionTimer) {
-            clearTimeout(this.requestCompletionTimer);
-        }
-        this.lastRequestCompletedTime = Date.now();
-        this.requestCompletionTimer = setTimeout(() => this.checkRequestsCompletion(), this.relayRequestCompletedTime);
-    }
-
-    handleRequestStarted(requestId) {
-        this.pendingRequests.add(requestId);
-    }
-
-    handleRequestCompleted(requestId, isInitialRequestsCompleted) {
-        this.pendingRequests.delete(requestId);
-        this.resetCompletionTimer();
-
-        if (isInitialRequestsCompleted) {
-            this.isInitialRequestsCompleted = true;
-        }
-    }
-
-    handleRequestFailed(requestId) {
-        this.pendingRequests.delete(requestId);
-        this.resetCompletionTimer();
-    }
-
-    isRequestsCompleted() {
-        return this.lastRequestCompletedTime &&
-               (Date.now() - this.lastRequestCompletedTime) >= this.relayRequestCompletedTime;
-    }
-
-    getPendingRequestsCount() {
-        return this.pendingRequests.size;
-    }
-
-    getWaitTimeInSeconds() {
-        if (!this.lastRequestCompletedTime) return 0;
-        return Math.floor((this.relayRequestCompletedTime - (Date.now() - this.lastRequestCompletedTime)) / 1000);
-    }
-}
-
-const requestManager = new RequestManager();
-
-// 监听来自 background.js 的网络请求状态更新
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    // 处理网络请求状态更新
-    if (message.type === 'REQUEST_STARTED') {
-        requestManager.handleRequestStarted(message.requestId);
-    }
-    else if (message.type === 'REQUEST_COMPLETED') {
-        requestManager.handleRequestCompleted(message.requestId, message.isInitialRequestsCompleted);
-    }
-    else if (message.type === 'REQUEST_FAILED') {
-        requestManager.handleRequestFailed(message.requestId);
-        // console.log('请求失败，待处理请求数:', requestManager.getPendingRequestsCount());
-    }
-    return true;
-});
-
-// 修改 waitForContent 函数
-async function waitForContent() {
-    return new Promise((resolve) => {
-        const checkContent = () => {
-            // 检查是否有主要内容元素
-            const mainElements = document.querySelectorAll('body, p, h2, article, [role="article"], [role="main"], [data-testid="tweet"]');
-
-            // 检查网络请求是否都已完成
-            const requestsCompleted = requestManager.isRequestsCompleted();
-
-            if (mainElements.length > 0 && requestsCompleted) {
-                // console.log(`页面内容已加载，网络请求已完成（已稳定${requestManager.relayRequestCompletedTime}ms无新请求）`);
-                resolve();
-            } else {
-                const reason = [];
-                if (mainElements.length === 0) reason.push('主要内容未找到');
-                if (!requestsCompleted) {
-                    const pendingCount = requestManager.getPendingRequestsCount();
-                    if (pendingCount > 0) {
-                        reason.push(`还有 ${pendingCount} 个网络请求未完成`);
-                    }
-                    const waitTime = requestManager.getWaitTimeInSeconds();
-                    if (waitTime > 0) {
-                        reason.push(`等待请求稳定，剩余 ${waitTime} 秒`);
-                    } else if (!requestManager.lastRequestCompletedTime) {
-                        reason.push('等待首个请求完成');
-                    }
-                }
-                // console.log('等待页面加载...', reason.join(', '));
-                setTimeout(checkContent, 1000);
-            }
-        };
-
-        // 开始检查
-        setTimeout(checkContent, 1000);
-    });
-}
 
 // 修改 extractPageContent 函数
 async function extractPageContent(skipWaitContent = false) {
@@ -690,74 +509,72 @@ async function extractPageContent(skipWaitContent = false) {
         };
       }
     }
-    await waitForContent();
   } else {
     console.log('跳过页面内容等待步骤');
     if (pdfUrl) {
       return null;
     }
-  }
-
-  const iframes = document.querySelectorAll('iframe');
-  // console.log('页面中的iframe数量:', iframes.length);
-  let frameContent = '';
-  for (const iframe of iframes) {
-    console.log('尝试处理iframe:', iframe.id);
-    try {
-      // 检查iframe是否可访问
-      if (iframe.contentDocument || iframe.contentWindow) {
-        const iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
-        const content = iframeDocument.body.innerText;
-        console.log('成功从iframe中提取内容');
-        console.log('content:', content);
-        frameContent += content;
+    const iframes = document.querySelectorAll('iframe');
+    // console.log('页面中的iframe数量:', iframes.length);
+    let frameContent = '';
+    for (const iframe of iframes) {
+      console.log('尝试处理iframe:', iframe.id);
+      try {
+        // 检查iframe是否可访问
+        if (iframe.contentDocument || iframe.contentWindow) {
+          const iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
+          const content = iframeDocument.body.innerText;
+          console.log('成功从iframe中提取内容');
+          console.log('content:', content);
+          frameContent += content;
+        }
+      } catch (e) {
+        console.log('无法访问该iframe内容:', e.message);
       }
-    } catch (e) {
-      console.log('无法访问该iframe内容:', e.message);
     }
+
+    // 创建一个文档片段来处理内容
+    const tempContainer = document.createElement('div');
+    tempContainer.innerHTML = document.body.innerHTML;
+
+    // 移除不需要的元素
+    const selectorsToRemove = [
+        'script', 'style', 'nav', 'header', 'footer',
+        'iframe', 'noscript', 'img', 'svg', 'video',
+        '[role="complementary"]', '[role="navigation"]',
+        '.sidebar', '.nav', '.footer', '.header'
+    ];
+
+    selectorsToRemove.forEach(selector => {
+        const elements = tempContainer.querySelectorAll(selector);
+        elements.forEach(element => element.remove());
+    });
+
+    let mainContent = tempContainer.innerText;
+    mainContent += frameContent;
+
+    // 理文本
+    mainContent = mainContent
+        .replace(/\s+/g, ' ')  // 替换多个空白字符为单个空格
+        .replace(/\n\s*\n/g, '\n')  // 替换多个换行为单个换行
+        .trim();
+
+    // 检查提取的内容是否足够
+    if (mainContent.length < 40) {
+        console.log('提取的内容太少，返回 null');
+        return null;
+    }
+
+    // console.log('页面内容提取完成，内容:', mainContent);
+    const gptTokenCount = await estimateGPTTokens(mainContent);
+    console.log('页面内容提取完成，内容长度:', mainContent.length, 'GPT tokens:', gptTokenCount);
+
+    return {
+        title: document.title,
+        url: window.location.href,
+        content: mainContent
+    };
   }
-
-  // 创建一个文档片段来处理内容
-  const tempContainer = document.createElement('div');
-  tempContainer.innerHTML = document.body.innerHTML;
-
-  // 移除不需要的元素
-  const selectorsToRemove = [
-      'script', 'style', 'nav', 'header', 'footer',
-      'iframe', 'noscript', 'img', 'svg', 'video',
-      '[role="complementary"]', '[role="navigation"]',
-      '.sidebar', '.nav', '.footer', '.header'
-  ];
-
-  selectorsToRemove.forEach(selector => {
-      const elements = tempContainer.querySelectorAll(selector);
-      elements.forEach(element => element.remove());
-  });
-
-  let mainContent = tempContainer.innerText;
-  mainContent += frameContent;
-
-  // 理文本
-  mainContent = mainContent
-      .replace(/\s+/g, ' ')  // 替换多个空白字符为单个空格
-      .replace(/\n\s*\n/g, '\n')  // 替换多个换行为单个换行
-      .trim();
-
-  // 检查提取的内容是否足够
-  if (mainContent.length < 40) {
-      console.log('提取的内容太少，返回 null');
-      return null;
-  }
-
-  // console.log('页面内容提取完成，内容:', mainContent);
-  const gptTokenCount = await estimateGPTTokens(mainContent);
-  console.log('页面内容提取完成，内容长度:', mainContent.length, 'GPT tokens:', gptTokenCount);
-
-  return {
-      title: document.title,
-      url: window.location.href,
-      content: mainContent
-  };
 }
 
 // PDF.js 库的路径
