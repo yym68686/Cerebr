@@ -20,6 +20,11 @@ import {
 // 存储用户的问题历史
 let userQuestions = [];
 
+// 将 API 配置提升到模块作用域，以确保在异步事件中状态的稳定性
+// 加载保存的 API 配置
+let apiConfigs = [];
+let selectedConfigIndex = 0;
+
 document.addEventListener('DOMContentLoaded', async () => {
     const chatContainer = document.getElementById('chat-container');
     const messageInput = document.getElementById('message-input');
@@ -462,10 +467,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const apiSettingsToggle = document.getElementById('api-settings-toggle');
     const backButton = document.querySelector('.back-button');
     const apiCards = document.querySelector('.api-cards');
-
-    // 加载保存的 API 配置
-    let apiConfigs = [];
-    let selectedConfigIndex = 0;
 
     // 使用新的selectCard函数
     const handleCardSelect = (template, index) => {
