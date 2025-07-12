@@ -6,6 +6,12 @@
     --cerebr-message-ai-bg: #f8fafc;
     --cerebr-input-bg: #f8f8f8;
     --cerebr-icon-color: #666666;
+    /* --cerebr-bg-color: #f2f2f7;
+    --cerebr-text-color: #1d1d1f;
+    --cerebr-message-user-bg: #e5e5ea;
+    --cerebr-message-ai-bg: #ffffff;
+    --cerebr-input-bg: #ffffff;
+    --cerebr-icon-color: #8e8e93; */
     --cerebr-blur-radius: 12px;
     --cerebr-card-border-color: rgba(0, 0, 0, 0.15);
     --cerebr-highlight-border-color: rgba(0, 122, 255, 0.5);

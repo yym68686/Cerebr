@@ -6,7 +6,18 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   // console.log('Service Worker 已激活', new Date().toISOString());
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    (async () => {
+      // 使用 clients.claim() 来控制未受控制的客户端。
+      // 这在开发过程中或没有要声明的客户端时可能会失败。
+      // 安全地捕获错误以避免未捕ared 的 Promise 拒绝。
+      try {
+        await self.clients.claim();
+      } catch (error) {
+        // console.warn('clients.claim() 失败，但可以安全地忽略:', error);
+      }
+    })()
+  );
 });
 
 // 添加启动日志
