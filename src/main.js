@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const chatListButton = document.getElementById('chat-list');
     const apiSettings = document.getElementById('api-settings');
     const deleteMessageButton = document.getElementById('delete-message');
+    const regenerateMessageButton = document.getElementById('regenerate-message');
     const webpageSwitch = document.getElementById('webpage-switch');
 
     // 修改: 创建一个对象引用来保存当前控制器
@@ -93,7 +94,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         copyCodeButton,
         stopUpdateButton,
         deleteMessageButton,
-        abortController: abortControllerRef
+        regenerateMessageButton,
+        abortController: abortControllerRef,
+        regenerateMessage: regenerateMessage,
     });
 
     // 初始化消息输入组件
@@ -306,6 +309,86 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 在 DOMContentLoaded 事件处理程序中添加加载网页问答状态
     await loadWebpageSwitch();
+
+    async function regenerateMessage(messageElement) {
+        if (!messageElement) return;
+
+        const userMessageElement = messageElement.previousElementSibling;
+        if (!userMessageElement || !userMessageElement.classList.contains('user-message')) {
+            console.error('无法找到对应的用户消息');
+            return;
+        }
+
+        // 如果有正在更新的AI消息，停止它
+        const updatingMessage = chatContainer.querySelector('.ai-message.updating');
+        if (updatingMessage && currentController) {
+            currentController.abort();
+            currentController = null;
+            abortControllerRef.current = null;
+            updatingMessage.classList.remove('updating');
+        }
+
+        try {
+            const currentChat = chatManager.getCurrentChat();
+            if (!currentChat) return;
+
+            const domMessages = Array.from(chatContainer.querySelectorAll('.user-message, .ai-message'));
+            const aiMessageDomIndex = domMessages.indexOf(messageElement);
+
+            if (aiMessageDomIndex === -1) {
+                console.error('无法在DOM中找到AI消息');
+                return;
+            }
+
+            // 确定manager中的索引偏移量
+            const offset = (currentChat.messages.length > 0 && currentChat.messages[0].role === 'system') ? 1 : 0;
+
+            const aiMessageManagerIndex = aiMessageDomIndex + offset;
+
+            // 截断数组，保留到用户消息为止
+            currentChat.messages.splice(aiMessageManagerIndex);
+            chatManager.saveChats();
+
+            // 从DOM中移除AI消息及其之后的所有消息
+            domMessages.slice(aiMessageDomIndex).forEach(el => el.remove());
+
+            const messagesToResend = currentChat.messages;
+
+            // 准备API调用参数
+            const apiParams = {
+                messages: messagesToResend,
+                apiConfig: apiConfigs[selectedConfigIndex],
+                userLanguage: navigator.language,
+                webpageInfo: webpageSwitch.checked ? pageContent : null
+            };
+
+            // 调用 API
+            const { processStream, controller } = await callAPI(apiParams, chatManager, currentChat.id, chatContainerManager.syncMessage);
+            currentController = controller;
+            abortControllerRef.current = controller;
+
+            // 处理流式响应
+            await processStream();
+
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                console.log('用户手动停止更新');
+                return;
+            }
+            console.error('重新生成消息失败:', error);
+            appendMessage({
+                text: '重新生成失败: ' + error.message,
+                sender: 'ai',
+                chatContainer,
+                skipHistory: true,
+            });
+        } finally {
+            const lastMessage = chatContainer.querySelector('.ai-message:last-child');
+            if (lastMessage) {
+                lastMessage.classList.remove('updating');
+            }
+        }
+    }
 
     async function sendMessage() {
         // 如果有正在更新的AI消息，停止它

@@ -59,3 +59,12 @@
     background-color: var(--cerebr-message-user-bg);
     color: #ff4d4d;
 }
+
+#regenerate-message:hover {
+    background-color: var(--cerebr-message-user-bg);
+}
+
+#regenerate-message svg {
+    fill: currentColor;
+    stroke: none;
+}

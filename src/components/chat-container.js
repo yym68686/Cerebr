@@ -66,8 +66,10 @@ export function initChatContainer({
             const copyMathButton = document.getElementById('copy-math');
             const stopUpdateButton = document.getElementById('stop-update');
             const deleteMessageButton = document.getElementById('delete-message');
+            const regenerateMessageButton = document.getElementById('regenerate-message');
 
-            // 根据右键点击的元素类型显示/隐藏相应的菜单项
+             // 根据右键点击的元素类型显示/隐藏相应的菜单项
+            regenerateMessageButton.style.display = messageElement.classList.contains('ai-message') ? 'flex' : 'none';
             copyMessageButton.style.display = 'flex';
             deleteMessageButton.style.display = 'flex';
             copyCodeButton.style.display = codeElement ? 'flex' : 'none';
@@ -111,9 +113,11 @@ export function initChatContainer({
             const copyCodeButton = document.getElementById('copy-code');
             const stopUpdateButton = document.getElementById('stop-update');
             const deleteMessageButton = document.getElementById('delete-message');
+            const regenerateMessageButton = document.getElementById('regenerate-message');
 
-            // 根据长按元素类型显示/隐藏相应的菜单项
-            copyMessageButton.style.display = 'flex';
+             // 根据长按元素类型显示/隐藏相应的菜单项
+             regenerateMessageButton.style.display = messageElement.classList.contains('ai-message') ? 'flex' : 'none';
+             copyMessageButton.style.display = 'flex';
             deleteMessageButton.style.display = 'flex';
             copyCodeButton.style.display = codeElement ? 'flex' : 'none';
             stopUpdateButton.style.display = (messageElement.classList.contains('ai-message') && messageElement.classList.contains('updating')) ? 'flex' : 'none';
@@ -237,7 +241,9 @@ export function initChatContainer({
         copyCodeButton,
         stopUpdateButton,
         deleteMessageButton,
-        abortController
+        regenerateMessageButton,
+        abortController,
+        regenerateMessage
     }) {
         // 点击复制按钮
         copyMessageButton.addEventListener('click', () => {
@@ -304,6 +310,21 @@ export function initChatContainer({
                     chatManager.saveChats();
                 }
 
+                // 隐藏右键菜单
+                hideContextMenu({
+                    contextMenu,
+                    onMessageElementReset: () => {
+                        currentMessageElement = null;
+                        currentCodeElement = null;
+                    }
+                });
+            }
+        });
+
+        // 添加重新生成消息按钮的点击事件处理
+        regenerateMessageButton.addEventListener('click', () => {
+            if (currentMessageElement) {
+                regenerateMessage(currentMessageElement);
                 // 隐藏右键菜单
                 hideContextMenu({
                     contextMenu,
