@@ -340,16 +340,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
-            // 确定manager中的索引偏移量
-            const offset = (currentChat.messages.length > 0 && currentChat.messages[0].role === 'system') ? 1 : 0;
+            // 通过比较DOM和历史记录中的消息数量，判断是否在从一个临时错误消息中重新生成
+            const historyMessages = currentChat.messages.filter(m => ['user', 'assistant'].includes(m.role));
+            if (domMessages.length === historyMessages.length) {
+                // 正常情况：重新生成一个已保存的响应。
+                // 我们需要从历史记录中删除旧的响应。
+                const offset = (currentChat.messages.length > 0 && currentChat.messages[0].role === 'system') ? 1 : 0;
+                const aiMessageManagerIndex = aiMessageDomIndex + offset;
+                currentChat.messages.splice(aiMessageManagerIndex);
+            }
+            // 错误情况：如果 domMessages.length > historyMessages.length，
+            // 意味着最后一个消息是未保存的错误消息。
+            // 在这种情况下，我们不修改历史记录，因为它已经是正确的了。
 
-            const aiMessageManagerIndex = aiMessageDomIndex + offset;
-
-            // 截断数组，保留到用户消息为止
-            currentChat.messages.splice(aiMessageManagerIndex);
             chatManager.saveChats();
 
-            // 从DOM中移除AI消息及其之后的所有消息
+            // 从DOM中移除AI消息（无论是错误消息还是旧的成功消息）及其之后的所有消息
             domMessages.slice(aiMessageDomIndex).forEach(el => el.remove());
 
             const messagesToResend = currentChat.messages;
