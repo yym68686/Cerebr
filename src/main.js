@@ -278,9 +278,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             const domains = result.webpageSwitchDomains || {};
             // console.log('刷新后 网页问答存储中获取域名:', domains);
 
-            // 只在开关状态不一致时才更新
-            if (domains[domain]) {
-                webpageSwitch.checked = domains[domain];
+            // 如果域名明确设置为false，则禁用。否则（true或未设置），默认启用。
+            if (domains[domain] === false) {
+                webpageSwitch.checked = false;
+            } else {
+                webpageSwitch.checked = true;
                 // 检查当前标签页是否活跃
                 const isTabActive = await browserAdapter.sendMessage({
                     type: 'CHECK_TAB_ACTIVE'
@@ -298,9 +300,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                     }, 0);
                 }
-            } else {
-                webpageSwitch.checked = false;
-                // console.log('loadWebpageSwitch 域名不在存储中:', domain);
             }
         } catch (error) {
             console.error('加载网页问答状态失败:', error);
