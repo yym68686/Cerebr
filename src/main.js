@@ -312,12 +312,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function regenerateMessage(messageElement) {
         if (!messageElement) return;
 
-        const userMessageElement = messageElement.previousElementSibling;
-        if (!userMessageElement || !userMessageElement.classList.contains('user-message')) {
-            console.error('无法找到对应的用户消息');
-            return;
-        }
-
         // 如果有正在更新的AI消息，停止它
         const updatingMessage = chatContainer.querySelector('.ai-message.updating');
         if (updatingMessage && currentController) {
@@ -327,37 +321,62 @@ document.addEventListener('DOMContentLoaded', async () => {
             updatingMessage.classList.remove('updating');
         }
 
+        let userMessageElement = null;
+        let aiMessageElement = null;
+        if (messageElement.classList.contains('user-message')) {
+            userMessageElement = messageElement;
+            aiMessageElement = messageElement.nextElementSibling;
+        } else {
+            userMessageElement = messageElement.previousElementSibling;
+            aiMessageElement = messageElement;
+        }
+
+        if (!userMessageElement || !userMessageElement.classList.contains('user-message')) {
+            console.error('无法找到对应的用户消息');
+            return;
+        }
+
         try {
             const currentChat = chatManager.getCurrentChat();
             if (!currentChat) return;
 
             const domMessages = Array.from(chatContainer.querySelectorAll('.user-message, .ai-message'));
-            const aiMessageDomIndex = domMessages.indexOf(messageElement);
-
-            if (aiMessageDomIndex === -1) {
-                console.error('无法在DOM中找到AI消息');
-                return;
-            }
+            const aiMessageDomIndex = domMessages.indexOf(aiMessageElement);
 
             // 通过比较DOM和历史记录中的消息数量，判断是否在从一个临时错误消息中重新生成
             const historyMessages = currentChat.messages.filter(m => ['user', 'assistant'].includes(m.role));
-            if (domMessages.length === historyMessages.length) {
+            if (domMessages.length === historyMessages.length && aiMessageDomIndex !== -1) {
                 // 正常情况：重新生成一个已保存的响应。
                 // 我们需要从历史记录中删除旧的响应。
-                const offset = (currentChat.messages.length > 0 && currentChat.messages[0].role === 'system') ? 1 : 0;
-                const aiMessageManagerIndex = aiMessageDomIndex + offset;
-                currentChat.messages.splice(aiMessageManagerIndex);
+                currentChat.messages.splice(aiMessageDomIndex);
+            } else if (domMessages.length === historyMessages.length + 2) {
+                currentChat.messages.push({
+                    role: 'user',
+                    content: userMessageElement.textContent
+                });
             }
             // 错误情况：如果 domMessages.length > historyMessages.length，
             // 意味着最后一个消息是未保存的错误消息。
             // 在这种情况下，我们不修改历史记录，因为它已经是正确的了。
-
             chatManager.saveChats();
 
             // 从DOM中移除AI消息（无论是错误消息还是旧的成功消息）及其之后的所有消息
-            domMessages.slice(aiMessageDomIndex).forEach(el => el.remove());
+            domMessages.slice(currentChat.messages.length).forEach(el => el.remove());
 
             const messagesToResend = currentChat.messages;
+
+            if (webpageSwitch.checked) {
+                // console.log('发送消息时网页问答已打开，重新获取页面内容');
+                try {
+                    const content = await getPageContent(true); // 跳过等待内容加载
+                    if (content) {
+                        pageContent = content;
+                        console.log('成功更新 pageContent 内容');
+                    }
+                } catch (error) {
+                    console.error('发送消息时获取页面内容失败:', error);
+                }
+            }
 
             // 准备API调用参数
             const apiParams = {

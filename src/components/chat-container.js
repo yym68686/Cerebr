@@ -69,7 +69,7 @@ export function initChatContainer({
             const regenerateMessageButton = document.getElementById('regenerate-message');
 
              // 根据右键点击的元素类型显示/隐藏相应的菜单项
-            regenerateMessageButton.style.display = messageElement.classList.contains('ai-message') ? 'flex' : 'none';
+            regenerateMessageButton.style.display = 'flex';
             copyMessageButton.style.display = 'flex';
             deleteMessageButton.style.display = 'flex';
             copyCodeButton.style.display = codeElement ? 'flex' : 'none';
@@ -116,8 +116,8 @@ export function initChatContainer({
             const regenerateMessageButton = document.getElementById('regenerate-message');
 
              // 根据长按元素类型显示/隐藏相应的菜单项
-             regenerateMessageButton.style.display = messageElement.classList.contains('ai-message') ? 'flex' : 'none';
-             copyMessageButton.style.display = 'flex';
+            regenerateMessageButton.style.display = 'flex';
+            copyMessageButton.style.display = 'flex';
             deleteMessageButton.style.display = 'flex';
             copyCodeButton.style.display = codeElement ? 'flex' : 'none';
             stopUpdateButton.style.display = (messageElement.classList.contains('ai-message') && messageElement.classList.contains('updating')) ? 'flex' : 'none';
