@@ -304,22 +304,25 @@ export const browserAdapter = {
         }
     },
 
-    isTabConnected: async (tabId) => {
-        if (!isExtensionEnvironment) return false;
-        try {
-            return await new Promise((resolve, reject) => {
-                // console.log(`isTabConnected: ${tabId}`);
-                chrome.runtime.sendMessage({ type: 'IS_TAB_CONNECTED', tabId }, (response) => {
-                    if (chrome.runtime.lastError) {
-                        // 如果有错误，比如tab不存在，就认为它未连接
-                        return resolve(false);
-                    }
-                    resolve(response);
-                });
+    isTabConnected: (tabId) => {
+        if (!isExtensionEnvironment) return Promise.resolve(false);
+
+        return new Promise((resolve) => {
+            const timeout = setTimeout(() => {
+                console.log(`Tab ${tabId} timed out.`);
+                resolve(false);
+            }, 100); // 200毫秒超时
+
+            chrome.runtime.sendMessage({ type: 'IS_TAB_CONNECTED', tabId }, (response) => {
+                clearTimeout(timeout);
+                if (chrome.runtime.lastError) {
+                    // 比如tab不存在或无法访问
+                    // console.warn(`Error checking tab ${tabId}:`, chrome.runtime.lastError.message);
+                    return resolve(false);
+                }
+                resolve(response);
             });
-        } catch (e) {
-            return false;
-        }
+        });
     }
 };
 

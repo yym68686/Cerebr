@@ -20,13 +20,14 @@ async function populateWebpageContentMenu(webpageContentMenu) {
     // 1. 过滤掉无法连接的标签页
     const connectedTabs = [];
     // console.log(`Webpage-menu: All tabs: ${allTabs.length}`);
-    for (const tab of allTabs) {
-        // console.log(`Webpage-menu: Checking tab ${tab.id} (${tab.url}), ${tab.title}, ${await browserAdapter.isTabConnected(tab.id)}`);
+    for (let index = 0; index < allTabs.length; index++) {
+        const tab = allTabs[index];
+        // console.log(`index ${index} Webpage-menu: Checking tab ${tab.id} (${tab.url}), ${tab.title}, ${await browserAdapter.isTabConnected(tab.id)}`);
         if (await browserAdapter.isTabConnected(tab.id)) {
             connectedTabs.push(tab);
         }
     }
-    // console.log(`1111 ${connectedTabs}`);
+    // console.log(`1111 ${connectedTabs.length}`);
 
     // 2. 按照 lastAccessed 时间降序排序
     connectedTabs.sort((a, b) => b.lastAccessed - a.lastAccessed);
