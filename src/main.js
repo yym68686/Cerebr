@@ -361,7 +361,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 确保设置按钮的点击事件在文档点击事件之前处理
     settingsButton.addEventListener('click', (e) => {
         e.stopPropagation();
-        settingsMenu.classList.toggle('visible');
+        const isVisible = settingsMenu.classList.toggle('visible');
+
+        // 如果设置菜单被隐藏，也一并隐藏网页内容菜单
+        if (!isVisible) {
+            webpageContentMenu.classList.remove('visible');
+        }
     });
 
     // 主题切换
