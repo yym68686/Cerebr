@@ -17,7 +17,10 @@ async function populateWebpageContentMenu(webpageContentMenu) {
     webpageContentMenu.innerHTML = ''; // 清空现有内容
     let allTabs = await browserAdapter.getAllTabs();
 
-    // 1. 按照 lastAccessed 时间降序排序
+    // 1. 过滤掉浏览器自身的特殊页面
+    allTabs = allTabs.filter(tab => tab.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('edge://') && !tab.url.startsWith('about:'));
+
+    // 2. 按照 lastAccessed 时间降序排序
     allTabs.sort((a, b) => b.lastAccessed - a.lastAccessed);
 
     // 2. 过滤掉重复的 URL
@@ -89,7 +92,10 @@ export async function getEnabledTabsContent() {
     const currentTab = await browserAdapter.getCurrentTab();
     let combinedContent = null;
 
-    // 1. 按照 lastAccessed 时间降序排序
+    // 1. 过滤掉浏览器自身的特殊页面
+    allTabs = allTabs.filter(tab => tab.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('edge://') && !tab.url.startsWith('about:'));
+
+    // 2. 按照 lastAccessed 时间降序排序
     allTabs.sort((a, b) => b.lastAccessed - a.lastAccessed);
 
     // 2. 过滤掉重复的 URL
