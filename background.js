@@ -171,6 +171,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // 保持通道开放以进行异步响应
   }
 
+  if (message.type === 'RELOAD_TAB') {
+    (async () => {
+        try {
+            await chrome.tabs.reload(message.tabId);
+            sendResponse({ status: 'success' });
+        } catch (error) {
+            console.error(`Failed to reload tab ${message.tabId}:`, error);
+            sendResponse({ status: 'error', error: error.message });
+        }
+    })();
+    return true;
+  }
+
   // 处理来自 sidebar 的网页内容请求
   if (message.type === 'GET_PAGE_CONTENT_FROM_SIDEBAR') {
     (async () => {

@@ -17,29 +17,16 @@ async function populateWebpageContentMenu(webpageContentMenu) {
     webpageContentMenu.innerHTML = ''; // 清空现有内容
     let allTabs = await browserAdapter.getAllTabs();
 
-    // 1. 过滤掉无法连接的标签页
-    const connectedTabs = [];
-    // console.log(`Webpage-menu: All tabs: ${allTabs.length}`);
-    for (let index = 0; index < allTabs.length; index++) {
-        const tab = allTabs[index];
-        // console.log(`index ${index} Webpage-menu: Checking tab ${tab.id} (${tab.url}), ${tab.title}, ${await browserAdapter.isTabConnected(tab.id)}`);
-        if (await browserAdapter.isTabConnected(tab.id)) {
-            connectedTabs.push(tab);
-        }
-    }
-    // console.log(`1111 ${connectedTabs.length}`);
+    // 1. 按照 lastAccessed 时间降序排序
+    allTabs.sort((a, b) => b.lastAccessed - a.lastAccessed);
 
-    // 2. 按照 lastAccessed 时间降序排序
-    connectedTabs.sort((a, b) => b.lastAccessed - a.lastAccessed);
-
-    // 3. 过滤掉重复的 URL
-    const finalTabs = getUniqueTabsByUrl(connectedTabs);
+    // 2. 过滤掉重复的 URL
+    const finalTabs = getUniqueTabsByUrl(allTabs);
 
     const { webpageSwitches: switches } = await storageAdapter.get('webpageSwitches');
     const currentTab = await browserAdapter.getCurrentTab();
 
     for (const tab of finalTabs) {
-
         if (!tab.title || !tab.url) continue;
 
         const item = document.createElement('div');
@@ -69,9 +56,20 @@ async function populateWebpageContentMenu(webpageContentMenu) {
         switchInput.checked = isEnabled;
 
         switchInput.addEventListener('change', async (e) => {
+            const isChecked = e.target.checked;
             const { webpageSwitches: currentSwitches } = await storageAdapter.get('webpageSwitches');
-            const newSwitches = { ...currentSwitches, [tab.id]: e.target.checked };
+            const newSwitches = { ...currentSwitches, [tab.id]: isChecked };
             await storageAdapter.set({ webpageSwitches: newSwitches });
+
+            // 如果是开启，且标签页未连接，则刷新它
+            if (isChecked) {
+                const isConnected = await browserAdapter.isTabConnected(tab.id);
+                if (!isConnected) {
+                    await browserAdapter.reloadTab(tab.id);
+                    console.log(`Webpage-menu: populateWebpageContentMenu Reloaded tab ${tab.id}.`);
+                    // 可选：刷新后可以给个提示或自动重新打开菜单
+                }
+            }
         });
 
         const slider = document.createElement('span');
@@ -91,59 +89,63 @@ export async function getEnabledTabsContent() {
     const currentTab = await browserAdapter.getCurrentTab();
     let combinedContent = null;
 
-    // 1. 过滤掉无法连接的标签页
-    const connectedTabs = [];
-    for (const tab of allTabs) {
-        if (await browserAdapter.isTabConnected(tab.id)) {
-            connectedTabs.push(tab);
-        }
-    }
+    // 1. 按照 lastAccessed 时间降序排序
+    allTabs.sort((a, b) => b.lastAccessed - a.lastAccessed);
 
-    // 2. 按照 lastAccessed 时间降序排序
-    connectedTabs.sort((a, b) => b.lastAccessed - a.lastAccessed);
-
-    // 3. 过滤掉重复的 URL
-    const finalTabs = getUniqueTabsByUrl(connectedTabs);
+    // 2. 过滤掉重复的 URL
+    const finalTabs = getUniqueTabsByUrl(allTabs);
 
     for (const tab of finalTabs) {
-
         const isEnabled = switches && switches[tab.id] !== undefined ? switches[tab.id] : (tab.id === currentTab.id);
         if (isEnabled) {
-            try {
-                let pageData = null;
-                // 检查是否为 PDF 标签页
-                if (tab.url.toLowerCase().endsWith('.pdf') || tab.url.includes('.pdf?')) {
-                    // 对于 PDF，直接在 sidebar 中调用解析器
-                    console.log(`Webpage-menu: Detected PDF tab ${tab.id}, parsing directly.`);
-                    const pdfContent = await extractTextFromPDF(tab.url); // 无需 placeholder 更新
-                    if (pdfContent) {
-                        pageData = {
-                            title: tab.title,
-                            content: pdfContent
-                        };
-                    }
-                } else {
-                    // 对于普通网页，通过 background 请求 content script 提取内容
-                    console.log(`Webpage-menu: Detected regular tab ${tab.id}, sending message.`);
-                    pageData = await browserAdapter.sendMessage({
-                        type: 'GET_PAGE_CONTENT_FROM_SIDEBAR',
-                        tabId: tab.id,
-                        skipWaitContent: true // 明确要求立即提取
-                    });
-                }
+            let isConnected = await browserAdapter.isTabConnected(tab.id);
 
-                if (pageData && pageData.content) {
-                    if (!combinedContent) {
-                        combinedContent = { pages: [] };
+            // 如果未连接，尝试重新加载并再次检查
+            if (!isConnected) {
+                await browserAdapter.reloadTab(tab.id);
+                console.log(`Webpage-menu: getEnabledTabsContent Reloaded tab ${tab.id}.`);
+                // // 等待一段时间让标签页加载
+                // await new Promise(resolve => setTimeout(resolve, 1000));
+                // isConnected = await browserAdapter.isTabConnected(tab.id);
+            }
+
+            if (isConnected) {
+                try {
+                    let pageData = null;
+                    // 检查是否为 PDF 标签页
+                    if (tab.url.toLowerCase().endsWith('.pdf') || tab.url.includes('.pdf?')) {
+                        // 对于 PDF，直接在 sidebar 中调用解析器
+                        console.log(`Webpage-menu: Detected PDF tab ${tab.id}, parsing directly.`);
+                        const pdfContent = await extractTextFromPDF(tab.url); // 无需 placeholder 更新
+                        if (pdfContent) {
+                            pageData = {
+                                title: tab.title,
+                                content: pdfContent
+                            };
+                        }
+                    } else {
+                        // 对于普通网页，通过 background 请求 content script 提取内容
+                        console.log(`Webpage-menu: Detected regular tab ${tab.id}, sending message.`);
+                        pageData = await browserAdapter.sendMessage({
+                            type: 'GET_PAGE_CONTENT_FROM_SIDEBAR',
+                            tabId: tab.id,
+                            skipWaitContent: true // 明确要求立即提取
+                        });
                     }
-                    combinedContent.pages.push({
-                        title: pageData.title,
-                        url: tab.url,
-                        content: pageData.content
-                    });
+
+                    if (pageData && pageData.content) {
+                        if (!combinedContent) {
+                            combinedContent = { pages: [] };
+                        }
+                        combinedContent.pages.push({
+                            title: pageData.title,
+                            url: tab.url,
+                            content: pageData.content
+                        });
+                    }
+                } catch (e) {
+                    console.warn(`Could not get content from tab ${tab.id} (${tab.url}): ${e}`);
                 }
-            } catch (e) {
-                console.warn(`Could not get content from tab ${tab.id} (${tab.url}): ${e}`);
             }
         }
     }

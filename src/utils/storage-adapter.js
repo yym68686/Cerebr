@@ -323,6 +323,19 @@ export const browserAdapter = {
                 resolve(response);
             });
         });
+    },
+
+    reloadTab: (tabId) => {
+        if (!isExtensionEnvironment) return Promise.resolve(false);
+        return new Promise((resolve) => {
+            chrome.runtime.sendMessage({ type: 'RELOAD_TAB', tabId }, (response) => {
+                if (chrome.runtime.lastError || response?.status === 'error') {
+                    console.error(`Failed to reload tab ${tabId}:`, chrome.runtime.lastError || response?.error);
+                    return resolve(false);
+                }
+                resolve(true);
+            });
+        });
     }
 };
 
