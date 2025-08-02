@@ -55,8 +55,8 @@ export async function callAPI({
     const systemMessage = {
         role: "system",
         content: `${systemPrompt}${
-            webpageInfo ?
-            `\n当前网页内容：\n标题：${webpageInfo.title}\nURL：${webpageInfo.url}\n内容：${webpageInfo.content}` :
+            (webpageInfo && webpageInfo.pages) ?
+            webpageInfo.pages.map(page => `\n当前网页内容：\n标题：${page.title}\nURL：${page.url}\n内容：${page.content}`).join('\n\n---\n') :
             ''
         }`
     };

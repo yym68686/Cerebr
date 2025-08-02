@@ -225,11 +225,64 @@ export const browserAdapter = {
     // 发送消息
     async sendMessage(message) {
         if (isExtensionEnvironment) {
-            return await chrome.runtime.sendMessage(message);
+           return new Promise((resolve, reject) => {
+               chrome.runtime.sendMessage(message, (response) => {
+                   if (chrome.runtime.lastError) {
+                       return reject(chrome.runtime.lastError);
+                   }
+                   resolve(response);
+               });
+           });
         } else {
             console.warn('Message passing is not supported in web environment:', message);
-            return null;
+            return Promise.resolve(null);
         }
+    },
+
+    getAllTabs: () => {
+       return new Promise((resolve, reject) => {
+           if (!isExtensionEnvironment) {
+               const currentTab = {
+                   id: 'current',
+                   title: document.title,
+                   url: window.location.href,
+               };
+               resolve([currentTab]);
+               return;
+           }
+           chrome.tabs.query({}, (tabs) => {
+               if (chrome.runtime.lastError) {
+                   return reject(chrome.runtime.lastError);
+               }
+               resolve(tabs);
+           });
+       });
+    },
+
+    executeScriptInTab: (tabId, func, args = []) => {
+        return new Promise((resolve, reject) => {
+            if (!isExtensionEnvironment) {
+                return reject(new Error('Not in an extension environment.'));
+            }
+            chrome.scripting.executeScript(
+                {
+                    target: { tabId: tabId },
+                    func: func,
+                    args: args,
+                    world: 'MAIN'
+                },
+                (injectionResults) => {
+                    if (chrome.runtime.lastError) {
+                        return reject(chrome.runtime.lastError);
+                    }
+                    if (injectionResults && injectionResults.length > 0) {
+                        resolve(injectionResults[0].result);
+                    } else {
+                        resolve(null);
+                    }
+                }
+            );
+        });
     },
 
     // 添加标签页变化监听器
