@@ -13,28 +13,6 @@ function getUniqueTabsByUrl(tabs) {
     });
 }
 
-function contentExtractionFunc() {
-    // 在这里不能使用外部作用域的变量，所以需要一个纯函数
-    const selectorsToRemove = [
-        'script', 'style', 'nav', 'header', 'footer',
-        'iframe', 'noscript', 'img', 'svg', 'video',
-        '[role="complementary"]', '[role="navigation"]',
-        '.sidebar', '.nav', '.footer', '.header'
-    ];
-    const tempContainer = document.createElement('div');
-    tempContainer.innerHTML = document.body.innerHTML;
-    selectorsToRemove.forEach(selector => {
-        const elements = tempContainer.querySelectorAll(selector);
-        elements.forEach(element => element.remove());
-    });
-    let mainContent = tempContainer.innerText.replace(/\s+/g, ' ').trim();
-    if (mainContent.length < 40) return null;
-    return {
-        title: document.title,
-        content: mainContent
-    };
-}
-
 async function populateWebpageContentMenu(webpageContentMenu) {
     webpageContentMenu.innerHTML = ''; // 清空现有内容
     let tabs = await browserAdapter.getAllTabs();
