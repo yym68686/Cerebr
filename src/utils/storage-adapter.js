@@ -308,6 +308,7 @@ export const browserAdapter = {
         if (!isExtensionEnvironment) return false;
         try {
             return await new Promise((resolve, reject) => {
+                // console.log(`isTabConnected: ${tabId}`);
                 chrome.runtime.sendMessage({ type: 'IS_TAB_CONNECTED', tabId }, (response) => {
                     if (chrome.runtime.lastError) {
                         // 如果有错误，比如tab不存在，就认为它未连接

@@ -163,6 +163,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'IS_TAB_CONNECTED') {
+    (async () => {
+        const isConnected = await isTabConnected(message.tabId);
+        sendResponse(isConnected);
+    })();
+    return true; // 保持通道开放以进行异步响应
+  }
+
   // 处理来自 sidebar 的网页内容请求
   if (message.type === 'GET_PAGE_CONTENT_FROM_SIDEBAR') {
     (async () => {
@@ -237,6 +245,7 @@ chrome.runtime.onInstalled.addListener(() => {
 // 改进标签页连接检查
 async function isTabConnected(tabId) {
     try {
+        // console.log(`isTabConnected PING: ${tabId}`);
         const response = await chrome.tabs.sendMessage(tabId, {
             type: 'PING',
             timestamp: Date.now()
@@ -247,18 +256,6 @@ async function isTabConnected(tabId) {
         return false;
     }
 }
-
-// 增加一个新的消息监听器，专门用于检查标签页的连接状态
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type === 'IS_TAB_CONNECTED') {
-        (async () => {
-            const isConnected = await isTabConnected(message.tabId);
-            sendResponse(isConnected);
-        })();
-        return true; // 保持通道开放以进行异步响应
-    }
-});
-
 
 // 监听标签页激活事件，并通知相关方，兼容 Firefox 需要
 chrome.tabs.onActivated.addListener(activeInfo => {
