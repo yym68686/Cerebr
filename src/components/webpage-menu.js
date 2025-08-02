@@ -161,20 +161,31 @@ export async function getEnabledTabsContent() {
 export function initWebpageMenu({ webpageQAContainer, webpageContentMenu }) {
     webpageQAContainer.addEventListener('click', async (e) => {
         e.stopPropagation();
-        const isVisible = webpageContentMenu.classList.toggle('visible');
-        if (isVisible) {
-            await populateWebpageContentMenu(webpageContentMenu);
-            const rect = webpageQAContainer.getBoundingClientRect();
-            const menuHeight = webpageContentMenu.offsetHeight;
-            const windowHeight = window.innerHeight;
 
-            let top = rect.top;
-            if (top + menuHeight > windowHeight) {
-                top = windowHeight - menuHeight - 150;
-            }
-
-            webpageContentMenu.style.top = `${Math.max(8, top)}px`;
-            webpageContentMenu.style.left = `${rect.right + 8}px`;
+        if (webpageContentMenu.classList.contains('visible')) {
+            webpageContentMenu.classList.remove('visible');
+            webpageContentMenu.style.visibility = 'hidden'; // 确保隐藏
+            return;
         }
+
+        // 核心修复：先隐藏，计算完位置再显示，防止闪烁
+        webpageContentMenu.style.visibility = 'hidden';
+        webpageContentMenu.classList.add('visible');
+
+        await populateWebpageContentMenu(webpageContentMenu);
+        const rect = webpageQAContainer.getBoundingClientRect();
+        const menuHeight = webpageContentMenu.offsetHeight;
+        const windowHeight = window.innerHeight;
+
+        let top = rect.top;
+        if (top + menuHeight > windowHeight) {
+            top = windowHeight - menuHeight - 150; // 向上调整
+        }
+
+        webpageContentMenu.style.top = `${Math.max(8, top)}px`;
+        webpageContentMenu.style.left = `${rect.right + 8}px`;
+
+        // 在正确的位置上使其可见
+        webpageContentMenu.style.visibility = 'visible';
     });
 }
