@@ -1,4 +1,5 @@
 import { storageAdapter, browserAdapter } from '../utils/storage-adapter.js';
+import { extractTextFromPDF } from '../utils/pdf-parser.js';
 
 function contentExtractionFunc() {
     // 在这里不能使用外部作用域的变量，所以需要一个纯函数
@@ -76,7 +77,28 @@ export async function getEnabledTabsContent() {
         const isEnabled = switches && switches[tab.id] !== undefined ? switches[tab.id] : (tab.id === currentTab.id);
         if (isEnabled) {
             try {
-                const pageData = await browserAdapter.executeScriptInTab(tab.id, contentExtractionFunc);
+                let pageData = null;
+                // 检查是否为 PDF 标签页
+                if (tab.url.toLowerCase().endsWith('.pdf') || tab.url.includes('.pdf?')) {
+                    // 对于 PDF，直接在 sidebar 中调用解析器
+                    console.log(`Webpage-menu: Detected PDF tab ${tab.id}, parsing directly.`);
+                    const pdfContent = await extractTextFromPDF(tab.url); // 无需 placeholder 更新
+                    if (pdfContent) {
+                        pageData = {
+                            title: tab.title,
+                            content: pdfContent
+                        };
+                    }
+                } else {
+                    // 对于普通网页，通过 background 请求 content script 提取内容
+                    console.log(`Webpage-menu: Detected regular tab ${tab.id}, sending message.`);
+                    pageData = await browserAdapter.sendMessage({
+                        type: 'GET_PAGE_CONTENT_FROM_SIDEBAR',
+                        tabId: tab.id,
+                        skipWaitContent: true // 明确要求立即提取
+                    });
+                }
+
                 if (pageData && pageData.content) {
                     if (!combinedContent) {
                         combinedContent = { pages: [] };
@@ -88,7 +110,7 @@ export async function getEnabledTabsContent() {
                     });
                 }
             } catch (e) {
-                console.warn(`Could not get content from tab ${tab.id}: ${e}`);
+                console.warn(`Could not get content from tab ${tab.id} (${tab.url}): ${e}`);
             }
         }
     }
