@@ -69,7 +69,7 @@ async function populateWebpageContentMenu(webpageContentMenu) {
                 const isConnected = await browserAdapter.isTabConnected(tab.id);
                 if (!isConnected) {
                     await browserAdapter.reloadTab(tab.id);
-                    console.log(`Webpage-menu: populateWebpageContentMenu Reloaded tab ${tab.id}.`);
+                    console.log(`Webpage-menu: populateWebpageContentMenu Reloaded tab ${tab.id} ${tab.title} (${tab.url}).`);
                     // 可选：刷新后可以给个提示或自动重新打开菜单
                 }
             }
@@ -109,10 +109,10 @@ export async function getEnabledTabsContent() {
             // 如果未连接，尝试重新加载并再次检查
             if (!isConnected) {
                 await browserAdapter.reloadTab(tab.id);
-                console.log(`Webpage-menu: getEnabledTabsContent Reloaded tab ${tab.id}.`);
-                // // 等待一段时间让标签页加载
-                // await new Promise(resolve => setTimeout(resolve, 1000));
-                // isConnected = await browserAdapter.isTabConnected(tab.id);
+                // 等待一段时间让标签页加载
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                isConnected = await browserAdapter.isTabConnected(tab.id);
+                console.log(`Webpage-menu: getEnabledTabsContent Reloaded tab ${tab.id} ${tab.title} (${tab.url}) isConnected: ${isConnected}.`);
             }
 
             if (isConnected) {
@@ -131,7 +131,7 @@ export async function getEnabledTabsContent() {
                         }
                     } else {
                         // 对于普通网页，通过 background 请求 content script 提取内容
-                        console.log(`Webpage-menu: Detected regular tab ${tab.id}, sending message.`);
+                        console.log(`Webpage-menu: getting content ${tab.id} ${tab.title} (${tab.url}).`);
                         pageData = await browserAdapter.sendMessage({
                             type: 'GET_PAGE_CONTENT_FROM_SIDEBAR',
                             tabId: tab.id,
