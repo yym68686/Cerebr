@@ -43,8 +43,10 @@ async function populateWebpageContentMenu(webpageContentMenu) {
         title.textContent = tab.title;
         title.title = tab.title; // for tooltip on long titles
 
+        const switchId = `webpage-switch-${tab.id}`;
         const switchLabel = document.createElement('label');
         switchLabel.className = 'switch';
+        switchLabel.setAttribute('for', switchId);
 
         // Stop the click event from bubbling up, which would close the main menu.
         switchLabel.addEventListener('click', (e) => {
@@ -53,6 +55,7 @@ async function populateWebpageContentMenu(webpageContentMenu) {
 
         const switchInput = document.createElement('input');
         switchInput.type = 'checkbox';
+        switchInput.id = switchId;
 
         // 确定开关状态
         const isEnabled = switches && switches[tab.id] !== undefined ? switches[tab.id] : (tab.id === currentTab.id);
