@@ -1,6 +1,18 @@
 import { storageAdapter, browserAdapter } from '../utils/storage-adapter.js';
 import { extractTextFromPDF } from '../utils/pdf-parser.js';
 
+// 过滤重复的标签页，只保留每个 URL 最新访问的标签页
+function getUniqueTabsByUrl(tabs) {
+    const seenUrls = new Set();
+    return tabs.filter(tab => {
+        if (!tab.url || seenUrls.has(tab.url)) {
+            return false;
+        }
+        seenUrls.add(tab.url);
+        return true;
+    });
+}
+
 function contentExtractionFunc() {
     // 在这里不能使用外部作用域的变量，所以需要一个纯函数
     const selectorsToRemove = [
@@ -25,11 +37,24 @@ function contentExtractionFunc() {
 
 async function populateWebpageContentMenu(webpageContentMenu) {
     webpageContentMenu.innerHTML = ''; // 清空现有内容
-    const tabs = await browserAdapter.getAllTabs();
+    let tabs = await browserAdapter.getAllTabs();
+
+    // 按照 lastAccessed 时间降序排序
+    tabs.sort((a, b) => b.lastAccessed - a.lastAccessed);
+
+    // 过滤掉重复的 URL
+    const uniqueTabs = getUniqueTabsByUrl(tabs);
+
     const { webpageSwitches: switches } = await storageAdapter.get('webpageSwitches');
     const currentTab = await browserAdapter.getCurrentTab();
 
-    for (const tab of tabs) {
+    // 过滤掉无法连接的标签页
+    for (const tab of uniqueTabs) {
+        const isConnected = await browserAdapter.isTabConnected(tab.id);
+        if (!isConnected) {
+            continue; // 如果标签页无法连接，则跳过
+        }
+
         if (!tab.title || !tab.url) continue;
 
         const item = document.createElement('div');
@@ -74,11 +99,22 @@ async function populateWebpageContentMenu(webpageContentMenu) {
 
 export async function getEnabledTabsContent() {
     const { webpageSwitches: switches } = await storageAdapter.get('webpageSwitches');
-    const tabs = await browserAdapter.getAllTabs();
+    let tabs = await browserAdapter.getAllTabs();
     const currentTab = await browserAdapter.getCurrentTab();
     let combinedContent = null;
 
-    for (const tab of tabs) {
+    // 按照 lastAccessed 时间降序排序
+    tabs.sort((a, b) => b.lastAccessed - a.lastAccessed);
+
+    // 过滤掉重复的 URL
+    const uniqueTabs = getUniqueTabsByUrl(tabs);
+
+    for (const tab of uniqueTabs) {
+        const isConnected = await browserAdapter.isTabConnected(tab.id);
+        if (!isConnected) {
+            continue; // 如果标签页无法连接，则跳过
+        }
+
         const isEnabled = switches && switches[tab.id] !== undefined ? switches[tab.id] : (tab.id === currentTab.id);
         if (isEnabled) {
             try {

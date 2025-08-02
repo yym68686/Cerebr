@@ -248,6 +248,17 @@ async function isTabConnected(tabId) {
     }
 }
 
+// 增加一个新的消息监听器，专门用于检查标签页的连接状态
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'IS_TAB_CONNECTED') {
+        (async () => {
+            const isConnected = await isTabConnected(message.tabId);
+            sendResponse(isConnected);
+        })();
+        return true; // 保持通道开放以进行异步响应
+    }
+});
+
 
 // 监听标签页激活事件，并通知相关方，兼容 Firefox 需要
 chrome.tabs.onActivated.addListener(activeInfo => {
