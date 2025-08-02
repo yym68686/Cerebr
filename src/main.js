@@ -112,7 +112,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             onMessageElementReset: () => { /* 清空引用 */ }
         }),
         uiConfig,
-        settingsMenu
+        settingsMenu,
+        webpageContentMenu // 传递二级菜单
     });
 
     // 初始化ChatManager

@@ -43,6 +43,11 @@ async function populateWebpageContentMenu(webpageContentMenu) {
         const switchLabel = document.createElement('label');
         switchLabel.className = 'switch';
 
+        // Stop the click event from bubbling up, which would close the main menu.
+        switchLabel.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+
         const switchInput = document.createElement('input');
         switchInput.type = 'checkbox';
 

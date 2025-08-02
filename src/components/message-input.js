@@ -19,6 +19,7 @@ let isComposing = false;
  * @param {Function} config.hideContextMenu - 隐藏上下文菜单的函数
  * @param {Object} config.uiConfig - UI配置对象
  * @param {HTMLElement} [config.settingsMenu] - 设置菜单元素（可选）
+ * @param {HTMLElement} [config.webpageContentMenu] - 网页内容菜单元素（可选）
  */
 export function initMessageInput(config) {
     const {
@@ -28,7 +29,8 @@ export function initMessageInput(config) {
         contextMenu,
         hideContextMenu,
         uiConfig,
-        settingsMenu
+        settingsMenu,
+        webpageContentMenu // 接收二级菜单
     } = config;
 
     // 添加点击事件监听
@@ -82,6 +84,11 @@ export function initMessageInput(config) {
         // 如果存在设置菜单，则隐藏它
         if (settingsMenu) {
             settingsMenu.classList.remove('visible');
+        }
+
+        // 如果存在网页内容菜单，则隐藏它
+        if (webpageContentMenu) {
+            webpageContentMenu.classList.remove('visible');
         }
 
         // 输入框获得焦点，阻止事件冒泡
