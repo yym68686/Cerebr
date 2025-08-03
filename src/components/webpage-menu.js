@@ -26,7 +26,6 @@ async function populateWebpageContentMenu(webpageContentMenu) {
     const finalTabs = getUniqueTabsByUrl(allTabs);
 
     const { webpageSwitches: switches } = await storageAdapter.get('webpageSwitches');
-    const currentTab = await browserAdapter.getCurrentTab();
 
     for (const tab of finalTabs) {
         if (!tab.title || !tab.url) continue;
@@ -54,7 +53,7 @@ async function populateWebpageContentMenu(webpageContentMenu) {
         switchInput.id = switchId;
 
         // 确定开关状态
-        const isEnabled = switches && switches[tab.id] !== undefined ? switches[tab.id] : (tab.id === currentTab.id);
+        const isEnabled = switches && switches[tab.id] !== undefined ? switches[tab.id] : false;
         switchInput.checked = isEnabled;
 
         switchInput.addEventListener('change', async (e) => {

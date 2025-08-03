@@ -192,6 +192,7 @@ export const browserAdapter = {
             // 处理本地文件
             if (tab.url.startsWith('file://')) {
                 return {
+                    id: tab.id,
                     url: 'file://',
                     title: 'Local PDF',
                     hostname: 'local_pdf'
@@ -200,6 +201,7 @@ export const browserAdapter = {
 
             const url = new URL(tab.url);
             return {
+                id: tab.id,
                 url: tab.url,
                 title: tab.title,
                 hostname: url.hostname
@@ -209,12 +211,14 @@ export const browserAdapter = {
             // 处理本地文件
             if (url.startsWith('file://')) {
                 return {
+                    id: tab.id,
                     url: 'file://',
                     title: 'Local PDF',
                     hostname: 'local_pdf'
                 };
             }
             return {
+                id: tab.id,
                 url: url,
                 title: document.title,
                 hostname: window.location.hostname

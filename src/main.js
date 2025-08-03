@@ -148,6 +148,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadChatContent(currentChat, chatContainer);
     }
 
+    if ((!currentChat || currentChat.messages.length === 0) && isExtensionEnvironment) {
+        const currentTab = await browserAdapter.getCurrentTab();
+        if (currentTab) {
+            await storageAdapter.set({ webpageSwitches: { [currentTab.id]: true } });
+        }
+    }
+
     // 如果不是扩展环境，隐藏网页问答功能
     if (!isExtensionEnvironment) {
         webpageQAContainer.style.display = 'none';
@@ -499,6 +506,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             chatManager,
             chatListPage.querySelector('.chat-cards')
         );
+
+        // 如果当前对话为空，则重置网页内容开关
+        const currentChat = chatManager.getCurrentChat();
+        if (currentChat && currentChat.messages.length === 0) {
+            const currentTab = await browserAdapter.getCurrentTab();
+            if (currentTab) {
+                await storageAdapter.set({ webpageSwitches: { [currentTab.id]: true } });
+            }
+        }
     });
     // 保存配置到存储
     async function saveAPIConfigs() {
