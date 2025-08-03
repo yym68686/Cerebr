@@ -45,3 +45,10 @@
 .webpage-menu-item .switch {
     flex-shrink: 0; /* 防止开关被压缩 */
 }
+
+.webpage-menu-item .favicon {
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+    vertical-align: middle;
+}

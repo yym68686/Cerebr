@@ -33,6 +33,14 @@ async function populateWebpageContentMenu(webpageContentMenu) {
         const item = document.createElement('div');
         item.className = 'webpage-menu-item';
 
+        // 添加 Favicon
+        if (tab.favIconUrl) {
+            const favicon = document.createElement('img');
+            favicon.src = tab.favIconUrl;
+            favicon.className = 'favicon';
+            item.appendChild(favicon);
+        }
+
         const title = document.createElement('span');
         title.className = 'title';
         title.textContent = tab.title;
