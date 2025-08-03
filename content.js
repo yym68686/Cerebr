@@ -500,10 +500,10 @@ async function extractPageContent(skipWaitContent = false) {
   // 等待内容加载和网络请求完成 - 如果 skipWaitContent 为 true，则跳过等待
   // 当 skipWaitContent 为 true 时，表示是按需提取
   if (skipWaitContent) {
-    console.log('按需提取内容 (skipWaitContent=true)');
+    // console.log('按需提取内容 (skipWaitContent=true)');
     // 如果是 PDF
     if (pdfUrl) {
-      console.log('按需提取 PDF 内容');
+      // console.log('按需提取 PDF 内容');
       const pdfText = await extractTextFromPDF(pdfUrl);
       if (pdfText) {
         return {
@@ -514,9 +514,6 @@ async function extractPageContent(skipWaitContent = false) {
       }
       return null;
     }
-
-    // 如果是普通网页
-    console.log('按需提取普通网页内容');
     const iframes = document.querySelectorAll('iframe');
     let frameContent = '';
     for (const iframe of iframes) {
