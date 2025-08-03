@@ -161,6 +161,11 @@ export function initializeChatList({
     const messageInput = document.getElementById('message-input');
     // 新建对话按钮点击事件
     newChatButton.addEventListener('click', async () => {
+        const currentChat = chatManager.getCurrentChat();
+        // 如果当前对话没有消息，则不创建新对话
+        if (currentChat && currentChat.messages.length === 0) {
+            return;
+        }
         const newChat = chatManager.createNewChat();
         await switchToChat(newChat.id, chatManager);
         settingsMenu.classList.remove('visible');
