@@ -1,4 +1,5 @@
 import { appendMessage } from '../handlers/message-handler.js';
+import { storageAdapter, browserAdapter, isExtensionEnvironment } from '../utils/storage-adapter.js';
 
 // 渲染对话列表
 export function renderChatList(chatManager, chatCards, searchTerm = '') {
@@ -166,6 +167,14 @@ export function initializeChatList({
         if (currentChat && currentChat.messages.length === 0) {
             return;
         }
+
+        if (isExtensionEnvironment) {
+            const currentTab = await browserAdapter.getCurrentTab();
+            if (currentTab) {
+                await storageAdapter.set({ webpageSwitches: { [currentTab.id]: true } });
+            }
+        }
+
         const newChat = chatManager.createNewChat();
         await switchToChat(newChat.id, chatManager);
         settingsMenu.classList.remove('visible');
