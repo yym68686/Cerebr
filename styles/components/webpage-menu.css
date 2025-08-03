@@ -1,0 +1,47 @@
+#webpage-content-menu {
+    position: fixed;
+    min-width: 180px;
+    max-width: 200px;
+    background-color: var(--settings-bg-color);
+    border: 1px solid var(--settings-border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    padding: 8px;
+    z-index: 1001;
+    display: none;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+#webpage-content-menu.visible {
+    display: block;
+}
+
+.webpage-menu-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.webpage-menu-item:hover {
+    background-color: var(--settings-hover-bg-color);
+}
+
+.webpage-menu-item .title {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right: 16px; /* 增加标题和开关之间的间距 */
+    min-width: 0; /* 确保在 flex 布局中 ellipsis 生效 */
+}
+
+.webpage-menu-item .switch {
+    flex-shrink: 0; /* 防止开关被压缩 */
+}

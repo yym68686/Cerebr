@@ -163,39 +163,68 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'IS_TAB_CONNECTED') {
+    (async () => {
+        const isConnected = await isTabConnected(message.tabId);
+        sendResponse(isConnected);
+    })();
+    return true; // 保持通道开放以进行异步响应
+  }
+
+  if (message.type === 'RELOAD_TAB') {
+    (async () => {
+        try {
+            await chrome.tabs.reload(message.tabId);
+            sendResponse({ status: 'success' });
+        } catch (error) {
+            console.error(`Failed to reload tab ${message.tabId}:`, error);
+            sendResponse({ status: 'error', error: error.message });
+        }
+    })();
+    return true;
+  }
+
   // 处理来自 sidebar 的网页内容请求
   if (message.type === 'GET_PAGE_CONTENT_FROM_SIDEBAR') {
     (async () => {
-      async function tryGetContent() {
-        try {
-          const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-          if (!activeTab) {
-            return null;
-          }
-
-          if (sender.tab && sender.tab.id !== activeTab.id) {
-            return null;
-          }
-
-          if (!sender.url || !sender.url.includes('index.html')) {
-            return null;
-          }
-
-          if (await isTabConnected(activeTab.id)) {
-            return await chrome.tabs.sendMessage(activeTab.id, {
-              type: 'GET_PAGE_CONTENT_INTERNAL',
-              skipWaitContent: message.skipWaitContent || false
-            });
-          }
-          return null;
-        } catch (error) {
-          console.warn('获取页面内容失败（可安全忽略）:', error);
-          return null;
+      try {
+        // 确保请求来自我们的扩展UI
+        if (!sender.url || !sender.url.includes('index.html')) {
+          console.warn('GET_PAGE_CONTENT_FROM_SIDEBAR request from invalid sender:', sender.url);
+          sendResponse(null);
+          return;
         }
-      }
 
-      const content = await tryGetContent();
-      sendResponse(content);
+        // 如果消息中指定了 tabId，则使用它；否则，查询当前活动标签页
+        const tabIdToQuery = message.tabId || (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id;
+
+        if (!tabIdToQuery) {
+          console.warn('No target tab found for GET_PAGE_CONTENT_FROM_SIDEBAR');
+          sendResponse(null);
+          return;
+        }
+
+        let isConnected = await isTabConnected(tabIdToQuery);
+        if (!isConnected) {
+            // 如果未连接，尝试重新注入脚本
+            console.log(`Tab ${tabIdToQuery} not connected, attempting to reinject content script.`);
+            isConnected = await reinjectContentScript(tabIdToQuery);
+        }
+
+        if (isConnected) {
+          const response = await chrome.tabs.sendMessage(tabIdToQuery, {
+            type: 'GET_PAGE_CONTENT_INTERNAL',
+            skipWaitContent: message.skipWaitContent || false
+          });
+          sendResponse(response);
+        } else {
+          console.warn(`Tab ${tabIdToQuery} is still not connected, even after attempting to reinject.`);
+          sendResponse(null);
+        }
+      } catch (error) {
+        console.error(`Error in GET_PAGE_CONTENT_FROM_SIDEBAR for tab ${message.tabId}:`, error);
+        sendResponse(null);
+      }
     })();
     return true;
   }
@@ -254,6 +283,7 @@ chrome.runtime.onInstalled.addListener(() => {
 // 改进标签页连接检查
 async function isTabConnected(tabId) {
     try {
+        // console.log(`isTabConnected PING: ${tabId}`);
         const response = await chrome.tabs.sendMessage(tabId, {
             type: 'PING',
             timestamp: Date.now()
@@ -267,92 +297,92 @@ async function isTabConnected(tabId) {
 
 // 添加公共的PDF文件获取函数
 async function getPDFArrayBuffer(url) {
-    if (url.startsWith('file://')) {
-        // 处理本地文件
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error('无法读取本地PDF文件');
-        }
-        return response.arrayBuffer();
-    } else {
-        const headers = {
-            'Accept': 'application/pdf,*/*',
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-        };
+  if (url.startsWith('file://')) {
+      // 处理本地文件
+      const response = await fetch(url);
+      if (!response.ok) {
+          throw new Error('无法读取本地PDF文件');
+      }
+      return response.arrayBuffer();
+  } else {
+      const headers = {
+          'Accept': 'application/pdf,*/*',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+      };
 
-        // 如果是ScienceDirect的URL，添加特殊处理
-        if (url.includes('sciencedirectassets.com')) {
-            // 从原始页面获取必要的cookie和referer
-            headers['Accept'] = '*/*';  // ScienceDirect需要这个
-            headers['Referer'] = 'https://www.sciencedirect.com/';
-            headers['Origin'] = 'https://www.sciencedirect.com';
-            headers['Connection'] = 'keep-alive';
-        }
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: headers,
-          credentials: 'include',
-          mode: 'cors'
-        });
-        // 处理在线文件
-        if (!response.ok) {
-            throw new Error('PDF文件下载失败');
-        }
-        return response.arrayBuffer();
-    }
+      // 如果是ScienceDirect的URL，添加特殊处理
+      if (url.includes('sciencedirectassets.com')) {
+          // 从原始页面获取必要的cookie和referer
+          headers['Accept'] = '*/*';  // ScienceDirect需要这个
+          headers['Referer'] = 'https://www.sciencedirect.com/';
+          headers['Origin'] = 'https://www.sciencedirect.com';
+          headers['Connection'] = 'keep-alive';
+      }
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: headers,
+        credentials: 'include',
+        mode: 'cors'
+      });
+      // 处理在线文件
+      if (!response.ok) {
+          throw new Error('PDF文件下载失败');
+      }
+      return response.arrayBuffer();
+  }
 }
 
 // 修改 downloadPDF 函数
 async function downloadPDF(url) {
-    try {
-        // console.log('开始下载PDF文件:', url);
-        const arrayBuffer = await getPDFArrayBuffer(url);
-        // console.log('PDF文件下载完成，大小:', arrayBuffer.byteLength, 'bytes');
+  try {
+      // console.log('开始下载PDF文件:', url);
+      const arrayBuffer = await getPDFArrayBuffer(url);
+      // console.log('PDF文件下载完成，大小:', arrayBuffer.byteLength, 'bytes');
 
-        // 将ArrayBuffer转换为Uint8Array
-        const uint8Array = new Uint8Array(arrayBuffer);
+      // 将ArrayBuffer转换为Uint8Array
+      const uint8Array = new Uint8Array(arrayBuffer);
 
-        // 分块大小设为4MB
-        const chunkSize = 4 * 1024 * 1024;
-        const chunks = Math.ceil(uint8Array.length / chunkSize);
+      // 分块大小设为4MB
+      const chunkSize = 4 * 1024 * 1024;
+      const chunks = Math.ceil(uint8Array.length / chunkSize);
 
-        // 发送第一个消息，包含总块数和文件大小信息
-        return {
-            success: true,
-            type: 'init',
-            totalChunks: chunks,
-            totalSize: uint8Array.length
-        };
-    } catch (error) {
-        console.error('PDF下载失败:', error);
-        console.error('错误堆栈:', error.stack);
-        throw new Error('PDF下载失败: ' + error.message);
-    }
+      // 发送第一个消息，包含总块数和文件大小信息
+      return {
+          success: true,
+          type: 'init',
+          totalChunks: chunks,
+          totalSize: uint8Array.length
+      };
+  } catch (error) {
+      console.error('PDF下载失败:', error);
+      console.error('错误堆栈:', error.stack);
+      throw new Error('PDF下载失败: ' + error.message);
+  }
 }
 
 // 修改 getPDFChunk 函数
 async function getPDFChunk(url, chunkIndex) {
-    try {
-        const arrayBuffer = await getPDFArrayBuffer(url);
-        const uint8Array = new Uint8Array(arrayBuffer);
-        const chunkSize = 4 * 1024 * 1024;
-        const start = chunkIndex * chunkSize;
-        const end = Math.min(start + chunkSize, uint8Array.length);
+  try {
+      const arrayBuffer = await getPDFArrayBuffer(url);
+      const uint8Array = new Uint8Array(arrayBuffer);
+      const chunkSize = 4 * 1024 * 1024;
+      const start = chunkIndex * chunkSize;
+      const end = Math.min(start + chunkSize, uint8Array.length);
 
-        return {
-            success: true,
-            type: 'chunk',
-            chunkIndex: chunkIndex,
-            data: Array.from(uint8Array.slice(start, end))
-        };
-    } catch (error) {
-        console.error('获取PDF块数据失败:', error);
-        return {
-            success: false,
-            error: error.message
-        };
-    }
+      return {
+          success: true,
+          type: 'chunk',
+          chunkIndex: chunkIndex,
+          data: Array.from(uint8Array.slice(start, end))
+      };
+  } catch (error) {
+      console.error('获取PDF块数据失败:', error);
+      return {
+          success: false,
+          error: error.message
+      };
+  }
 }
 
 // 监听标签页激活事件，并通知相关方，兼容 Firefox 需要

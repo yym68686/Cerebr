@@ -192,6 +192,7 @@ export const browserAdapter = {
             // 处理本地文件
             if (tab.url.startsWith('file://')) {
                 return {
+                    id: tab.id,
                     url: 'file://',
                     title: 'Local PDF',
                     hostname: 'local_pdf'
@@ -200,6 +201,7 @@ export const browserAdapter = {
 
             const url = new URL(tab.url);
             return {
+                id: tab.id,
                 url: tab.url,
                 title: tab.title,
                 hostname: url.hostname
@@ -209,12 +211,14 @@ export const browserAdapter = {
             // 处理本地文件
             if (url.startsWith('file://')) {
                 return {
+                    id: tab.id,
                     url: 'file://',
                     title: 'Local PDF',
                     hostname: 'local_pdf'
                 };
             }
             return {
+                id: tab.id,
                 url: url,
                 title: document.title,
                 hostname: window.location.hostname
@@ -225,11 +229,64 @@ export const browserAdapter = {
     // 发送消息
     async sendMessage(message) {
         if (isExtensionEnvironment) {
-            return await chrome.runtime.sendMessage(message);
+           return new Promise((resolve, reject) => {
+               chrome.runtime.sendMessage(message, (response) => {
+                   if (chrome.runtime.lastError) {
+                       return reject(chrome.runtime.lastError);
+                   }
+                   resolve(response);
+               });
+           });
         } else {
             console.warn('Message passing is not supported in web environment:', message);
-            return null;
+            return Promise.resolve(null);
         }
+    },
+
+    getAllTabs: () => {
+       return new Promise((resolve, reject) => {
+           if (!isExtensionEnvironment) {
+               const currentTab = {
+                   id: 'current',
+                   title: document.title,
+                   url: window.location.href,
+               };
+               resolve([currentTab]);
+               return;
+           }
+           chrome.tabs.query({}, (tabs) => {
+               if (chrome.runtime.lastError) {
+                   return reject(chrome.runtime.lastError);
+               }
+               resolve(tabs);
+           });
+       });
+    },
+
+    executeScriptInTab: (tabId, func, args = []) => {
+        return new Promise((resolve, reject) => {
+            if (!isExtensionEnvironment) {
+                return reject(new Error('Not in an extension environment.'));
+            }
+            chrome.scripting.executeScript(
+                {
+                    target: { tabId: tabId },
+                    func: func,
+                    args: args,
+                    world: 'MAIN'
+                },
+                (injectionResults) => {
+                    if (chrome.runtime.lastError) {
+                        return reject(chrome.runtime.lastError);
+                    }
+                    if (injectionResults && injectionResults.length > 0) {
+                        resolve(injectionResults[0].result);
+                    } else {
+                        resolve(null);
+                    }
+                }
+            );
+        });
     },
 
     // 添加标签页变化监听器
@@ -249,6 +306,40 @@ export const browserAdapter = {
             // Web环境下不需要监听标签页变化
             console.info('Tab activation listening is not supported in web environment');
         }
+    },
+
+    isTabConnected: (tabId) => {
+        if (!isExtensionEnvironment) return Promise.resolve(false);
+
+        return new Promise((resolve) => {
+            const timeout = setTimeout(() => {
+                console.log(`Tab ${tabId} timed out.`);
+                resolve(false);
+            }, 100); // 200毫秒超时
+
+            chrome.runtime.sendMessage({ type: 'IS_TAB_CONNECTED', tabId }, (response) => {
+                clearTimeout(timeout);
+                if (chrome.runtime.lastError) {
+                    // 比如tab不存在或无法访问
+                    // console.warn(`Error checking tab ${tabId}:`, chrome.runtime.lastError.message);
+                    return resolve(false);
+                }
+                resolve(response);
+            });
+        });
+    },
+
+    reloadTab: (tabId) => {
+        if (!isExtensionEnvironment) return Promise.resolve(false);
+        return new Promise((resolve) => {
+            chrome.runtime.sendMessage({ type: 'RELOAD_TAB', tabId }, (response) => {
+                if (chrome.runtime.lastError || response?.status === 'error') {
+                    console.error(`Failed to reload tab ${tabId}:`, chrome.runtime.lastError || response?.error);
+                    return resolve(false);
+                }
+                resolve(true);
+            });
+        });
     }
 };
 

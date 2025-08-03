@@ -498,8 +498,12 @@ async function extractPageContent(skipWaitContent = false) {
   }
 
   // 等待内容加载和网络请求完成 - 如果 skipWaitContent 为 true，则跳过等待
-  if (!skipWaitContent) {
+  // 当 skipWaitContent 为 true 时，表示是按需提取
+  if (skipWaitContent) {
+    // console.log('按需提取内容 (skipWaitContent=true)');
+    // 如果是 PDF
     if (pdfUrl) {
+      // console.log('按需提取 PDF 内容');
       const pdfText = await extractTextFromPDF(pdfUrl);
       if (pdfText) {
         return {
@@ -508,73 +512,56 @@ async function extractPageContent(skipWaitContent = false) {
           content: pdfText
         };
       }
-    }
-  } else {
-    console.log('跳过页面内容等待步骤');
-    if (pdfUrl) {
       return null;
     }
     const iframes = document.querySelectorAll('iframe');
-    // console.log('页面中的iframe数量:', iframes.length);
     let frameContent = '';
     for (const iframe of iframes) {
-      console.log('尝试处理iframe:', iframe.id);
       try {
-        // 检查iframe是否可访问
         if (iframe.contentDocument || iframe.contentWindow) {
           const iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
           const content = iframeDocument.body.innerText;
-          console.log('成功从iframe中提取内容');
-          console.log('content:', content);
           frameContent += content;
         }
       } catch (e) {
-        console.log('无法访问该iframe内容:', e.message);
+        // console.log('无法访问该iframe内容:', e.message);
       }
     }
 
-    // 创建一个文档片段来处理内容
     const tempContainer = document.createElement('div');
     tempContainer.innerHTML = document.body.innerHTML;
-
-    // 移除不需要的元素
     const selectorsToRemove = [
         'script', 'style', 'nav', 'header', 'footer',
         'iframe', 'noscript', 'img', 'svg', 'video',
         '[role="complementary"]', '[role="navigation"]',
         '.sidebar', '.nav', '.footer', '.header'
     ];
-
     selectorsToRemove.forEach(selector => {
-        const elements = tempContainer.querySelectorAll(selector);
-        elements.forEach(element => element.remove());
+        tempContainer.querySelectorAll(selector).forEach(element => element.remove());
     });
 
-    let mainContent = tempContainer.innerText;
-    mainContent += frameContent;
+    let mainContent = tempContainer.innerText + frameContent;
+    mainContent = mainContent.replace(/\s+/g, ' ').replace(/\n\s*\n/g, '\n').trim();
 
-    // 理文本
-    mainContent = mainContent
-        .replace(/\s+/g, ' ')  // 替换多个空白字符为单个空格
-        .replace(/\n\s*\n/g, '\n')  // 替换多个换行为单个换行
-        .trim();
-
-    // 检查提取的内容是否足够
     if (mainContent.length < 40) {
-        console.log('提取的内容太少，返回 null');
-        return null;
+      console.log('提取的内容太少，返回 null');
+      return null;
     }
 
-    // console.log('页面内容提取完成，内容:', mainContent);
     const gptTokenCount = await estimateGPTTokens(mainContent);
     console.log('页面内容提取完成，内容长度:', mainContent.length, 'GPT tokens:', gptTokenCount);
 
     return {
-        title: document.title,
-        url: window.location.href,
-        content: mainContent
+      title: document.title,
+      url: window.location.href,
+      content: mainContent
     };
   }
+
+  // 当 skipWaitContent 为 false (默认)，表示是自动调用。
+  // 在这种模式下，我们不进行任何耗时操作，特别是对于PDF。
+  // console.log('自动调用 extractPageContent，不执行提取 (skipWaitContent=false)');
+  return null;
 }
 
 // PDF.js 库的路径
@@ -694,6 +681,7 @@ async function extractTextFromPDF(url) {
     return null;
   }
 }
+
 
 // 添加GPT分词估算函数
 async function estimateGPTTokens(text) {
