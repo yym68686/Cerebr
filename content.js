@@ -567,6 +567,124 @@ async function extractPageContent(skipWaitContent = false) {
   return null;
 }
 
+// PDF.js 库的路径
+const PDFJS_PATH = chrome.runtime.getURL('lib/pdf.js');
+const PDFJS_WORKER_PATH = chrome.runtime.getURL('lib/pdf.worker.js');
+
+// 设置 PDF.js worker 路径
+pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_PATH;
+
+async function extractTextFromPDF(url) {
+  try {
+    // 使用已存在的 sidebar 实例
+    if (!sidebar || !sidebar.sidebar) {
+      console.error('侧边栏实例不存在');
+      return null;
+    }
+
+    // 获取iframe
+    const iframe = sidebar.sidebar.querySelector('.cerebr-sidebar__iframe');
+    if (!iframe) {
+      console.error('找不到iframe元素');
+      return null;
+    }
+
+    // 发送更新placeholder消息
+    const sendPlaceholderUpdate = (message, timeout = 0) => {
+      // console.log('发送placeholder更新:', message);
+      iframe.contentWindow.postMessage({
+        type: 'UPDATE_PLACEHOLDER',
+        placeholder: message,
+        timeout: timeout
+      }, '*');
+    };
+
+    sendPlaceholderUpdate('正在下载PDF文件...');
+
+    console.log('开始下载PDF:', url);
+    // 首先获取PDF文件的初始信息
+    const initResponse = await chrome.runtime.sendMessage({
+      action: 'downloadPDF',
+      url: url
+    });
+
+    if (!initResponse.success) {
+      console.error('PDF初始化失败，响应:', initResponse);
+      sendPlaceholderUpdate('PDF下载失败', 2000);
+      throw new Error('PDF初始化失败');
+    }
+
+    const { totalChunks, totalSize } = initResponse;
+    // console.log(`PDF文件大小: ${totalSize} bytes, 总块数: ${totalChunks}`);
+
+    // 分块接收数据
+    const chunks = new Array(totalChunks);
+    for (let i = 0; i < totalChunks; i++) {
+      sendPlaceholderUpdate(`正在下载PDF文件 (${Math.round((i + 1) / totalChunks * 100)}%)...`);
+
+      const chunkResponse = await chrome.runtime.sendMessage({
+        action: 'getPDFChunk',
+        url: url,
+        chunkIndex: i
+      });
+
+      if (!chunkResponse.success) {
+        sendPlaceholderUpdate('PDF下载失败', 2000);
+        throw new Error(`获取PDF块 ${i} 失败`);
+      }
+
+      chunks[i] = new Uint8Array(chunkResponse.data);
+    }
+
+    // 合并所有块
+    const completeData = new Uint8Array(totalSize);
+    let offset = 0;
+    for (const chunk of chunks) {
+      completeData.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    sendPlaceholderUpdate('正在解析PDF文件...');
+
+    // console.log('开始解析PDF文件');
+    const loadingTask = pdfjsLib.getDocument({data: completeData});
+    const pdf = await loadingTask.promise;
+    // console.log('PDF加载成功，总页数:', pdf.numPages);
+
+    let fullText = '';
+    // 遍历所有页面
+    for (let i = 1; i <= pdf.numPages; i++) {
+      sendPlaceholderUpdate(`正在提取文本 (${i}/${pdf.numPages})...`);
+      // console.log(`开始处理第 ${i}/${pdf.numPages} 页`);
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map(item => item.str).join(' ');
+      // console.log(`第 ${i} 页提取的文本长度:`, pageText.length);
+      fullText += pageText + '\n';
+    }
+
+    // 计算GPT分词数量
+    const gptTokenCount = await estimateGPTTokens(fullText);
+    console.log('PDF文本提取完成，总文本长度:', fullText.length, '预计GPT tokens:', gptTokenCount);
+    sendPlaceholderUpdate(`PDF处理完成 (约 ${gptTokenCount} tokens)`, 2000);
+    return fullText;
+  } catch (error) {
+    console.error('PDF处理过程中出错:', error);
+    console.error('错误堆栈:', error.stack);
+    if (sidebar && sidebar.sidebar) {
+      const iframe = sidebar.sidebar.querySelector('.cerebr-sidebar__iframe');
+      if (iframe) {
+        iframe.contentWindow.postMessage({
+          type: 'UPDATE_PLACEHOLDER',
+          placeholder: 'PDF处理失败',
+          timeout: 2000
+        }, '*');
+      }
+    }
+    return null;
+  }
+}
+
 
 // 添加GPT分词估算函数
 async function estimateGPTTokens(text) {

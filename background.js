@@ -229,6 +229,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // 处理PDF下载请求
+  if (message.action === 'downloadPDF') {
+    (async () => {
+      try {
+        const response = await downloadPDF(message.url);
+        sendResponse(response);
+      } catch (error) {
+        sendResponse({success: false, error: error.message});
+      }
+    })();
+    return true;
+  }
+
+  // 处理获取PDF块的请求
+  if (message.action === 'getPDFChunk') {
+    (async () => {
+      try {
+        const response = await getPDFChunk(message.url, message.chunkIndex);
+        sendResponse(response);
+      } catch (error) {
+        sendResponse({success: false, error: error.message});
+      }
+    })();
+    return true;
+  }
 
   return false;
 });
@@ -268,6 +293,96 @@ async function isTabConnected(tabId) {
     } catch {
         return false;
     }
+}
+
+// 添加公共的PDF文件获取函数
+async function getPDFArrayBuffer(url) {
+  if (url.startsWith('file://')) {
+      // 处理本地文件
+      const response = await fetch(url);
+      if (!response.ok) {
+          throw new Error('无法读取本地PDF文件');
+      }
+      return response.arrayBuffer();
+  } else {
+      const headers = {
+          'Accept': 'application/pdf,*/*',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+      };
+
+      // 如果是ScienceDirect的URL，添加特殊处理
+      if (url.includes('sciencedirectassets.com')) {
+          // 从原始页面获取必要的cookie和referer
+          headers['Accept'] = '*/*';  // ScienceDirect需要这个
+          headers['Referer'] = 'https://www.sciencedirect.com/';
+          headers['Origin'] = 'https://www.sciencedirect.com';
+          headers['Connection'] = 'keep-alive';
+      }
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: headers,
+        credentials: 'include',
+        mode: 'cors'
+      });
+      // 处理在线文件
+      if (!response.ok) {
+          throw new Error('PDF文件下载失败');
+      }
+      return response.arrayBuffer();
+  }
+}
+
+// 修改 downloadPDF 函数
+async function downloadPDF(url) {
+  try {
+      // console.log('开始下载PDF文件:', url);
+      const arrayBuffer = await getPDFArrayBuffer(url);
+      // console.log('PDF文件下载完成，大小:', arrayBuffer.byteLength, 'bytes');
+
+      // 将ArrayBuffer转换为Uint8Array
+      const uint8Array = new Uint8Array(arrayBuffer);
+
+      // 分块大小设为4MB
+      const chunkSize = 4 * 1024 * 1024;
+      const chunks = Math.ceil(uint8Array.length / chunkSize);
+
+      // 发送第一个消息，包含总块数和文件大小信息
+      return {
+          success: true,
+          type: 'init',
+          totalChunks: chunks,
+          totalSize: uint8Array.length
+      };
+  } catch (error) {
+      console.error('PDF下载失败:', error);
+      console.error('错误堆栈:', error.stack);
+      throw new Error('PDF下载失败: ' + error.message);
+  }
+}
+
+// 修改 getPDFChunk 函数
+async function getPDFChunk(url, chunkIndex) {
+  try {
+      const arrayBuffer = await getPDFArrayBuffer(url);
+      const uint8Array = new Uint8Array(arrayBuffer);
+      const chunkSize = 4 * 1024 * 1024;
+      const start = chunkIndex * chunkSize;
+      const end = Math.min(start + chunkSize, uint8Array.length);
+
+      return {
+          success: true,
+          type: 'chunk',
+          chunkIndex: chunkIndex,
+          data: Array.from(uint8Array.slice(start, end))
+      };
+  } catch (error) {
+      console.error('获取PDF块数据失败:', error);
+      return {
+          success: false,
+          error: error.message
+      };
+  }
 }
 
 // 监听标签页激活事件，并通知相关方，兼容 Firefox 需要
