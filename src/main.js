@@ -232,7 +232,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 messages: messagesToResend,
                 apiConfig: apiConfigs[selectedConfigIndex],
                 userLanguage: navigator.language,
-                webpageInfo: await getEnabledTabsContent()
+                webpageInfo: isExtensionEnvironment ? await getEnabledTabsContent() : null
             };
 
             // 调用 API
@@ -309,7 +309,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 messages,
                 apiConfig: apiConfigs[selectedConfigIndex],
                 userLanguage: navigator.language,
-                webpageInfo: await getEnabledTabsContent()
+                webpageInfo: isExtensionEnvironment ? await getEnabledTabsContent() : null
             };
 
             // 调用 API
@@ -363,7 +363,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
    // 初始化网页内容二级菜单
-   initWebpageMenu({ webpageQAContainer, webpageContentMenu });
+   if (isExtensionEnvironment) {
+    initWebpageMenu({ webpageQAContainer, webpageContentMenu });
+   }
 
     // 确保设置按钮的点击事件在文档点击事件之前处理
     settingsButton.addEventListener('click', (e) => {
