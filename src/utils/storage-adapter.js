@@ -302,9 +302,6 @@ export const browserAdapter = {
                     callback(message.payload);
                 }
             });
-        } else {
-            // Web环境下不需要监听标签页变化
-            console.info('Tab activation listening is not supported in web environment');
         }
     },
 
