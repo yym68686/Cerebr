@@ -504,6 +504,42 @@ export function initChatContainer({
     // 立即执行初始化
     initialize();
 
+    // 添加自定义复制事件处理器
+    chatContainer.addEventListener('copy', (event) => {
+        const selection = document.getSelection();
+        if (selection.rangeCount === 0 || selection.toString().trim() === '') {
+            return;
+        }
+
+        // 检查选区是否在聊天容器内
+        if (!chatContainer.contains(selection.anchorNode) || !chatContainer.contains(selection.focusNode)) {
+            return;
+        }
+
+        event.preventDefault();
+
+        const range = selection.getRangeAt(0);
+        const fragment = range.cloneContents();
+        const tempDiv = document.createElement('div');
+        tempDiv.appendChild(fragment);
+
+        // 优化MathJax公式的复制，移除导致换行的多余结构
+        const mjxContainers = tempDiv.querySelectorAll('mjx-container');
+        mjxContainers.forEach(container => {
+            const assistiveMml = container.querySelector('mjx-assistive-mml math');
+            if (assistiveMml) {
+                // 用干净的 MathML 替换整个 mjx-container
+                container.parentNode.replaceChild(assistiveMml.cloneNode(true), container);
+            }
+        });
+
+        const html = tempDiv.innerHTML;
+        const plainText = tempDiv.textContent; // 从清理后的div中获取纯文本
+
+        event.clipboardData.setData('text/html', html);
+        event.clipboardData.setData('text/plain', plainText);
+    });
+
     // 返回包含公共方法的对象
     return {
         syncMessage,
