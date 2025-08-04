@@ -56,7 +56,10 @@ export async function callAPI({
         role: "system",
         content: `${systemPrompt}${
             (webpageInfo && webpageInfo.pages) ?
-            webpageInfo.pages.map(page => `\n当前网页内容：\n标题：${page.title}\nURL：${page.url}\n内容：${page.content}`).join('\n\n---\n') :
+            webpageInfo.pages.map(page => {
+                const prefix = page.isCurrent ? '当前网页内容' : '其他打开的网页';
+                return `\n${prefix}：\n标题：${page.title}\nURL：${page.url}\n内容：${page.content}`;
+            }).join('\n\n---\n') :
             ''
         }`
     };

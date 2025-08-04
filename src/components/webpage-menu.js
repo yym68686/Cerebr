@@ -138,7 +138,8 @@ export async function getEnabledTabsContent() {
                         combinedContent.pages.push({
                             title: pageData.title,
                             url: tab.url,
-                            content: pageData.content
+                            content: pageData.content,
+                            isCurrent: tab.id === currentTab.id
                         });
                     }
                 } catch (e) {
