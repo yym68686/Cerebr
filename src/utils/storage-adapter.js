@@ -244,23 +244,22 @@ export const browserAdapter = {
     },
 
     getAllTabs: () => {
-       return new Promise((resolve, reject) => {
-           if (!isExtensionEnvironment) {
-               const currentTab = {
-                   id: 'current',
-                   title: document.title,
-                   url: window.location.href,
-               };
-               resolve([currentTab]);
-               return;
-           }
-           chrome.tabs.query({}, (tabs) => {
-               if (chrome.runtime.lastError) {
-                   return reject(chrome.runtime.lastError);
-               }
-               resolve(tabs);
-           });
-       });
+        if (!isExtensionEnvironment) {
+            return Promise.resolve([{
+                id: 'current',
+                title: document.title,
+                url: window.location.href,
+            }]);
+        }
+        // Must be sent to background script to access tabs API
+        return new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({ type: 'GET_ALL_TABS' }, (response) => {
+                if (chrome.runtime.lastError) {
+                    return reject(chrome.runtime.lastError);
+                }
+                resolve(response);
+            });
+        });
     },
 
     executeScriptInTab: (tabId, func, args = []) => {

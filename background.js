@@ -126,6 +126,19 @@ chrome.runtime.onConnect.addListener((p) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // console.log('收到消息:', message, '来自:', sender.tab?.id);
 
+  if (message.type === 'GET_ALL_TABS') {
+    (async () => {
+      try {
+        const tabs = await chrome.tabs.query({});
+        sendResponse(tabs);
+      } catch (e) {
+        console.error("Failed to get all tabs:", e);
+        sendResponse(null);
+      }
+    })();
+    return true;
+  }
+
   if (message.type === 'GET_CURRENT_TAB') {
     (async () => {
       try {
