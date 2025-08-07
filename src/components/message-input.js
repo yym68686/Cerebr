@@ -62,6 +62,11 @@ export function initMessageInput(config) {
             config: uiConfig.textarea
         });
 
+        // 如果正在使用输入法，则不处理 placeholder
+        if (isComposing) {
+            return;
+        }
+
         // 处理 placeholder 的显示
         if (this.textContent.trim() === '' && !this.querySelector('.image-tag')) {
             // 如果内容空且没有图片标签，清空内容以显示 placeholder
