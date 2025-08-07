@@ -1,6 +1,7 @@
 name: Build and Release Firefox Extension
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*' # 当推送新的版本标签时触发
