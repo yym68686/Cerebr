@@ -79,16 +79,24 @@ Cerebr 是一款强大的浏览器 AI 助手扩展，现已支持 Chrome、Firef
 
 2. 你可以部署到 Cloudflare Pages：
 
-```bash
-# 安装 Wrangler CLI
-npm install -g wrangler
+2.1 注册好 CF 账号后，申请 Workers API TOKEN。
 
-# 登录 Cloudflare
-wrangler login
+进入 CF 首页后，右上角选择配置文件 -> 我的个人资料 -> API 令牌 -> 创建令牌 -> 编辑 Cloudflare Workers -> `账户资源`和`区域资源`可以自己选择授予权限 -> 继续以显示摘要 -> 创建令牌 -> 保存令牌（**注意：** 保存好自己的令牌，因为只显示一次）
 
-# 部署到 Cloudflare Pages（带 SSL 配置）
-wrangler pages deploy . --project-name cerebr --branch main
-```
+2.2 回到首页，左侧找到 Workers -> 打开 `Worker 和 Pages` -> 点击`创建` -> `Pages` -> 导入现有 Git 存储库 -> 找到 Fork 的存储库 -> 开始部署
+
+2.3 项目名称写上自己喜欢的名字，在`构建命令`项输入：
+
+`npm install -g wrangler && wrangler pages deploy . --project-name cerebr --branch main`
+
+2.4 下方`环境变量（高级）` -> 添加变量：
+
+`CLOUDFLARE_API_TOKEN`：填上刚申请到的API
+`CLOUDFLARE_ACCOUNT_ID`：Cloudflare 控制台首页的 URL 中获取，格式如 https://dash.cloudflare.com/<ACCOUNT_ID>
+
+2.5 保存并部署。
+
+（由于直接构建部署会导致 API 和 accountID 会以明文形式保存，若想更改成密文，可以选择部署完成后点击`继续处理项目` -> 设置 -> 变量和机密 -> 编辑 -> 把`文本`形式更改成`密文` -> 保存）
 
 3. 你也可以部署到 GitHub Pages：
 
