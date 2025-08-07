@@ -79,16 +79,24 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
 
 2. You can deploy to Cloudflare Pages:
 
-```bash
-# Install Wrangler CLI
-npm install -g wrangler
+2.1 After registering a Cloudflare account, apply for a Workers API TOKEN. 
 
-# Login to Cloudflare
-wrangler login
+After entering the Cloudflare homepage, select "Profile" in the upper right corner -> "My Profile" -> "API Tokens" -> "Create Token" -> "Edit Cloudflare Workers" -> You can choose the permissions for "Account Resources" and "Zone Resources" by yourself -> Continue to summary -> Create Token -> Save the token (**Note:** Save your token properly as it will only be displayed once). 
 
-# Deploy to Cloudflare Pages with SSL configuration
-wrangler pages deploy . --project-name cerebr --branch main
-```
+2.2 Return to the homepage, find "Workers" on the left -> Open "Workers & Pages" -> Click "Create" -> "Pages" -> "Import an existing Git repository" -> Find the forked repository -> Begin setup. 
+
+2.3 Enter a name you like for the project, and in the "Build command" field, input:
+
+`npm install -g wrangler && wrangler pages deploy . --project-name cerebr --branch main` 
+
+2.4 In the "Environment variables (advanced)" section below -> Add variable: 
+
+`CLOUDFLARE_API_TOKEN`: Fill in the API just applied for 
+`CLOUDFLARE_ACCOUNT_ID`: Obtained from the URL of the Cloudflare dashboard homepage, in the format like https://dash.cloudflare.com/<ACCOUNT_ID> 
+
+2.5 Save and deploy. 
+
+(Since direct build and deployment will cause the API and accountID to be saved in plain text, if you want to change them to ciphertext, you can choose to click "Continue to project" after deployment is completed -> "Settings" -> "Variables and Secrets" -> "Edit" -> Change the "Text" form to "Secret" -> Save)
 
 3. You can also deploy to GitHub Pages:
 
