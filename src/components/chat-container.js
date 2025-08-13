@@ -194,44 +194,15 @@ export function initChatContainer({
         }
     });
 
-    // 添加一个锁变量和队列用于消息更新
-    let isUpdating = false;
-    const updateQueue = [];
-
     // 创建消息同步函数
     const syncMessage = async (updatedChatId, message) => {
         const currentChat = chatManager.getCurrentChat();
         // 只有当更新的消息属于当前显示的对话时才更新界面
         if (currentChat && currentChat.id === updatedChatId) {
-            // 将更新任务添加到队列
-            updateQueue.push(message);
-
-            // 如果当前没有更新在进行，开始处理队列
-            if (!isUpdating) {
-                await processUpdateQueue();
-            }
-        }
-    };
-
-    // 处理更新队列的函数
-    const processUpdateQueue = async () => {
-        if (isUpdating || updateQueue.length === 0) return;
-
-        try {
-            isUpdating = true;
-            while (updateQueue.length > 0) {
-                const message = updateQueue.shift();
-                await updateAIMessage({
-                    text: message,
-                    chatContainer
-                });
-            }
-        } finally {
-            isUpdating = false;
-            // 检查是否在处理过程中有新的更新加入队列
-            if (updateQueue.length > 0) {
-                await processUpdateQueue();
-            }
+            await updateAIMessage({
+                text: message,
+                chatContainer
+            });
         }
     };
 

@@ -107,10 +107,34 @@ export async function callAPI({
                 content: '',
                 reasoning_content: ''
             };
+            let lastUpdateTime = 0;
+            let updateTimeout = null;
+            const UPDATE_INTERVAL = 100; // 每100ms更新一次
+
+            const dispatchUpdate = () => {
+                if (chatManager && chatId) {
+                    // 创建一个副本以避免回调函数意外修改
+                    const messageCopy = { ...currentMessage };
+                    chatManager.updateLastMessage(chatId, messageCopy);
+                    onMessageUpdate(chatId, messageCopy);
+                    lastUpdateTime = Date.now();
+                }
+                if (updateTimeout) {
+                    clearTimeout(updateTimeout);
+                    updateTimeout = null;
+                }
+            };
 
             while (true) {
                 const { done, value } = await reader.read();
-                if (done) break;
+                if (done) {
+                     // 确保最后的数据被发送
+                    if (Date.now() - lastUpdateTime > 0) {
+                        dispatchUpdate();
+                    }
+                    // console.log('[chat.js] processStream: 响应流结束');
+                    break;
+                }
 
                 const chunk = new TextDecoder().decode(value);
                 buffer += chunk;
@@ -128,19 +152,26 @@ export async function callAPI({
 
                         try {
                             const delta = JSON.parse(data).choices[0]?.delta;
+                            let hasUpdate = false;
                             if (delta?.content) {
                                 currentMessage.content += delta.content;
+                                hasUpdate = true;
                             }
                             if (delta?.reasoning_content) {
                                 currentMessage.reasoning_content += delta.reasoning_content;
+                                hasUpdate = true;
                             }
 
-                            // 直接更新 chatManager
-                            if (chatManager && chatId && (delta?.content || delta?.reasoning_content)) {
-                                // console.log('callAPI', chatId);
-                                chatManager.updateLastMessage(chatId, currentMessage);
-                                // 通知消息更新
-                                onMessageUpdate(chatId, currentMessage);
+                            if (hasUpdate) {
+                                if (!updateTimeout) {
+                                     // 如果距离上次更新超过了间隔，则立即更新
+                                    if (Date.now() - lastUpdateTime > UPDATE_INTERVAL) {
+                                        dispatchUpdate();
+                                    } else {
+                                         // 否则，设置一个定时器，在间隔的剩余时间后更新
+                                        updateTimeout = setTimeout(dispatchUpdate, UPDATE_INTERVAL - (Date.now() - lastUpdateTime));
+                                    }
+                                }
                             }
                         } catch (e) {
                             console.error('解析数据时出错:', e);

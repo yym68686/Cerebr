@@ -171,6 +171,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
+    // 新增：带重试逻辑的API调用函数
+    async function callAPIWithRetry(apiParams, chatManager, chatId, onMessageUpdate, maxRetries = 10) {
+        let attempt = 0;
+        while (attempt <= maxRetries) {
+            const { processStream, controller } = await callAPI(apiParams, chatManager, chatId, onMessageUpdate);
+            currentController = controller;
+            abortControllerRef.current = controller;
+
+            const result = await processStream();
+
+            // 如果 content 为空但 reasoning_content 不为空，则可能被截断，进行重试
+            if (result && !result.content && result.reasoning_content && attempt < maxRetries) {
+                console.log(`API响应可能被截断，正在重试... (尝试次数 ${attempt + 1})`);
+                attempt++;
+                // 在重试前，将不完整的 assistant 消息从历史记录中移除
+                chatManager.popMessage();
+            } else {
+                return; // 成功或达到最大重试次数
+            }
+        }
+    }
+
     async function regenerateMessage(messageElement) {
         if (!messageElement) return;
 
@@ -235,13 +257,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 webpageInfo: isExtensionEnvironment ? await getEnabledTabsContent() : null
             };
 
-            // 调用 API
-            const { processStream, controller } = await callAPI(apiParams, chatManager, currentChat.id, chatContainerManager.syncMessage);
-            currentController = controller;
-            abortControllerRef.current = controller;
-
-            // 处理流式响应
-            await processStream();
+            // 调用带重试逻辑的 API
+            await callAPIWithRetry(apiParams, chatManager, currentChat.id, chatContainerManager.syncMessage);
 
         } catch (error) {
             if (error.name === 'AbortError') {
@@ -312,13 +329,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 webpageInfo: isExtensionEnvironment ? await getEnabledTabsContent() : null
             };
 
-            // 调用 API
-            const { processStream, controller } = await callAPI(apiParams, chatManager, currentChat.id, chatContainerManager.syncMessage);
-            currentController = controller;
-            abortControllerRef.current = controller; // 同步更新引用对象
-
-            // 处理流式响应
-            await processStream();
+            // 调用带重试逻辑的 API
+            await callAPIWithRetry(apiParams, chatManager, currentChat.id, chatContainerManager.syncMessage);
 
         } catch (error) {
             if (error.name === 'AbortError') {
