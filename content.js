@@ -528,8 +528,17 @@ async function extractPageContent(skipWaitContent = false) {
       }
     }
 
-    const tempContainer = document.createElement('div');
-    tempContainer.innerHTML = document.body.innerHTML;
+    const tempContainer = document.body.cloneNode(true);
+
+    // 将表单元素的实时 value 同步到克隆的节点中，以便 innerText 可以获取到
+    const originalFormElements = document.body.querySelectorAll('textarea, input');
+    const clonedFormElements = tempContainer.querySelectorAll('textarea, input');
+    originalFormElements.forEach((el, index) => {
+      if (clonedFormElements[index] && el.value) {
+        clonedFormElements[index].textContent = el.value;
+      }
+    });
+
     const selectorsToRemove = [
         'script', 'style', 'nav', 'header', 'footer',
         'iframe', 'noscript', 'img', 'svg', 'video',
