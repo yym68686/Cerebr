@@ -7,31 +7,48 @@ on:
       - 'v*' # 当推送新的版本标签时触发
 
 jobs:
-  build:
+  build-and-release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
-          submodules: 'recursive'  # 这会递归地检出所有子模块
+          submodules: 'recursive'
 
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '16'
 
-      - name: Create ZIP file
+      - name: Create Chrome ZIP file
         run: |
           zip -r cerebr.zip . \
             -x "*.git*" \
             -x "*.github*" \
             -x "*.DS_Store" \
-            -x "README*"
+            -x "README*" \
+            -x "manifest.firefox.json"
+
+      - name: Create Firefox ZIP file
+        run: |
+          mv manifest.json manifest.json.bak
+          cp manifest.firefox.json manifest.json
+          zip -r cerebr-firefox.zip . \
+            -x "*.git*" \
+            -x "*.github*" \
+            -x "*.DS_Store" \
+            -x "README*" \
+            -x "manifest.firefox.json" \
+            -x "manifest.json.bak"
+          # Restore original manifest
+          mv manifest.json.bak manifest.json
 
       - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
-          files: cerebr.zip
+          files: |
+            cerebr.zip
+            cerebr-firefox.zip
           draft: false
           prerelease: false
           generate_release_notes: true
