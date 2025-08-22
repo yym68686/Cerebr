@@ -38,7 +38,8 @@ jobs:
             -x "*.DS_Store" \
             -x "README*" \
             -x "manifest.firefox.json" \
-            -x "manifest.json.bak"
+            -x "manifest.json.bak" \
+            -x "cerebr.zip"
           # Restore original manifest
           mv manifest.json.bak manifest.json
 
