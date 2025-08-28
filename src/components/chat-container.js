@@ -55,20 +55,22 @@ export function initChatContainer({
     chatContainer.addEventListener('contextmenu', (e) => {
         const messageElement = e.target.closest('.ai-message, .user-message');
         const codeElement = e.target.closest('pre > code');
+        const imageElement = e.target.closest('img');
 
         if (messageElement) {
             currentMessageElement = messageElement;
             currentCodeElement = codeElement;
 
             // 获取菜单元素
-            const copyMessageButton = document.getElementById('copy-message');
             const copyCodeButton = document.getElementById('copy-code');
             const copyMathButton = document.getElementById('copy-math');
+            const copyImageButton = document.getElementById('copy-image');
             const stopUpdateButton = document.getElementById('stop-update');
+            const copyMessageButton = document.getElementById('copy-message');
             const deleteMessageButton = document.getElementById('delete-message');
             const regenerateMessageButton = document.getElementById('regenerate-message');
 
-             // 根据右键点击的元素类型显示/隐藏相应的菜单项
+            // 根据右键点击的元素类型显示/隐藏相应的菜单项
             regenerateMessageButton.style.display = 'flex';
             copyMessageButton.style.display = 'flex';
             deleteMessageButton.style.display = 'flex';
@@ -77,6 +79,12 @@ export function initChatContainer({
 
             // 只有AI消息且正在更新时才显示停止更新按钮
             stopUpdateButton.style.display = (messageElement.classList.contains('ai-message') && messageElement.classList.contains('updating')) ? 'flex' : 'none';
+
+            const isImageClick = imageElement && messageElement.classList.contains('ai-message');
+            copyImageButton.style.display = isImageClick ? 'flex' : 'none';
+            if (isImageClick) {
+                copyImageButton.dataset.src = imageElement.src;
+            }
 
             showContextMenu({
                 event: e,
@@ -190,7 +198,10 @@ export function initChatContainer({
     chatContainer.addEventListener('click', (e) => {
         if (e.target.tagName === 'IMG') {
             e.preventDefault();
-            e.stopPropagation();
+            // 注意：这里不再调用 e.stopPropagation()。
+            // 这样，点击事件可以冒泡到 document 上的全局监听器，
+            // 该监听器会检查点击是否在菜单外部，并相应地隐藏菜单。
+            // 我之前的修改错误地在这里隐藏了菜单，现在这个逻辑由全局监听器正确处理。
         }
     });
 
@@ -210,6 +221,7 @@ export function initChatContainer({
     function setupButtonHandlers({
         copyMessageButton,
         copyCodeButton,
+        copyImageButton,
         stopUpdateButton,
         deleteMessageButton,
         regenerateMessageButton,
@@ -246,6 +258,29 @@ export function initChatContainer({
                         });
                     })
                     .catch(err => console.error('复制代码失败:', err));
+            }
+        });
+
+        // 点击复制图片按钮
+        copyImageButton.addEventListener('click', async () => {
+            const base64Data = copyImageButton.dataset.src;
+            if (base64Data) {
+                try {
+                    const response = await fetch(base64Data);
+                    const blob = await response.blob();
+                    await navigator.clipboard.write([
+                        new ClipboardItem({ [blob.type]: blob })
+                    ]);
+                    hideContextMenu({
+                        contextMenu,
+                        onMessageElementReset: () => {
+                            currentMessageElement = null;
+                            currentCodeElement = null;
+                        }
+                    });
+                } catch (err) {
+                    console.error('复制图片失败:', err);
+                }
             }
         });
 

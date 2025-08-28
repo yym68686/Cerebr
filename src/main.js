@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const contextMenu = document.getElementById('context-menu');
     const copyMessageButton = document.getElementById('copy-message');
     const copyCodeButton = document.getElementById('copy-code');
+    const copyImageButton = document.getElementById('copy-image');
     const stopUpdateButton = document.getElementById('stop-update');
     const settingsButton = document.getElementById('settings-button');
     const settingsMenu = document.getElementById('settings-menu');
@@ -94,6 +95,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     chatContainerManager.setupButtonHandlers({
         copyMessageButton,
         copyCodeButton,
+        copyImageButton,
         stopUpdateButton,
         deleteMessageButton,
         regenerateMessageButton,
