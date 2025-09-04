@@ -3,6 +3,47 @@ import { showImagePreview, createImageTag } from '../utils/ui.js';
 import { processMathAndMarkdown, renderMathInElement } from '../../htmd/latex.js';
 
 /**
+ * Preloads and caches an image to a blob property on the img element.
+ * This allows for instant copying later.
+ * @param {HTMLImageElement} imgElement The image element to preload.
+ */
+async function preloadAndCacheImage(imgElement) {
+    const imageUrl = imgElement.src;
+    // Don't preload base64 images, or if already cached
+    if (!imageUrl || imageUrl.startsWith('data:') || imgElement.cachedBlob) {
+        return;
+    }
+
+    try {
+        const blob = await new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                canvas.toBlob(resolve, 'image/png');
+            };
+            img.onerror = () => {
+                // Don't reject, just resolve with null so the app doesn't crash
+                // The copy function will handle the error later if needed.
+                console.warn(`Could not preload image due to CORS or network error: ${imageUrl}`);
+                resolve(null);
+            };
+            img.src = imageUrl;
+        });
+
+        if (blob) {
+            imgElement.cachedBlob = blob;
+        }
+    } catch (err) {
+        console.error('Failed to preload and cache image:', err);
+    }
+}
+
+/**
  * 消息接口
  * @typedef {Object} Message
  * @property {string} role - 消息角色 ("user" | "assistant")
@@ -131,6 +172,9 @@ export async function appendMessage({
     } catch (err) {
         console.error('渲染LaTeX公式失败:', err);
     }
+
+    // Preload images for faster copying
+    messageDiv.querySelectorAll('img').forEach(preloadAndCacheImage);
 
     // 处理消息中的链接
     messageDiv.querySelectorAll('a').forEach(link => {
@@ -299,6 +343,9 @@ export async function updateAIMessage({
 
             // 渲染LaTeX公式
             await renderMathInElement(mainContent);
+
+            // Preload images for faster copying
+            mainContent.querySelectorAll('img').forEach(preloadAndCacheImage);
 
             // 处理新染的链接
             lastMessage.querySelectorAll('a').forEach(link => {

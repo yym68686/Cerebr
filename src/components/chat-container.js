@@ -263,24 +263,58 @@ export function initChatContainer({
 
         // 点击复制图片按钮
         copyImageButton.addEventListener('click', async () => {
-            const base64Data = copyImageButton.dataset.src;
-            if (base64Data) {
-                try {
-                    const response = await fetch(base64Data);
-                    const blob = await response.blob();
+            const imageUrl = copyImageButton.dataset.src;
+            if (!imageUrl) return;
+
+            // Find the actual image element in the message
+            const imgElement = currentMessageElement.querySelector(`img[src="${imageUrl}"]`);
+
+            try {
+                let blob = imgElement ? imgElement.cachedBlob : null;
+
+                // If not cached, fetch it on-demand
+                if (!blob) {
+                    console.warn("Image was not pre-cached, fetching on demand.");
+                    if (imageUrl.startsWith('data:')) {
+                        const response = await fetch(imageUrl);
+                        blob = await response.blob();
+                    } else {
+                        blob = await new Promise((resolve, reject) => {
+                            const img = new Image();
+                            img.crossOrigin = "anonymous";
+                            img.onload = () => {
+                                const canvas = document.createElement('canvas');
+                                canvas.width = img.width;
+                                canvas.height = img.height;
+                                const ctx = canvas.getContext('2d');
+                                ctx.drawImage(img, 0, 0);
+                                canvas.toBlob(resolve, 'image/png');
+                            };
+                            img.onerror = () => reject(new Error('由于CORS策略，无法加载图片进行复制。'));
+                            img.src = imageUrl;
+                        });
+                    }
+                }
+
+                if (blob) {
                     await navigator.clipboard.write([
                         new ClipboardItem({ [blob.type]: blob })
                     ]);
-                    hideContextMenu({
-                        contextMenu,
-                        onMessageElementReset: () => {
-                            currentMessageElement = null;
-                            currentCodeElement = null;
-                        }
-                    });
-                } catch (err) {
-                    console.error('复制图片失败:', err);
+                } else {
+                    throw new Error('无法获取图片数据。');
                 }
+
+            } catch (err) {
+                console.error('复制图片失败:', err);
+                alert(err.message || '复制图片失败，可能是因为服务器的CORS安全策略限制。');
+            } finally {
+                hideContextMenu({
+                    contextMenu,
+                    onMessageElementReset: () => {
+                        currentMessageElement = null;
+                        currentCodeElement = null;
+                    }
+                });
             }
         });
 
