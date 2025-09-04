@@ -279,20 +279,13 @@ export function initChatContainer({
                         const response = await fetch(imageUrl);
                         blob = await response.blob();
                     } else {
-                        blob = await new Promise((resolve, reject) => {
-                            const img = new Image();
-                            img.crossOrigin = "anonymous";
-                            img.onload = () => {
-                                const canvas = document.createElement('canvas');
-                                canvas.width = img.width;
-                                canvas.height = img.height;
-                                const ctx = canvas.getContext('2d');
-                                ctx.drawImage(img, 0, 0);
-                                canvas.toBlob(resolve, 'image/png');
-                            };
-                            img.onerror = () => reject(new Error('由于CORS策略，无法加载图片进行复制。'));
-                            img.src = imageUrl;
-                        });
+                        // Use the proxy for on-demand fetching as well
+                        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(imageUrl)}`;
+                        const response = await fetch(proxyUrl);
+                        if (!response.ok) {
+                            throw new Error(`通过代理获取图片失败: ${response.statusText}`);
+                        }
+                        blob = await response.blob();
                     }
                 }
 
@@ -306,7 +299,7 @@ export function initChatContainer({
 
             } catch (err) {
                 console.error('复制图片失败:', err);
-                alert(err.message || '复制图片失败，可能是因为服务器的CORS安全策略限制。');
+                alert(err.message || '复制图片失败，请稍后重试。');
             } finally {
                 hideContextMenu({
                     contextMenu,

@@ -14,32 +14,19 @@ async function preloadAndCacheImage(imgElement) {
         return;
     }
 
-    try {
-        const blob = await new Promise((resolve, reject) => {
-            const img = new Image();
-            img.crossOrigin = "anonymous";
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                canvas.width = img.width;
-                canvas.height = img.height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0);
-                canvas.toBlob(resolve, 'image/png');
-            };
-            img.onerror = () => {
-                // Don't reject, just resolve with null so the app doesn't crash
-                // The copy function will handle the error later if needed.
-                console.warn(`Could not preload image due to CORS or network error: ${imageUrl}`);
-                resolve(null);
-            };
-            img.src = imageUrl;
-        });
+    // Use the proxy for external URLs
+    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(imageUrl)}`;
 
-        if (blob) {
-            imgElement.cachedBlob = blob;
+    try {
+        const response = await fetch(proxyUrl);
+        if (!response.ok) {
+            console.warn(`Failed to preload image via proxy for ${imageUrl}: ${response.statusText}`);
+            return;
         }
+        const blob = await response.blob();
+        imgElement.cachedBlob = blob;
     } catch (err) {
-        console.error('Failed to preload and cache image:', err);
+        console.error(`Failed to preload and cache image for ${imageUrl} via proxy:`, err);
     }
 }
 
