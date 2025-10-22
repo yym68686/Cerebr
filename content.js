@@ -5,6 +5,20 @@ class CerebrSidebar {
     this.initialized = false;
     this.pageKey = window.location.origin + window.location.pathname;
     this.lastUrl = window.location.href;
+    this.sidebar = null;
+    this.hideTimeout = null;
+    this.handleSidebarTransitionEnd = (event) => {
+      if (!this.sidebar || event.target !== this.sidebar || event.propertyName !== 'transform') {
+        return;
+      }
+      if (!this.isVisible) {
+        if (this.hideTimeout) {
+          clearTimeout(this.hideTimeout);
+          this.hideTimeout = null;
+        }
+        this.sidebar.style.display = 'none';
+      }
+    };
     this.initializeSidebar();
     this.setupDragAndDrop(); // 添加拖放事件监听器
   }
@@ -34,7 +48,11 @@ class CerebrSidebar {
         this.sidebarWidth = state.width;
 
         if (this.isVisible) {
+          this.sidebar.style.display = 'block';
           this.sidebar.classList.add('visible');
+        } else {
+          this.sidebar.classList.remove('visible');
+          this.sidebar.style.display = 'none';
         }
         this.sidebar.style.width = `${this.sidebarWidth}px`;
       }
@@ -75,7 +93,8 @@ class CerebrSidebar {
           height: calc(100vh - 40px);
           background: var(--cerebr-bg-color, #ffffff);
           color: var(--cerebr-text-color, #000000);
-          box-shadow: -2px 0 15px rgba(0,0,0,0.1);
+          --cerebr-sidebar-box-shadow: -2px 0 15px rgba(0,0,0,0.1);
+          box-shadow: none;
           z-index: 2147483647;
           border-radius: 12px;
           margin-right: 20px;
@@ -88,18 +107,19 @@ class CerebrSidebar {
         }
         .cerebr-sidebar.initialized {
           visibility: visible;
-          transition: transform 0.3s ease;
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
           pointer-events: auto;
         }
         @media (prefers-color-scheme: dark) {
           .cerebr-sidebar {
             --cerebr-bg-color: #282c34;
             --cerebr-text-color: #abb2bf;
-            box-shadow: -2px 0 20px rgba(0,0,0,0.3);
+            --cerebr-sidebar-box-shadow: -2px 0 20px rgba(0,0,0,0.3);
           }
         }
         .cerebr-sidebar.visible {
           transform: translateX(-450px);
+          box-shadow: var(--cerebr-sidebar-box-shadow, -2px 0 15px rgba(0,0,0,0.1));
         }
         .cerebr-sidebar__content {
           height: 100%;
@@ -118,6 +138,8 @@ class CerebrSidebar {
 
       this.sidebar = document.createElement('div');
       this.sidebar.className = 'cerebr-sidebar';
+      this.sidebar.style.display = 'none';
+      this.sidebar.addEventListener('transitionend', this.handleSidebarTransitionEnd);
 
       // 防止外部JavaScript访问和修改侧边栏
       Object.defineProperty(this.sidebar, 'remove', {
@@ -223,9 +245,32 @@ class CerebrSidebar {
 
       // 更新DOM状态
       if (this.isVisible) {
+        if (this.hideTimeout) {
+          clearTimeout(this.hideTimeout);
+          this.hideTimeout = null;
+        }
+        this.sidebar.style.display = 'block';
+        void this.sidebar.offsetWidth; // 强制重排以使过渡动画运行
         this.sidebar.classList.add('visible');
       } else {
         this.sidebar.classList.remove('visible');
+
+        if (this.hideTimeout) {
+          clearTimeout(this.hideTimeout);
+          this.hideTimeout = null;
+        }
+
+        if (!wasVisible) {
+          this.sidebar.style.display = 'none';
+        } else {
+          this.hideTimeout = setTimeout(() => {
+            if (!this.isVisible) {
+              this.sidebar.style.display = 'none';
+            }
+            this.hideTimeout = null;
+          }, 350);
+          // 350ms是为了和css的transition的0.3s对齐，再加一些余量，等动画结束再设置为display:none
+        }
       }
 
       // 保存状态
