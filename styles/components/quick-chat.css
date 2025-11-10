@@ -25,7 +25,7 @@
     justify-content: center;
     padding: 8px 12px;
     border-radius: 12px;
-    background-color: var(--cerebr-card-bg);
+    background-color: transparent;
     border: 1px solid var(--cerebr-border-color);
     cursor: pointer;
     transition: all 0.2s ease;
@@ -37,9 +37,9 @@
 }
 
 .quick-chat-option:hover {
-    background-color: var(--cerebr-card-hover-bg);
+    background-color: transparent;
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border-color: var(--cerebr-highlight-border-color);
 }
 
 .quick-chat-option:active {
@@ -141,8 +141,8 @@
 }
 
 .quick-chat-option-item {
-    background-color: var(--cerebr-card-bg);
-    border: 1px solid var(--cerebr-border-color);
+    background-color: transparent;
+    border: none;
     border-radius: 12px;
     padding: 16px;
     margin-bottom: 12px;
@@ -186,6 +186,7 @@
 }
 
 .quick-chat-option-prompt-input {
+    box-sizing: border-box;
     width: 100%;
     min-height: 60px;
     padding: 8px 12px;
