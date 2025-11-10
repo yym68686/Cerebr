@@ -4,6 +4,9 @@
     --cerebr-text-color: #333333;
     --cerebr-message-user-bg: #e6eaf0;
     --cerebr-message-ai-bg: #f8fafc;
+    --cerebr-card-bg: rgba(255, 255, 255, 0.8);
+    --cerebr-card-hover-bg: rgba(255, 255, 255, 0.9);
+    --cerebr-border-color: rgba(0, 0, 0, 0.1);
     --cerebr-input-bg: #f8f8f8;
     --cerebr-icon-color: #666666;
     /* --cerebr-bg-color: #f2f2f7;
@@ -46,6 +49,9 @@
     --cerebr-text-color: #d8dde6;
     --cerebr-message-user-bg: #3E4451;
     --cerebr-message-ai-bg: #2c313c;
+    --cerebr-card-bg: rgba(50, 50, 50, 0.8);
+    --cerebr-card-hover-bg: rgba(60, 60, 60, 0.9);
+    --cerebr-border-color: rgba(255, 255, 255, 0.1);
     --cerebr-input-bg: #21252b;
     --cerebr-icon-color: #abb2bf;
     --cerebr-card-border-color: rgba(255, 255, 255, 0.1);
@@ -82,6 +88,9 @@
         --cerebr-text-color: #d8dde6;
         --cerebr-message-user-bg: #3E4451;
         --cerebr-message-ai-bg: #2c313c;
+        --cerebr-card-bg: rgba(50, 50, 50, 0.8);
+        --cerebr-card-hover-bg: rgba(60, 60, 60, 0.9);
+        --cerebr-border-color: rgba(255, 255, 255, 0.1);
         --cerebr-input-bg: #21252b;
         --cerebr-icon-color: #abb2bf;
         --cerebr-card-border-color: rgba(255, 255, 255, 0.1);

@@ -4,7 +4,7 @@
     overflow-y: scroll;
     padding: 15px;
     padding-top: calc(15px + env(safe-area-inset-top));
-    padding-bottom: calc(60px + env(safe-area-inset-bottom));
+    padding-bottom: calc(120px + env(safe-area-inset-bottom));
     scrollbar-width: none;
     -ms-overflow-style: none;
     min-height: 100%;
@@ -24,5 +24,5 @@
 }
 
 .keyboard-visible #chat-container {
-    padding-bottom: calc(60px + env(safe-area-inset-bottom) + var(--keyboard-height, 0px));
+    padding-bottom: calc(120px + env(safe-area-inset-bottom) + var(--keyboard-height, 0px));
 }

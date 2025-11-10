@@ -85,3 +85,19 @@
         border-top-color: var(--cerebr-text-color);
     }
 }
+
+/* 選項按鈕區域下滑動畫 */
+@keyframes slideDownFadeOut {
+    0% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+}
+
+.quick-chat-options-hiding {
+    animation: slideDownFadeOut 0.3s ease-out forwards;
+}

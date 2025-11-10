@@ -17,6 +17,7 @@ import {
     renderChatList
 } from './components/chat-list.js';
 import { initWebpageMenu, getEnabledTabsContent } from './components/webpage-menu.js';
+import { initQuickChat, toggleQuickChatOptions } from './components/quick-chat.js';
 
 // 存储用户的问题历史
 let userQuestions = [];
@@ -47,6 +48,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const regenerateMessageButton = document.getElementById('regenerate-message');
     const webpageQAContainer = document.getElementById('webpage-qa');
     const webpageContentMenu = document.getElementById('webpage-content-menu');
+
+    // 常用聊天選項相關元素
+    const quickChatContainer = document.getElementById('quick-chat-options');
+    const quickChatSettingsPage = document.getElementById('quick-chat-settings-page');
 
     // 修改: 创建一个对象引用来保存当前控制器
     const abortControllerRef = { current: null };
@@ -116,6 +121,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         uiConfig,
         settingsMenu,
         webpageContentMenu // 传递二级菜单
+    });
+
+    // 初始化常用聊天選項
+    initQuickChat({
+        quickChatContainer,
+        messageInput,
+        settingsPage: quickChatSettingsPage,
+        settingsButton,
+        settingsMenu,
+        sendMessage,
+        uiConfig
     });
 
     // 初始化ChatManager
@@ -313,6 +329,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 sender: 'user',
                 chatContainer,
             });
+
+            // 隐藏选项按钮区域
+            toggleQuickChatOptions(false);
 
             // 清空输入框并调整高度
             clearMessageInput(messageInput, uiConfig);

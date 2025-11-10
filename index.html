@@ -22,6 +22,27 @@
 </head>
 <body>
     <div id="chat-container"></div>
+
+    <!-- 常用聊天選項區域 -->
+    <div id="quick-chat-options">
+        <div class="quick-chat-option" data-prompt="请帮我总结这篇文章的主要内容">
+            <span class="quick-chat-icon">📝</span>
+            <span class="quick-chat-title">文章总结</span>
+        </div>
+        <div class="quick-chat-option" data-prompt="请解释这个网页的内容">
+            <span class="quick-chat-icon">🌐</span>
+            <span class="quick-chat-title">解释网页内容</span>
+        </div>
+        <div class="quick-chat-option" data-prompt="请将以下内容翻译成中文">
+            <span class="quick-chat-icon">🔄</span>
+            <span class="quick-chat-title">翻译内容</span>
+        </div>
+        <div class="quick-chat-option" data-prompt="请解释这段代码的功能">
+            <span class="quick-chat-icon">💻</span>
+            <span class="quick-chat-title">代码解释</span>
+        </div>
+    </div>
+
     <div id="context-menu">
         <div class="context-menu-item" id="copy-message">
             <svg viewBox="0 0 24 24">
@@ -106,6 +127,12 @@
                     <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                 </svg>
             </div>
+            <div class="menu-item" id="quick-chat-settings">
+                <span>选项区设置</span>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </div>
             <div class="menu-item" id="api-settings-toggle">
                 <span>API 设置</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -188,6 +215,11 @@
                 </svg>
             </button>
             <span class="settings-title">对话列表</span>
+            <button class="clear-all-btn" title="清除所有對話">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M2 4h12M5 4V3a1 1 0 011-1h4a1 1 0 011 1v1m2 0v9a1 1 0 01-1 1H4a1 1 0 01-1-1V4h10z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
             <div class="search-container">
                 <input type="search" id="chat-search-input" placeholder="搜索对话...">
                 <button class="clear-search-btn" style="display: none;">
@@ -214,6 +246,33 @@
             </div>
         </div>
     </div>
+
+    <!-- 常用聊天選項設置頁面 -->
+    <div id="quick-chat-settings-page">
+        <div class="settings-header">
+            <button class="back-button">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M12 4L6 10L12 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <span class="settings-title">选项区设置</span>
+        </div>
+        <div class="quick-chat-settings-content">
+            <div class="quick-chat-options-list">
+                <!-- 常用選項將通過JavaScript動態生成 -->
+            </div>
+            <div class="quick-chat-settings-actions">
+                <button id="add-quick-chat-option" class="add-button">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                    添加选项
+                </button>
+                <button id="reset-quick-chat-options" class="reset-button">重置所有为默认</button>
+            </div>
+        </div>
+    </div>
+
     <div class="image-preview-modal">
         <div class="image-preview-content">
             <img src="" alt="预览图片">

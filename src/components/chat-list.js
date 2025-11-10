@@ -1,5 +1,6 @@
 import { appendMessage } from '../handlers/message-handler.js';
 import { storageAdapter, browserAdapter, isExtensionEnvironment } from '../utils/storage-adapter.js';
+import { toggleQuickChatOptions } from './quick-chat.js';
 
 // 渲染对话列表
 export function renderChatList(chatManager, chatCards, searchTerm = '') {
@@ -80,6 +81,10 @@ export async function switchToChat(chatId, chatManager) {
     const chat = await chatManager.switchChat(chatId);
     if (chat) {
         await loadChatContent(chat, document.getElementById('chat-container'));
+
+        // 根据对话是否有消息来显示或隐藏选项按钮区域
+        const hasMessages = chat.messages && chat.messages.length > 0;
+        toggleQuickChatOptions(!hasMessages);
 
         // 更新对话列表中的选中状态
         document.querySelectorAll('.chat-card').forEach(card => {
@@ -213,5 +218,54 @@ export function initializeChatList({
     const chatListBackButton = chatListPage.querySelector('.back-button');
     if (chatListBackButton) {
         chatListBackButton.addEventListener('click', () => hideChatList(chatListPage));
+    }
+
+    // 清除所有對話按鈕點擊事件
+    const clearAllBtn = chatListPage.querySelector('.clear-all-btn');
+    if (clearAllBtn) {
+        clearAllBtn.addEventListener('click', async () => {
+            // 確認對話框
+            const isConfirmed = confirm('确定要清除所有对话历史记录吗？此操作无法撤销');
+            if (!isConfirmed) return;
+
+            try {
+                // 清除所有對話
+                const newChat = await chatManager.clearAllChats();
+
+                // 重新加載對話列表
+                renderChatList(chatManager, chatCards);
+
+                // 加載新對話內容
+                await loadChatContent(newChat, document.getElementById('chat-container'));
+
+                // 隱藏對話列表頁面
+                hideChatList(chatListPage);
+
+                // 顯示成功提示
+                const successMessage = document.createElement('div');
+                successMessage.className = 'success-toast';
+                successMessage.textContent = '所有对话已清除';
+                document.body.appendChild(successMessage);
+
+                // 3秒後移除提示
+                setTimeout(() => {
+                    successMessage.remove();
+                }, 3000);
+
+            } catch (error) {
+                console.error('清除对话失败:', error);
+
+                // 顯示錯誤提示
+                const errorMessage = document.createElement('div');
+                errorMessage.className = 'error-toast';
+                errorMessage.textContent = '清除对话失败: ' + error.message;
+                document.body.appendChild(errorMessage);
+
+                // 3秒後移除提示
+                setTimeout(() => {
+                    errorMessage.remove();
+                }, 3000);
+            }
+        });
     }
 }
