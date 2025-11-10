@@ -336,6 +336,7 @@ function createAPICard({
  * @param {number} params.selectedConfigIndex - 当前选中的配置索引
  * @param {function} params.saveAPIConfigs - 保存API配置的函数
  * @param {function} params.renderAPICardsWithCallbacks - 重新渲染卡片的函数
+ * @param {function} params.updatePlaceholder - 更新 placeholder 的函数
  * @returns {Object} 回调函数对象
  */
 export function createCardCallbacks({
@@ -343,7 +344,8 @@ export function createCardCallbacks({
     apiConfigs,
     selectedConfigIndex,
     saveAPIConfigs,
-    renderAPICardsWithCallbacks
+    renderAPICardsWithCallbacks,
+    updatePlaceholder
 }) {
     return {
         onCardSelect: selectCard,
@@ -363,11 +365,15 @@ export function createCardCallbacks({
                 }
                 saveAPIConfigs();
                 renderAPICardsWithCallbacks();
+                updatePlaceholder();
             }
         },
         onCardChange: (index, newConfig) => {
             apiConfigs[index] = newConfig;
             saveAPIConfigs();
+            if (index === selectedConfigIndex) {
+                updatePlaceholder();
+            }
         }
     };
 }

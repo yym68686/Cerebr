@@ -260,12 +260,26 @@ export function initMessageInput(config) {
  */
 export function setPlaceholder({ messageInput, placeholder, timeout }) {
     if (messageInput) {
+        const originalPlaceholder = messageInput.getAttribute('data-original-placeholder') || '输入消息...';
         messageInput.setAttribute('placeholder', placeholder);
         if (timeout) {
             setTimeout(() => {
-                messageInput.setAttribute('placeholder', '输入消息...');
+                messageInput.setAttribute('placeholder', originalPlaceholder);
             }, timeout);
         }
+    }
+}
+
+/**
+ * 更新输入框的永久 placeholder
+ * @param {HTMLElement} messageInput - 消息输入框元素
+ * @param {string} modelName - 当前模型的名称
+ */
+export function updatePermanentPlaceholder(messageInput, modelName) {
+    if (messageInput) {
+        const placeholder = `向 ${modelName} 发送消息...`;
+        messageInput.setAttribute('placeholder', placeholder);
+        messageInput.setAttribute('data-original-placeholder', placeholder);
     }
 }
 

@@ -7,7 +7,7 @@ import { initChatContainer } from './components/chat-container.js';
 import { showImagePreview, hideImagePreview } from './utils/ui.js';
 import { renderAPICards, createCardCallbacks, selectCard } from './components/api-card.js';
 import { storageAdapter, syncStorageAdapter, browserAdapter, isExtensionEnvironment } from './utils/storage-adapter.js';
-import { initMessageInput, getFormattedMessageContent, buildMessageContent, clearMessageInput, handleWindowMessage } from './components/message-input.js';
+import { initMessageInput, getFormattedMessageContent, buildMessageContent, clearMessageInput, handleWindowMessage, updatePermanentPlaceholder } from './components/message-input.js';
 import './utils/viewport.js';
 import {
     hideChatList,
@@ -482,6 +482,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const backButton = document.querySelector('.back-button');
     const apiCards = document.querySelector('.api-cards');
 
+    // 更新 placeholder 的函数
+    function updatePlaceholderWithCurrentModel() {
+        if (apiConfigs.length > 0 && selectedConfigIndex < apiConfigs.length) {
+            const modelName = apiConfigs[selectedConfigIndex].modelName || 'default model';
+            updatePermanentPlaceholder(messageInput, modelName);
+        }
+    }
+
     // 使用新的selectCard函数
     const handleCardSelect = (template, index) => {
         selectCard({
@@ -489,6 +497,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             index,
             onIndexChange: (newIndex) => {
                 selectedConfigIndex = newIndex;
+                updatePlaceholderWithCurrentModel();
             },
             onSave: saveAPIConfigs,
             cardSelector: '.api-card',
@@ -510,7 +519,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 apiConfigs,
                 selectedConfigIndex,
                 saveAPIConfigs,
-                renderAPICardsWithCallbacks
+                renderAPICardsWithCallbacks,
+                updatePlaceholder: updatePlaceholderWithCurrentModel
             }),
             selectedIndex: selectedConfigIndex
         });
@@ -540,6 +550,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 确保一定会渲染卡片
             renderAPICardsWithCallbacks();
+            updatePlaceholderWithCurrentModel();
         } catch (error) {
             console.error('加载 API 配置失败:', error);
             // 只有在出错的情况下才使用默认值
@@ -550,6 +561,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }];
             selectedConfigIndex = 0;
             renderAPICardsWithCallbacks();
+            updatePlaceholderWithCurrentModel();
         }
     }
 
