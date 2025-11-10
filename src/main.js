@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const previewImage = previewModal.querySelector('img');
     const chatListPage = document.getElementById('chat-list-page');
     const newChatButton = document.getElementById('new-chat');
+    const newChatButton2 = document.getElementById('new-chat-button');
     const chatListButton = document.getElementById('chat-list');
     const apiSettings = document.getElementById('api-settings');
     const deleteMessageButton = document.getElementById('delete-message');
@@ -158,6 +159,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         settingsMenu,
         apiSettings,
         loadChatContent: (chat) => loadChatContent(chat, chatContainer)
+    });
+
+    newChatButton2.addEventListener('click', () => {
+        newChatButton.click();
     });
 
     // 加载当前对话内容
