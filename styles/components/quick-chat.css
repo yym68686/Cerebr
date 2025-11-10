@@ -1,3 +1,118 @@
+/* 确认对话框样式 */
+.confirm-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1100;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    opacity: 0;
+    animation: fadeIn 0.3s forwards;
+}
+
+.confirm-modal-content {
+    background-color: var(--cerebr-bg-color);
+    padding: 24px;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px var(--cerebr-popup-shadow);
+    width: 90%;
+    max-width: 360px;
+    text-align: center;
+    transform: scale(0.9);
+    animation: scaleIn 0.3s forwards cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.confirm-modal-content p {
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: var(--cerebr-text-color);
+}
+
+.confirm-modal-content small {
+    font-size: 13px;
+    color: var(--cerebr-text-color);
+    opacity: 0.7;
+    display: block;
+    margin-bottom: 20px;
+}
+
+.confirm-modal-content .confirm-text {
+    color: #ff4444;
+    font-weight: bold;
+}
+
+#reset-confirm-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--cerebr-border-color);
+    border-radius: 8px;
+    background-color: var(--cerebr-input-bg);
+    color: var(--cerebr-text-color);
+    text-align: center;
+    font-size: 14px;
+    margin-bottom: 20px;
+    box-sizing: border-box;
+}
+
+.confirm-modal-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.modal-button {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.modal-button.cancel {
+    background-color: var(--cerebr-button-bg);
+    color: var(--cerebr-text-color);
+}
+
+.modal-button.cancel:hover {
+    background-color: var(--cerebr-button-hover-bg);
+}
+
+.modal-button.confirm {
+    background-color: #ff4444;
+    color: white;
+}
+
+.modal-button.confirm:hover {
+    background-color: #cc0000;
+}
+
+.modal-button.confirm:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+@keyframes fadeIn {
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes scaleIn {
+    to {
+        transform: scale(1);
+    }
+}
+
 /* 常用聊天選項樣式 */
 
 /* 常用聊天選項容器 */

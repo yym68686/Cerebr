@@ -179,12 +179,25 @@ export async function initQuickChat({
 
         // 重置按鈕事件
         resetButton.addEventListener('click', () => {
-            if (confirm('确定要重置为默认选项吗？这将删除所有自定义选项。')) {
-                quickChatOptions = [...DEFAULT_QUICK_CHAT_OPTIONS];
-                saveQuickChatOptions();
-                renderQuickChatOptions();
-                renderSettingsOptions();
-            }
+            const modal1 = document.getElementById('reset-confirm-modal-1');
+            modal1.style.display = 'flex';
+        });
+
+        // Modal 1 event listeners
+        const cancelReset1 = document.getElementById('cancel-reset-1');
+        const confirmReset1 = document.getElementById('confirm-reset-1');
+        const modal1 = document.getElementById('reset-confirm-modal-1');
+
+        cancelReset1.addEventListener('click', () => {
+            modal1.style.display = 'none';
+        });
+
+        confirmReset1.addEventListener('click', () => {
+            modal1.style.display = 'none';
+            quickChatOptions = [...DEFAULT_QUICK_CHAT_OPTIONS];
+            saveQuickChatOptions();
+            renderQuickChatOptions();
+            renderSettingsOptions();
         });
 
         // 渲染設置選項
