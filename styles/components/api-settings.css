@@ -169,3 +169,66 @@
     border-color: var(--cerebr-highlight-border-color);
     box-shadow: 0 0 0 1px var(--cerebr-highlight-border-color);
 }
+
+.model-name-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.model-name-container .model-name {
+    flex-grow: 1;
+    padding-right: 30px; /* 为刷新按钮留出空间 */
+}
+
+.refresh-models-btn {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--cerebr-text-color);
+    opacity: 0.6;
+}
+
+.refresh-models-btn:hover {
+    opacity: 1;
+}
+
+.refresh-models-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.model-list-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--cerebr-message-ai-bg);
+    border: 1px solid var(--cerebr-card-border-color);
+    border-radius: 4px;
+    max-height: 150px;
+    overflow-y: auto;
+    z-index: 10;
+}
+
+.model-list-dropdown.visible {
+    display: block;
+}
+
+.model-list-item {
+    padding: 8px;
+    cursor: pointer;
+}
+
+.model-list-item:hover {
+    background-color: var(--cerebr-button-hover-bg);
+}

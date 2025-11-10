@@ -110,10 +110,15 @@ function createAPICard({
     const apiKeyInput = template.querySelector('.api-key');
     const baseUrlInput = template.querySelector('.base-url');
     const modelNameInput = template.querySelector('.model-name');
+    const modelListDropdown = template.querySelector('.model-list-dropdown');
+    const refreshModelsBtn = template.querySelector('.refresh-models-btn');
     const systemPromptInput = template.querySelector('.system-prompt');
     const advancedSettingsHeader = template.querySelector('.advanced-settings-header');
     const advancedSettingsContent = template.querySelector('.advanced-settings-content');
     const toggleIcon = template.querySelector('.toggle-icon');
+
+    // 模型列表缓存
+    let modelCache = {};
 
     // 设置初始值
     apiKeyInput.value = config.apiKey || '';
@@ -166,6 +171,84 @@ function createAPICard({
     [apiKeyInput, baseUrlInput, modelNameInput, systemPromptInput].forEach(input => {
         input.addEventListener('click', stopPropagation);
         input.addEventListener('focus', stopPropagation);
+    });
+
+    // 获取模型列表
+    async function fetchModels(force = false) {
+        const apiKey = apiKeyInput.value;
+        const baseUrl = baseUrlInput.value.replace(/\/chat\/completions$/, '');
+        const cacheKey = `${baseUrl}:${apiKey}`;
+
+        if (!apiKey || !baseUrl) {
+            modelListDropdown.innerHTML = '<div class="model-list-item">请输入API Key和Base URL</div>';
+            modelListDropdown.classList.add('visible');
+            return;
+        }
+
+        if (!force && modelCache[cacheKey]) {
+            renderModelList(modelCache[cacheKey]);
+            return;
+        }
+
+        modelListDropdown.innerHTML = '<div class="model-list-item">加载中...</div>';
+        modelListDropdown.classList.add('visible');
+
+        try {
+            const response = await fetch(`${baseUrl}/models`, {
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('无法获取模型列表');
+            }
+
+            const data = await response.json();
+            const models = data.data.map(model => model.id);
+            modelCache[cacheKey] = models;
+            renderModelList(models);
+        } catch (error) {
+            console.error(error);
+            modelListDropdown.innerHTML = `<div class="model-list-item">${error.message}</div>`;
+        }
+    }
+
+    function renderModelList(models) {
+        modelListDropdown.innerHTML = '';
+        models.forEach(model => {
+            const item = document.createElement('div');
+            item.className = 'model-list-item';
+            item.textContent = model;
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                modelNameInput.value = model;
+                modelListDropdown.classList.remove('visible');
+                onChange(index, { ...config, modelName: model });
+            });
+            modelListDropdown.appendChild(item);
+        });
+        modelListDropdown.classList.add('visible');
+    }
+
+    modelNameInput.addEventListener('focus', () => fetchModels());
+    modelNameInput.addEventListener('input', () => {
+        const searchTerm = modelNameInput.value.toLowerCase();
+        const cacheKey = `${baseUrlInput.value.replace(/\/chat\/completions$/, '')}:${apiKeyInput.value}`;
+        if (modelCache[cacheKey]) {
+            const filteredModels = modelCache[cacheKey].filter(model => model.toLowerCase().includes(searchTerm));
+            renderModelList(filteredModels);
+        }
+    });
+    refreshModelsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        fetchModels(true);
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!template.contains(e.target)) {
+            modelListDropdown.classList.remove('visible');
+        }
     });
 
     // 添加输入法状态跟踪
