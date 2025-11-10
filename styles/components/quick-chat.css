@@ -377,12 +377,12 @@
 }
 
 .reset-button {
-    background-color: var(--cerebr-secondary-bg, #6c757d);
+    background-color: var(--cerebr-secondary-bg, #ff4444);
     color: white;
 }
 
 .reset-button:hover {
-    background-color: var(--cerebr-secondary-hover-bg, #545b62);
+    background-color: var(--cerebr-secondary-hover-bg, #cc0000);
     transform: translateY(-1px);
 }
 

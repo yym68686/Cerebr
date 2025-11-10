@@ -223,11 +223,21 @@ export function initializeChatList({
     // 清除所有對話按鈕點擊事件
     const clearAllBtn = chatListPage.querySelector('.clear-all-btn');
     if (clearAllBtn) {
-        clearAllBtn.addEventListener('click', async () => {
-            // 確認對話框
-            const isConfirmed = confirm('确定要清除所有对话历史记录吗？此操作无法撤销');
-            if (!isConfirmed) return;
+        clearAllBtn.addEventListener('click', () => {
+            const modal = document.getElementById('clear-all-chats-confirm-modal');
+            modal.style.display = 'flex';
+        });
 
+        const cancelClearAll = document.getElementById('cancel-clear-all-chats');
+        const confirmClearAll = document.getElementById('confirm-clear-all-chats');
+        const modal = document.getElementById('clear-all-chats-confirm-modal');
+
+        cancelClearAll.addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
+
+        confirmClearAll.addEventListener('click', async () => {
+            modal.style.display = 'none';
             try {
                 // 清除所有對話
                 const newChat = await chatManager.clearAllChats();
