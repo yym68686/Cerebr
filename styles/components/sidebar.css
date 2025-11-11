@@ -17,17 +17,19 @@
     pointer-events: none;
     contain: style layout size;
     isolation: isolate;
+    opacity: 0;
 }
 
 .cerebr-sidebar.initialized {
     visibility: visible;
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    transition: transform 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease;
     pointer-events: auto;
 }
 
 .cerebr-sidebar.visible {
     transform: translateX(-450px);
     box-shadow: var(--cerebr-sidebar-box-shadow);
+    opacity: 1;
 }
 
 /* 侧边栏组件样式 */

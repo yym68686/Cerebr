@@ -8,15 +8,18 @@ class CerebrSidebar {
     this.sidebar = null;
     this.hideTimeout = null;
     this.handleSidebarTransitionEnd = (event) => {
-      if (!this.sidebar || event.target !== this.sidebar || event.propertyName !== 'transform') {
+      if (!this.sidebar || event.target !== this.sidebar) {
         return;
       }
-      if (!this.isVisible) {
-        if (this.hideTimeout) {
-          clearTimeout(this.hideTimeout);
-          this.hideTimeout = null;
+      // We listen for both transform and opacity to end
+      if (event.propertyName === 'transform' || event.propertyName === 'opacity') {
+        if (!this.isVisible) {
+          if (this.hideTimeout) {
+            clearTimeout(this.hideTimeout);
+            this.hideTimeout = null;
+          }
+          this.sidebar.style.display = 'none';
         }
-        this.sidebar.style.display = 'none';
       }
     };
     this.initializeSidebar();
@@ -104,10 +107,11 @@ class CerebrSidebar {
           pointer-events: none;
           contain: style layout size;
           isolation: isolate;
+          opacity: 0;
         }
         .cerebr-sidebar.initialized {
           visibility: visible;
-          transition: transform 0.3s ease, box-shadow 0.3s ease;
+          transition: transform 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease;
           pointer-events: auto;
         }
         @media (prefers-color-scheme: dark) {
@@ -120,6 +124,7 @@ class CerebrSidebar {
         .cerebr-sidebar.visible {
           transform: translateX(-450px);
           box-shadow: var(--cerebr-sidebar-box-shadow, -2px 0 15px rgba(0,0,0,0.1));
+          opacity: 1;
         }
         .cerebr-sidebar__content {
           height: 100%;
