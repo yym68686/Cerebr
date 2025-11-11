@@ -295,8 +295,8 @@ function createAPICard({
                 },
                 body: JSON.stringify({
                     model: modelName,
-                    messages: [{ role: 'user', content: 'Test' }],
-                    max_tokens: 5,
+                    messages: [{ role: 'user', content: 'ok，你好' }],
+                    max_tokens: 10,
                     stream: false
                 })
             });
