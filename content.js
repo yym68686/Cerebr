@@ -103,7 +103,8 @@ class CerebrSidebar {
           margin-right: 20px;
           overflow: hidden;
           visibility: hidden;
-          transform: translateX(0);
+          transform: translateX(0) scale(0.92);
+          transform-origin: right center;
           pointer-events: none;
           contain: style layout size;
           isolation: isolate;
@@ -122,7 +123,7 @@ class CerebrSidebar {
           }
         }
         .cerebr-sidebar.visible {
-          transform: translateX(-450px);
+          transform: translateX(-450px) scale(1);
           box-shadow: var(--cerebr-sidebar-box-shadow, -2px 0 15px rgba(0,0,0,0.1));
           opacity: 1;
         }
