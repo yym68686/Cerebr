@@ -117,3 +117,16 @@
 .quick-chat-options-showing {
     animation: slideUpFadeIn 0.3s ease-out forwards;
 }
+
+/* 等待LLM回覆的動畫 */
+@keyframes thinking-dots {
+    0%, 20% {
+        transform: scale(0);
+    }
+    40% {
+        transform: scale(1);
+    }
+    100% {
+        transform: scale(0);
+    }
+}

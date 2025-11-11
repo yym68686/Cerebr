@@ -1,7 +1,7 @@
 import { setTheme } from './utils/theme.js';
 import { callAPI } from './services/chat.js';
 import { chatManager } from './utils/chat-manager.js';
-import { appendMessage } from './handlers/message-handler.js';
+import { appendMessage, createWaitingMessage } from './handlers/message-handler.js';
 import { hideContextMenu } from './components/context-menu.js';
 import { initChatContainer } from './components/chat-container.js';
 import { showImagePreview, hideImagePreview } from './utils/ui.js';
@@ -332,7 +332,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
 
             // 先添加用户消息到界面和历史记录
-            appendMessage({
+            await appendMessage({
                 text: userMessage,
                 sender: 'user',
                 chatContainer,
@@ -350,6 +350,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             messages.push(userMessage);
             chatManager.addMessageToCurrentChat(userMessage);
 
+            // 显示等待动画
+            const waitingMessage = createWaitingMessage(chatContainer);
+
             // 准备API调用参数
             const apiParams = {
                 messages,
@@ -359,7 +362,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
 
             // 调用带重试逻辑的 API
-            await callAPIWithRetry(apiParams, chatManager, currentChat.id, chatContainerManager.syncMessage);
+            await callAPIWithRetry(apiParams, chatManager, currentChat.id, (chatId, message) => {
+                // 在收到API响应后，移除等待动画
+                if (waitingMessage) {
+                    waitingMessage.remove();
+                }
+                chatContainerManager.syncMessage(chatId, message);
+            });
 
         } catch (error) {
             if (error.name === 'AbortError') {
