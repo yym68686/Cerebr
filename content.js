@@ -281,6 +281,8 @@ class CerebrSidebar {
         const iframe = this.sidebar.querySelector('.cerebr-sidebar__iframe');
         if (iframe) {
           iframe.contentWindow.postMessage({ type: 'FOCUS_INPUT' }, '*');
+          // 添加检查对话状态的消息
+          iframe.contentWindow.postMessage({ type: 'CHECK_CHAT_STATUS' }, '*');
         }
       }
     } catch (error) {

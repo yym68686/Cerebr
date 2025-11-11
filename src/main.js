@@ -188,6 +188,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             newChatButton,
             uiConfig
         });
+
+        // 处理检查对话状态的消息
+        if (event.data.type === 'CHECK_CHAT_STATUS') {
+            const currentChat = chatManager.getCurrentChat();
+            const hasMessages = currentChat && currentChat.messages && currentChat.messages.length > 0;
+            toggleQuickChatOptions(!hasMessages);
+        }
     });
 
     // 新增：带重试逻辑的API调用函数
