@@ -111,7 +111,7 @@ function createAPICard({
     const baseUrlInput = template.querySelector('.base-url');
     const modelNameInput = template.querySelector('.model-name');
     const modelListDropdown = template.querySelector('.model-list-dropdown');
-    const refreshModelsBtn = template.querySelector('.refresh-models-btn');
+    const testConnectionBtn = template.querySelector('.test-connection-btn');
     const systemPromptInput = template.querySelector('.system-prompt');
     const advancedSettingsHeader = template.querySelector('.advanced-settings-header');
     const advancedSettingsContent = template.querySelector('.advanced-settings-content');
@@ -263,10 +263,77 @@ function createAPICard({
             renderModelList(filteredModels);
         }
     });
-    refreshModelsBtn.addEventListener('click', (e) => {
+    testConnectionBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        fetchModels(true);
+        testModelConnection();
     });
+
+    async function testModelConnection() {
+        const apiKey = apiKeyInput.value;
+        const baseUrl = baseUrlInput.value;
+        const modelName = modelNameInput.value;
+
+        if (!apiKey || !baseUrl || !modelName) {
+            alert('请输入 API Key, Base URL, 和 Model Name');
+            return;
+        }
+
+        const originalBtnContent = testConnectionBtn.innerHTML;
+        testConnectionBtn.disabled = true;
+        testConnectionBtn.innerHTML = `
+            <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+            </svg>
+        `;
+
+        try {
+            const response = await fetch(baseUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: modelName,
+                    messages: [{ role: 'user', content: 'Test' }],
+                    max_tokens: 5,
+                    stream: false
+                })
+            });
+
+            if (!response.ok) {
+                let errorMsg = `HTTP error! status: ${response.status}`;
+                try {
+                    const errorData = await response.json();
+                    errorMsg += ` - ${errorData.error?.message || JSON.stringify(errorData)}`;
+                } catch (e) {
+                    // ignore if response is not json
+                }
+                throw new Error(errorMsg);
+            }
+
+            testConnectionBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 6L9 17l-5-5"/>
+                </svg>
+            `;
+
+        } catch (error) {
+            console.error('Test connection error:', error);
+            alert(`连接失败: ${error.message}`);
+            testConnectionBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            `;
+        } finally {
+            setTimeout(() => {
+                testConnectionBtn.disabled = false;
+                testConnectionBtn.innerHTML = originalBtnContent;
+            }, 3000);
+        }
+    }
 
     document.addEventListener('click', (e) => {
         if (!template.contains(e.target)) {

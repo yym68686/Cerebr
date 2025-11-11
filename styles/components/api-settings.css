@@ -181,7 +181,7 @@
     padding-right: 30px; /* 为刷新按钮留出空间 */
 }
 
-.refresh-models-btn {
+.test-connection-btn {
     position: absolute;
     right: 5px;
     top: 50%;
@@ -197,13 +197,26 @@
     opacity: 0.6;
 }
 
-.refresh-models-btn:hover {
+.test-connection-btn:hover {
     opacity: 1;
 }
 
-.refresh-models-btn svg {
+.test-connection-btn svg {
     width: 16px;
     height: 16px;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spin {
+    animation: spin 1s linear infinite;
 }
 
 .model-list-dropdown {
