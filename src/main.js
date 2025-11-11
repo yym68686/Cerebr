@@ -280,7 +280,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 messages: messagesToResend,
                 apiConfig: apiConfigs[selectedConfigIndex],
                 userLanguage: navigator.language,
-                webpageInfo: isExtensionEnvironment ? await getEnabledTabsContent() : null
+                webpageInfo: isExtensionEnvironment && sendWebpageSwitch.checked ? await getEnabledTabsContent() : null
             };
 
             // 调用带重试逻辑的 API
@@ -358,7 +358,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 messages,
                 apiConfig: apiConfigs[selectedConfigIndex],
                 userLanguage: navigator.language,
-                webpageInfo: isExtensionEnvironment ? await getEnabledTabsContent() : null
+                webpageInfo: isExtensionEnvironment && sendWebpageSwitch.checked ? await getEnabledTabsContent() : null
             };
 
             // 调用带重试逻辑的 API
@@ -455,6 +455,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 主题切换
     const themeSwitch = document.getElementById('theme-switch');
+    const sendWebpageSwitch = document.getElementById('send-webpage-switch');
 
     // 创建主题配置对象
     const themeConfig = {
@@ -492,6 +493,30 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 初始化主题
     await initTheme();
+
+    // 初始化“传送网页”开关
+    async function initSendWebpageSwitch() {
+        try {
+            const result = await syncStorageAdapter.get('sendWebpageContent');
+            // 默认开启
+            const shouldSend = result.sendWebpageContent === undefined ? true : result.sendWebpageContent;
+            sendWebpageSwitch.checked = shouldSend;
+        } catch (error) {
+            console.error('初始化“传送网页”开关失败:', error);
+            sendWebpageSwitch.checked = true; // 出错时默认开启
+        }
+    }
+
+    // 监听“传送网页”开关变化
+    sendWebpageSwitch.addEventListener('change', async () => {
+        try {
+            await syncStorageAdapter.set({ sendWebpageContent: sendWebpageSwitch.checked });
+        } catch (error) {
+            console.error('保存“传送网页”设置失败:', error);
+        }
+    });
+
+    await initSendWebpageSwitch();
 
     // API 设置功能
     const apiSettingsToggle = document.getElementById('api-settings-toggle');
