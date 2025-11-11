@@ -121,10 +121,10 @@
     justify-content: space-around;
     align-items: center;
     padding: 12px 16px;
-    background-color: var(--cerebr-input-bg);
-    border-top: 1px solid var(--cerebr-border-color);
+    background-color: transparent;
+    border-top: none;
     position: fixed;
-    bottom: 60px;
+    bottom: 45px;
     left: 0;
     right: 0;
     z-index: 99;
@@ -410,3 +410,4 @@
     font-size: 14px;
     opacity: 0.8;
 }
+
