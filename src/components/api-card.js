@@ -119,6 +119,7 @@ function createAPICard({
 
     // 模型列表缓存
     let modelCache = {};
+    let highlightedIndex = -1;
 
     // 设置初始值
     apiKeyInput.value = config.apiKey || '';
@@ -216,10 +217,15 @@ function createAPICard({
 
     function renderModelList(models) {
         modelListDropdown.innerHTML = '';
-        models.forEach(model => {
+        if (models.length === 0) {
+            modelListDropdown.classList.remove('visible');
+            return;
+        }
+        models.forEach((model, idx) => {
             const item = document.createElement('div');
             item.className = 'model-list-item';
             item.textContent = model;
+            item.dataset.index = idx;
             item.addEventListener('click', (e) => {
                 e.stopPropagation();
                 modelNameInput.value = model;
@@ -229,9 +235,26 @@ function createAPICard({
             modelListDropdown.appendChild(item);
         });
         modelListDropdown.classList.add('visible');
+        highlightedIndex = -1; // Reset highlight when list is re-rendered
     }
 
-    modelNameInput.addEventListener('focus', () => fetchModels());
+    function updateHighlight() {
+        const items = modelListDropdown.querySelectorAll('.model-list-item');
+        items.forEach((item, idx) => {
+            if (idx === highlightedIndex) {
+                item.classList.add('highlighted');
+                item.scrollIntoView({ block: 'nearest' });
+            } else {
+                item.classList.remove('highlighted');
+            }
+        });
+    }
+
+    modelNameInput.addEventListener('focus', () => {
+        fetchModels();
+        highlightedIndex = -1;
+    });
+
     modelNameInput.addEventListener('input', () => {
         const searchTerm = modelNameInput.value.toLowerCase();
         const cacheKey = `${baseUrlInput.value.replace(/\/chat\/completions$/, '')}:${apiKeyInput.value}`;
@@ -276,6 +299,37 @@ function createAPICard({
                 onSelect(template, index);
             }
         });
+    });
+
+    modelNameInput.addEventListener('keydown', (e) => {
+        if (!modelListDropdown.classList.contains('visible')) return;
+
+        const items = modelListDropdown.querySelectorAll('.model-list-item');
+        if (items.length === 0) return;
+
+        switch (e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                highlightedIndex = (highlightedIndex + 1) % items.length;
+                updateHighlight();
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                highlightedIndex = (highlightedIndex - 1 + items.length) % items.length;
+                updateHighlight();
+                break;
+            case 'Enter':
+                e.preventDefault();
+                e.stopPropagation();
+                if (highlightedIndex > -1) {
+                    items[highlightedIndex].click();
+                }
+                break;
+            case 'Escape':
+                e.preventDefault();
+                modelListDropdown.classList.remove('visible');
+                break;
+        }
     });
 
     // 为按钮添加点击事件阻止冒泡

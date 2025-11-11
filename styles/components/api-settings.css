@@ -229,6 +229,7 @@
     cursor: pointer;
 }
 
-.model-list-item:hover {
+.model-list-item:hover,
+.model-list-item.highlighted {
     background-color: var(--cerebr-button-hover-bg);
 }

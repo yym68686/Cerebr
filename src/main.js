@@ -517,9 +517,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             },
             onSave: saveAPIConfigs,
             cardSelector: '.api-card',
-            onSelect: () => {
-                // 关闭API设置面板
-                apiSettings.classList.remove('visible');
+            onSelect: (selectedCard, index) => {
+                // 只有在点击卡片本身时才关闭设置面板
+                if (selectedCard && selectedCard.contains(event.target) && !selectedCard.querySelector('.model-name-container').contains(event.target)) {
+                    apiSettings.classList.remove('visible');
+                }
             }
         });
     };
