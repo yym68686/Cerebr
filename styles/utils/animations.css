@@ -101,3 +101,19 @@
 .quick-chat-options-hiding {
     animation: slideDownFadeOut 0.3s ease-out forwards;
 }
+
+/* 選項按鈕區域上滑動畫 */
+@keyframes slideUpFadeIn {
+    0% {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.quick-chat-options-showing {
+    animation: slideUpFadeIn 0.3s ease-out forwards;
+}

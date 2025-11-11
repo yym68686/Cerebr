@@ -359,9 +359,13 @@ export function toggleQuickChatOptions(show) {
     const quickChatOptionsElement = document.getElementById('quick-chat-options');
     if (quickChatOptionsElement) {
         if (show) {
-            // 顯示時直接設置 display，移除任何動畫類
+            // 顯示時使用動畫效果
             quickChatOptionsElement.style.display = '';
             quickChatOptionsElement.classList.remove('quick-chat-options-hiding');
+            quickChatOptionsElement.classList.add('quick-chat-options-showing');
+            setTimeout(() => {
+                quickChatOptionsElement.classList.remove('quick-chat-options-showing');
+            }, 300);
         } else {
             // 隱藏時使用動畫效果
             quickChatOptionsElement.classList.add('quick-chat-options-hiding');
