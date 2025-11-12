@@ -2,21 +2,21 @@
     position: fixed;
     min-width: 180px;
     max-width: 200px;
-    background-color: var(--settings-bg-color);
-    border: 1px solid var(--settings-border-color);
+    background-color: var(--cerebr-bg-color);
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 20px var(--cerebr-popup-shadow);
     padding: 8px;
     z-index: 1001;
     display: none;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
     max-height: 300px;
     overflow-y: auto;
+    backdrop-filter: blur(var(--cerebr-blur-radius));
+    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
 }
 
 #webpage-content-menu.visible {
     display: block;
+    animation: menuAppear 0.2s ease;
 }
 
 .webpage-menu-item {
@@ -30,7 +30,7 @@
 }
 
 .webpage-menu-item:hover {
-    background-color: var(--settings-hover-bg-color);
+    background-color: var(--cerebr-message-user-bg);
 }
 
 .webpage-menu-item .title {

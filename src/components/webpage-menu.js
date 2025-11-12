@@ -152,15 +152,10 @@ export async function getEnabledTabsContent() {
 }
 
 export function initWebpageMenu({ webpageQAContainer, webpageContentMenu }) {
-    webpageQAContainer.addEventListener('click', async (e) => {
-        e.stopPropagation();
+    let menuTimeout;
 
-        if (webpageContentMenu.classList.contains('visible')) {
-            webpageContentMenu.classList.remove('visible');
-            webpageContentMenu.style.visibility = 'hidden'; // 确保隐藏
-            return;
-        }
-
+    const showMenu = async () => {
+        clearTimeout(menuTimeout);
         // 核心修复：先隐藏，计算完位置再显示，防止闪烁
         webpageContentMenu.style.visibility = 'hidden';
         webpageContentMenu.classList.add('visible');
@@ -180,5 +175,24 @@ export function initWebpageMenu({ webpageQAContainer, webpageContentMenu }) {
 
         // 在正确的位置上使其可见
         webpageContentMenu.style.visibility = 'visible';
+    };
+
+    const hideMenu = () => {
+        menuTimeout = setTimeout(() => {
+            webpageContentMenu.classList.remove('visible');
+        }, 200); // 200ms 延迟
+    };
+
+    webpageQAContainer.addEventListener('mouseenter', showMenu);
+    webpageQAContainer.addEventListener('mouseleave', hideMenu);
+    webpageContentMenu.addEventListener('mouseenter', () => clearTimeout(menuTimeout));
+    webpageContentMenu.addEventListener('mouseleave', hideMenu);
+
+    webpageQAContainer.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isVisible = webpageContentMenu.classList.toggle('visible');
+        if (isVisible) {
+            showMenu();
+        }
     });
 }

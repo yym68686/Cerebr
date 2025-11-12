@@ -251,13 +251,34 @@
     padding: 16px;
 }
 
+.quick-chat-settings-content::-webkit-scrollbar {
+    width: 8px;
+    background-color: transparent;
+}
+
+.quick-chat-settings-content::-webkit-scrollbar-track {
+    background-color: transparent;
+    border-radius: 4px;
+}
+
+.quick-chat-settings-content::-webkit-scrollbar-thumb {
+    background-color: var(--cerebr-border-color);
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+
+.quick-chat-settings-content::-webkit-scrollbar-thumb:hover {
+    background-color: var(--cerebr-icon-color);
+}
+
 .quick-chat-options-list {
     margin-bottom: 20px;
 }
 
 .quick-chat-option-item {
     background-color: transparent;
-    border: none;
+    border: 1px solid var(--cerebr-border-color);
     border-radius: 12px;
     padding: 16px;
     margin-bottom: 12px;
@@ -312,6 +333,27 @@
     font-size: 14px;
     resize: vertical;
     font-family: inherit;
+}
+
+.quick-chat-option-prompt-input::-webkit-scrollbar {
+    width: 8px;
+    background-color: transparent;
+}
+
+.quick-chat-option-prompt-input::-webkit-scrollbar-track {
+    background-color: transparent;
+    border-radius: 4px;
+}
+
+.quick-chat-option-prompt-input::-webkit-scrollbar-thumb {
+    background-color: var(--cerebr-border-color);
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+
+.quick-chat-option-prompt-input::-webkit-scrollbar-thumb:hover {
+    background-color: var(--cerebr-icon-color);
 }
 
 .quick-chat-option-actions {

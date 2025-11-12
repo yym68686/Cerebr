@@ -284,6 +284,7 @@ export async function initQuickChat({
                     saveQuickChatOptions();
                     renderQuickChatOptions();
                     renderSettingsOptions();
+                    updateAddButtonState(); // 更新添加按钮状态
                 }
             });
 
@@ -292,6 +293,11 @@ export async function initQuickChat({
 
         // 添加新選項
         function addNewQuickChatOption() {
+            if (quickChatOptions.length >= 4) {
+                alert('最多只能添加四个快速选项。');
+                return;
+            }
+
             const newOption = {
                 id: 'custom-' + Date.now(),
                 title: '新选项',
@@ -303,6 +309,7 @@ export async function initQuickChat({
             saveQuickChatOptions();
             renderQuickChatOptions();
             renderSettingsOptions();
+            updateAddButtonState(); // 更新添加按钮状态
 
             // 滾動到新添加的選項
             setTimeout(() => {
@@ -318,8 +325,22 @@ export async function initQuickChat({
             }, 100);
         }
 
+        // 更新“添加”按钮的状态
+        function updateAddButtonState() {
+            if (quickChatOptions.length >= 4) {
+                addButton.disabled = true;
+                addButton.style.opacity = '0.5';
+                addButton.style.cursor = 'not-allowed';
+            } else {
+                addButton.disabled = false;
+                addButton.style.opacity = '1';
+                addButton.style.cursor = 'pointer';
+            }
+        }
+
         // 初始渲染
         renderSettingsOptions();
+        updateAddButtonState(); // 初始加载时更新按钮状态
     }
 
     // 設置按鈕事件處理

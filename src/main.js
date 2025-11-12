@@ -427,8 +427,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const hideMenu = () => {
         menuTimeout = setTimeout(() => {
-            settingsMenu.classList.remove('visible');
-            webpageContentMenu.classList.remove('visible'); // 同时隐藏二级菜单
+            if (!settingsMenu.matches(':hover') && !webpageContentMenu.matches(':hover')) {
+                settingsMenu.classList.remove('visible');
+                webpageContentMenu.classList.remove('visible'); // 同时隐藏二级菜单
+            }
         }, 200); // 200ms 延迟
     };
 
