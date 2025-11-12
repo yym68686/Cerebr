@@ -359,33 +359,39 @@
 .quick-chat-option-actions {
     display: flex;
     gap: 8px;
+    z-index: 3;
 }
 
 .quick-chat-option-button {
-    width: 32px;
-    height: 32px;
+    background: none;
     border: none;
-    border-radius: 6px;
-    background-color: var(--cerebr-button-bg);
-    color: var(--cerebr-text-color);
+    padding: 8px;
     cursor: pointer;
+    color: var(--cerebr-text-color);
+    opacity: 0.6;
+    transition: opacity 0.2s, background-color 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background-color 0.2s ease;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    position: relative;
 }
 
 .quick-chat-option-button:hover {
+    opacity: 1;
     background-color: var(--cerebr-button-hover-bg);
 }
 
 .quick-chat-option-button.delete {
-    background-color: #ff4444;
-    color: white;
+    background-color: transparent;
+    color: var(--cerebr-text-color);
 }
 
 .quick-chat-option-button.delete:hover {
-    background-color: #cc0000;
+    opacity: 1;
+    background-color: var(--cerebr-button-hover-bg);
 }
 
 .quick-chat-settings-actions {
@@ -397,8 +403,8 @@
 
 .add-button, .reset-button {
     padding: 12px 24px;
-    border: none;
-    border-radius: 8px;
+    border: 1px solid var(--cerebr-border-color);
+    border-radius: 12px;
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
@@ -406,26 +412,14 @@
     align-items: center;
     gap: 8px;
     transition: all 0.2s ease;
+    background-color: transparent;
+    color: var(--cerebr-text-color);
 }
 
-.add-button {
-    background-color: var(--cerebr-primary-color, #007bff);
-    color: white;
-}
-
-.add-button:hover {
-    background-color: var(--cerebr-primary-hover-color, #0056b3);
-    transform: translateY(-1px);
-}
-
-.reset-button {
-    background-color: var(--cerebr-secondary-bg, #ff4444);
-    color: white;
-}
-
-.reset-button:hover {
-    background-color: var(--cerebr-secondary-hover-bg, #cc0000);
-    transform: translateY(-1px);
+.add-button:hover, .reset-button:hover {
+    background-color: transparent;
+    transform: translateY(-2px);
+    border-color: var(--cerebr-highlight-border-color);
 }
 
 /* 空狀態提示 */
