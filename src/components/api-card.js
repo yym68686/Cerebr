@@ -131,15 +131,40 @@ function createAPICard({
 
     // 设置高级设置的展开/折叠状态
     const isExpanded = config.advancedSettings?.isExpanded || false;
-    advancedSettingsContent.style.display = isExpanded ? 'block' : 'none';
+    if (isExpanded) {
+        advancedSettingsContent.style.display = 'block';
+        advancedSettingsContent.classList.add('visible');
+    } else {
+        advancedSettingsContent.style.display = 'none';
+    }
     toggleIcon.style.transform = isExpanded ? 'rotate(180deg)' : '';
 
     // 添加高级设置的展开/折叠功能
     advancedSettingsHeader.addEventListener('click', (e) => {
         e.stopPropagation();
-        const isCurrentlyExpanded = advancedSettingsContent.style.display === 'block';
-        advancedSettingsContent.style.display = isCurrentlyExpanded ? 'none' : 'block';
-        toggleIcon.style.transform = isCurrentlyExpanded ? '' : 'rotate(180deg)';
+
+        const isCurrentlyExpanded = advancedSettingsContent.classList.contains('visible');
+
+        if (isCurrentlyExpanded) {
+            advancedSettingsContent.classList.remove('visible');
+            advancedSettingsContent.classList.add('collapsing');
+            toggleIcon.style.transform = '';
+
+            setTimeout(() => {
+                advancedSettingsContent.classList.remove('collapsing');
+                advancedSettingsContent.style.display = 'none';
+            }, 300);
+        } else {
+            advancedSettingsContent.style.display = 'block';
+            advancedSettingsContent.offsetHeight;
+            advancedSettingsContent.classList.add('expanding');
+            toggleIcon.style.transform = 'rotate(180deg)';
+
+            setTimeout(() => {
+                advancedSettingsContent.classList.remove('expanding');
+                advancedSettingsContent.classList.add('visible');
+            }, 300);
+        }
 
         // 更新配置
         onChange(index, {

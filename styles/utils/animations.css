@@ -130,3 +130,29 @@
         transform: scale(0);
     }
 }
+/* 高級設置伸展動畫 */
+@keyframes expandDown {
+    0% {
+        opacity: 0;
+        max-height: 0;
+        transform: translateY(-10px);
+    }
+    100% {
+        opacity: 1;
+        max-height: 200px; /* 足夠大的值以容納內容 */
+        transform: translateY(0);
+    }
+}
+
+@keyframes collapseUp {
+    0% {
+        opacity: 1;
+        max-height: 200px;
+        transform: translateY(0);
+    }
+    100% {
+        opacity: 0;
+        max-height: 0;
+        transform: translateY(-10px);
+    }
+}

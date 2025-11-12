@@ -246,3 +246,83 @@
 .model-list-item.highlighted {
     background-color: var(--cerebr-button-hover-bg);
 }
+.advanced-settings {
+    margin-top: 12px;
+}
+
+.advanced-settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background-color: var(--cerebr-message-ai-bg);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    user-select: none;
+}
+
+.advanced-settings-header:hover {
+    background-color: var(--cerebr-button-hover-bg);
+}
+
+.advanced-settings-header .toggle-icon {
+    transition: transform 0.3s ease;
+    font-size: 12px;
+    color: var(--cerebr-text-color);
+    opacity: 0.7;
+}
+
+.advanced-settings-content {
+    overflow: hidden;
+    transition: all 0.3s ease;
+    max-height: 0;
+    opacity: 0;
+}
+
+.advanced-settings-content.visible {
+    max-height: 200px;
+    opacity: 1;
+}
+
+.advanced-settings-content.expanding {
+    animation: expandDown 0.3s ease-out forwards;
+    display: block;
+}
+
+.advanced-settings-content.collapsing {
+    animation: collapseUp 0.3s ease-out forwards;
+}
+
+.setting-item {
+    padding: 12px;
+    background-color: var(--cerebr-message-ai-bg);
+    border-radius: 6px;
+    margin-top: 8px;
+}
+
+.setting-item label {
+    display: block;
+    font-size: 12px;
+    opacity: 0.8;
+    margin-bottom: 6px;
+}
+
+.system-prompt {
+    width: 100%;
+    background: var(--cerebr-bg-color);
+    border: 1px solid var(--cerebr-card-border-color);
+    padding: 8px;
+    border-radius: 4px;
+    color: var(--cerebr-text-color);
+    font-size: 14px;
+    resize: vertical;
+    min-height: 60px;
+    font-family: inherit;
+}
+
+.system-prompt:focus {
+    outline: none;
+    border-color: var(--cerebr-highlight-border-color);
+    box-shadow: 0 0 0 1px var(--cerebr-highlight-border-color);
+}
