@@ -1,16 +1,20 @@
 /* 侧边栏基础样式 */
 .cerebr-sidebar {
+    --sidebar-width: 430px;
+    --sidebar-margin: 20px;
+    --sidebar-translation: calc(var(--sidebar-width) + var(--sidebar-margin));
+
     position: fixed;
     top: 20px;
-    right: -450px;
-    width: 430px;
+    right: calc(-1 * var(--sidebar-translation));
+    width: var(--sidebar-width);
     height: calc(100vh - 40px);
     background: var(--cerebr-bg-color);
     color: var(--cerebr-text-color);
     box-shadow: none;
     z-index: 2147483647;
     border-radius: 12px;
-    margin-right: 20px;
+    margin-right: var(--sidebar-margin);
     overflow: hidden;
     visibility: hidden;
     transform: translateX(0) scale(0.92);
@@ -28,7 +32,7 @@
 }
 
 .cerebr-sidebar.visible {
-    transform: translateX(-450px) scale(1);
+    transform: translateX(calc(-1 * var(--sidebar-translation))) scale(1);
     box-shadow: var(--cerebr-sidebar-box-shadow);
     opacity: 1;
 }
@@ -45,11 +49,18 @@
 
 .cerebr-sidebar__resizer {
     position: absolute;
-    left: 0;
+    left: -5px;
     top: 0;
-    width: 5px;
+    width: 15px;
     height: 100%;
     cursor: ew-resize;
+    z-index: 10;
+    background-color: transparent;
+    transition: background-color 0.2s ease;
+}
+
+.cerebr-sidebar__resizer:hover {
+    background-color: rgba(0, 0, 0, 0.1);
 }
 
 .cerebr-sidebar__content {
