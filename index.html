@@ -22,6 +22,27 @@
 </head>
 <body>
     <div id="chat-container"></div>
+
+    <!-- 常用聊天選項區域 -->
+    <div id="quick-chat-options">
+        <div class="quick-chat-option" data-prompt="请帮我总结这篇文章的主要内容">
+            <span class="quick-chat-icon">📝</span>
+            <span class="quick-chat-title">文章总结</span>
+        </div>
+        <div class="quick-chat-option" data-prompt="请解释这个网页的内容">
+            <span class="quick-chat-icon">🌐</span>
+            <span class="quick-chat-title">解释网页内容</span>
+        </div>
+        <div class="quick-chat-option" data-prompt="请将以下内容翻译成中文">
+            <span class="quick-chat-icon">🔄</span>
+            <span class="quick-chat-title">翻译内容</span>
+        </div>
+        <div class="quick-chat-option" data-prompt="请解释这段代码的功能">
+            <span class="quick-chat-icon">💻</span>
+            <span class="quick-chat-title">代码解释</span>
+        </div>
+    </div>
+
     <div id="context-menu">
         <div class="context-menu-item" id="copy-message">
             <svg viewBox="0 0 24 24">
@@ -80,11 +101,23 @@
                 <circle cx="12" cy="18" r="2"/>
             </svg>
         </button>
+        <button id="new-chat-button" title="新对话">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+        </button>
         <div id="settings-menu">
             <div class="menu-item" id="theme-toggle">
                 <span>深色模式</span>
                 <label class="switch">
                     <input type="checkbox" id="theme-switch">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="menu-item" id="send-webpage-toggle">
+                <span>传送网页</span>
+                <label class="switch">
+                    <input type="checkbox" id="send-webpage-switch">
                     <span class="slider"></span>
                 </label>
             </div>
@@ -94,14 +127,14 @@
                     <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
             </div>
-            <div class="menu-item" id="new-chat">
-                <span>新的对话</span>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                </svg>
-            </div>
             <div class="menu-item" id="chat-list">
                 <span>对话列表</span>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <div class="menu-item" id="quick-chat-settings">
+                <span>快速选项</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                 </svg>
@@ -109,7 +142,7 @@
             <div class="menu-item" id="api-settings-toggle">
                 <span>API 设置</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                 </svg>
             </div>
             <div class="menu-item" id="feedback-button">
@@ -161,7 +194,16 @@
                         </div>
                         <div class="form-group">
                             <label>Model Name</label>
-                            <input type="text" class="model-name" placeholder="输入模型名称">
+                            <div class="model-name-container">
+                                <input type="text" class="model-name" placeholder="输入模型名称" list="model-list-datalist">
+                                <button class="test-connection-btn" title="测试连接">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                    </svg>
+                                </button>
+                                <div class="model-list-dropdown"></div>
+                            </div>
                         </div>
                         <div class="advanced-settings">
                             <div class="advanced-settings-header" tabindex="0">
@@ -188,6 +230,11 @@
                 </svg>
             </button>
             <span class="settings-title">对话列表</span>
+            <button class="clear-all-btn" title="清除所有對話">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M2 4h12M5 4V3a1 1 0 011-1h4a1 1 0 011 1v1m2 0v9a1 1 0 01-1 1H4a1 1 0 01-1-1V4h10z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
             <div class="search-container">
                 <input type="search" id="chat-search-input" placeholder="搜索对话...">
                 <button class="clear-search-btn" style="display: none;">
@@ -214,6 +261,58 @@
             </div>
         </div>
     </div>
+
+    <!-- Clear All Chats Confirmation Modal -->
+    <div id="clear-all-chats-confirm-modal" class="confirm-modal" style="display: none;">
+        <div class="confirm-modal-content">
+            <p>您确定要清除所有对话历史记录吗？</p>
+            <small>此操作无法撤销。</small>
+            <div class="confirm-modal-actions">
+                <button id="cancel-clear-all-chats" class="modal-button cancel">取消</button>
+                <button id="confirm-clear-all-chats" class="modal-button confirm">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 常用聊天選項設置頁面 -->
+    <div id="quick-chat-settings-page">
+        <div class="settings-header">
+            <button class="back-button">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M12 4L6 10L12 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <span class="settings-title">快速选项</span>
+        </div>
+        <div class="quick-chat-settings-content">
+            <div class="quick-chat-options-list">
+                <!-- 常用選項將通過JavaScript動態生成 -->
+            </div>
+            <div class="quick-chat-settings-actions">
+                <button id="add-quick-chat-option" class="add-button">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                    添加选项
+                </button>
+                <button id="reset-quick-chat-options" class="reset-button">重置所有为默认</button>
+            </div>
+        </div>
+
+        <!-- Reset Confirmation Modals -->
+        <div id="reset-confirm-modal-1" class="confirm-modal" style="display: none;">
+            <div class="confirm-modal-content">
+                <p>您确定要重置为默认选项吗？</p>
+                <small>此操作将删除所有自定义选项且无法撤销。</small>
+                <div class="confirm-modal-actions">
+                    <button id="cancel-reset-1" class="modal-button cancel">取消</button>
+                    <button id="confirm-reset-1" class="modal-button confirm">确定</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
     <div class="image-preview-modal">
         <div class="image-preview-content">
             <img src="" alt="预览图片">

@@ -19,6 +19,7 @@
 @import './components/api-settings.css';
 @import './components/webpage-menu.css';
 @import './components/chat-container.css';
+@import './components/quick-chat.css';
 
 @import '../htmd/styles/math.css';
 @import '../htmd/styles/table.css';

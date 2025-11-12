@@ -137,6 +137,21 @@ export class ChatManager {
             await this.saveChats();
         }
     }
+
+    async clearAllChats() {
+        // 清除所有對話
+        this.chats.clear();
+
+        // 保存空的對話列表到存儲
+        await this.saveChats();
+
+        // 創建一個新的默認對話
+        const defaultChat = this.createNewChat('默认对话');
+        this.currentChatId = defaultChat.id;
+        await this.storage.set({ [CURRENT_CHAT_ID_KEY]: this.currentChatId });
+
+        return defaultChat;
+    }
 }
 
 // 创建并导出单例实例

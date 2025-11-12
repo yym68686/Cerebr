@@ -44,7 +44,7 @@
         "windows": "Alt+X",
         "mac": "MacCtrl+X"
       },
-      "description": "创建新的对话"
+      "description": "创建新对话"
     }
   },
   "background": {

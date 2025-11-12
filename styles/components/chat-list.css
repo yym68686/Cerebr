@@ -179,3 +179,57 @@
 #chat-search-input::placeholder {
     color: var(--cerebr-text-color-secondary);
 }
+
+/* 清除所有對話按鈕樣式 */
+.clear-all-btn {
+    background: none;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+    color: var(--cerebr-text-color);
+    opacity: 0.6;
+    transition: opacity 0.2s, background-color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    margin-left: 8px;
+}
+
+.clear-all-btn:hover {
+    opacity: 1;
+    background-color: var(--cerebr-button-hover-bg);
+}
+
+.clear-all-btn svg {
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.5;
+}
+
+/* 提示消息樣式 */
+.success-toast, .error-toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 24px;
+    border-radius: 8px;
+    color: white;
+    font-size: 14px;
+    z-index: 2000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.success-toast {
+    background-color: #4caf50;
+}
+
+.error-toast {
+    background-color: #f44336;
+}

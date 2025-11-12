@@ -110,10 +110,16 @@ function createAPICard({
     const apiKeyInput = template.querySelector('.api-key');
     const baseUrlInput = template.querySelector('.base-url');
     const modelNameInput = template.querySelector('.model-name');
+    const modelListDropdown = template.querySelector('.model-list-dropdown');
+    const testConnectionBtn = template.querySelector('.test-connection-btn');
     const systemPromptInput = template.querySelector('.system-prompt');
     const advancedSettingsHeader = template.querySelector('.advanced-settings-header');
     const advancedSettingsContent = template.querySelector('.advanced-settings-content');
     const toggleIcon = template.querySelector('.toggle-icon');
+
+    // 模型列表缓存
+    let modelCache = {};
+    let highlightedIndex = -1;
 
     // 设置初始值
     apiKeyInput.value = config.apiKey || '';
@@ -125,15 +131,40 @@ function createAPICard({
 
     // 设置高级设置的展开/折叠状态
     const isExpanded = config.advancedSettings?.isExpanded || false;
-    advancedSettingsContent.style.display = isExpanded ? 'block' : 'none';
+    if (isExpanded) {
+        advancedSettingsContent.style.display = 'block';
+        advancedSettingsContent.classList.add('visible');
+    } else {
+        advancedSettingsContent.style.display = 'none';
+    }
     toggleIcon.style.transform = isExpanded ? 'rotate(180deg)' : '';
 
     // 添加高级设置的展开/折叠功能
     advancedSettingsHeader.addEventListener('click', (e) => {
         e.stopPropagation();
-        const isCurrentlyExpanded = advancedSettingsContent.style.display === 'block';
-        advancedSettingsContent.style.display = isCurrentlyExpanded ? 'none' : 'block';
-        toggleIcon.style.transform = isCurrentlyExpanded ? '' : 'rotate(180deg)';
+
+        const isCurrentlyExpanded = advancedSettingsContent.classList.contains('visible');
+
+        if (isCurrentlyExpanded) {
+            advancedSettingsContent.classList.remove('visible');
+            advancedSettingsContent.classList.add('collapsing');
+            toggleIcon.style.transform = '';
+
+            setTimeout(() => {
+                advancedSettingsContent.classList.remove('collapsing');
+                advancedSettingsContent.style.display = 'none';
+            }, 300);
+        } else {
+            advancedSettingsContent.style.display = 'block';
+            advancedSettingsContent.offsetHeight;
+            advancedSettingsContent.classList.add('expanding');
+            toggleIcon.style.transform = 'rotate(180deg)';
+
+            setTimeout(() => {
+                advancedSettingsContent.classList.remove('expanding');
+                advancedSettingsContent.classList.add('visible');
+            }, 300);
+        }
 
         // 更新配置
         onChange(index, {
@@ -168,6 +199,173 @@ function createAPICard({
         input.addEventListener('focus', stopPropagation);
     });
 
+    // 获取模型列表
+    async function fetchModels(force = false) {
+        const apiKey = apiKeyInput.value;
+        const baseUrl = baseUrlInput.value.replace(/\/chat\/completions$/, '');
+        const cacheKey = `${baseUrl}:${apiKey}`;
+
+        if (!apiKey || !baseUrl) {
+            modelListDropdown.innerHTML = '<div class="model-list-item">请输入API Key和Base URL</div>';
+            modelListDropdown.classList.add('visible');
+            return;
+        }
+
+        if (!force && modelCache[cacheKey]) {
+            renderModelList(modelCache[cacheKey]);
+            return;
+        }
+
+        modelListDropdown.innerHTML = '<div class="model-list-item">加载中...</div>';
+        modelListDropdown.classList.add('visible');
+
+        try {
+            const response = await fetch(`${baseUrl}/models`, {
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('无法获取模型列表');
+            }
+
+            const data = await response.json();
+            const models = data.data.map(model => model.id);
+            modelCache[cacheKey] = models;
+            renderModelList(models);
+        } catch (error) {
+            console.error(error);
+            modelListDropdown.innerHTML = `<div class="model-list-item">${error.message}</div>`;
+        }
+    }
+
+    function renderModelList(models) {
+        modelListDropdown.innerHTML = '';
+        if (models.length === 0) {
+            modelListDropdown.classList.remove('visible');
+            return;
+        }
+        models.forEach((model, idx) => {
+            const item = document.createElement('div');
+            item.className = 'model-list-item';
+            item.textContent = model;
+            item.dataset.index = idx;
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                modelNameInput.value = model;
+                modelListDropdown.classList.remove('visible');
+                onChange(index, { ...config, modelName: model });
+            });
+            modelListDropdown.appendChild(item);
+        });
+        modelListDropdown.classList.add('visible');
+        highlightedIndex = -1; // Reset highlight when list is re-rendered
+    }
+
+    function updateHighlight() {
+        const items = modelListDropdown.querySelectorAll('.model-list-item');
+        items.forEach((item, idx) => {
+            if (idx === highlightedIndex) {
+                item.classList.add('highlighted');
+                item.scrollIntoView({ block: 'nearest' });
+            } else {
+                item.classList.remove('highlighted');
+            }
+        });
+    }
+
+    modelNameInput.addEventListener('focus', () => {
+        fetchModels();
+        highlightedIndex = -1;
+    });
+
+    modelNameInput.addEventListener('input', () => {
+        const searchTerm = modelNameInput.value.toLowerCase();
+        const cacheKey = `${baseUrlInput.value.replace(/\/chat\/completions$/, '')}:${apiKeyInput.value}`;
+        if (modelCache[cacheKey]) {
+            const filteredModels = modelCache[cacheKey].filter(model => model.toLowerCase().includes(searchTerm));
+            renderModelList(filteredModels);
+        }
+    });
+    testConnectionBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        testModelConnection();
+    });
+
+    async function testModelConnection() {
+        const apiKey = apiKeyInput.value;
+        const baseUrl = baseUrlInput.value;
+        const modelName = modelNameInput.value;
+
+        if (!apiKey || !baseUrl || !modelName) {
+            alert('请输入 API Key, Base URL, 和 Model Name');
+            return;
+        }
+
+        const originalBtnContent = testConnectionBtn.innerHTML;
+        testConnectionBtn.disabled = true;
+        testConnectionBtn.innerHTML = `
+            <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+            </svg>
+        `;
+
+        try {
+            const response = await fetch(baseUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: modelName,
+                    messages: [{ role: 'user', content: 'ok，你好' }],
+                    max_tokens: 10,
+                    stream: false
+                })
+            });
+
+            if (!response.ok) {
+                let errorMsg = `HTTP error! status: ${response.status}`;
+                try {
+                    const errorData = await response.json();
+                    errorMsg += ` - ${errorData.error?.message || JSON.stringify(errorData)}`;
+                } catch (e) {
+                    // ignore if response is not json
+                }
+                throw new Error(errorMsg);
+            }
+
+            testConnectionBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 6L9 17l-5-5"/>
+                </svg>
+            `;
+
+        } catch (error) {
+            console.error('Test connection error:', error);
+            alert(`连接失败: ${error.message}`);
+            testConnectionBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            `;
+        } finally {
+            setTimeout(() => {
+                testConnectionBtn.disabled = false;
+                testConnectionBtn.innerHTML = originalBtnContent;
+            }, 3000);
+        }
+    }
+
+    document.addEventListener('click', (e) => {
+        if (!template.contains(e.target)) {
+            modelListDropdown.classList.remove('visible');
+        }
+    });
+
     // 添加输入法状态跟踪
     let isComposing = false;
 
@@ -193,6 +391,37 @@ function createAPICard({
                 onSelect(template, index);
             }
         });
+    });
+
+    modelNameInput.addEventListener('keydown', (e) => {
+        if (!modelListDropdown.classList.contains('visible')) return;
+
+        const items = modelListDropdown.querySelectorAll('.model-list-item');
+        if (items.length === 0) return;
+
+        switch (e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                highlightedIndex = (highlightedIndex + 1) % items.length;
+                updateHighlight();
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                highlightedIndex = (highlightedIndex - 1 + items.length) % items.length;
+                updateHighlight();
+                break;
+            case 'Enter':
+                e.preventDefault();
+                e.stopPropagation();
+                if (highlightedIndex > -1) {
+                    items[highlightedIndex].click();
+                }
+                break;
+            case 'Escape':
+                e.preventDefault();
+                modelListDropdown.classList.remove('visible');
+                break;
+        }
     });
 
     // 为按钮添加点击事件阻止冒泡
@@ -253,6 +482,7 @@ function createAPICard({
  * @param {number} params.selectedConfigIndex - 当前选中的配置索引
  * @param {function} params.saveAPIConfigs - 保存API配置的函数
  * @param {function} params.renderAPICardsWithCallbacks - 重新渲染卡片的函数
+ * @param {function} params.updatePlaceholder - 更新 placeholder 的函数
  * @returns {Object} 回调函数对象
  */
 export function createCardCallbacks({
@@ -260,7 +490,8 @@ export function createCardCallbacks({
     apiConfigs,
     selectedConfigIndex,
     saveAPIConfigs,
-    renderAPICardsWithCallbacks
+    renderAPICardsWithCallbacks,
+    updatePlaceholder
 }) {
     return {
         onCardSelect: selectCard,
@@ -280,11 +511,15 @@ export function createCardCallbacks({
                 }
                 saveAPIConfigs();
                 renderAPICardsWithCallbacks();
+                updatePlaceholder();
             }
         },
         onCardChange: (index, newConfig) => {
             apiConfigs[index] = newConfig;
             saveAPIConfigs();
+            if (index === selectedConfigIndex) {
+                updatePlaceholder();
+            }
         }
     };
 }

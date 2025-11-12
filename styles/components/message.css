@@ -102,3 +102,30 @@
     transform: translateY(0) scale(1);
     transition: opacity 0.3s ease, transform 0.3s ease;
 }
+
+/* 等待LLM回覆的動畫樣式 */
+.message.waiting .thinking-dots {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 20px;
+}
+
+.message.waiting .thinking-dots span {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin: 0 2px;
+    background-color: var(--cerebr-text-color);
+    border-radius: 50%;
+    animation: thinking-dots 1.4s infinite ease-in-out both;
+}
+
+.message.waiting .thinking-dots span:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.message.waiting .thinking-dots span:nth-child(2) {
+    animation-delay: -0.16s;
+}

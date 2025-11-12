@@ -215,6 +215,29 @@ export async function appendMessage({
 }
 
 /**
+ * 创建一个等待中的消息元素
+ * @param {HTMLElement} chatContainer - 聊天容器元素
+ * @returns {HTMLElement} 创建的等待消息元素
+ */
+export function createWaitingMessage(chatContainer) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message ai-message waiting';
+
+    const thinkingDots = document.createElement('div');
+    thinkingDots.className = 'thinking-dots';
+    thinkingDots.innerHTML = '<span></span><span></span><span></span>';
+    messageDiv.appendChild(thinkingDots);
+
+    chatContainer.appendChild(messageDiv);
+    chatContainer.scrollTo({
+        top: chatContainer.scrollHeight,
+        behavior: 'smooth'
+    });
+
+    return messageDiv;
+}
+
+/**
  * 更新AI消息内容
  * @param {Object} params - 参数对象
  * @param {Object} params.text - 新的消息文本对象，包含content和reasoningContent

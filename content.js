@@ -8,15 +8,18 @@ class CerebrSidebar {
     this.sidebar = null;
     this.hideTimeout = null;
     this.handleSidebarTransitionEnd = (event) => {
-      if (!this.sidebar || event.target !== this.sidebar || event.propertyName !== 'transform') {
+      if (!this.sidebar || event.target !== this.sidebar) {
         return;
       }
-      if (!this.isVisible) {
-        if (this.hideTimeout) {
-          clearTimeout(this.hideTimeout);
-          this.hideTimeout = null;
+      // We listen for both transform and opacity to end
+      if (event.propertyName === 'transform' || event.propertyName === 'opacity') {
+        if (!this.isVisible) {
+          if (this.hideTimeout) {
+            clearTimeout(this.hideTimeout);
+            this.hideTimeout = null;
+          }
+          this.sidebar.style.display = 'none';
         }
-        this.sidebar.style.display = 'none';
       }
     };
     this.initializeSidebar();
@@ -54,7 +57,7 @@ class CerebrSidebar {
           this.sidebar.classList.remove('visible');
           this.sidebar.style.display = 'none';
         }
-        this.sidebar.style.width = `${this.sidebarWidth}px`;
+        this.sidebar.style.setProperty('--sidebar-width', `${this.sidebarWidth}px`);
       }
     } catch (error) {
       console.error('加载侧边栏状态失败:', error);
@@ -86,10 +89,14 @@ class CerebrSidebar {
           contain: style layout size;
         }
         .cerebr-sidebar {
+          --sidebar-width: 430px;
+          --sidebar-margin: 20px;
+          --sidebar-translation: calc(var(--sidebar-width) + var(--sidebar-margin));
+
           position: fixed;
           top: 20px;
-          right: -450px;
-          width: 430px;
+          right: calc(-1 * var(--sidebar-translation));
+          width: var(--sidebar-width);
           height: calc(100vh - 40px);
           background: var(--cerebr-bg-color, #ffffff);
           color: var(--cerebr-text-color, #000000);
@@ -97,17 +104,19 @@ class CerebrSidebar {
           box-shadow: none;
           z-index: 2147483647;
           border-radius: 12px;
-          margin-right: 20px;
+          margin-right: var(--sidebar-margin);
           overflow: hidden;
           visibility: hidden;
-          transform: translateX(0);
+          transform: translateX(0) scale(0.92);
+          transform-origin: right center;
           pointer-events: none;
           contain: style layout size;
           isolation: isolate;
+          opacity: 0;
         }
         .cerebr-sidebar.initialized {
           visibility: visible;
-          transition: transform 0.3s ease, box-shadow 0.3s ease;
+          transition: transform 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease;
           pointer-events: auto;
         }
         @media (prefers-color-scheme: dark) {
@@ -118,8 +127,9 @@ class CerebrSidebar {
           }
         }
         .cerebr-sidebar.visible {
-          transform: translateX(-450px);
+          transform: translateX(calc(-1 * var(--sidebar-translation))) scale(1);
           box-shadow: var(--cerebr-sidebar-box-shadow, -2px 0 15px rgba(0,0,0,0.1));
+          opacity: 1;
         }
         .cerebr-sidebar__content {
           height: 100%;
@@ -133,6 +143,20 @@ class CerebrSidebar {
           border: none;
           background: var(--cerebr-bg-color, #ffffff);
           contain: strict;
+        }
+        .cerebr-sidebar__resizer {
+            position: absolute;
+            left: -5px;
+            top: 0;
+            width: 15px;
+            height: 100%;
+            cursor: ew-resize;
+            z-index: 10;
+            background-color: transparent;
+            transition: background-color 0.2s ease;
+        }
+        .cerebr-sidebar__resizer:hover {
+            background-color: rgba(0, 0, 0, 0.3);
         }
       `;
 
@@ -214,22 +238,44 @@ class CerebrSidebar {
 
   setupEventListeners(resizer) {
     let startX, startWidth;
+    let isResizing = false;
+    const iframe = this.sidebar.querySelector('.cerebr-sidebar__iframe');
+
+    const handleMouseMove = (e) => {
+      if (!isResizing) return;
+      e.preventDefault(); // 防止意外的文本选择
+      const diff = startX - e.clientX;
+      const newWidth = Math.max(430, startWidth + diff);
+      this.sidebarWidth = Math.min(newWidth, 800);
+      requestAnimationFrame(() => {
+        this.sidebar.style.setProperty('--sidebar-width', `${this.sidebarWidth}px`);
+      });
+    };
+
+    const handleMouseUp = () => {
+      isResizing = false;
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+      if (iframe) {
+        iframe.style.pointerEvents = 'auto';
+      }
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      this.sidebar.style.transition = 'transform 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease';
+      this.saveState(); // 保存宽度
+    };
 
     resizer.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      isResizing = true;
       startX = e.clientX;
       startWidth = this.sidebarWidth;
-
-      const handleMouseMove = (e) => {
-        const diff = startX - e.clientX;
-        this.sidebarWidth = Math.min(Math.max(300, startWidth + diff), 800);
-        this.sidebar.style.width = `${this.sidebarWidth}px`;
-      };
-
-      const handleMouseUp = () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-      };
-
+      this.sidebar.style.transition = 'none';
+      document.body.style.cursor = 'ew-resize';
+      document.body.style.userSelect = 'none';
+      if (iframe) {
+        iframe.style.pointerEvents = 'none';
+      }
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     });
@@ -281,6 +327,8 @@ class CerebrSidebar {
         const iframe = this.sidebar.querySelector('.cerebr-sidebar__iframe');
         if (iframe) {
           iframe.contentWindow.postMessage({ type: 'FOCUS_INPUT' }, '*');
+          // 添加检查对话状态的消息
+          iframe.contentWindow.postMessage({ type: 'CHECK_CHAT_STATUS' }, '*');
         }
       }
     } catch (error) {

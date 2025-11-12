@@ -110,6 +110,7 @@ export async function callAPI({
             let lastUpdateTime = 0;
             let updateTimeout = null;
             const UPDATE_INTERVAL = 100; // 每100ms更新一次
+            let isThinking = false; // 新增状态：用于跟踪是否在<think>标签内
 
             const dispatchUpdate = () => {
                 if (chatManager && chatId) {
@@ -153,14 +154,51 @@ export async function callAPI({
                         try {
                             const delta = JSON.parse(data).choices[0]?.delta;
                             let hasUpdate = false;
-                            if (delta?.content) {
-                                currentMessage.content += delta.content;
-                                hasUpdate = true;
-                            }
+
+                            // 优先处理原生reasoning_content
                             if (delta?.reasoning_content) {
                                 currentMessage.reasoning_content += delta.reasoning_content;
                                 hasUpdate = true;
                             }
+
+                            if (delta?.content) {
+                                let contentBuffer = delta.content;
+                                while (contentBuffer.length > 0) {
+                                    if (!isThinking) {
+                                        const thinkStartIndex = contentBuffer.search(/<think>|<thinking>/);
+                                        if (thinkStartIndex !== -1) {
+                                            // 将<think>之前的内容添加到正常content
+                                            currentMessage.content += contentBuffer.substring(0, thinkStartIndex);
+                                            // 移除已处理部分和标签
+                                            const tagMatch = contentBuffer.match(/<think>|<thinking>/)[0];
+                                            contentBuffer = contentBuffer.substring(thinkStartIndex + tagMatch.length);
+                                            isThinking = true;
+                                        } else {
+                                            // 没有<think>标签，全部是正常content
+                                            currentMessage.content += contentBuffer;
+                                            contentBuffer = '';
+                                        }
+                                    }
+
+                                    if (isThinking) {
+                                        const thinkEndIndex = contentBuffer.search(/<\/think>|<\/thinking>/);
+                                        if (thinkEndIndex !== -1) {
+                                            // 将</think>之前的内容添加到reasoning_content
+                                            currentMessage.reasoning_content += contentBuffer.substring(0, thinkEndIndex);
+                                            // 移除已处理部分和标签
+                                            const tagMatch = contentBuffer.match(/<\/think>|<\/thinking>/)[0];
+                                            contentBuffer = contentBuffer.substring(thinkEndIndex + tagMatch.length);
+                                            isThinking = false;
+                                        } else {
+                                            // 没有</think>标签，全部是reasoning_content
+                                            currentMessage.reasoning_content += contentBuffer;
+                                            contentBuffer = '';
+                                        }
+                                    }
+                                }
+                                hasUpdate = true;
+                            }
+
 
                             if (hasUpdate) {
                                 if (!updateTimeout) {

@@ -1,6 +1,6 @@
 /* 设置按钮和菜单样式 */
 #settings-button {
-    padding: 12px;
+    padding: 12px 8px;
     background: none;
     border: none;
     cursor: pointer;
@@ -25,6 +25,36 @@
 }
 
 #settings-button:active svg {
+    transform: scale(0.95);
+    opacity: 0.8;
+}
+
+#new-chat-button {
+    padding: 12px 0px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--cerebr-icon-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#new-chat-button svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    opacity: 0.6;
+    transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55),
+                opacity 0.2s ease;
+}
+
+#new-chat-button:hover svg {
+    transform: scale(1.25);
+    opacity: 1;
+}
+
+#new-chat-button:active svg {
     transform: scale(0.95);
     opacity: 0.8;
 }

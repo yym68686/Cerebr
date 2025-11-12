@@ -1,13 +1,13 @@
 import { setTheme } from './utils/theme.js';
 import { callAPI } from './services/chat.js';
 import { chatManager } from './utils/chat-manager.js';
-import { appendMessage } from './handlers/message-handler.js';
+import { appendMessage, createWaitingMessage } from './handlers/message-handler.js';
 import { hideContextMenu } from './components/context-menu.js';
 import { initChatContainer } from './components/chat-container.js';
 import { showImagePreview, hideImagePreview } from './utils/ui.js';
 import { renderAPICards, createCardCallbacks, selectCard } from './components/api-card.js';
 import { storageAdapter, syncStorageAdapter, browserAdapter, isExtensionEnvironment } from './utils/storage-adapter.js';
-import { initMessageInput, getFormattedMessageContent, buildMessageContent, clearMessageInput, handleWindowMessage } from './components/message-input.js';
+import { initMessageInput, getFormattedMessageContent, buildMessageContent, clearMessageInput, handleWindowMessage, updatePermanentPlaceholder } from './components/message-input.js';
 import './utils/viewport.js';
 import {
     hideChatList,
@@ -17,6 +17,7 @@ import {
     renderChatList
 } from './components/chat-list.js';
 import { initWebpageMenu, getEnabledTabsContent } from './components/webpage-menu.js';
+import { initQuickChat, toggleQuickChatOptions } from './components/quick-chat.js';
 
 // 存储用户的问题历史
 let userQuestions = [];
@@ -40,13 +41,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     const previewModal = document.querySelector('.image-preview-modal');
     const previewImage = previewModal.querySelector('img');
     const chatListPage = document.getElementById('chat-list-page');
-    const newChatButton = document.getElementById('new-chat');
+    const newChatButton = document.getElementById('new-chat-button');
     const chatListButton = document.getElementById('chat-list');
     const apiSettings = document.getElementById('api-settings');
     const deleteMessageButton = document.getElementById('delete-message');
     const regenerateMessageButton = document.getElementById('regenerate-message');
     const webpageQAContainer = document.getElementById('webpage-qa');
     const webpageContentMenu = document.getElementById('webpage-content-menu');
+
+    // 常用聊天選項相關元素
+    const quickChatContainer = document.getElementById('quick-chat-options');
+    const quickChatSettingsPage = document.getElementById('quick-chat-settings-page');
 
     // 修改: 创建一个对象引用来保存当前控制器
     const abortControllerRef = { current: null };
@@ -118,6 +123,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         webpageContentMenu // 传递二级菜单
     });
 
+    // 初始化常用聊天選項
+    initQuickChat({
+        quickChatContainer,
+        messageInput,
+        settingsPage: quickChatSettingsPage,
+        settingsButton,
+        settingsMenu,
+        sendMessage,
+        uiConfig
+    });
+
     // 初始化ChatManager
     await chatManager.initialize();
 
@@ -143,6 +159,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         apiSettings,
         loadChatContent: (chat) => loadChatContent(chat, chatContainer)
     });
+
 
     // 加载当前对话内容
     const currentChat = chatManager.getCurrentChat();
@@ -171,6 +188,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             newChatButton,
             uiConfig
         });
+
+        // 处理检查对话状态的消息
+        if (event.data.type === 'CHECK_CHAT_STATUS') {
+            const currentChat = chatManager.getCurrentChat();
+            const hasMessages = currentChat && currentChat.messages && currentChat.messages.length > 0;
+            toggleQuickChatOptions(!hasMessages);
+        }
     });
 
     // 新增：带重试逻辑的API调用函数
@@ -256,7 +280,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 messages: messagesToResend,
                 apiConfig: apiConfigs[selectedConfigIndex],
                 userLanguage: navigator.language,
-                webpageInfo: isExtensionEnvironment ? await getEnabledTabsContent() : null
+                webpageInfo: isExtensionEnvironment && sendWebpageSwitch.checked ? await getEnabledTabsContent() : null
             };
 
             // 调用带重试逻辑的 API
@@ -308,11 +332,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
 
             // 先添加用户消息到界面和历史记录
-            appendMessage({
+            await appendMessage({
                 text: userMessage,
                 sender: 'user',
                 chatContainer,
             });
+
+            // 隐藏选项按钮区域
+            toggleQuickChatOptions(false);
 
             // 清空输入框并调整高度
             clearMessageInput(messageInput, uiConfig);
@@ -323,16 +350,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             messages.push(userMessage);
             chatManager.addMessageToCurrentChat(userMessage);
 
+            // 显示等待动画
+            const waitingMessage = createWaitingMessage(chatContainer);
+
             // 准备API调用参数
             const apiParams = {
                 messages,
                 apiConfig: apiConfigs[selectedConfigIndex],
                 userLanguage: navigator.language,
-                webpageInfo: isExtensionEnvironment ? await getEnabledTabsContent() : null
+                webpageInfo: isExtensionEnvironment && sendWebpageSwitch.checked ? await getEnabledTabsContent() : null
             };
 
             // 调用带重试逻辑的 API
-            await callAPIWithRetry(apiParams, chatManager, currentChat.id, chatContainerManager.syncMessage);
+            await callAPIWithRetry(apiParams, chatManager, currentChat.id, (chatId, message) => {
+                // 在收到API响应后，移除等待动画
+                if (waitingMessage) {
+                    waitingMessage.remove();
+                }
+                chatContainerManager.syncMessage(chatId, message);
+            });
 
         } catch (error) {
             if (error.name === 'AbortError') {
@@ -381,12 +417,39 @@ document.addEventListener('DOMContentLoaded', async () => {
     initWebpageMenu({ webpageQAContainer, webpageContentMenu });
    }
 
-    // 确保设置按钮的点击事件在文档点击事件之前处理
+    // 设置菜单的显示和隐藏逻辑
+    let menuTimeout;
+
+    const showMenu = () => {
+        clearTimeout(menuTimeout);
+        settingsMenu.classList.add('visible');
+    };
+
+    const hideMenu = () => {
+        menuTimeout = setTimeout(() => {
+            if (!settingsMenu.matches(':hover') && !webpageContentMenu.matches(':hover')) {
+                settingsMenu.classList.remove('visible');
+                webpageContentMenu.classList.remove('visible'); // 同时隐藏二级菜单
+            }
+        }, 200); // 200ms 延迟
+    };
+
+    // 鼠标悬停在按钮上时显示菜单
+    settingsButton.addEventListener('mouseenter', showMenu);
+
+    // 鼠标离开按钮时准备隐藏菜单
+    settingsButton.addEventListener('mouseleave', hideMenu);
+
+    // 鼠标悬停在菜单上时保持显示
+    settingsMenu.addEventListener('mouseenter', showMenu);
+
+    // 鼠标离开菜单时隐藏菜单
+    settingsMenu.addEventListener('mouseleave', hideMenu);
+
+    // 点击按钮仍然可以切换菜单的显示/隐藏状态
     settingsButton.addEventListener('click', (e) => {
         e.stopPropagation();
         const isVisible = settingsMenu.classList.toggle('visible');
-
-        // 如果设置菜单被隐藏，也一并隐藏网页内容菜单
         if (!isVisible) {
             webpageContentMenu.classList.remove('visible');
         }
@@ -394,6 +457,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 主题切换
     const themeSwitch = document.getElementById('theme-switch');
+    const sendWebpageSwitch = document.getElementById('send-webpage-switch');
 
     // 创建主题配置对象
     const themeConfig = {
@@ -432,10 +496,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 初始化主题
     await initTheme();
 
+    // 初始化“传送网页”开关
+    async function initSendWebpageSwitch() {
+        try {
+            const result = await syncStorageAdapter.get('sendWebpageContent');
+            // 默认开启
+            const shouldSend = result.sendWebpageContent === undefined ? true : result.sendWebpageContent;
+            sendWebpageSwitch.checked = shouldSend;
+        } catch (error) {
+            console.error('初始化“传送网页”开关失败:', error);
+            sendWebpageSwitch.checked = true; // 出错时默认开启
+        }
+    }
+
+    // 监听“传送网页”开关变化
+    sendWebpageSwitch.addEventListener('change', async () => {
+        try {
+            await syncStorageAdapter.set({ sendWebpageContent: sendWebpageSwitch.checked });
+        } catch (error) {
+            console.error('保存“传送网页”设置失败:', error);
+        }
+    });
+
+    await initSendWebpageSwitch();
+
     // API 设置功能
     const apiSettingsToggle = document.getElementById('api-settings-toggle');
     const backButton = document.querySelector('.back-button');
     const apiCards = document.querySelector('.api-cards');
+
+    // 更新 placeholder 的函数
+    function updatePlaceholderWithCurrentModel() {
+        if (apiConfigs.length > 0 && selectedConfigIndex < apiConfigs.length) {
+            const modelName = apiConfigs[selectedConfigIndex].modelName || 'default model';
+            updatePermanentPlaceholder(messageInput, modelName);
+        }
+    }
 
     // 使用新的selectCard函数
     const handleCardSelect = (template, index) => {
@@ -444,12 +540,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             index,
             onIndexChange: (newIndex) => {
                 selectedConfigIndex = newIndex;
+                updatePlaceholderWithCurrentModel();
             },
             onSave: saveAPIConfigs,
             cardSelector: '.api-card',
-            onSelect: () => {
-                // 关闭API设置面板
-                apiSettings.classList.remove('visible');
+            onSelect: (selectedCard, index) => {
+                // 只有在点击卡片本身时才关闭设置面板
+                if (selectedCard && selectedCard.contains(event.target) && !selectedCard.querySelector('.model-name-container').contains(event.target)) {
+                    apiSettings.classList.remove('visible');
+                }
             }
         });
     };
@@ -465,7 +564,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 apiConfigs,
                 selectedConfigIndex,
                 saveAPIConfigs,
-                renderAPICardsWithCallbacks
+                renderAPICardsWithCallbacks,
+                updatePlaceholder: updatePlaceholderWithCurrentModel
             }),
             selectedIndex: selectedConfigIndex
         });
@@ -495,6 +595,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 确保一定会渲染卡片
             renderAPICardsWithCallbacks();
+            updatePlaceholderWithCurrentModel();
         } catch (error) {
             console.error('加载 API 配置失败:', error);
             // 只有在出错的情况下才使用默认值
@@ -505,6 +606,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }];
             selectedConfigIndex = 0;
             renderAPICardsWithCallbacks();
+            updatePlaceholderWithCurrentModel();
         }
     }
 
