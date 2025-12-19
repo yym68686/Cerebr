@@ -442,6 +442,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const SYSTEM_PROMPT_LOCAL_ONLY_KEY_PREFIX = 'apiConfigSystemPromptLocalOnly_';
     const SYSTEM_PROMPT_LOCAL_DEBOUNCE_MS = 200;
     const SYSTEM_PROMPT_SYNC_DEBOUNCE_MS = 2000;
+    const API_CONFIGS_SYNC_DEBOUNCE_MS = 800;
 
     const getSystemPromptKey = (configId) => `${SYSTEM_PROMPT_KEY_PREFIX}${configId}`;
     const getSystemPromptLocalOnlyKey = (configId) => `${SYSTEM_PROMPT_LOCAL_ONLY_KEY_PREFIX}${configId}`;
@@ -558,6 +559,37 @@ document.addEventListener('DOMContentLoaded', async () => {
         await persistSystemPromptSyncNow({ configId, systemPrompt });
     };
 
+    let apiConfigsPersistTimer = null;
+    let apiConfigsPersistPromise = null;
+
+    const queueApiConfigsPersist = () => {
+        if (apiConfigsPersistTimer) clearTimeout(apiConfigsPersistTimer);
+        apiConfigsPersistTimer = setTimeout(() => {
+            apiConfigsPersistTimer = null;
+            apiConfigsPersistPromise = Promise.resolve(apiConfigsPersistPromise)
+                .catch(() => {})
+                .then(() => saveAPIConfigs());
+        }, API_CONFIGS_SYNC_DEBOUNCE_MS);
+    };
+
+    const flushApiConfigsPersist = async () => {
+        if (apiConfigsPersistTimer) {
+            clearTimeout(apiConfigsPersistTimer);
+            apiConfigsPersistTimer = null;
+        }
+        if (apiConfigsPersistPromise) {
+            try {
+                await apiConfigsPersistPromise;
+            } catch {
+                // ignore
+            }
+        }
+        apiConfigsPersistPromise = Promise.resolve(apiConfigsPersistPromise)
+            .catch(() => {})
+            .then(() => saveAPIConfigs());
+        await apiConfigsPersistPromise;
+    };
+
     // 使用新的selectCard函数
     const handleCardSelect = (template, index) => {
         selectCard({
@@ -586,6 +618,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 apiConfigs,
                 selectedConfigIndex,
                 saveAPIConfigs,
+                queueApiConfigsPersist,
+                flushApiConfigsPersist,
                 queueSystemPromptPersist,
                 flushSystemPromptPersist,
                 renderAPICardsWithCallbacks,

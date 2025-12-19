@@ -170,6 +170,13 @@ function createAPICard({
         onChange(index, buildNextConfig(), { kind: 'systemPrompt', flush: true });
     });
 
+    // 其他字段：实时更新并自动保存（由外层实现节流/同步策略）
+    [apiKeyInput, baseUrlInput, modelNameInput].forEach((input) => {
+        input.addEventListener('input', () => {
+            onChange(index, buildNextConfig(), { kind: 'apiFields' });
+        });
+    });
+
     // 阻止输入框和按钮点击事件冒泡
     const stopPropagation = (e) => {
         e.stopPropagation();
@@ -199,13 +206,23 @@ function createAPICard({
 
     // 修改键盘事件处理（普通输入框）
     [apiKeyInput, baseUrlInput, modelNameInput].forEach(input => {
-        input.addEventListener('keydown', (e) => {
+        input.addEventListener('keydown', async (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 if (isComposing) {
                     // 如果正在使用输入法，不触发选择
                     return;
                 }
                 e.preventDefault();
+                e.stopPropagation();
+
+                const maybePromise = onChange(index, buildNextConfig(), { kind: 'apiFields', flush: true });
+                if (maybePromise && typeof maybePromise.then === 'function') {
+                    try {
+                        await maybePromise;
+                    } catch {
+                        // ignore
+                    }
+                }
                 onSelect(template, index);
             }
         });
@@ -246,7 +263,7 @@ function createAPICard({
     // 监听输入框变化
     [apiKeyInput, baseUrlInput, modelNameInput].forEach(input => {
         input.addEventListener('change', () => {
-            onChange(index, buildNextConfig());
+            onChange(index, buildNextConfig(), { kind: 'apiFields', flush: true });
         });
     });
 
@@ -291,6 +308,8 @@ export function createCardCallbacks({
     apiConfigs,
     selectedConfigIndex,
     saveAPIConfigs,
+    queueApiConfigsPersist,
+    flushApiConfigsPersist,
     queueSystemPromptPersist,
     flushSystemPromptPersist,
     renderAPICardsWithCallbacks,
@@ -332,6 +351,17 @@ export function createCardCallbacks({
                 }
                 if (typeof queueSystemPromptPersist === 'function') {
                     queueSystemPromptPersist(newConfig);
+                    return;
+                }
+                // 回退：如果未注入专用保存逻辑，就沿用全量保存
+            }
+
+            if (options.kind === 'apiFields') {
+                if (options.flush && typeof flushApiConfigsPersist === 'function') {
+                    return flushApiConfigsPersist();
+                }
+                if (typeof queueApiConfigsPersist === 'function') {
+                    queueApiConfigsPersist();
                     return;
                 }
                 // 回退：如果未注入专用保存逻辑，就沿用全量保存
