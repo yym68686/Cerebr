@@ -63,6 +63,48 @@ export const storageAdapter = {
         }
     },
 
+    // 删除存储的数据
+    async remove(keys) {
+        if (isExtensionEnvironment) {
+            await chrome.storage.local.remove(keys);
+        } else {
+            try {
+                const db = await getDb();
+                if (!db) throw new Error("IndexedDB not available");
+
+                const keysArray = Array.isArray(keys) ? keys : [keys];
+                if (keysArray.length === 0) return Promise.resolve();
+
+                return new Promise((resolve, reject) => {
+                    const transaction = db.transaction([IDB_STORE_NAME], 'readwrite');
+                    const store = transaction.objectStore(IDB_STORE_NAME);
+
+                    keysArray.forEach((key) => {
+                        const request = store.delete(key);
+                        request.onerror = (event) => {
+                            console.error(`IndexedDB remove error for key ${key}:`, event.target.error);
+                            transaction.abort();
+                            reject(event.target.error);
+                        };
+                    });
+
+                    transaction.oncomplete = () => resolve();
+                    transaction.onerror = (event) => {
+                        console.error('IndexedDB remove transaction error:', event.target.error);
+                        reject(event.target.error);
+                    };
+                    transaction.onabort = (event) => {
+                        console.error('IndexedDB remove transaction aborted:', event.target.error);
+                        reject(new Error('Transaction aborted, possibly due to an earlier error.'));
+                    };
+                });
+            } catch (error) {
+                console.error('Failed to remove data in IndexedDB:', error);
+                throw error;
+            }
+        }
+    },
+
     // 设置存储的数据
     async set(data) {
         if (isExtensionEnvironment) {
@@ -158,6 +200,19 @@ export const syncStorageAdapter = {
                     }
                 }
                 return {};
+            }
+        }
+    },
+
+    // 删除存储的数据
+    async remove(keys) {
+        if (isExtensionEnvironment) {
+            await chrome.storage.sync.remove(keys);
+        } else {
+            console.warn("Sync storage in web environment is using localStorage fallback, which has size limitations.");
+            const keysArray = Array.isArray(keys) ? keys : [keys];
+            for (const key of keysArray) {
+                localStorage.removeItem(`sync_${key}`);
             }
         }
     },

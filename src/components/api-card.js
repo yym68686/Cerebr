@@ -128,6 +128,23 @@ function createAPICard({
     advancedSettingsContent.style.display = isExpanded ? 'block' : 'none';
     toggleIcon.style.transform = isExpanded ? 'rotate(180deg)' : '';
 
+    const buildNextConfig = ({ advancedSettingsOverride } = {}) => {
+        const advancedSettings = {
+            ...(config.advancedSettings || {}),
+            isExpanded: advancedSettingsContent.style.display === 'block',
+            systemPrompt: systemPromptInput.value,
+            ...(advancedSettingsOverride || {}),
+        };
+
+        return {
+            ...config,
+            apiKey: apiKeyInput.value,
+            baseUrl: baseUrlInput.value,
+            modelName: modelNameInput.value,
+            advancedSettings,
+        };
+    };
+
     // 添加高级设置的展开/折叠功能
     advancedSettingsHeader.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -136,24 +153,21 @@ function createAPICard({
         toggleIcon.style.transform = isCurrentlyExpanded ? '' : 'rotate(180deg)';
 
         // 更新配置
-        onChange(index, {
-            ...config,
-            advancedSettings: {
-                ...config.advancedSettings,
-                isExpanded: !isCurrentlyExpanded
+        onChange(index, buildNextConfig({
+            advancedSettingsOverride: {
+                isExpanded: !isCurrentlyExpanded,
             }
-        });
+        }));
     });
 
-    // 监听系统提示的变化
+    // 系统提示：实时更新并自动保存（由外层实现节流/同步策略）
+    systemPromptInput.addEventListener('input', () => {
+        onChange(index, buildNextConfig(), { kind: 'systemPrompt' });
+    });
+
+    // 在失焦时强制落盘一次，避免 debounce 尚未触发导致丢失
     systemPromptInput.addEventListener('change', () => {
-        onChange(index, {
-            ...config,
-            advancedSettings: {
-                ...config.advancedSettings,
-                systemPrompt: systemPromptInput.value
-            }
-        });
+        onChange(index, buildNextConfig(), { kind: 'systemPrompt', flush: true });
     });
 
     // 阻止输入框和按钮点击事件冒泡
@@ -181,8 +195,10 @@ function createAPICard({
         input.addEventListener('compositionend', () => {
             isComposing = false;
         });
+    });
 
-        // 修改键盘事件处理
+    // 修改键盘事件处理（普通输入框）
+    [apiKeyInput, baseUrlInput, modelNameInput].forEach(input => {
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 if (isComposing) {
@@ -193,6 +209,25 @@ function createAPICard({
                 onSelect(template, index);
             }
         });
+    });
+
+    // 修改键盘事件处理（系统提示 textarea：回车先 flush 再返回）
+    systemPromptInput.addEventListener('keydown', async (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            if (isComposing) return;
+            e.preventDefault();
+
+            const maybePromise = onChange(index, buildNextConfig(), { kind: 'systemPrompt', flush: true });
+            if (maybePromise && typeof maybePromise.then === 'function') {
+                try {
+                    await maybePromise;
+                } catch {
+                    // ignore
+                }
+            }
+
+            onSelect(template, index);
+        }
     });
 
     // 为按钮添加点击事件阻止冒泡
@@ -211,11 +246,7 @@ function createAPICard({
     // 监听输入框变化
     [apiKeyInput, baseUrlInput, modelNameInput].forEach(input => {
         input.addEventListener('change', () => {
-            onChange(index, {
-                apiKey: apiKeyInput.value,
-                baseUrl: baseUrlInput.value,
-                modelName: modelNameInput.value
-            });
+            onChange(index, buildNextConfig());
         });
     });
 
@@ -260,13 +291,20 @@ export function createCardCallbacks({
     apiConfigs,
     selectedConfigIndex,
     saveAPIConfigs,
-    renderAPICardsWithCallbacks
+    queueSystemPromptPersist,
+    flushSystemPromptPersist,
+    renderAPICardsWithCallbacks,
+    onBeforeCardDelete,
 }) {
     return {
         onCardSelect: selectCard,
         onCardDuplicate: (config, index) => {
+            const cloned = (typeof structuredClone === 'function')
+                ? structuredClone(config)
+                : JSON.parse(JSON.stringify(config));
+            delete cloned.id;
             // 在当前选中卡片后面插入新卡片
-            apiConfigs.splice(index + 1, 0, {...config});
+            apiConfigs.splice(index + 1, 0, cloned);
             // 保存配置但不改变选中状态
             saveAPIConfigs();
             // 重新渲染所有卡片，保持原来的选中状态
@@ -274,6 +312,9 @@ export function createCardCallbacks({
         },
         onCardDelete: (index) => {
             if (apiConfigs.length > 1) {
+                if (typeof onBeforeCardDelete === 'function') {
+                    onBeforeCardDelete(apiConfigs[index], index);
+                }
                 apiConfigs.splice(index, 1);
                 if (selectedConfigIndex >= apiConfigs.length) {
                     selectedConfigIndex = apiConfigs.length - 1;
@@ -282,8 +323,20 @@ export function createCardCallbacks({
                 renderAPICardsWithCallbacks();
             }
         },
-        onCardChange: (index, newConfig) => {
+        onCardChange: (index, newConfig, options = {}) => {
             apiConfigs[index] = newConfig;
+
+            if (options.kind === 'systemPrompt') {
+                if (options.flush && typeof flushSystemPromptPersist === 'function') {
+                    return flushSystemPromptPersist(newConfig);
+                }
+                if (typeof queueSystemPromptPersist === 'function') {
+                    queueSystemPromptPersist(newConfig);
+                    return;
+                }
+                // 回退：如果未注入专用保存逻辑，就沿用全量保存
+            }
+
             saveAPIConfigs();
         }
     };

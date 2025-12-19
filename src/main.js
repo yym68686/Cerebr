@@ -437,6 +437,127 @@ document.addEventListener('DOMContentLoaded', async () => {
     const backButton = document.querySelector('.back-button');
     const apiCards = document.querySelector('.api-cards');
 
+    const SYSTEM_PROMPT_SYNC_THRESHOLD_BYTES = 6000;
+    const SYSTEM_PROMPT_KEY_PREFIX = 'apiConfigSystemPrompt_';
+    const SYSTEM_PROMPT_LOCAL_ONLY_KEY_PREFIX = 'apiConfigSystemPromptLocalOnly_';
+    const SYSTEM_PROMPT_LOCAL_DEBOUNCE_MS = 200;
+    const SYSTEM_PROMPT_SYNC_DEBOUNCE_MS = 2000;
+
+    const getSystemPromptKey = (configId) => `${SYSTEM_PROMPT_KEY_PREFIX}${configId}`;
+    const getSystemPromptLocalOnlyKey = (configId) => `${SYSTEM_PROMPT_LOCAL_ONLY_KEY_PREFIX}${configId}`;
+
+    const generateConfigId = () => {
+        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+            return crypto.randomUUID();
+        }
+        return `cfg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+    };
+
+    const ensureConfigId = (config) => {
+        if (!config.id) {
+            config.id = generateConfigId();
+        }
+        return config.id;
+    };
+
+    const getUtf8ByteLength = (value) => {
+        try {
+            return new TextEncoder().encode(value ?? '').length;
+        } catch {
+            return (value ?? '').length;
+        }
+    };
+
+    const normalizeApiConfig = (config) => {
+        const normalized = { ...(config || {}) };
+        ensureConfigId(normalized);
+        normalized.apiKey = normalized.apiKey ?? '';
+        normalized.baseUrl = normalized.baseUrl ?? 'https://api.openai.com/v1/chat/completions';
+        normalized.modelName = normalized.modelName ?? 'gpt-4o';
+        normalized.advancedSettings = {
+            ...(normalized.advancedSettings || {}),
+            systemPrompt: normalized.advancedSettings?.systemPrompt ?? '',
+            isExpanded: normalized.advancedSettings?.isExpanded ?? false,
+        };
+        return normalized;
+    };
+
+    const stripApiConfigForSync = (config) => {
+        const advancedSettings = { ...(config.advancedSettings || {}) };
+        delete advancedSettings.systemPrompt;
+        return {
+            ...config,
+            advancedSettings,
+        };
+    };
+
+    const systemPromptPersistStateByConfigId = new Map();
+
+    const persistSystemPromptLocalNow = async ({ configId, systemPrompt }) => {
+        const promptKey = getSystemPromptKey(configId);
+        await storageAdapter.set({ [promptKey]: systemPrompt });
+    };
+
+    const persistSystemPromptSyncNow = async ({ configId, systemPrompt }) => {
+        const promptKey = getSystemPromptKey(configId);
+        const localOnlyKey = getSystemPromptLocalOnlyKey(configId);
+        const byteLength = getUtf8ByteLength(systemPrompt);
+
+        if (byteLength <= SYSTEM_PROMPT_SYNC_THRESHOLD_BYTES) {
+            try {
+                await syncStorageAdapter.set({ [promptKey]: systemPrompt, [localOnlyKey]: false });
+            } catch (error) {
+                const message = String(error?.message || error);
+                if (message.includes('kQuotaBytesPerItem') || message.includes('QuotaExceeded')) {
+                    await syncStorageAdapter.set({ [promptKey]: '', [localOnlyKey]: true });
+                } else {
+                    throw error;
+                }
+            }
+        } else {
+            await syncStorageAdapter.set({ [promptKey]: '', [localOnlyKey]: true });
+        }
+    };
+
+    const queueSystemPromptPersist = (config) => {
+        const configId = ensureConfigId(config);
+        const systemPrompt = config.advancedSettings?.systemPrompt ?? '';
+
+        const byteLength = getUtf8ByteLength(systemPrompt);
+        if (config.advancedSettings) {
+            config.advancedSettings.systemPromptLocalOnly = byteLength > SYSTEM_PROMPT_SYNC_THRESHOLD_BYTES;
+        }
+
+        const prev = systemPromptPersistStateByConfigId.get(configId) || {};
+        if (prev.localTimer) clearTimeout(prev.localTimer);
+        if (prev.syncTimer) clearTimeout(prev.syncTimer);
+
+        const state = {
+            latestSystemPrompt: systemPrompt,
+            localTimer: setTimeout(() => {
+                persistSystemPromptLocalNow({ configId, systemPrompt }).catch(() => {});
+            }, SYSTEM_PROMPT_LOCAL_DEBOUNCE_MS),
+            syncTimer: setTimeout(() => {
+                persistSystemPromptSyncNow({ configId, systemPrompt }).catch(() => {});
+            }, SYSTEM_PROMPT_SYNC_DEBOUNCE_MS),
+        };
+
+        systemPromptPersistStateByConfigId.set(configId, state);
+    };
+
+    const flushSystemPromptPersist = async (config) => {
+        const configId = ensureConfigId(config);
+        const state = systemPromptPersistStateByConfigId.get(configId);
+        const systemPrompt = config.advancedSettings?.systemPrompt ?? state?.latestSystemPrompt ?? '';
+
+        if (state?.localTimer) clearTimeout(state.localTimer);
+        if (state?.syncTimer) clearTimeout(state.syncTimer);
+        systemPromptPersistStateByConfigId.delete(configId);
+
+        await persistSystemPromptLocalNow({ configId, systemPrompt });
+        await persistSystemPromptSyncNow({ configId, systemPrompt });
+    };
+
     // 使用新的selectCard函数
     const handleCardSelect = (template, index) => {
         selectCard({
@@ -465,7 +586,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                 apiConfigs,
                 selectedConfigIndex,
                 saveAPIConfigs,
-                renderAPICardsWithCallbacks
+                queueSystemPromptPersist,
+                flushSystemPromptPersist,
+                renderAPICardsWithCallbacks,
+                onBeforeCardDelete: (configToDelete) => {
+                    const configId = configToDelete?.id;
+                    if (!configId) return;
+                    const promptKey = getSystemPromptKey(configId);
+                    const localOnlyKey = getSystemPromptLocalOnlyKey(configId);
+
+                    const state = systemPromptPersistStateByConfigId.get(configId);
+                    if (state?.localTimer) clearTimeout(state.localTimer);
+                    if (state?.syncTimer) clearTimeout(state.syncTimer);
+                    systemPromptPersistStateByConfigId.delete(configId);
+
+                    storageAdapter.remove(promptKey).catch(() => {});
+                    syncStorageAdapter.remove([promptKey, localOnlyKey]).catch(() => {});
+                }
             }),
             selectedIndex: selectedConfigIndex
         });
@@ -479,12 +616,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 分别检查每个配置项
             if (result.apiConfigs) {
-                apiConfigs = result.apiConfigs;
+                apiConfigs = result.apiConfigs.map(normalizeApiConfig);
             } else {
                 apiConfigs = [{
+                    id: generateConfigId(),
                     apiKey: '',
                     baseUrl: 'https://api.openai.com/v1/chat/completions',
-                    modelName: 'gpt-4o'
+                    modelName: 'gpt-4o',
+                    advancedSettings: {
+                        systemPrompt: '',
+                        isExpanded: false,
+                    },
                 }];
                 // 只有在没有任何配置的情况下才保存默认配置
                 await saveAPIConfigs();
@@ -492,6 +634,63 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 只有当 selectedConfigIndex 为 undefined 或 null 时才使用默认值 0
             selectedConfigIndex = result.selectedConfigIndex ?? 0;
+            if (!Number.isInteger(selectedConfigIndex)) {
+                selectedConfigIndex = 0;
+            }
+            selectedConfigIndex = Math.max(0, Math.min(selectedConfigIndex, apiConfigs.length - 1));
+
+            // 加载系统提示（优先本地，其次同步）
+            const promptKeys = apiConfigs.map((c) => getSystemPromptKey(c.id));
+            const promptLocalOnlyKeys = apiConfigs.map((c) => getSystemPromptLocalOnlyKey(c.id));
+            const promptSyncResult = await syncStorageAdapter.get([...promptKeys, ...promptLocalOnlyKeys]);
+
+            const localPromptResults = await Promise.all(
+                apiConfigs.map((c) =>
+                    storageAdapter.get(getSystemPromptKey(c.id)).catch(() => ({}))
+                )
+            );
+
+            let needsMigrationSave = false;
+            const localPromptPayloadToCache = {};
+
+            apiConfigs = apiConfigs.map((config, idx) => {
+                const promptKey = getSystemPromptKey(config.id);
+                const localOnlyKey = getSystemPromptLocalOnlyKey(config.id);
+                const localPrompt = localPromptResults[idx]?.[promptKey];
+                const syncPrompt = promptSyncResult?.[promptKey];
+                const localOnly = !!promptSyncResult?.[localOnlyKey];
+                const legacyPrompt = config.advancedSettings?.systemPrompt;
+
+                let systemPrompt = '';
+                if (typeof localPrompt === 'string') {
+                    systemPrompt = localPrompt;
+                } else if (!localOnly && typeof syncPrompt === 'string' && syncPrompt.length > 0) {
+                    systemPrompt = syncPrompt;
+                    localPromptPayloadToCache[promptKey] = syncPrompt;
+                } else if (typeof legacyPrompt === 'string' && legacyPrompt.length > 0) {
+                    systemPrompt = legacyPrompt;
+                    localPromptPayloadToCache[promptKey] = legacyPrompt;
+                    needsMigrationSave = true;
+                }
+
+                return {
+                    ...config,
+                    advancedSettings: {
+                        ...(config.advancedSettings || {}),
+                        systemPrompt,
+                        systemPromptLocalOnly: localOnly,
+                    },
+                };
+            });
+
+            if (Object.keys(localPromptPayloadToCache).length > 0) {
+                await storageAdapter.set(localPromptPayloadToCache);
+            }
+
+            // 若发现旧版本把 systemPrompt 存在了 apiConfigs 中，迁移一次以避免再次触发 sync 单条目限制
+            if (needsMigrationSave) {
+                await saveAPIConfigs();
+            }
 
             // 确保一定会渲染卡片
             renderAPICardsWithCallbacks();
@@ -499,9 +698,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error('加载 API 配置失败:', error);
             // 只有在出错的情况下才使用默认值
             apiConfigs = [{
+                id: generateConfigId(),
                 apiKey: '',
                 baseUrl: 'https://api.openai.com/v1/chat/completions',
-                modelName: 'gpt-4o'
+                modelName: 'gpt-4o',
+                advancedSettings: {
+                    systemPrompt: '',
+                    isExpanded: false,
+                },
             }];
             selectedConfigIndex = 0;
             renderAPICardsWithCallbacks();
@@ -535,13 +739,64 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 保存配置到存储
     async function saveAPIConfigs() {
         try {
+            apiConfigs = apiConfigs.map(normalizeApiConfig);
+            if (!Number.isInteger(selectedConfigIndex)) {
+                selectedConfigIndex = 0;
+            }
+            selectedConfigIndex = Math.max(0, Math.min(selectedConfigIndex, apiConfigs.length - 1));
+
+            const localPayload = {};
+            const syncPayload = {
+                apiConfigs: apiConfigs.map(stripApiConfigForSync),
+                selectedConfigIndex,
+            };
+
+            for (const config of apiConfigs) {
+                const id = ensureConfigId(config);
+                const promptKey = getSystemPromptKey(id);
+                const localOnlyKey = getSystemPromptLocalOnlyKey(id);
+
+                const systemPrompt = config.advancedSettings?.systemPrompt ?? '';
+                localPayload[promptKey] = systemPrompt;
+
+                const byteLength = getUtf8ByteLength(systemPrompt);
+                if (byteLength <= SYSTEM_PROMPT_SYNC_THRESHOLD_BYTES) {
+                    syncPayload[promptKey] = systemPrompt;
+                    syncPayload[localOnlyKey] = false;
+                    if (config.advancedSettings) config.advancedSettings.systemPromptLocalOnly = false;
+                } else {
+                    syncPayload[promptKey] = '';
+                    syncPayload[localOnlyKey] = true;
+                    if (config.advancedSettings) config.advancedSettings.systemPromptLocalOnly = true;
+                }
+            }
+
+            // 先确保本地已持久化（即便同步失败也不丢数据）
+            await storageAdapter.set(localPayload);
+
             // 统一使用 syncStorageAdapter 来实现配置同步
-            await syncStorageAdapter.set({
-                apiConfigs,
-                selectedConfigIndex
-            });
+            await syncStorageAdapter.set(syncPayload);
         } catch (error) {
             console.error('保存 API 配置失败:', error);
+
+            // 如果因为 quota 限制失败，降级为“仅同步配置骨架”
+            const message = String(error?.message || error);
+            if (message.includes('kQuotaBytesPerItem') || message.includes('QuotaExceeded')) {
+                try {
+                    const degradedSyncPayload = {
+                        apiConfigs: apiConfigs.map(stripApiConfigForSync),
+                        selectedConfigIndex,
+                    };
+                    for (const config of apiConfigs) {
+                        const id = ensureConfigId(config);
+                        degradedSyncPayload[getSystemPromptKey(id)] = '';
+                        degradedSyncPayload[getSystemPromptLocalOnlyKey(id)] = true;
+                    }
+                    await syncStorageAdapter.set(degradedSyncPayload);
+                } catch (degradedError) {
+                    console.error('保存 API 配置失败（降级仍失败）:', degradedError);
+                }
+            }
         }
     }
 
