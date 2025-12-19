@@ -13,8 +13,7 @@ import {
     hideChatList,
     initChatListEvents,
     loadChatContent,
-    initializeChatList,
-    renderChatList
+    initializeChatList
 } from './components/chat-list.js';
 import { initWebpageMenu, getEnabledTabsContent } from './components/webpage-menu.js';
 
@@ -748,18 +747,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 监听标签页切换
     browserAdapter.onTabActivated(async () => {
-        // console.log('标签页切换，重新加载API配置');
-        // await loadWebpageSwitch();
         // 同步API配置
         await loadAPIConfigs();
         renderAPICardsWithCallbacks();
 
-        // 同步对话列表
+        // 同步对话数据（对话列表在打开时再渲染，避免后台渲染造成额外布局开销）
         await chatManager.initialize();
-        await renderChatList(
-            chatManager,
-            chatListPage.querySelector('.chat-cards')
-        );
 
         // 如果当前对话为空，则重置网页内容开关
         const currentChat = chatManager.getCurrentChat();

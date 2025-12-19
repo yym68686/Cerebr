@@ -1,6 +1,6 @@
 import { chatManager } from '../utils/chat-manager.js';
 import { showImagePreview, createImageTag } from '../utils/ui.js';
-import { processMathAndMarkdown, renderMathInElement } from '../../htmd/latex.js';
+import { processMathAndMarkdown, renderMathInElement, textMayContainMath } from '../../htmd/latex.js';
 
 /**
  * Preloads and caches an image to a blob property on the img element.
@@ -63,18 +63,21 @@ export async function appendMessage({
     }
 
     // 处理文本内容
-    let textContent = typeof text === 'string' ? text : text.content;
+    const rawContent = typeof text === 'string' ? text : text.content;
+    const plainTextContent = Array.isArray(rawContent)
+        ? rawContent.filter(item => item?.type === 'text').map(item => item.text).join('\n')
+        : String(rawContent ?? '');
 
     const previewModal = document.querySelector('.image-preview-modal');
     const previewImage = previewModal.querySelector('img');
     const messageInput = document.getElementById('message-input');
 
-    let messageHtml = '';
-    if (Array.isArray(textContent)) {
-        textContent.forEach(item => {
+    const imageTagNodes = [];
+    let messageText = '';
+    if (Array.isArray(rawContent)) {
+        rawContent.forEach(item => {
             if (item.type === "text") {
-                messageHtml += item.text;
-                textContent = item.text;
+                messageText += item.text;
             } else if (item.type === "image_url") {
                 const imageTag = createImageTag({
                     base64Data: item.image_url.url,
@@ -94,18 +97,19 @@ export async function appendMessage({
                         }
                     }
                 });
-                messageHtml += imageTag.outerHTML;
+                imageTag.dataset.cerebrBuilt = '1';
+                imageTagNodes.push(imageTag);
             }
         });
     } else {
-        messageHtml = textContent;
+        messageText = plainTextContent;
     }
 
     // 如果是用户消息，且当前对话只有这一条消息，则更新对话标题
     if (sender === 'user' && !skipHistory) {
         const currentChat = chatManager.getCurrentChat();
         if (currentChat && currentChat.messages.length === 0) {
-            currentChat.title = textContent;
+            currentChat.title = plainTextContent;
             chatManager.saveChats();
         }
     }
@@ -113,7 +117,7 @@ export async function appendMessage({
     const reasoningContent = typeof text === 'string' ? null : text.reasoning_content;
 
     // 存储原始文本用于复制
-    messageDiv.setAttribute('data-original-text', textContent);
+    messageDiv.setAttribute('data-original-text', plainTextContent);
 
     // 如果有思考内容，添加思考模块
     if (reasoningContent) {
@@ -136,7 +140,7 @@ export async function appendMessage({
         reasoningDiv.appendChild(reasoningTextDiv);
 
         // 添加点击事件处理折叠/展开
-        if (textContent) {
+        if (plainTextContent) {
             reasoningDiv.classList.add('collapsed');
         }
         reasoningDiv.onclick = function() {
@@ -150,14 +154,22 @@ export async function appendMessage({
     // 添加主要内容
     const mainContent = document.createElement('div');
     mainContent.className = 'main-content';
-    mainContent.innerHTML = processMathAndMarkdown(messageHtml);
+    mainContent.innerHTML = processMathAndMarkdown(messageText);
+    if (imageTagNodes.length > 0) {
+        if (messageText.trim()) {
+            mainContent.appendChild(document.createElement('br'));
+        }
+        imageTagNodes.forEach(node => mainContent.appendChild(node));
+    }
     messageDiv.appendChild(mainContent);
 
-    // 渲染 LaTeX 公式
-    try {
-        await renderMathInElement(messageDiv);
-    } catch (err) {
-        console.error('渲染LaTeX公式失败:', err);
+    // 渲染 LaTeX 公式（仅在可能包含公式时）
+    if (textMayContainMath(plainTextContent) || textMayContainMath(reasoningContent)) {
+        try {
+            await renderMathInElement(messageDiv);
+        } catch (err) {
+            console.error('渲染LaTeX公式失败:', err);
+        }
     }
 
     // Preload images for faster copying
@@ -171,6 +183,7 @@ export async function appendMessage({
 
     // 处理消息中的图片标签
     messageDiv.querySelectorAll('.image-tag').forEach(tag => {
+        if (tag.dataset.cerebrBuilt === '1') return;
         const img = tag.querySelector('img');
         const base64Data = tag.getAttribute('data-image');
         if (img && base64Data) {
@@ -300,7 +313,9 @@ export async function updateAIMessage({
                     reasoningTextDiv.setAttribute('data-original-text', reasoningContent);
                     // 更新显示内容
                     reasoningTextDiv.innerHTML = processMathAndMarkdown(reasoningContent).trim();
-                    await renderMathInElement(reasoningTextDiv);
+                    if (textMayContainMath(reasoningContent)) {
+                        await renderMathInElement(reasoningTextDiv);
+                    }
                 }
             }
 
@@ -329,7 +344,9 @@ export async function updateAIMessage({
             }
 
             // 渲染LaTeX公式
-            await renderMathInElement(mainContent);
+            if (textMayContainMath(textContent)) {
+                await renderMathInElement(mainContent);
+            }
 
             // Preload images for faster copying
             mainContent.querySelectorAll('img').forEach(preloadAndCacheImage);

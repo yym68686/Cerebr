@@ -123,7 +123,10 @@ export function initMessageInput(config) {
             e.preventDefault();
             const text = this.textContent.trim();
             if (text || this.querySelector('.image-tag')) {  // 检查是否有文本或图片
-                sendMessage();
+                // Defer heavy work to keep the keydown handler fast.
+                setTimeout(() => {
+                    void sendMessage();
+                }, 0);
             }
         } else if (e.key === 'Escape') {
             // 按 ESC 键时让输入框失去焦点

@@ -7,8 +7,16 @@ const IDB_STORE_NAME = 'keyValueStore';
 
 let dbPromise = null;
 
+const CHATS_INDEX_V2_KEY = 'cerebr_chats_index_v2';
+const CHAT_V2_PREFIX = 'cerebr_chat_v2_';
+
+function isChatStorageKey(key) {
+    return key === CHATS_INDEX_V2_KEY ||
+        (typeof key === 'string' && key.startsWith(CHAT_V2_PREFIX));
+}
+
 function getDb() {
-    if (!isExtensionEnvironment && !dbPromise) { //仅在非插件环境且dbPromise未初始化时创建
+    if (!dbPromise) {
         dbPromise = new Promise((resolve, reject) => {
             const request = indexedDB.open(IDB_DB_NAME, IDB_DB_VERSION);
 
@@ -32,137 +40,217 @@ function getDb() {
     return dbPromise;
 }
 
+async function idbGetOne(key) {
+    const db = await getDb();
+    if (!db) return undefined;
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([IDB_STORE_NAME], 'readonly');
+        const store = transaction.objectStore(IDB_STORE_NAME);
+        const request = store.get(key);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = (event) => {
+            console.error(`IndexedDB get error for key ${key}:`, event.target.error);
+            reject(event.target.error);
+        };
+    });
+}
+
+async function idbGetMany(keys) {
+    const db = await getDb();
+    if (!db) return Object.fromEntries(keys.map(k => [k, undefined]));
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([IDB_STORE_NAME], 'readonly');
+        const store = transaction.objectStore(IDB_STORE_NAME);
+        const result = {};
+        let completed = 0;
+
+        keys.forEach((key) => {
+            const request = store.get(key);
+            request.onsuccess = () => {
+                result[key] = request.result;
+                completed++;
+                if (completed === keys.length) resolve(result);
+            };
+            request.onerror = (event) => {
+                console.error(`IndexedDB get error for key ${key}:`, event.target.error);
+                transaction.abort();
+                reject(event.target.error);
+            };
+        });
+
+        transaction.onerror = (event) => {
+            console.error('IndexedDB get transaction error:', event.target.error);
+            reject(event.target.error);
+        };
+        transaction.onabort = (event) => {
+            console.error('IndexedDB get transaction aborted:', event.target.error);
+            reject(new Error('Transaction aborted, possibly due to an earlier error.'));
+        };
+    });
+}
+
+async function idbSetMany(data) {
+    const db = await getDb();
+    if (!db) throw new Error("IndexedDB not available");
+    const entries = Object.entries(data);
+    if (entries.length === 0) return;
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([IDB_STORE_NAME], 'readwrite');
+        const store = transaction.objectStore(IDB_STORE_NAME);
+        entries.forEach(([key, value]) => {
+            const request = store.put(value, key);
+            request.onerror = (event) => {
+                console.error(`IndexedDB set error for key ${key}:`, event.target.error);
+                transaction.abort();
+                reject(event.target.error);
+            };
+        });
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = (event) => {
+            console.error('IndexedDB set transaction error:', event.target.error);
+            reject(event.target.error);
+        };
+        transaction.onabort = (event) => {
+            console.error('IndexedDB set transaction aborted:', event.target.error);
+            reject(new Error('Transaction aborted, possibly due to an earlier error.'));
+        };
+    });
+}
+
+async function idbRemoveMany(keys) {
+    const db = await getDb();
+    if (!db) throw new Error("IndexedDB not available");
+    const keysArray = Array.isArray(keys) ? keys : [keys];
+    if (keysArray.length === 0) return;
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([IDB_STORE_NAME], 'readwrite');
+        const store = transaction.objectStore(IDB_STORE_NAME);
+        keysArray.forEach((key) => {
+            const request = store.delete(key);
+            request.onerror = (event) => {
+                console.error(`IndexedDB remove error for key ${key}:`, event.target.error);
+                transaction.abort();
+                reject(event.target.error);
+            };
+        });
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = (event) => {
+            console.error('IndexedDB remove transaction error:', event.target.error);
+            reject(event.target.error);
+        };
+        transaction.onabort = (event) => {
+            console.error('IndexedDB remove transaction aborted:', event.target.error);
+            reject(new Error('Transaction aborted, possibly due to an earlier error.'));
+        };
+    });
+}
+
 // 存储适配器
 export const storageAdapter = {
     // 获取存储的数据
     async get(key) {
-        if (isExtensionEnvironment) {
-            return await chrome.storage.local.get(key);
-        } else {
-            try {
-                const db = await getDb();
-                if (!db) return { [key]: undefined }; // 如果数据库打开失败
+        try {
+            if (Array.isArray(key)) {
+                if (key.length === 0) return {};
+                if (isExtensionEnvironment) {
+                    const idbKeys = key.filter(isChatStorageKey);
+                    const chromeKeys = key.filter(k => !isChatStorageKey(k));
+                    let [idbResult, chromeResult] = await Promise.all([
+                        idbKeys.length > 0 ? idbGetMany(idbKeys) : Promise.resolve({}),
+                        chromeKeys.length > 0 ? chrome.storage.local.get(chromeKeys) : Promise.resolve({})
+                    ]);
 
-                return new Promise((resolve, reject) => {
-                    const transaction = db.transaction([IDB_STORE_NAME], 'readonly');
-                    const store = transaction.objectStore(IDB_STORE_NAME);
-                    const request = store.get(key);
+                    // 兼容迁移：chat keys 优先从 IDB 读，缺失则回退到 chrome.storage.local，再写回 IDB
+                    if (idbKeys.length > 0) {
+                        const missingIdbKeys = idbKeys.filter(k => typeof idbResult[k] === 'undefined');
+                        if (missingIdbKeys.length > 0) {
+                            const chromeFallback = await chrome.storage.local.get(missingIdbKeys);
+                            const fallbackEntries = Object.entries(chromeFallback).filter(([, v]) => typeof v !== 'undefined');
+                            if (fallbackEntries.length > 0) {
+                                const fallbackPayload = Object.fromEntries(fallbackEntries);
+                                await idbSetMany(fallbackPayload);
+                                await chrome.storage.local.remove(Object.keys(fallbackPayload));
+                                idbResult = { ...idbResult, ...fallbackPayload };
+                            }
+                        }
+                    }
 
-                    request.onsuccess = () => {
-                        resolve({ [key]: request.result });
-                    };
-                    request.onerror = (event) => {
-                        console.error(`IndexedDB get error for key ${key}:`, event.target.error);
-                        reject(event.target.error);
-                    };
-                });
-            } catch (error) {
-                console.error('Failed to get data from IndexedDB for key ' + key + ':', error);
-                return { [key]: undefined };
+                    return { ...chromeResult, ...idbResult };
+                }
+                return await idbGetMany(key);
             }
+
+            if (isExtensionEnvironment) {
+                if (isChatStorageKey(key)) {
+                    let value = await idbGetOne(key);
+                    if (typeof value === 'undefined') {
+                        const chromeFallback = await chrome.storage.local.get(key);
+                        value = chromeFallback[key];
+                        if (typeof value !== 'undefined') {
+                            await idbSetMany({ [key]: value });
+                            await chrome.storage.local.remove(key);
+                        }
+                    }
+                    return { [key]: value };
+                }
+                return await chrome.storage.local.get(key);
+            }
+
+            return { [key]: await idbGetOne(key) };
+        } catch (error) {
+            console.error('Failed to get data from storage for key ' + key + ':', error);
+            if (Array.isArray(key)) {
+                return Object.fromEntries(key.map(k => [k, undefined]));
+            }
+            return { [key]: undefined };
         }
     },
 
     // 删除存储的数据
     async remove(keys) {
+        if (Array.isArray(keys) && keys.length === 0) return;
+        const keysArray = Array.isArray(keys) ? keys : [keys];
+        const idbKeys = keysArray.filter(isChatStorageKey);
+
         if (isExtensionEnvironment) {
-            await chrome.storage.local.remove(keys);
-        } else {
-            try {
-                const db = await getDb();
-                if (!db) throw new Error("IndexedDB not available");
-
-                const keysArray = Array.isArray(keys) ? keys : [keys];
-                if (keysArray.length === 0) return Promise.resolve();
-
-                return new Promise((resolve, reject) => {
-                    const transaction = db.transaction([IDB_STORE_NAME], 'readwrite');
-                    const store = transaction.objectStore(IDB_STORE_NAME);
-
-                    keysArray.forEach((key) => {
-                        const request = store.delete(key);
-                        request.onerror = (event) => {
-                            console.error(`IndexedDB remove error for key ${key}:`, event.target.error);
-                            transaction.abort();
-                            reject(event.target.error);
-                        };
-                    });
-
-                    transaction.oncomplete = () => resolve();
-                    transaction.onerror = (event) => {
-                        console.error('IndexedDB remove transaction error:', event.target.error);
-                        reject(event.target.error);
-                    };
-                    transaction.onabort = (event) => {
-                        console.error('IndexedDB remove transaction aborted:', event.target.error);
-                        reject(new Error('Transaction aborted, possibly due to an earlier error.'));
-                    };
-                });
-            } catch (error) {
-                console.error('Failed to remove data in IndexedDB:', error);
-                throw error;
-            }
+            await Promise.all([
+                idbKeys.length > 0 ? idbRemoveMany(idbKeys) : Promise.resolve(),
+                chrome.storage.local.remove(keysArray)
+            ]);
+            return;
         }
+
+        await idbRemoveMany(keysArray);
     },
 
     // 设置存储的数据
     async set(data) {
-        if (isExtensionEnvironment) {
-            await chrome.storage.local.set(data);
-        } else {
-            try {
-                const db = await getDb();
-                if (!db) throw new Error("IndexedDB not available");
+        const entries = Object.entries(data);
+        if (entries.length === 0) return;
 
-                // 假设 data 是一个对象，我们需要迭代它来存储每个键值对
-                // 或者，如果 ChatManager 总是用一个固定的主键（如 'cerebr_chats'）来保存所有聊天，
-                // 那么这里的逻辑可以简化。
-                // 当前 ChatManager 的 saveChats 是 this.storage.set({ [CHATS_KEY]: Array.from(this.chats.values()) });
-                // 所以 data 是 { 'cerebr_chats': [...] }
-
-                const entries = Object.entries(data);
-                if (entries.length === 0) return Promise.resolve();
-
-                return new Promise((resolve, reject) => {
-                    const transaction = db.transaction([IDB_STORE_NAME], 'readwrite');
-                    const store = transaction.objectStore(IDB_STORE_NAME);
-                    let completedOperations = 0;
-
-                    entries.forEach(([key, value]) => {
-                        const request = store.put(value, key);
-                        request.onsuccess = () => {
-                            completedOperations++;
-                            if (completedOperations === entries.length) {
-                                // resolve(); // 事务完成后再 resolve
-                            }
-                        };
-                        request.onerror = (event) => {
-                            // 如果任何一个 put 失败，我们应该中止事务并 reject
-                            console.error(`IndexedDB set error for key ${key}:`, event.target.error);
-                            transaction.abort(); // 中止事务
-                            reject(event.target.error);
-                        };
-                    });
-
-                    transaction.oncomplete = () => {
-                        resolve();
-                    };
-                    transaction.onerror = (event) => {
-                        console.error('IndexedDB set transaction error:', event.target.error);
-                        reject(event.target.error);
-                    };
-                     transaction.onabort = (event) => {
-                        console.error('IndexedDB set transaction aborted:', event.target.error);
-                        reject(new Error('Transaction aborted, possibly due to an earlier error.'));
-                    };
-                });
-
-            } catch (error) {
-                console.error('Failed to set data in IndexedDB:', error);
-                // 根据应用的需要决定如何处理这个错误，例如向上抛出
-                throw error;
+        const idbPayload = {};
+        const chromePayload = {};
+        entries.forEach(([k, v]) => {
+            if (isExtensionEnvironment && !isChatStorageKey(k)) {
+                chromePayload[k] = v;
+            } else {
+                idbPayload[k] = v;
             }
+        });
+
+        if (isExtensionEnvironment) {
+            await Promise.all([
+                Object.keys(idbPayload).length > 0 ? idbSetMany(idbPayload) : Promise.resolve(),
+                Object.keys(chromePayload).length > 0 ? chrome.storage.local.set(chromePayload) : Promise.resolve()
+            ]);
+            // 迁移清理：确保 chat keys 不再残留在 chrome.storage.local
+            if (Object.keys(idbPayload).length > 0) {
+                await chrome.storage.local.remove(Object.keys(idbPayload));
+            }
+            return;
         }
+
+        await idbSetMany(idbPayload);
     }
 };
 
