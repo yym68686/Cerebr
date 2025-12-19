@@ -559,15 +559,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     let apiConfigsPersistTimer = null;
-    let apiConfigsPersistPromise = null;
 
     const queueApiConfigsPersist = () => {
         if (apiConfigsPersistTimer) clearTimeout(apiConfigsPersistTimer);
         apiConfigsPersistTimer = setTimeout(() => {
             apiConfigsPersistTimer = null;
-            apiConfigsPersistPromise = Promise.resolve(apiConfigsPersistPromise)
-                .catch(() => {})
-                .then(() => saveAPIConfigs());
+            saveAPIConfigs().catch(() => {});
         }, API_CONFIGS_SYNC_DEBOUNCE_MS);
     };
 
@@ -576,17 +573,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             clearTimeout(apiConfigsPersistTimer);
             apiConfigsPersistTimer = null;
         }
-        if (apiConfigsPersistPromise) {
-            try {
-                await apiConfigsPersistPromise;
-            } catch {
-                // ignore
-            }
-        }
-        apiConfigsPersistPromise = Promise.resolve(apiConfigsPersistPromise)
-            .catch(() => {})
-            .then(() => saveAPIConfigs());
-        await apiConfigsPersistPromise;
+        await saveAPIConfigs();
     };
 
     // 使用新的selectCard函数
@@ -649,9 +636,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 分别检查每个配置项
             if (result.apiConfigs) {
-                apiConfigs = result.apiConfigs.map(normalizeApiConfig);
+                const nextConfigs = result.apiConfigs.map(normalizeApiConfig);
+                apiConfigs.splice(0, apiConfigs.length, ...nextConfigs);
             } else {
-                apiConfigs = [{
+                apiConfigs.splice(0, apiConfigs.length, {
                     id: generateConfigId(),
                     apiKey: '',
                     baseUrl: 'https://api.openai.com/v1/chat/completions',
@@ -660,7 +648,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         systemPrompt: '',
                         isExpanded: false,
                     },
-                }];
+                });
                 // 只有在没有任何配置的情况下才保存默认配置
                 await saveAPIConfigs();
             }
@@ -686,7 +674,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             let needsMigrationSave = false;
             const localPromptPayloadToCache = {};
 
-            apiConfigs = apiConfigs.map((config, idx) => {
+            const nextConfigs = apiConfigs.map((config, idx) => {
                 const promptKey = getSystemPromptKey(config.id);
                 const localOnlyKey = getSystemPromptLocalOnlyKey(config.id);
                 const localPrompt = localPromptResults[idx]?.[promptKey];
@@ -715,6 +703,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     },
                 };
             });
+            apiConfigs.splice(0, apiConfigs.length, ...nextConfigs);
 
             if (Object.keys(localPromptPayloadToCache).length > 0) {
                 await storageAdapter.set(localPromptPayloadToCache);
@@ -730,7 +719,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (error) {
             console.error('加载 API 配置失败:', error);
             // 只有在出错的情况下才使用默认值
-            apiConfigs = [{
+            apiConfigs.splice(0, apiConfigs.length, {
                 id: generateConfigId(),
                 apiKey: '',
                 baseUrl: 'https://api.openai.com/v1/chat/completions',
@@ -739,7 +728,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     systemPrompt: '',
                     isExpanded: false,
                 },
-            }];
+            });
             selectedConfigIndex = 0;
             renderAPICardsWithCallbacks();
         }
@@ -763,10 +752,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
     });
+
+    // 串行化保存，避免并发写入导致“旧值覆盖新值”
+    let apiConfigsSaveChain = Promise.resolve();
+
+    function saveAPIConfigs() {
+        apiConfigsSaveChain = Promise.resolve(apiConfigsSaveChain)
+            .catch(() => {})
+            .then(() => saveAPIConfigsNow());
+        return apiConfigsSaveChain;
+    }
+
     // 保存配置到存储
-    async function saveAPIConfigs() {
+    async function saveAPIConfigsNow() {
         try {
-            apiConfigs = apiConfigs.map(normalizeApiConfig);
+            const nextConfigs = apiConfigs.map(normalizeApiConfig);
+            apiConfigs.splice(0, apiConfigs.length, ...nextConfigs);
             if (!Number.isInteger(selectedConfigIndex)) {
                 selectedConfigIndex = 0;
             }
