@@ -259,10 +259,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'getPDFChunk') {
     (async () => {
       try {
-        const response = await getPDFChunk(message.url, message.chunkIndex);
+        const response = await getPDFChunk(message.requestId, message.chunkIndex);
         sendResponse(response);
       } catch (error) {
         sendResponse({success: false, error: error.message});
+      }
+    })();
+    return true;
+  }
+
+  // 处理释放PDF缓存的请求
+  if (message.action === 'releasePDF') {
+    (async () => {
+      try {
+        const response = releasePDF(message.requestId);
+        sendResponse(response);
+      } catch (error) {
+        sendResponse({ success: false, error: error.message });
       }
     })();
     return true;
@@ -306,6 +319,38 @@ async function isTabConnected(tabId) {
     } catch {
         return false;
     }
+}
+
+const PDF_CHUNK_SIZE = 4 * 1024 * 1024;
+const MAX_PDF_CACHE_ENTRIES = 5;
+const MAX_PDF_CACHE_TOTAL_BYTES = 256 * 1024 * 1024;
+
+/** @type {Map<string, {arrayBuffer: ArrayBuffer, totalSize: number, totalChunks: number, chunkSize: number, createdAt: number, lastAccessed: number, url: string}>} */
+const pdfCache = new Map();
+
+function touchPdfCacheEntry(requestId) {
+  const entry = pdfCache.get(requestId);
+  if (!entry) return null;
+  entry.lastAccessed = Date.now();
+  pdfCache.delete(requestId);
+  pdfCache.set(requestId, entry);
+  return entry;
+}
+
+function getPdfCacheTotalBytes() {
+  let total = 0;
+  for (const entry of pdfCache.values()) {
+    total += entry.totalSize || 0;
+  }
+  return total;
+}
+
+function evictPdfCacheIfNeeded() {
+  while (pdfCache.size > MAX_PDF_CACHE_ENTRIES || (pdfCache.size > 1 && getPdfCacheTotalBytes() > MAX_PDF_CACHE_TOTAL_BYTES)) {
+    const oldestKey = pdfCache.keys().next().value;
+    if (!oldestKey) break;
+    pdfCache.delete(oldestKey);
+  }
 }
 
 // 添加公共的PDF文件获取函数
@@ -352,20 +397,31 @@ async function downloadPDF(url) {
       // console.log('开始下载PDF文件:', url);
       const arrayBuffer = await getPDFArrayBuffer(url);
       // console.log('PDF文件下载完成，大小:', arrayBuffer.byteLength, 'bytes');
+      const totalSize = arrayBuffer.byteLength;
+      const totalChunks = Math.ceil(totalSize / PDF_CHUNK_SIZE);
 
-      // 将ArrayBuffer转换为Uint8Array
-      const uint8Array = new Uint8Array(arrayBuffer);
+      const requestId = (self.crypto && typeof self.crypto.randomUUID === 'function')
+        ? self.crypto.randomUUID()
+        : `${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
-      // 分块大小设为4MB
-      const chunkSize = 4 * 1024 * 1024;
-      const chunks = Math.ceil(uint8Array.length / chunkSize);
+      pdfCache.set(requestId, {
+        arrayBuffer,
+        totalSize,
+        totalChunks,
+        chunkSize: PDF_CHUNK_SIZE,
+        createdAt: Date.now(),
+        lastAccessed: Date.now(),
+        url
+      });
+      evictPdfCacheIfNeeded();
 
-      // 发送第一个消息，包含总块数和文件大小信息
       return {
-          success: true,
-          type: 'init',
-          totalChunks: chunks,
-          totalSize: uint8Array.length
+        success: true,
+        type: 'init',
+        requestId,
+        totalChunks,
+        totalSize,
+        chunkSize: PDF_CHUNK_SIZE
       };
   } catch (error) {
       console.error('PDF下载失败:', error);
@@ -375,19 +431,26 @@ async function downloadPDF(url) {
 }
 
 // 修改 getPDFChunk 函数
-async function getPDFChunk(url, chunkIndex) {
+async function getPDFChunk(requestId, chunkIndex) {
   try {
-      const arrayBuffer = await getPDFArrayBuffer(url);
-      const uint8Array = new Uint8Array(arrayBuffer);
-      const chunkSize = 4 * 1024 * 1024;
-      const start = chunkIndex * chunkSize;
-      const end = Math.min(start + chunkSize, uint8Array.length);
+      const entry = touchPdfCacheEntry(requestId);
+      if (!entry) {
+        return { success: false, error: 'PDF cache entry not found' };
+      }
+
+      const start = chunkIndex * entry.chunkSize;
+      const end = Math.min(start + entry.chunkSize, entry.totalSize);
+      if (start < 0 || start >= entry.totalSize || end <= start) {
+        return { success: false, error: 'Invalid chunk range' };
+      }
 
       return {
           success: true,
           type: 'chunk',
           chunkIndex: chunkIndex,
-          data: Array.from(uint8Array.slice(start, end))
+          // Note: Chrome extension messaging can be unreliable for ArrayBuffer payloads in some setups.
+          // Use a plain number array to maximize compatibility; still avoid re-downloading by slicing cached buffer.
+          data: Array.from(new Uint8Array(entry.arrayBuffer, start, end - start))
       };
   } catch (error) {
       console.error('获取PDF块数据失败:', error);
@@ -396,6 +459,12 @@ async function getPDFChunk(url, chunkIndex) {
           error: error.message
       };
   }
+}
+
+function releasePDF(requestId) {
+  if (!requestId) return { success: false, error: 'Missing requestId' };
+  pdfCache.delete(requestId);
+  return { success: true };
 }
 
 // 监听标签页激活事件，并通知相关方，兼容 Firefox 需要

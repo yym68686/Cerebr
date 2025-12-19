@@ -396,6 +396,8 @@ try {
   console.error('创建侧边栏实例失败:', error);
 }
 
+let inFlightPageContentPromise = null;
+
 // 修改消息监听器
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // console.log('content.js 收到消息:', message.type);
@@ -427,22 +429,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
-    // 处理获取页面内容请求
-    if (message.type === 'GET_PAGE_CONTENT_INTERNAL') {
-        // console.log('收到获取页面内容请求');
-        isProcessing = true;
+	    // 处理获取页面内容请求
+	    if (message.type === 'GET_PAGE_CONTENT_INTERNAL') {
+	        // console.log('收到获取页面内容请求');
+	        if (inFlightPageContentPromise) {
+	            inFlightPageContentPromise.then(sendResponse).catch(() => sendResponse(null));
+	            return true;
+	        }
 
-        extractPageContent(message.skipWaitContent).then(content => {
-            isProcessing = false;
-            sendResponse(content);
-        }).catch(error => {
-            console.error('提取页面内容失败:', error);
-            isProcessing = false;
-            sendResponse(null);
-        });
+	        inFlightPageContentPromise = extractPageContent(message.skipWaitContent);
 
-        return true;
-    }
+	        inFlightPageContentPromise.then(content => {
+	            sendResponse(content);
+	        }).catch(error => {
+	            console.error('提取页面内容失败:', error);
+	            sendResponse(null);
+	        }).finally(() => {
+	            inFlightPageContentPromise = null;
+	        });
+
+	        return true;
+	    }
 
     // 处理 NEW_CHAT 消息
     if (message.type === 'NEW_CHAT') {
@@ -625,7 +632,54 @@ const PDFJS_WORKER_PATH = chrome.runtime.getURL('lib/pdf.worker.js');
 // 设置 PDF.js worker 路径
 pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_PATH;
 
+let inFlightPdfUrl = null;
+let inFlightPdfExtraction = null;
+
+const PDF_TEXT_CACHE_MAX_ENTRIES = 3;
+const PDF_TEXT_CACHE_MAX_CHARS = 1_000_000;
+const pdfTextCache = new Map();
+
+function getCachedPdfText(url) {
+  const cached = pdfTextCache.get(url);
+  if (!cached) return null;
+  pdfTextCache.delete(url);
+  pdfTextCache.set(url, cached);
+  return cached.text || null;
+}
+
+function setCachedPdfText(url, text) {
+  if (!url || !text) return;
+  if (typeof text === 'string' && text.length > PDF_TEXT_CACHE_MAX_CHARS) return;
+  pdfTextCache.delete(url);
+  pdfTextCache.set(url, { text, createdAt: Date.now() });
+  while (pdfTextCache.size > PDF_TEXT_CACHE_MAX_ENTRIES) {
+    const oldestKey = pdfTextCache.keys().next().value;
+    if (!oldestKey) break;
+    pdfTextCache.delete(oldestKey);
+  }
+}
+
 async function extractTextFromPDF(url) {
+  const cachedText = getCachedPdfText(url);
+  if (cachedText) return cachedText;
+
+  if (inFlightPdfExtraction && inFlightPdfUrl === url) {
+    return inFlightPdfExtraction;
+  }
+
+  inFlightPdfUrl = url;
+
+  const extractionPromise = (async () => {
+  let requestId = null;
+  const sendRuntimeMessage = (message) => new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(message, (response) => {
+      if (chrome.runtime.lastError) return reject(chrome.runtime.lastError);
+      resolve(response);
+    });
+  });
+  let loadingTask = null;
+  let pdf = null;
+  let worker = null;
   try {
     // 使用已存在的 sidebar 实例
     if (!sidebar || !sidebar.sidebar) {
@@ -654,7 +708,7 @@ async function extractTextFromPDF(url) {
 
     console.log('开始下载PDF:', url);
     // 首先获取PDF文件的初始信息
-    const initResponse = await chrome.runtime.sendMessage({
+    const initResponse = await sendRuntimeMessage({
       action: 'downloadPDF',
       url: url
     });
@@ -665,41 +719,73 @@ async function extractTextFromPDF(url) {
       throw new Error('PDF初始化失败');
     }
 
-    const { totalChunks, totalSize } = initResponse;
+    requestId = initResponse.requestId;
+    const { totalChunks, totalSize, chunkSize } = initResponse;
     // console.log(`PDF文件大小: ${totalSize} bytes, 总块数: ${totalChunks}`);
 
-    // 分块接收数据
-    const chunks = new Array(totalChunks);
+    if (!requestId) {
+      sendPlaceholderUpdate('PDF下载失败', 2000);
+      throw new Error('PDF初始化失败：缺少 requestId');
+    }
+
+    // 分块接收数据（直接写入预分配缓冲区，避免中间数组与重复拷贝）
+    const effectiveChunkSize = Number.isFinite(chunkSize) && chunkSize > 0 ? chunkSize : (4 * 1024 * 1024);
+    const completeData = new Uint8Array(totalSize);
+    let receivedBytes = 0;
     for (let i = 0; i < totalChunks; i++) {
       sendPlaceholderUpdate(`正在下载PDF文件 (${Math.round((i + 1) / totalChunks * 100)}%)...`);
 
-      const chunkResponse = await chrome.runtime.sendMessage({
+      const chunkResponse = await sendRuntimeMessage({
         action: 'getPDFChunk',
-        url: url,
+        requestId,
         chunkIndex: i
       });
 
-      if (!chunkResponse.success) {
+      if (!chunkResponse?.success) {
         sendPlaceholderUpdate('PDF下载失败', 2000);
         throw new Error(`获取PDF块 ${i} 失败`);
       }
 
-      chunks[i] = new Uint8Array(chunkResponse.data);
+      const chunkData = chunkResponse.data;
+      const chunkBytes = chunkData instanceof ArrayBuffer
+        ? new Uint8Array(chunkData)
+        : Array.isArray(chunkData)
+          ? Uint8Array.from(chunkData)
+          : new Uint8Array();
+      const start = i * effectiveChunkSize;
+      const expectedLen = Math.min(effectiveChunkSize, totalSize - start);
+      if (chunkBytes.byteLength !== expectedLen) {
+        throw new Error(`PDF块长度异常: chunk=${i}, got=${chunkBytes.byteLength}, expected=${expectedLen}, start=${start}, totalSize=${totalSize}`);
+      }
+      completeData.set(chunkBytes, start);
+      receivedBytes += chunkBytes.byteLength;
     }
 
-    // 合并所有块
-    const completeData = new Uint8Array(totalSize);
-    let offset = 0;
-    for (const chunk of chunks) {
-      completeData.set(chunk, offset);
-      offset += chunk.length;
+    if (receivedBytes !== totalSize) {
+      throw new Error(`PDF下载不完整: received=${receivedBytes}, totalSize=${totalSize}`);
+    }
+
+    // 基本文件头校验，便于定位“下载到的并非PDF”类问题（例如HTML/重定向页）
+    const header = String.fromCharCode(...completeData.slice(0, 5));
+    if (header !== '%PDF-') {
+      const preview = new TextDecoder('utf-8', { fatal: false }).decode(completeData.slice(0, 300));
+      throw new Error(`下载内容不是PDF(缺少%PDF-头)，前300字节预览: ${preview}`);
     }
 
     sendPlaceholderUpdate('正在解析PDF文件...');
 
     // console.log('开始解析PDF文件');
-    const loadingTask = pdfjsLib.getDocument({data: completeData});
-    const pdf = await loadingTask.promise;
+    try {
+      // 为每次解析创建独立 worker，避免复用导致的卡死/状态污染
+      if (pdfjsLib.PDFWorker) {
+        worker = new pdfjsLib.PDFWorker({ name: `cerebr-pdf-${Date.now()}` });
+      }
+    } catch (e) {
+      worker = null;
+    }
+
+    loadingTask = pdfjsLib.getDocument(worker ? { data: completeData, worker } : { data: completeData });
+    pdf = await loadingTask.promise;
     // console.log('PDF加载成功，总页数:', pdf.numPages);
 
     let fullText = '';
@@ -712,12 +798,18 @@ async function extractTextFromPDF(url) {
       const pageText = textContent.items.map(item => item.str).join(' ');
       // console.log(`第 ${i} 页提取的文本长度:`, pageText.length);
       fullText += pageText + '\n';
+      try {
+        page.cleanup();
+      } catch (e) {
+        // ignore
+      }
     }
 
     // 计算GPT分词数量
     const gptTokenCount = await estimateGPTTokens(fullText);
     console.log('PDF文本提取完成，总文本长度:', fullText.length, '预计GPT tokens:', gptTokenCount);
     sendPlaceholderUpdate(`PDF处理完成 (约 ${gptTokenCount} tokens)`, 2000);
+    setCachedPdfText(url, fullText);
     return fullText;
   } catch (error) {
     console.error('PDF处理过程中出错:', error);
@@ -733,6 +825,43 @@ async function extractTextFromPDF(url) {
       }
     }
     return null;
+  } finally {
+    if (requestId) {
+      sendRuntimeMessage({ action: 'releasePDF', requestId }).catch(() => {});
+    }
+    try {
+      if (pdf && typeof pdf.destroy === 'function') {
+        await pdf.destroy();
+      }
+    } catch (e) {
+      // ignore
+    }
+    try {
+      if (loadingTask && typeof loadingTask.destroy === 'function') {
+        await loadingTask.destroy();
+      }
+    } catch (e) {
+      // ignore
+    }
+    try {
+      if (worker && typeof worker.destroy === 'function') {
+        await worker.destroy();
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+  })();
+
+  inFlightPdfExtraction = extractionPromise;
+
+  try {
+    return await extractionPromise;
+  } finally {
+    if (inFlightPdfExtraction === extractionPromise) {
+      inFlightPdfExtraction = null;
+      inFlightPdfUrl = null;
+    }
   }
 }
 
