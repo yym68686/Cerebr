@@ -17,6 +17,7 @@ import {
 } from './components/chat-list.js';
 import { initWebpageMenu, getEnabledTabsContent } from './components/webpage-menu.js';
 import { normalizeChatCompletionsUrl } from './utils/api-url.js';
+import { ensureChatElementVisible, syncChatBottomExtraPadding } from './utils/scroll.js';
 
 // 存储用户的问题历史
 let userQuestions = [];
@@ -47,6 +48,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const regenerateMessageButton = document.getElementById('regenerate-message');
     const webpageQAContainer = document.getElementById('webpage-qa');
     const webpageContentMenu = document.getElementById('webpage-content-menu');
+
+    syncChatBottomExtraPadding();
+    window.addEventListener('resize', () => syncChatBottomExtraPadding());
 
     // 基础键盘可访问性：让 role="menuitem" 的元素可用 Enter/Space 触发
     document.addEventListener('keydown', (e) => {
@@ -356,10 +360,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
 
             // 首 token 前占位：减少“没反应”的体感
-            appendMessage({
+            void appendMessage({
                 text: '',
                 sender: 'ai',
                 chatContainer,
+            }).then((element) => {
+                ensureChatElementVisible({ chatContainer, element, behavior: 'smooth' });
             });
 
             // 调用带重试逻辑的 API
@@ -443,10 +449,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
 
             // 首 token 前占位：减少“没反应”的体感
-            appendMessage({
+            void appendMessage({
                 text: '',
                 sender: 'ai',
                 chatContainer,
+            }).then((element) => {
+                ensureChatElementVisible({ chatContainer, element, behavior: 'smooth' });
             });
 
             // 调用带重试逻辑的 API

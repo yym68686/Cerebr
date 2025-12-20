@@ -5,6 +5,7 @@
 
 import { adjustTextareaHeight, createImageTag, showImagePreview, hideImagePreview } from '../utils/ui.js';
 import { handleImageDrop } from '../utils/image.js';
+import { syncChatBottomExtraPadding } from '../utils/scroll.js';
 
 // 跟踪输入法状态
 let isComposing = false;
@@ -74,6 +75,7 @@ export function initMessageInput(config) {
             textarea: this,
             config: uiConfig.textarea
         });
+        syncChatBottomExtraPadding();
 
         // 如果正在使用输入法，则不处理 placeholder
         if (isComposing) {
@@ -257,6 +259,9 @@ export function initMessageInput(config) {
             }
         });
     });
+
+    // 初始化时同步一次，避免输入栏高度变化导致底部消息被遮挡
+    syncChatBottomExtraPadding();
 }
 
 /**
@@ -345,6 +350,7 @@ export function clearMessageInput(messageInput, config) {
         textarea: messageInput,
         config: config.textarea
     });
+    syncChatBottomExtraPadding();
 }
 
 /**
