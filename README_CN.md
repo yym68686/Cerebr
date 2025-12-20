@@ -12,6 +12,9 @@
 <a href="https://addons.mozilla.org/en-US/firefox/addon/cerebr/">
     <img src="https://img.shields.io/amo/v/cerebr?label=Firefox%20商店&logo=firefox&logoColor=white" alt="Firefox Add-on">
 </a>
+  <a href="https://t.me/+PjVzosn53zswZDRl">
+    <img src="https://img.shields.io/badge/Join Telegram Group-blue?&logo=telegram">
+  </a>
 </p>
 
 [English](./README.md) | [简体中文](./README_CN.md)
