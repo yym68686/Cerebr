@@ -433,9 +433,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (themeToggle && themeSwitch) {
         themeToggle.addEventListener('click', (e) => {
-            if (e.target.closest('input')) return;
-            themeSwitch.checked = !themeSwitch.checked;
-            themeSwitch.dispatchEvent(new Event('change', { bubbles: true }));
+            // 点击开关本身时，让浏览器默认行为处理（避免 toggle 两次导致“没反应”）
+            if (e.target.closest('.switch')) return;
+            themeSwitch.click();
         });
     }
 

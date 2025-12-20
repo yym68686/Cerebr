@@ -170,14 +170,6 @@ class CerebrSidebar {
           touch-action: none;
           background: transparent;
         }
-        .cerebr-sidebar__resizer:hover {
-          background: linear-gradient(to right, rgba(0,0,0,0.12), rgba(0,0,0,0));
-        }
-        @media (prefers-color-scheme: dark) {
-          .cerebr-sidebar__resizer:hover {
-            background: linear-gradient(to right, rgba(255,255,255,0.10), rgba(255,255,255,0));
-          }
-        }
         @media (prefers-reduced-motion: reduce) {
           .cerebr-sidebar.initialized {
             transition: none;
