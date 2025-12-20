@@ -12,6 +12,8 @@
     -webkit-backdrop-filter: var(--cerebr-surface-backdrop-filter);
     border: 1px solid var(--cerebr-surface-border);
     touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 #context-menu.visible {
@@ -32,6 +34,8 @@
     margin: 2px 0;
     transition: background-color 0.2s ease;
     white-space: nowrap;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .context-menu-item:hover {

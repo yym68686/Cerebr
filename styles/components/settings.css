@@ -60,6 +60,8 @@
     color: var(--cerebr-text-color);
     border-radius: 6px;
     margin: 2px 0;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .menu-item:hover {

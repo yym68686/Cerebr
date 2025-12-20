@@ -34,6 +34,8 @@
     border-radius: 6px;
     cursor: pointer;
     transition: background-color 0.2s;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .webpage-menu-item:hover {
