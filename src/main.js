@@ -76,7 +76,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // 修改: 创建一个对象引用来保存当前控制器
-    const abortControllerRef = { current: null };
+    // pendingAbort 用于处理“首 token 前”用户立刻点停止的情况
+    const abortControllerRef = { current: null, pendingAbort: false };
     let currentController = null;
 
     // 创建UI工具配置
@@ -264,6 +265,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             const { processStream, controller } = await callAPI(apiParams, chatManager, chatId, onMessageUpdate);
             currentController = controller;
             abortControllerRef.current = controller;
+
+            if (abortControllerRef.pendingAbort) {
+                abortControllerRef.pendingAbort = false;
+                try {
+                    controller.abort();
+                } finally {
+                    abortControllerRef.current = null;
+                    currentController = null;
+                }
+                return;
+            }
 
             const result = await processStream();
 

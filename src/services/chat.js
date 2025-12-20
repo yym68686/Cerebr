@@ -78,10 +78,12 @@ export async function callAPI({
         processedMessages.unshift(systemMessage);
     }
 
+    // 注意：为了支持“首 token 前”也能立即停止更新，我们需要尽早把 controller 暴露出去。
+    // 因此 fetch 的执行被延后到 processStream 内部。
     const controller = new AbortController();
     const signal = controller.signal;
 
-    const response = await fetch(baseUrl, {
+    const requestInit = {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -93,18 +95,24 @@ export async function callAPI({
             stream: true,
         }),
         signal
-    });
-
-    if (!response.ok) {
-        const error = await response.text();
-        throw new Error(error);
-    }
-
-    // 处理流式响应
-    const reader = response.body.getReader();
+    };
 
     const processStream = async () => {
+        let reader;
         try {
+            const response = await fetch(baseUrl, requestInit);
+
+            if (!response.ok) {
+                const errorText = await response.text().catch(() => '');
+                throw new Error(errorText || response.statusText || `HTTP ${response.status}`);
+            }
+
+            // 处理流式响应
+            reader = response.body?.getReader?.();
+            if (!reader) {
+                throw new Error('响应体不可读');
+            }
+
             let buffer = '';
             let currentMessage = {
                 content: '',
@@ -189,6 +197,12 @@ export async function callAPI({
                 return;
             }
             throw error;
+        } finally {
+            try {
+                await reader?.cancel?.();
+            } catch {
+                // ignore
+            }
         }
     };
 

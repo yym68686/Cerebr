@@ -334,11 +334,14 @@ export function initChatContainer({
             if (abortController.current) {
                 abortController.current.abort();  // 中止当前请求
                 abortController.current = null;
-                hideContextMenu({
-                    contextMenu,
-                    onMessageElementReset: () => { currentMessageElement = null; }
-                });
+            } else {
+                // 兼容“首 token 前”用户立即停止：controller 还未暴露出来时先记账
+                abortController.pendingAbort = true;
             }
+            hideContextMenu({
+                contextMenu,
+                onMessageElementReset: () => { currentMessageElement = null; }
+            });
         });
 
         // 添加删除消息按钮的点击事件处理
