@@ -13,7 +13,7 @@ function getUniqueTabsByUrl(tabs) {
 }
 
 async function populateWebpageContentMenu(webpageContentMenu) {
-    webpageContentMenu.innerHTML = ''; // 清空现有内容
+    webpageContentMenu.innerHTML = '<div class="webpage-menu-loading">加载标签页…</div>';
     let allTabs = await browserAdapter.getAllTabs();
 
     // 1. 过滤掉浏览器自身的特殊页面
@@ -26,6 +26,13 @@ async function populateWebpageContentMenu(webpageContentMenu) {
     const finalTabs = getUniqueTabsByUrl(allTabs);
 
     const { webpageSwitches: switches } = await storageAdapter.get('webpageSwitches');
+
+    webpageContentMenu.innerHTML = '';
+
+    if (finalTabs.length === 0) {
+        webpageContentMenu.innerHTML = '<div class="webpage-menu-empty">没有可用的标签页</div>';
+        return;
+    }
 
     for (const tab of finalTabs) {
         if (!tab.title || !tab.url) continue;
@@ -79,6 +86,15 @@ async function populateWebpageContentMenu(webpageContentMenu) {
                     // 可选：刷新后可以给个提示或自动重新打开菜单
                 }
             }
+        });
+
+        // 允许点击整行（除开关本身）来切换，避免误关一级菜单且提升可用性
+        item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // 点击开关区域时交给默认行为
+            if (e.target.closest('.switch')) return;
+            switchInput.checked = !switchInput.checked;
+            switchInput.dispatchEvent(new Event('change', { bubbles: true }));
         });
 
         const slider = document.createElement('span');

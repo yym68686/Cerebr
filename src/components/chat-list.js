@@ -38,6 +38,14 @@ export function renderChatListIncremental(chatManager, chatCards, searchTerm = '
     // 先清空（只保留模板），避免一次性 replaceChildren 大量节点导致长任务
     chatCards.replaceChildren(template);
 
+    if (filteredChats.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'chat-list-empty-state';
+        empty.textContent = searchTerm ? '没有匹配的对话' : '暂无对话';
+        chatCards.appendChild(empty);
+        return;
+    }
+
     const renderChunk = (deadline) => {
         if (myToken !== renderToken) return;
 
@@ -114,6 +122,9 @@ export async function switchToChat(chatId, chatManager) {
                 card.classList.remove('selected');
             }
         });
+
+        // 通知其他模块（例如：草稿/滚动按钮）当前对话已切换
+        document.dispatchEvent(new CustomEvent('cerebr:chatSwitched', { detail: { chatId } }));
     }
 }
 

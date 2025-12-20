@@ -30,6 +30,14 @@
     overflow-y: auto;
 }
 
+.chat-list-empty-state {
+    margin-top: 20vh;
+    padding: 16px;
+    text-align: center;
+    color: var(--cerebr-text-color-secondary);
+    font-size: 14px;
+}
+
 .chat-card {
     outline: none;
     cursor: pointer;

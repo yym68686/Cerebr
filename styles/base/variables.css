@@ -1,7 +1,15 @@
 /* 根变量（默认浅色主题） */
 :root {
+    color-scheme: light dark;
     --cerebr-bg-color: #ffffff;
     --cerebr-text-color: #333333;
+    --cerebr-text-color-secondary: rgba(0, 0, 0, 0.55);
+    --cerebr-surface-bg: rgba(255, 255, 255, 0.72);
+    --cerebr-surface-border: rgba(0, 0, 0, 0.14);
+    --cerebr-surface-backdrop-filter: blur(var(--cerebr-blur-radius)) saturate(1.2);
+    --settings-bg-color: var(--cerebr-surface-bg);
+    --settings-border-color: var(--cerebr-surface-border);
+    --settings-hover-bg-color: var(--cerebr-message-user-bg);
     --cerebr-message-user-bg: #e6eaf0;
     --cerebr-message-ai-bg: #f8fafc;
     --cerebr-input-bg: #f8f8f8;
@@ -46,8 +54,16 @@
 
 /* 深色主题变量 */
 :root.dark-theme {
+    color-scheme: dark;
     --cerebr-bg-color: #262B33;
     --cerebr-text-color: #d8dde6;
+    --cerebr-text-color-secondary: rgba(255, 255, 255, 0.62);
+    --cerebr-surface-bg: rgba(38, 43, 51, 0.78);
+    --cerebr-surface-border: rgba(255, 255, 255, 0.14);
+    --cerebr-surface-backdrop-filter: blur(var(--cerebr-blur-radius)) saturate(1.15);
+    --settings-bg-color: var(--cerebr-surface-bg);
+    --settings-border-color: var(--cerebr-surface-border);
+    --settings-hover-bg-color: var(--cerebr-message-user-bg);
     --cerebr-message-user-bg: #3E4451;
     --cerebr-message-ai-bg: #2c313c;
     --cerebr-input-bg: #21252b;
@@ -83,11 +99,24 @@
     --cerebr-toast-success-bg: rgba(48, 209, 88, 0.92);
 }
 
+/* 强制浅色主题时的原生控件配色 */
+:root.light-theme {
+    color-scheme: light;
+}
+
 /* 系统深色主题 */
 @media (prefers-color-scheme: dark) {
     :root:not(.light-theme) {
+        color-scheme: dark;
         --cerebr-bg-color: #262B33;
         --cerebr-text-color: #d8dde6;
+        --cerebr-text-color-secondary: rgba(255, 255, 255, 0.62);
+        --cerebr-surface-bg: rgba(38, 43, 51, 0.78);
+        --cerebr-surface-border: rgba(255, 255, 255, 0.14);
+        --cerebr-surface-backdrop-filter: blur(var(--cerebr-blur-radius)) saturate(1.15);
+        --settings-bg-color: var(--cerebr-surface-bg);
+        --settings-border-color: var(--cerebr-surface-border);
+        --settings-hover-bg-color: var(--cerebr-message-user-bg);
         --cerebr-message-user-bg: #3E4451;
         --cerebr-message-ai-bg: #2c313c;
         --cerebr-input-bg: #21252b;

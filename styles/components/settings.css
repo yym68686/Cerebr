@@ -33,7 +33,8 @@
     position: absolute;
     bottom: 100%;
     left: 8px;
-    background-color: var(--cerebr-bg-color);
+    background-color: var(--cerebr-surface-bg);
+    border: 1px solid var(--cerebr-surface-border);
     border-radius: 8px;
     box-shadow: 0 4px 20px var(--cerebr-popup-shadow);
     padding: 8px;
@@ -41,8 +42,8 @@
     min-width: 180px;
     margin-bottom: 8px;
     transform-origin: bottom left;
-    backdrop-filter: blur(var(--cerebr-blur-radius));
-    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
+    backdrop-filter: var(--cerebr-surface-backdrop-filter);
+    -webkit-backdrop-filter: var(--cerebr-surface-backdrop-filter);
 }
 
 #settings-menu.visible {

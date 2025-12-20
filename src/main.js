@@ -188,6 +188,63 @@ document.addEventListener('DOMContentLoaded', async () => {
         webpageQAContainer.style.display = 'none';
     }
 
+    // 草稿：按对话保存输入框文字（不保存图片，避免存储膨胀）
+    const DRAFT_KEY_PREFIX = 'cerebr_draft_v1_';
+    const draftKeyForChatId = (chatId) => `${DRAFT_KEY_PREFIX}${chatId}`;
+    let draftChatId = currentChat?.id || null;
+    let draftSaveTimer = null;
+
+    const saveDraftNow = async (chatId) => {
+        if (!chatId) return;
+        const { message, imageTags } = getFormattedMessageContent(messageInput);
+        const draftText = (message || '').trimEnd();
+
+        if (!draftText) {
+            await storageAdapter.remove(draftKeyForChatId(chatId));
+            return;
+        }
+        await storageAdapter.set({ [draftKeyForChatId(chatId)]: draftText });
+    };
+
+    const queueDraftSave = (chatId) => {
+        clearTimeout(draftSaveTimer);
+        draftSaveTimer = setTimeout(() => void saveDraftNow(chatId), 400);
+    };
+
+    const restoreDraft = async (chatId) => {
+        if (!chatId) return;
+        const key = draftKeyForChatId(chatId);
+        const result = await storageAdapter.get(key);
+        const draftText = result[key];
+        const { message, imageTags } = getFormattedMessageContent(messageInput);
+        const isInputEmpty = !message.trim() && imageTags.length === 0;
+        if (!isInputEmpty) return;
+        if (!draftText) return;
+
+        messageInput.textContent = draftText;
+        messageInput.dispatchEvent(new Event('input'));
+    };
+
+    messageInput.addEventListener('input', () => {
+        queueDraftSave(draftChatId);
+    });
+
+    // 恢复当前对话草稿（如果有）
+    void restoreDraft(draftChatId);
+
+    // 监听对话切换，切换草稿与未读计数
+    document.addEventListener('cerebr:chatSwitched', (event) => {
+        const nextChatId = event?.detail?.chatId;
+        void (async () => {
+            if (draftChatId && draftChatId !== nextChatId) {
+                await saveDraftNow(draftChatId);
+            }
+            draftChatId = nextChatId || null;
+            clearMessageInput(messageInput, uiConfig);
+            await restoreDraft(draftChatId);
+        })();
+    });
+
 
     // 监听来自 content script 的消息
     window.addEventListener('message', (event) => {
@@ -285,6 +342,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 webpageInfo: isExtensionEnvironment ? await getEnabledTabsContent() : null
             };
 
+            // 首 token 前占位：减少“没反应”的体感
+            appendMessage({
+                text: '',
+                sender: 'ai',
+                chatContainer,
+            });
+
             // 调用带重试逻辑的 API
             await callAPIWithRetry(apiParams, chatManager, currentChat.id, chatContainerManager.syncMessage);
 
@@ -304,6 +368,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const lastMessage = chatContainer.querySelector('.ai-message:last-child');
             if (lastMessage) {
                 lastMessage.classList.remove('updating');
+                const original = lastMessage.getAttribute('data-original-text') || '';
+                if (!original.trim()) {
+                    lastMessage.remove();
+                }
             }
         }
     }
@@ -342,9 +410,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 清空输入框并调整高度
             clearMessageInput(messageInput, uiConfig);
+            messageInput.focus();
 
             // 构建消息数组
             const currentChat = chatManager.getCurrentChat();
+            if (currentChat?.id) {
+                await storageAdapter.remove(draftKeyForChatId(currentChat.id));
+            }
             const messages = currentChat ? [...currentChat.messages] : [];  // 从chatManager获取消息历史
             messages.push(userMessage);
             chatManager.addMessageToCurrentChat(userMessage);
@@ -356,6 +428,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 userLanguage: navigator.language,
                 webpageInfo: isExtensionEnvironment ? await getEnabledTabsContent() : null
             };
+
+            // 首 token 前占位：减少“没反应”的体感
+            appendMessage({
+                text: '',
+                sender: 'ai',
+                chatContainer,
+            });
 
             // 调用带重试逻辑的 API
             await callAPIWithRetry(apiParams, chatManager, currentChat.id, chatContainerManager.syncMessage);
@@ -387,19 +466,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             const lastMessage = chatContainer.querySelector('.ai-message:last-child');
             if (lastMessage) {
                 lastMessage.classList.remove('updating');
+                const original = lastMessage.getAttribute('data-original-text') || '';
+                if (!original.trim()) {
+                    lastMessage.remove();
+                }
             }
         }
     }
 
     // 修改点击事件监听器
     document.addEventListener('click', (e) => {
-        // 如果点击的不是设置按钮本身和设置菜单，就关闭菜单
-        if (!settingsButton.contains(e.target) && !settingsMenu.contains(e.target)) {
+        const isInSettingsArea = settingsButton.contains(e.target) || settingsMenu.contains(e.target);
+        const isInWebpageMenuArea = webpageQAContainer.contains(e.target) || webpageContentMenu.contains(e.target);
+
+        // 点击网页内容二级菜单内部时，不要误关一级菜单
+        if (!isInSettingsArea && !isInWebpageMenuArea) {
             settingsMenu.classList.remove('visible');
         }
-       if (!webpageQAContainer.contains(e.target) && !webpageContentMenu.contains(e.target)) {
-           webpageContentMenu.classList.remove('visible');
-       }
+
+        if (!isInWebpageMenuArea) {
+            webpageContentMenu.classList.remove('visible');
+        }
     });
 
    // 初始化网页内容二级菜单
@@ -895,9 +982,41 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return;
+
+        let handled = false;
+
         if (previewModal.classList.contains('visible')) {
-            e.preventDefault();
             hideImagePreview({ config: uiConfig.imagePreview });
+            handled = true;
+        }
+
+        if (contextMenu.classList.contains('visible')) {
+            hideContextMenu({ contextMenu, onMessageElementReset: () => {} });
+            handled = true;
+        }
+
+        if (webpageContentMenu.classList.contains('visible')) {
+            webpageContentMenu.classList.remove('visible');
+            handled = true;
+        }
+
+        if (settingsMenu.classList.contains('visible')) {
+            settingsMenu.classList.remove('visible');
+            handled = true;
+        }
+
+        if (apiSettings.classList.contains('visible')) {
+            apiSettings.classList.remove('visible');
+            handled = true;
+        }
+
+        if (chatListPage.classList.contains('show')) {
+            hideChatList(chatListPage);
+            handled = true;
+        }
+
+        if (handled) {
+            e.preventDefault();
         }
     });
 });

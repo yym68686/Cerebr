@@ -9,14 +9,21 @@
     padding: 8px;
     z-index: 1001;
     display: none;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: var(--cerebr-surface-backdrop-filter);
+    -webkit-backdrop-filter: var(--cerebr-surface-backdrop-filter);
     max-height: 300px;
     overflow-y: auto;
 }
 
 #webpage-content-menu.visible {
     display: block;
+}
+
+.webpage-menu-loading,
+.webpage-menu-empty {
+    padding: 10px 8px;
+    color: var(--cerebr-text-color-secondary);
+    font-size: 13px;
 }
 
 .webpage-menu-item {

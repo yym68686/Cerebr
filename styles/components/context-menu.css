@@ -1,16 +1,16 @@
 /* 右键菜单样式 */
 #context-menu {
     position: fixed;
-    background: var(--cerebr-bg-color);
+    background: var(--cerebr-surface-bg);
     border-radius: 8px;
     padding: 6px;
     min-width: 140px;
     box-shadow: 0 4px 20px var(--cerebr-popup-shadow);
     z-index: 2147483647;
     display: none;
-    backdrop-filter: blur(var(--cerebr-blur-radius));
-    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
-    border: 1px solid var(--cerebr-card-border-color);
+    backdrop-filter: var(--cerebr-surface-backdrop-filter);
+    -webkit-backdrop-filter: var(--cerebr-surface-backdrop-filter);
+    border: 1px solid var(--cerebr-surface-border);
     touch-action: none;
 }
 

@@ -1,5 +1,5 @@
 import { chatManager } from '../utils/chat-manager.js';
-import { showImagePreview, createImageTag } from '../utils/ui.js';
+import { showImagePreview, createImageTag, showToast } from '../utils/ui.js';
 import { processMathAndMarkdown, renderMathInElement, textMayContainMath } from '../../htmd/latex.js';
 
 function isNearBottom(container, thresholdPx = 120) {
@@ -12,6 +12,98 @@ function scheduleAutoScroll(container) {
     container.__cerebrAutoScrollRaf = requestAnimationFrame(() => {
         container.scrollTop = container.scrollHeight;
         container.__cerebrAutoScrollRaf = null;
+    });
+}
+
+function createTypingIndicator() {
+    const wrapper = document.createElement('span');
+    wrapper.className = 'typing-indicator';
+    wrapper.setAttribute('aria-label', '正在思考');
+
+    for (let i = 0; i < 3; i++) {
+        const dot = document.createElement('span');
+        dot.className = 'typing-dot';
+        wrapper.appendChild(dot);
+    }
+    return wrapper;
+}
+
+function enhanceCodeBlocks(root) {
+    root.querySelectorAll('pre').forEach((pre) => {
+        if (pre.dataset.cerebrCopyReady === '1') return;
+        const code = pre.querySelector('code');
+        if (!code) return;
+
+        // 复用右上角语言标签区域：hover 时把文案变成“复制”，点击该区域复制代码
+        const hadLanguageAttr = pre.hasAttribute('data-language');
+        const originalLabel = pre.getAttribute('data-language') || '';
+        let isHovered = false;
+        let copiedTimer = null;
+
+        const setLabel = (label) => {
+            if (!label) {
+                if (!hadLanguageAttr) {
+                    pre.removeAttribute('data-language');
+                } else {
+                    pre.setAttribute('data-language', '');
+                }
+                return;
+            }
+            pre.setAttribute('data-language', label);
+        };
+
+        const restoreLabel = () => setLabel(originalLabel);
+
+        pre.classList.add('code-copy-on-label');
+
+        pre.addEventListener('mouseenter', () => {
+            isHovered = true;
+            setLabel('复制');
+        });
+
+        pre.addEventListener('mouseleave', () => {
+            isHovered = false;
+            // 若刚复制过，等提示结束后再恢复
+            if (copiedTimer) return;
+            restoreLabel();
+        });
+
+        pre.addEventListener('click', async (e) => {
+            const rect = pre.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            // 仅当点击右上角标签区域时触发复制，避免误触
+            const TAG_HEIGHT = 28;
+            const TAG_WIDTH = 92;
+            const isInTagArea = y >= 0 && y <= TAG_HEIGHT && x >= rect.width - TAG_WIDTH;
+            if (!isInTagArea) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const codeText = code.textContent ?? '';
+            try {
+                await navigator.clipboard.writeText(codeText);
+                showToast('已复制代码', { type: 'success' });
+                setLabel('已复制');
+                if (copiedTimer) clearTimeout(copiedTimer);
+                copiedTimer = setTimeout(() => {
+                    copiedTimer = null;
+                    setLabel(isHovered ? '复制' : originalLabel);
+                }, 800);
+            } catch {
+                showToast('复制失败', { type: 'error' });
+                setLabel('复制失败');
+                if (copiedTimer) clearTimeout(copiedTimer);
+                copiedTimer = setTimeout(() => {
+                    copiedTimer = null;
+                    setLabel(isHovered ? '复制' : originalLabel);
+                }, 900);
+            }
+        });
+
+        pre.dataset.cerebrCopyReady = '1';
     });
 }
 
@@ -145,6 +237,9 @@ export async function appendMessage({
             mainContent.appendChild(document.createElement('br'));
         }
         imageTagNodes.forEach(node => mainContent.appendChild(node));
+    } else if (sender === 'ai' && !messageText.trim()) {
+        // 首 token 前的占位：避免“没反应”的体感
+        mainContent.replaceChildren(createTypingIndicator());
     }
     messageDiv.appendChild(mainContent);
 
@@ -162,6 +257,8 @@ export async function appendMessage({
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
     });
+
+    enhanceCodeBlocks(messageDiv);
 
     // 处理消息中的图片标签
     messageDiv.querySelectorAll('.image-tag').forEach(tag => {
@@ -340,6 +437,8 @@ export async function updateAIMessage({
                 link.target = '_blank';
                 link.rel = 'noopener noreferrer';
             });
+
+            enhanceCodeBlocks(lastMessage);
 
             if (shouldStickToBottom) {
                 scheduleAutoScroll(chatContainer);

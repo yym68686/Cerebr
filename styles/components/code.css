@@ -10,3 +10,13 @@
     -ms-user-select: text;
     user-select: text;
 }
+
+/* 复用右上角语言标签区域：hover/click 提示可复制 */
+.ai-message pre.code-copy-on-label::before {
+    cursor: pointer;
+}
+
+.ai-message pre.code-copy-on-label:hover::before,
+.ai-message pre.code-copy-on-label:focus-within::before {
+    opacity: 0.85;
+}
