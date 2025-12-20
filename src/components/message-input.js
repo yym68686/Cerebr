@@ -33,6 +33,14 @@ export function initMessageInput(config) {
         webpageContentMenu // 接收二级菜单
     } = config;
 
+    const isFinePointer = () => {
+        try {
+            return window.matchMedia('(any-pointer: fine)').matches || window.matchMedia('(pointer: fine)').matches;
+        } catch {
+            return false;
+        }
+    };
+
     // 点击输入框时不触发全局点击逻辑（比如关闭菜单、失焦）
     messageInput.addEventListener('click', (e) => e.stopPropagation());
 
@@ -40,6 +48,11 @@ export function initMessageInput(config) {
     document.body.addEventListener('click', (e) => {
         // 如果有文本被选中，不处理
         if (window.getSelection().toString()) return;
+
+        // 桌面端：点击聊天区域时允许“聚焦输入框”的逻辑生效，不要在这里把焦点又 blur 掉
+        if (isFinePointer() && e.target.closest('#chat-container')) {
+            return;
+        }
 
         // 排除点击设置按钮、设置菜单、上下文菜单、对话列表页面的情况
         if (e.target.closest('#settings-button') ||

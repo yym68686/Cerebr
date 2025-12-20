@@ -57,6 +57,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    // 桌面端折中体验：点击聊天背景可聚焦输入框（移动端避免误触弹键盘）
+    const isFinePointer = () => {
+        try {
+            return window.matchMedia('(any-pointer: fine)').matches || window.matchMedia('(pointer: fine)').matches;
+        } catch {
+            return false;
+        }
+    };
+
+    chatContainer.addEventListener('click', (e) => {
+        if (!isFinePointer()) return;
+        if (document.activeElement === messageInput) return;
+        if (window.getSelection().toString()) return;
+        if (e.target.closest('#settings-button, #settings-menu, #context-menu, a, button, input, textarea, select')) return;
+        messageInput.focus();
+    });
+
     // 修改: 创建一个对象引用来保存当前控制器
     const abortControllerRef = { current: null };
     let currentController = null;

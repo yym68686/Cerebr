@@ -46,10 +46,8 @@ export function initChatContainer({
     observer.observe(chatContainer, { childList: true });
 
     // 添加点击事件监听
-    chatContainer.addEventListener('click', () => {
-        // 点击聊天区域时让输入框失去焦点
-        messageInput.blur();
-    });
+    // 注意：不要在这里强制 blur 输入框，否则会影响桌面端“点击聊天区域聚焦输入框”等交互；
+    // 需要 blur 的场景由全局点击逻辑处理即可。
 
     // 监听 AI 消息的右键点击
     chatContainer.addEventListener('contextmenu', (e) => {
