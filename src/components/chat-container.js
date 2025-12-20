@@ -396,79 +396,83 @@ export function initChatContainer({
         document.addEventListener('contextmenu', (event) => {
             // 检查是否点击了 MathJax 3 的任何元素
             const isMathElement = (element) => {
-                const isMjx = element.tagName && element.tagName.toLowerCase().startsWith('mjx-');
+                if (!(element instanceof Element)) return false;
+                const tagName = element.tagName?.toLowerCase?.();
+                const isMjx = tagName?.startsWith('mjx-');
                 const hasContainer = element.closest('mjx-container') !== null;
                 return isMjx || hasContainer;
             };
 
-            if (isMathElement(event.target)) {
-                event.preventDefault();
-                event.stopPropagation();
+            if (!isMathElement(event.target)) return;
 
-                // 获取最外层的 mjx-container
-                const container = event.target.closest('mjx-container');
+            event.preventDefault();
+            event.stopPropagation();
 
-                if (container) {
-                    const mathContextMenu = document.getElementById('copy-math');
-                    const copyMessageButton = document.getElementById('copy-message');
-                    const copyCodeButton = document.getElementById('copy-code');
-                    const stopUpdateButton = document.getElementById('stop-update');
+            // 获取最外层的 mjx-container
+            const container = event.target.closest('mjx-container');
+            if (!container) return;
 
-                    if (mathContextMenu) {
-                        // 设置菜单项的显示状态
-                        mathContextMenu.style.display = 'flex';
-                        copyMessageButton.style.display = 'flex';  // 显示复制消息按钮
-                        copyCodeButton.style.display = 'none';
-                        stopUpdateButton.style.display = 'none';
+            const mathContextMenu = document.getElementById('copy-math');
+            if (!mathContextMenu) return;
 
-                        // 获取包含公式的 AI 消息元素
-                        const aiMessage = container.closest('.ai-message');
-                        currentMessageElement = aiMessage;  // 设置当前消息元素为 AI 消息
+            const copyMessageButton = document.getElementById('copy-message');
+            const copyCodeButton = document.getElementById('copy-code');
+            const copyImageButton = document.getElementById('copy-image');
+            const stopUpdateButton = document.getElementById('stop-update');
+            const deleteMessageButton = document.getElementById('delete-message');
+            const regenerateMessageButton = document.getElementById('regenerate-message');
 
-                        // 调用 showContextMenu 函数
-                        showContextMenu({
-                            event,
-                            messageElement: aiMessage,  // 使用 AI 消息元素
-                            contextMenu,
-                            stopUpdateButton
-                        });
+            // 设置菜单项的显示状态
+            mathContextMenu.style.display = 'flex';
+            copyMessageButton.style.display = 'flex';
+            deleteMessageButton.style.display = 'flex';
+            regenerateMessageButton.style.display = 'flex';
+            copyCodeButton.style.display = 'none';
+            copyImageButton.style.display = 'none';
 
-                        // 设置数学公式内容
-                        const assistiveMml = container.querySelector('mjx-assistive-mml');
-                        let mathContent;
+            // 获取包含公式的消息元素（AI 或用户）
+            const messageElement = container.closest('.ai-message, .user-message');
+            if (!messageElement) return;
+            currentMessageElement = messageElement;
 
-                        // 获取原始的 LaTeX 源码
-                        const mjxTexElement = container.querySelector('script[type="math/tex; mode=display"]') ||
-                                            container.querySelector('script[type="math/tex"]');
+            showContextMenu({
+                event,
+                messageElement,
+                contextMenu,
+                stopUpdateButton
+            });
 
-                        if (mjxTexElement) {
-                            mathContent = mjxTexElement.textContent;
-                        } else {
-                            // 如果找不到原始 LaTeX，尝试从 MathJax 内部存储获取
-                            const mjxInternal = container.querySelector('mjx-math');
-                            if (mjxInternal) {
-                                const texAttr = mjxInternal.getAttribute('aria-label');
-                                if (texAttr) {
-                                    // 移除 "TeX:" 前缀（如果有的话）
-                                    mathContent = texAttr.replace(/^TeX:\s*/, '');
-                                }
-                            }
-                        }
+            // 设置数学公式内容
+            const assistiveMml = container.querySelector('mjx-assistive-mml');
+            let mathContent;
 
-                        // 如果还是没有找到，尝试其他方法
-                        if (!mathContent) {
-                            if (assistiveMml) {
-                                const texAttr = assistiveMml.getAttribute('aria-label');
-                                if (texAttr) {
-                                    mathContent = texAttr.replace(/^TeX:\s*/, '');
-                                }
-                            }
-                        }
+            // 获取原始的 LaTeX 源码
+            const mjxTexElement = container.querySelector('script[type="math/tex; mode=display"]') ||
+                container.querySelector('script[type="math/tex"]');
 
-                        mathContextMenu.dataset.mathContent = mathContent || container.textContent;
+            if (mjxTexElement) {
+                mathContent = mjxTexElement.textContent;
+            } else {
+                // 如果找不到原始 LaTeX，尝试从 MathJax 内部存储获取
+                const mjxInternal = container.querySelector('mjx-math');
+                if (mjxInternal) {
+                    const texAttr = mjxInternal.getAttribute('aria-label');
+                    if (texAttr) {
+                        // 移除 "TeX:" 前缀（如果有的话）
+                        mathContent = texAttr.replace(/^TeX:\s*/, '');
                     }
                 }
             }
+
+            // 如果还是没有找到，尝试其他方法
+            if (!mathContent && assistiveMml) {
+                const texAttr = assistiveMml.getAttribute('aria-label');
+                if (texAttr) {
+                    mathContent = texAttr.replace(/^TeX:\s*/, '');
+                }
+            }
+
+            mathContextMenu.dataset.mathContent = mathContent || container.textContent;
         }, { capture: true, passive: false });
 
         // 复制数学公式
