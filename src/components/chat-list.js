@@ -196,6 +196,9 @@ export function initChatListEvents({
         if (!card || card.classList.contains('template')) return;
 
         e.stopPropagation();
+        const prevChatId = chatManager.getCurrentChat()?.id || null;
+        // 清理该对话的阅读进度（避免无效残留）
+        await storageAdapter.remove(`cerebr_reading_progress_v1_${card.dataset.chatId}`);
         await chatManager.deleteChat(card.dataset.chatId);
         scheduleWork(() => renderChatListIncremental(chatManager, chatCards));
 
@@ -203,6 +206,9 @@ export function initChatListEvents({
         const currentChat = chatManager.getCurrentChat();
         if (currentChat) {
             await loadChatContent(currentChat, document.getElementById('chat-container'));
+            if (prevChatId !== currentChat.id) {
+                document.dispatchEvent(new CustomEvent('cerebr:chatSwitched', { detail: { chatId: currentChat.id } }));
+            }
         }
     });
 

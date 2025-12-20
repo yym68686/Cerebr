@@ -18,6 +18,7 @@ import {
 import { initWebpageMenu, getEnabledTabsContent } from './components/webpage-menu.js';
 import { normalizeChatCompletionsUrl } from './utils/api-url.js';
 import { ensureChatElementVisible, syncChatBottomExtraPadding } from './utils/scroll.js';
+import { createReadingProgressManager } from './utils/reading-progress.js';
 
 // 存储用户的问题历史
 let userQuestions = [];
@@ -153,6 +154,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 初始化ChatManager
     await chatManager.initialize();
 
+    const readingProgressManager = createReadingProgressManager({
+        chatContainer,
+        getActiveChatId: () => chatManager.getCurrentChat()?.id,
+        storage: storageAdapter
+    });
+
     // 初始化用户问题历史
     chatContainerManager.initializeUserQuestions();
 
@@ -180,7 +187,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const currentChat = chatManager.getCurrentChat();
     if (currentChat) {
         await loadChatContent(currentChat, chatContainer);
+        await readingProgressManager.restore(currentChat.id);
     }
+    readingProgressManager.start();
 
     if ((!currentChat || currentChat.messages.length === 0) && isExtensionEnvironment) {
         const currentTab = await browserAdapter.getCurrentTab();
@@ -248,6 +257,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             draftChatId = nextChatId || null;
             clearMessageInput(messageInput, uiConfig);
             await restoreDraft(draftChatId);
+            await readingProgressManager.restore(draftChatId);
         })();
     });
 

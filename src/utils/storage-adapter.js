@@ -9,10 +9,11 @@ let dbPromise = null;
 
 const CHATS_INDEX_V2_KEY = 'cerebr_chats_index_v2';
 const CHAT_V2_PREFIX = 'cerebr_chat_v2_';
+const READING_PROGRESS_V1_PREFIX = 'cerebr_reading_progress_v1_';
 
 function isChatStorageKey(key) {
     return key === CHATS_INDEX_V2_KEY ||
-        (typeof key === 'string' && key.startsWith(CHAT_V2_PREFIX));
+        (typeof key === 'string' && (key.startsWith(CHAT_V2_PREFIX) || key.startsWith(READING_PROGRESS_V1_PREFIX)));
 }
 
 function getDb() {
