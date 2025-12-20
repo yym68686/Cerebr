@@ -102,3 +102,16 @@
     transform: translateY(0) scale(1);
     transition: opacity 0.3s ease, transform 0.3s ease;
 }
+
+@media (prefers-reduced-motion: reduce) {
+    .message {
+        animation: none;
+        opacity: 1;
+        transform: none;
+        transition: none;
+    }
+    .message.batch-load {
+        opacity: 1;
+        transform: none;
+    }
+}

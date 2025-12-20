@@ -63,6 +63,13 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
    - Automatically identify and extract current page content
    - Support intelligent PDF file Q&A
 
+## 💡 Tips & Shortcuts
+
+- ↔️ **Resize Sidebar** - Drag the sidebar’s left edge to resize; double-click the edge to reset to default width
+- ⌨️ **Send Message** - `Enter` to send, `Shift+Enter` for a new line, `Esc` to blur the input
+- 📋 **Context Menu** - Right-click a message (or long-press on touch devices) for copy/regenerate/delete; `Esc` to close
+- 🖼️ **Image Preview** - Click an image to preview; press `Esc` or click outside to close
+
 ## 🔧 Advanced Features
 
 - 📋 **Right-click Copy** - Support right-click to directly copy message text

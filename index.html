@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <title>Cerebr</title>
+    <meta id="theme-color-meta" name="theme-color" content="#ffffff">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="application-name" content="Cerebr">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -22,22 +23,22 @@
 </head>
 <body>
     <div id="chat-container"></div>
-    <div id="context-menu">
-        <div class="context-menu-item" id="copy-message">
+    <div id="context-menu" role="menu" aria-label="消息操作菜单">
+        <div class="context-menu-item" id="copy-message" role="menuitem" tabindex="0">
             <svg viewBox="0 0 24 24">
                 <rect x="8" y="8" width="12" height="12" rx="1"/>
                 <path d="M4 16V4a1 1 0 0 1 1-1h11"/>
             </svg>
             复制消息
         </div>
-        <div class="context-menu-item" id="copy-code">
+        <div class="context-menu-item" id="copy-code" role="menuitem" tabindex="0">
             <svg viewBox="0 0 24 24">
                 <path d="M16 18L22 12L16 6"/>
                 <path d="M8 6L2 12L8 18"/>
             </svg>
             复制代码
         </div>
-        <div class="context-menu-item" id="copy-image">
+        <div class="context-menu-item" id="copy-image" role="menuitem" tabindex="0">
             <svg viewBox="0 0 24 24">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
                 <circle cx="8.5" cy="8.5" r="1.5"/>
@@ -45,25 +46,25 @@
             </svg>
             复制图片
         </div>
-        <div class="context-menu-item" id="copy-math">
+        <div class="context-menu-item" id="copy-math" role="menuitem" tabindex="0">
             <svg viewBox="0 0 24 24">
                 <path fill="currentColor" d="M6 19.5c.2 0 .32-.08.45-.25l5.75-8.5 5.65-8.2c.08-.1.1-.2.1-.28 0-.23-.2-.38-.43-.38-.2 0-.33.06-.48.28l-5.65 8.2-5.75 8.5c-.08.1-.1.2-.1.29 0 .24.2.34.46.34zM5.2 8.1v2.1c0 .27.17.42.41.42.23 0 .41-.15.41-.42V8.1h2c.27 0 .41-.17.41-.41 0-.23-.14-.41-.41-.41h-2V4.6c0-.27-.18-.42-.41-.42-.24 0-.41.15-.41.42v2.68h-2c-.27 0-.41.18-.41.41 0 .24.14.41.41.41h2zm9.2 8.6c0 .23.15.4.35.4h5.1c.27 0 .41-.17.41-.4 0-.23-.14-.4-.41-.4h-5.1c-.2 0-.35.17-.35.4z"/>
             </svg>
             复制公式
         </div>
-        <div class="context-menu-item" id="regenerate-message">
+        <div class="context-menu-item" id="regenerate-message" role="menuitem" tabindex="0">
             <svg viewBox="0 0 24 24">
                 <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="currentColor"></path>
             </svg>
             重新生成
         </div>
-        <div class="context-menu-item" id="stop-update">
+        <div class="context-menu-item" id="stop-update" role="menuitem" tabindex="0">
             <svg viewBox="0 0 24 24">
                 <path d="M6 6h12v12H6z"/>
             </svg>
             停止更新
         </div>
-        <div class="context-menu-item" id="delete-message">
+        <div class="context-menu-item" id="delete-message" role="menuitem" tabindex="0">
             <svg viewBox="0 0 24 24">
                 <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7"/>
                 <path d="M3 7h18"/>
@@ -73,57 +74,57 @@
         </div>
     </div>
     <div id="input-container">
-        <button id="settings-button">
+        <button id="settings-button" aria-label="打开设置">
             <svg viewBox="0 0 24 24">
                 <circle cx="12" cy="6" r="2"/>
                 <circle cx="12" cy="12" r="2"/>
                 <circle cx="12" cy="18" r="2"/>
             </svg>
         </button>
-        <div id="settings-menu">
-            <div class="menu-item" id="theme-toggle">
+        <div id="settings-menu" role="menu" aria-label="设置菜单">
+            <div class="menu-item" id="theme-toggle" role="menuitem" tabindex="0">
                 <span>深色模式</span>
                 <label class="switch">
                     <input type="checkbox" id="theme-switch">
                     <span class="slider"></span>
                 </label>
             </div>
-            <div class="menu-item" id="webpage-qa">
+            <div class="menu-item" id="webpage-qa" role="menuitem" tabindex="0">
                 <span>网页内容</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
             </div>
-            <div class="menu-item" id="new-chat">
+            <div class="menu-item" id="new-chat" role="menuitem" tabindex="0">
                 <span>新的对话</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                 </svg>
             </div>
-            <div class="menu-item" id="chat-list">
+            <div class="menu-item" id="chat-list" role="menuitem" tabindex="0">
                 <span>对话列表</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                 </svg>
             </div>
-            <div class="menu-item" id="api-settings-toggle">
+            <div class="menu-item" id="api-settings-toggle" role="menuitem" tabindex="0">
                 <span>API 设置</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
             </div>
-            <div class="menu-item" id="feedback-button">
+            <div class="menu-item" id="feedback-button" role="menuitem" tabindex="0">
                 <span>用户反馈</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path d="M11 2H14V5M14 2L7 9M14 8V13C14 13.5523 13.5523 14 13 14H3C2.44772 14 2 13.5523 2 13V3C2 2.44772 2.44772 2 3 2H8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
             </div>
         </div>
-        <div id="message-input" contenteditable="true" placeholder="输入消息..." role="textbox"></div>
+        <div id="message-input" contenteditable="true" placeholder="输入消息..." role="textbox" aria-multiline="true"></div>
     </div>
     <div id="api-settings">
         <div class="settings-header">
-            <button class="back-button">
+            <button class="back-button" aria-label="返回">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path d="M12 4L6 10L12 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
@@ -139,13 +140,13 @@
                             <div class="form-group-header">
                                 <label>API Key</label>
                                 <div class="card-actions">
-                                    <button class="card-button duplicate-btn">
+                                    <button class="card-button duplicate-btn" aria-label="复制该配置">
                                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                                             <path d="M13 5H7V11H13V5Z" stroke="currentColor" stroke-width="1.5"/>
                                             <path d="M10 3H4V9" stroke="currentColor" stroke-width="1.5"/>
                                         </svg>
                                     </button>
-                                    <button class="card-button delete-btn">
+                                    <button class="card-button delete-btn" aria-label="删除该配置">
                                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                                             <path d="M3 4H13" stroke="currentColor" stroke-width="1.5"/>
                                             <path d="M5 4V12H11V4" stroke="currentColor" stroke-width="1.5"/>
@@ -182,7 +183,7 @@
     </div>
     <div id="chat-list-page">
         <div class="settings-header">
-            <button class="back-button">
+            <button class="back-button" aria-label="返回">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path d="M12 4L6 10L12 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
@@ -190,7 +191,7 @@
             <span class="settings-title">对话列表</span>
             <div class="search-container">
                 <input type="search" id="chat-search-input" placeholder="搜索对话...">
-                <button class="clear-search-btn" style="display: none;">
+                <button class="clear-search-btn" style="display: none;" aria-label="清除搜索">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                         <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
@@ -203,7 +204,7 @@
                 <div class="card-content">
                     <div class="chat-title">新对话</div>
                     <div class="card-actions">
-                        <button class="card-button delete-btn">
+                        <button class="card-button delete-btn" aria-label="删除该对话">
                             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                                 <path d="M3 4H13" stroke="currentColor" stroke-width="1.5"/>
                                 <path d="M5 4V12H11V4" stroke="currentColor" stroke-width="1.5"/>
@@ -214,10 +215,10 @@
             </div>
         </div>
     </div>
-    <div class="image-preview-modal">
-        <div class="image-preview-content">
+    <div class="image-preview-modal" role="dialog" aria-modal="true" aria-label="图片预览">
+        <div class="image-preview-content" role="document">
             <img src="" alt="预览图片">
-            <button class="image-preview-close">
+            <button class="image-preview-close" aria-label="关闭图片预览">
                 <svg viewBox="0 0 24 24" fill="none">
                     <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-linecap="round"/>
                 </svg>

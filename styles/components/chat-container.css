@@ -10,7 +10,7 @@
     min-height: 100%;
     -webkit-overflow-scrolling: touch;
     transform: translateZ(0);
-    scroll-behavior: smooth;
+    scroll-behavior: auto;
     overscroll-behavior-y: contain;
     position: relative;
     height: 100%;

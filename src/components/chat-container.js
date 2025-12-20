@@ -1,4 +1,4 @@
-import { createImageTag } from '../utils/ui.js';
+import { createImageTag, showToast } from '../utils/ui.js';
 import { showContextMenu, hideContextMenu, copyMessageContent } from './context-menu.js';
 import { handleImageDrop } from '../utils/image.js';
 import { updateAIMessage } from '../handlers/message-handler.js';
@@ -162,7 +162,7 @@ export function initChatContainer({
             touchTimeout = null;
         }
         // 如果用户没有触发长按（即正常的触摸结束），则隐藏菜单
-        if (!contextMenu.style.display || contextMenu.style.display === 'none') {
+        if (!contextMenu.classList.contains('visible')) {
             hideContextMenu({
                 contextMenu,
                 onMessageElementReset: () => { currentMessageElement = null; }
@@ -232,14 +232,20 @@ export function initChatContainer({
         copyMessageButton.addEventListener('click', () => {
             copyMessageContent({
                 messageElement: currentMessageElement,
-                onSuccess: () => hideContextMenu({
-                    contextMenu,
-                    onMessageElementReset: () => {
-                        currentMessageElement = null;
-                        currentCodeElement = null;
-                    }
-                }),
-                onError: (err) => console.error('复制失败:', err)
+                onSuccess: () => {
+                    showToast('已复制消息', { type: 'success' });
+                    hideContextMenu({
+                        contextMenu,
+                        onMessageElementReset: () => {
+                            currentMessageElement = null;
+                            currentCodeElement = null;
+                        }
+                    });
+                },
+                onError: (err) => {
+                    console.error('复制失败:', err);
+                    showToast('复制失败', { type: 'error' });
+                }
             });
         });
 
@@ -249,6 +255,7 @@ export function initChatContainer({
                 const codeText = currentCodeElement.textContent;
                 navigator.clipboard.writeText(codeText)
                     .then(() => {
+                        showToast('已复制代码', { type: 'success' });
                         hideContextMenu({
                             contextMenu,
                             onMessageElementReset: () => {
@@ -257,7 +264,10 @@ export function initChatContainer({
                             }
                         });
                     })
-                    .catch(err => console.error('复制代码失败:', err));
+                    .catch(err => {
+                        console.error('复制代码失败:', err);
+                        showToast('复制代码失败', { type: 'error' });
+                    });
             }
         });
 
@@ -274,32 +284,42 @@ export function initChatContainer({
 
                 // If not cached, fetch it on-demand
                 if (!blob) {
-                    console.warn("Image was not pre-cached, fetching on demand.");
                     if (imageUrl.startsWith('data:')) {
                         const response = await fetch(imageUrl);
                         blob = await response.blob();
                     } else {
-                        // Use the proxy for on-demand fetching as well
-                        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(imageUrl)}`;
-                        const response = await fetch(proxyUrl);
-                        if (!response.ok) {
-                            throw new Error(`通过代理获取图片失败: ${response.statusText}`);
+                        // Try direct fetch first (works for same-origin / CORS-enabled images)
+                        let response;
+                        try {
+                            response = await fetch(imageUrl);
+                        } catch {
+                            response = null;
+                        }
+
+                        if (!response || !response.ok) {
+                            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(imageUrl)}`;
+                            response = await fetch(proxyUrl);
+                            if (!response.ok) {
+                                throw new Error(`通过代理获取图片失败: ${response.statusText}`);
+                            }
                         }
                         blob = await response.blob();
                     }
+                    if (imgElement && blob) imgElement.cachedBlob = blob;
                 }
 
                 if (blob) {
                     await navigator.clipboard.write([
                         new ClipboardItem({ [blob.type]: blob })
                     ]);
+                    showToast('已复制图片', { type: 'success' });
                 } else {
                     throw new Error('无法获取图片数据。');
                 }
 
             } catch (err) {
                 console.error('复制图片失败:', err);
-                alert(err.message || '复制图片失败，请稍后重试。');
+                showToast(err.message || '复制图片失败', { type: 'error', durationMs: 2200 });
             } finally {
                 hideContextMenu({
                     contextMenu,
@@ -458,7 +478,7 @@ export function initChatContainer({
 
                 if (mathContent) {
                     await navigator.clipboard.writeText(mathContent);
-                    console.log('数学公式已复制:', mathContent);
+                    showToast('已复制公式', { type: 'success' });
 
                     // 隐藏上下文菜单
                     hideContextMenu({
@@ -469,9 +489,11 @@ export function initChatContainer({
                     });
                 } else {
                     console.error('没有找到可复制的数学公式内容');
+                    showToast('没有找到可复制的公式', { type: 'error' });
                 }
             } catch (err) {
                 console.error('复制公式失败:', err);
+                showToast('复制公式失败', { type: 'error' });
             }
         });
     }

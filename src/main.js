@@ -47,6 +47,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const webpageQAContainer = document.getElementById('webpage-qa');
     const webpageContentMenu = document.getElementById('webpage-content-menu');
 
+    // 基础键盘可访问性：让 role="menuitem" 的元素可用 Enter/Space 触发
+    document.addEventListener('keydown', (e) => {
+        const active = document.activeElement;
+        if (!active || active.getAttribute('role') !== 'menuitem') return;
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            active.click();
+        }
+    });
+
     // 修改: 创建一个对象引用来保存当前控制器
     const abortControllerRef = { current: null };
     let currentController = null;
@@ -392,6 +402,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // 主题切换
+    const themeToggle = document.getElementById('theme-toggle');
     const themeSwitch = document.getElementById('theme-switch');
 
     // 创建主题配置对象
@@ -419,6 +430,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     themeSwitch.addEventListener('change', () => {
         setTheme(themeSwitch.checked, themeConfig);
     });
+
+    if (themeToggle && themeSwitch) {
+        themeToggle.addEventListener('click', (e) => {
+            if (e.target.closest('input')) return;
+            themeSwitch.checked = !themeSwitch.checked;
+            themeSwitch.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    }
 
     // 监听系统主题变化
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', async (e) => {
@@ -853,6 +872,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     previewModal.addEventListener('click', (e) => {
         if (e.target === previewModal) {
+            hideImagePreview({ config: uiConfig.imagePreview });
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        if (previewModal.classList.contains('visible')) {
+            e.preventDefault();
             hideImagePreview({ config: uiConfig.imagePreview });
         }
     });

@@ -38,6 +38,10 @@
     --cerebr-toggle-bg-on: #34c759;
     --cerebr-input-border-color: rgba(0, 0, 0, 0.15);
     --cerebr-sidebar-box-shadow: -2px 0 15px rgba(0, 0, 0, 0.1);
+    --cerebr-toast-bg: rgba(0, 0, 0, 0.78);
+    --cerebr-toast-text: #ffffff;
+    --cerebr-toast-error-bg: rgba(255, 59, 48, 0.92);
+    --cerebr-toast-success-bg: rgba(52, 199, 89, 0.92);
 }
 
 /* 深色主题变量 */
@@ -73,6 +77,10 @@
     --cerebr-toggle-bg-on: #32d74b;
     --cerebr-input-border-color: rgba(255, 255, 255, 0.15);
     --cerebr-sidebar-box-shadow: -2px 0 15px rgba(0, 0, 0, 0.2);
+    --cerebr-toast-bg: rgba(0, 0, 0, 0.80);
+    --cerebr-toast-text: #ffffff;
+    --cerebr-toast-error-bg: rgba(255, 69, 58, 0.92);
+    --cerebr-toast-success-bg: rgba(48, 209, 88, 0.92);
 }
 
 /* 系统深色主题 */
@@ -109,5 +117,9 @@
         --cerebr-toggle-bg-on: #32d74b;
         --cerebr-input-border-color: rgba(255, 255, 255, 0.15);
         --cerebr-sidebar-box-shadow: -2px 0 15px rgba(0, 0, 0, 0.2);
+        --cerebr-toast-bg: rgba(0, 0, 0, 0.80);
+        --cerebr-toast-text: #ffffff;
+        --cerebr-toast-error-bg: rgba(255, 69, 58, 0.92);
+        --cerebr-toast-success-bg: rgba(48, 209, 88, 0.92);
     }
 }

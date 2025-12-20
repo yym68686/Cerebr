@@ -2,11 +2,13 @@ class CerebrSidebar {
   constructor() {
     this.isVisible = false;
     this.sidebarWidth = 430;
+    this.defaultSidebarWidth = 430;
     this.initialized = false;
     this.pageKey = window.location.origin + window.location.pathname;
     this.lastUrl = window.location.href;
     this.sidebar = null;
     this.hideTimeout = null;
+    this.saveStateDebounced = this.debounce(() => void this.saveState(), 250);
     this.handleSidebarTransitionEnd = (event) => {
       if (!this.sidebar || event.target !== this.sidebar || event.propertyName !== 'transform') {
         return;
@@ -23,6 +25,14 @@ class CerebrSidebar {
     this.setupDragAndDrop(); // 添加拖放事件监听器
   }
 
+  debounce(fn, waitMs) {
+    let timeoutId = null;
+    return (...args) => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => fn(...args), waitMs);
+    };
+  }
+
   async saveState() {
     try {
       const states = await chrome.storage.local.get('sidebarStates') || { sidebarStates: {} };
@@ -31,8 +41,22 @@ class CerebrSidebar {
       }
       states.sidebarStates[this.pageKey] = {
         isVisible: this.isVisible,
-        width: this.sidebarWidth
+        width: this.sidebarWidth,
+        updatedAt: Date.now()
       };
+
+      // 防止无限增长：保留最近使用的 100 条
+      const entries = Object.entries(states.sidebarStates);
+      const MAX_ENTRIES = 100;
+      if (entries.length > MAX_ENTRIES) {
+        entries
+          .sort((a, b) => (b[1]?.updatedAt || 0) - (a[1]?.updatedAt || 0))
+          .slice(MAX_ENTRIES)
+          .forEach(([key]) => {
+            delete states.sidebarStates[key];
+          });
+      }
+
       await chrome.storage.local.set(states);
     } catch (error) {
       console.error('保存侧边栏状态失败:', error);
@@ -45,7 +69,7 @@ class CerebrSidebar {
       if (states.sidebarStates && states.sidebarStates[this.pageKey]) {
         const state = states.sidebarStates[this.pageKey];
         this.isVisible = state.isVisible;
-        this.sidebarWidth = state.width;
+        this.sidebarWidth = Number(state.width) || this.defaultSidebarWidth;
 
         if (this.isVisible) {
           this.sidebar.style.display = 'block';
@@ -54,11 +78,16 @@ class CerebrSidebar {
           this.sidebar.classList.remove('visible');
           this.sidebar.style.display = 'none';
         }
-        this.sidebar.style.width = `${this.sidebarWidth}px`;
+        this.applySidebarWidth();
       }
     } catch (error) {
       console.error('加载侧边栏状态失败:', error);
     }
+  }
+
+  applySidebarWidth() {
+    if (!this.sidebar) return;
+    this.sidebar.style.width = `${this.sidebarWidth}px`;
   }
 
   async initializeSidebar() {
@@ -88,7 +117,7 @@ class CerebrSidebar {
         .cerebr-sidebar {
           position: fixed;
           top: 20px;
-          right: -450px;
+          right: 20px;
           width: 430px;
           height: calc(100vh - 40px);
           background: var(--cerebr-bg-color, #ffffff);
@@ -97,13 +126,13 @@ class CerebrSidebar {
           box-shadow: none;
           z-index: 2147483647;
           border-radius: 12px;
-          margin-right: 20px;
           overflow: hidden;
           visibility: hidden;
-          transform: translateX(0);
+          transform: translateX(calc(100% + 20px));
           pointer-events: none;
           contain: style layout size;
           isolation: isolate;
+          will-change: transform;
         }
         .cerebr-sidebar.initialized {
           visibility: visible;
@@ -118,8 +147,41 @@ class CerebrSidebar {
           }
         }
         .cerebr-sidebar.visible {
-          transform: translateX(-450px);
+          transform: translateX(0);
           box-shadow: var(--cerebr-sidebar-box-shadow, -2px 0 15px rgba(0,0,0,0.1));
+        }
+        .cerebr-sidebar__header {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 12px;
+          z-index: 2;
+          background: transparent;
+        }
+        .cerebr-sidebar__resizer {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 10px;
+          height: 100%;
+          cursor: ew-resize;
+          z-index: 3;
+          touch-action: none;
+          background: transparent;
+        }
+        .cerebr-sidebar__resizer:hover {
+          background: linear-gradient(to right, rgba(0,0,0,0.12), rgba(0,0,0,0));
+        }
+        @media (prefers-color-scheme: dark) {
+          .cerebr-sidebar__resizer:hover {
+            background: linear-gradient(to right, rgba(255,255,255,0.10), rgba(255,255,255,0));
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .cerebr-sidebar.initialized {
+            transition: none;
+          }
         }
         .cerebr-sidebar__content {
           height: 100%;
@@ -213,25 +275,71 @@ class CerebrSidebar {
   }
 
   setupEventListeners(resizer) {
-    let startX, startWidth;
+    let startX = 0;
+    let startWidth = 0;
+    let resizing = false;
+    let activePointerId = null;
+    let iframePointerEventsBeforeResize = null;
 
-    resizer.addEventListener('mousedown', (e) => {
+    const handlePointerMove = (e) => {
+      if (!resizing) return;
+      const diff = startX - e.clientX;
+      this.sidebarWidth = Math.min(Math.max(300, startWidth + diff), 800);
+      this.applySidebarWidth();
+    };
+
+    const stopResizing = () => {
+      if (!resizing) return;
+      resizing = false;
+      window.removeEventListener('pointermove', handlePointerMove, true);
+      if (activePointerId !== null) {
+        try {
+          resizer.releasePointerCapture(activePointerId);
+        } catch {
+          // ignore
+        }
+        activePointerId = null;
+      }
+      const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
+      if (iframe) {
+        iframe.style.pointerEvents = iframePointerEventsBeforeResize ?? '';
+      }
+      iframePointerEventsBeforeResize = null;
+      document.documentElement.style.cursor = '';
+      document.documentElement.style.userSelect = '';
+      this.saveStateDebounced();
+    };
+
+    resizer.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      resizing = true;
       startX = e.clientX;
       startWidth = this.sidebarWidth;
+      activePointerId = e.pointerId;
+      try {
+        resizer.setPointerCapture(activePointerId);
+      } catch {
+        // ignore
+      }
 
-      const handleMouseMove = (e) => {
-        const diff = startX - e.clientX;
-        this.sidebarWidth = Math.min(Math.max(300, startWidth + diff), 800);
-        this.sidebar.style.width = `${this.sidebarWidth}px`;
-      };
+      // 防止指针进入 iframe 后事件丢失（iframe 是独立文档，会“吃掉” move/up）
+      const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
+      if (iframe) {
+        iframePointerEventsBeforeResize = iframe.style.pointerEvents;
+        iframe.style.pointerEvents = 'none';
+      }
+      document.documentElement.style.cursor = 'ew-resize';
+      document.documentElement.style.userSelect = 'none';
+      window.addEventListener('pointermove', handlePointerMove, true);
+      window.addEventListener('pointerup', stopResizing, { once: true, capture: true });
+      window.addEventListener('pointercancel', stopResizing, { once: true, capture: true });
+    }, { passive: false });
 
-      const handleMouseUp = () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-      };
-
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
+    resizer.addEventListener('dblclick', () => {
+      this.sidebarWidth = this.defaultSidebarWidth;
+      this.applySidebarWidth();
+      this.saveStateDebounced();
     });
   }
 
@@ -274,7 +382,7 @@ class CerebrSidebar {
       }
 
       // 保存状态
-      this.saveState();
+      this.saveStateDebounced();
 
       // 如果从不可见变为可见，通知iframe并聚焦输入框
       if (!wasVisible && this.isVisible) {
@@ -291,12 +399,12 @@ class CerebrSidebar {
   setupDragAndDrop() {
     // console.log('初始化拖放功能');
 
-    // 存储最后一次设置的图片数据
-    let lastImageData = null;
+    // 存储最后一次拖动的图片信息（仅在确实拖入侧边栏后再取数据）
+    let lastDraggedImage = null;
 
     // 检查是否在侧边栏范围内的函数
     const isInSidebarBounds = (x, y) => {
-      if (!this.sidebar) return false;
+      if (!this.sidebar || !this.isVisible) return false;
       const sidebarRect = this.sidebar.getBoundingClientRect();
       return (
         x >= sidebarRect.left &&
@@ -306,84 +414,76 @@ class CerebrSidebar {
       );
     };
 
-    // 监听页面上的所有图片
-    document.addEventListener('dragstart', (e) => {
-      console.log('拖动开始，目标元素:', e.target.tagName);
-      const img = e.target;
-      if (img.tagName === 'IMG') {
-        console.log('检测到图片拖动，图片src:', img.src);
-        // 尝试直接获取图片的 src
+    const getImageDataFromElement = async (imgEl) => {
+      const src = imgEl?.currentSrc || imgEl?.src;
+      if (!src) return null;
+
+      try {
+        const response = await fetch(src);
+        const blob = await response.blob();
+        const base64Data = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error('读取图片失败'));
+          reader.readAsDataURL(blob);
+        });
+        return {
+          type: 'image',
+          data: base64Data,
+          name: imgEl?.alt || imgEl?.title || '拖放图片'
+        };
+      } catch (error) {
+        // fetch 失败时尝试 canvas（跨域图片可能会失败）
         try {
-          // 对于跨域图片，尝试使用 fetch 获取
-          console.log('尝试获取图片数据');
-          fetch(img.src)
-            .then(response => response.blob())
-            .then(blob => {
-              console.log('成功获取图片blob数据，大小:', blob.size);
-              const reader = new FileReader();
-              reader.onloadend = () => {
-                const base64Data = reader.result;
-                console.log('成功转换为base64数据');
-                const imageData = {
-                  type: 'image',
-                  data: base64Data,
-                  name: img.alt || '拖放图片'
-                };
-                console.log('设置拖动数据:', imageData.name);
-                lastImageData = imageData;  // 保存最后一次的图片数据
-                // 使用自定义事件类型，避免数据丢失
-                e.dataTransfer.setData('application/x-cerebr-image', JSON.stringify(imageData));
-                e.dataTransfer.effectAllowed = 'copy';
-              };
-              reader.readAsDataURL(blob);
-            })
-            .catch(error => {
-              console.error('获取图片数据失败:', error);
-              // 如果 fetch 失败，回退到 canvas 方法
-              console.log('尝试使用Canvas方法获取图片数据');
-              try {
-                const canvas = document.createElement('canvas');
-                canvas.width = img.naturalWidth;
-                canvas.height = img.naturalHeight;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0);
-                const base64Data = canvas.toDataURL(img.src.match(/\.png$/i) ? 'image/png' : 'image/jpeg');
-                console.log('成功使用Canvas获取图片数据');
-                const imageData = {
-                  type: 'image',
-                  data: base64Data,
-                  name: img.alt || '拖放图片'
-                };
-                console.log('设置拖动数据:', imageData.name);
-                lastImageData = imageData;  // 保存最后一次的图片数据
-                // 使用自定义事件类型，避免数据丢失
-                e.dataTransfer.setData('application/x-cerebr-image', JSON.stringify(imageData));
-                e.dataTransfer.effectAllowed = 'copy';
-              } catch (canvasError) {
-                console.error('Canvas获取图片数据失败:', canvasError);
-              }
-            });
-        } catch (error) {
-          console.error('处理图片拖动失败:', error);
+          const canvas = document.createElement('canvas');
+          canvas.width = imgEl.naturalWidth || imgEl.width;
+          canvas.height = imgEl.naturalHeight || imgEl.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(imgEl, 0, 0);
+          const base64Data = canvas.toDataURL('image/png');
+          return {
+            type: 'image',
+            data: base64Data,
+            name: imgEl?.alt || imgEl?.title || '拖放图片'
+          };
+        } catch (canvasError) {
+          console.error('拖放图片读取失败:', error, canvasError);
+          return null;
         }
       }
-    });
+    };
+
+    // 监听页面上的所有图片（仅记录引用；真正取数延后到拖入侧边栏后）
+    document.addEventListener('dragstart', (e) => {
+      const img = e.target?.closest?.('img');
+      if (!img) return;
+      lastDraggedImage = img;
+      try {
+        e.dataTransfer?.setData?.('text/uri-list', img.currentSrc || img.src || '');
+        e.dataTransfer.effectAllowed = 'copy';
+      } catch {
+        // ignore
+      }
+    }, { capture: true });
 
     // 监听拖动结束事件
     document.addEventListener('dragend', (e) => {
-      const inSidebar = isInSidebarBounds(e.clientX, e.clientY);
-      console.log('拖动结束，是否在侧边栏内:', inSidebar, '坐标:', e.clientX, e.clientY);
-
+      const inSidebar = !!lastDraggedImage && isInSidebarBounds(e.clientX, e.clientY);
       const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
-      if (iframe && inSidebar && lastImageData && this.isVisible) {  // 确保侧边栏可见
-        console.log('在侧边栏内放下，发送图片数据到iframe');
-        iframe.contentWindow.postMessage({
-          type: 'DROP_IMAGE',
-          imageData: lastImageData
-        }, '*');
+      if (iframe && inSidebar && this.isVisible) {  // 确保侧边栏可见
+        const draggedImg = lastDraggedImage;
+        // 异步获取图片数据并发送到 iframe
+        void (async () => {
+          const imageData = await getImageDataFromElement(draggedImg);
+          if (!imageData) return;
+          iframe.contentWindow.postMessage({
+            type: 'DROP_IMAGE',
+            imageData
+          }, '*');
+        })();
       }
       // 重置状态
-      lastImageData = null;
+      lastDraggedImage = null;
     });
   }
 }

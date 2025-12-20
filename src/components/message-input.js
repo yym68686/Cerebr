@@ -33,25 +33,25 @@ export function initMessageInput(config) {
         webpageContentMenu // 接收二级菜单
     } = config;
 
-    // 添加点击事件监听
+    // 点击输入框时不触发全局点击逻辑（比如关闭菜单、失焦）
+    messageInput.addEventListener('click', (e) => e.stopPropagation());
+
+    // 全局点击：在合适场景下收起输入法（移动端更友好）
     document.body.addEventListener('click', (e) => {
-        // 如果有文本被选中，不要触发输入框聚焦
-        if (window.getSelection().toString()) {
+        // 如果有文本被选中，不处理
+        if (window.getSelection().toString()) return;
+
+        // 排除点击设置按钮、设置菜单、上下文菜单、对话列表页面的情况
+        if (e.target.closest('#settings-button') ||
+            e.target.closest('#settings-menu') ||
+            e.target.closest('#context-menu') ||
+            e.target.closest('#chat-list-page')) {
             return;
         }
 
-        // 排除点击设置按钮、设置菜单、上下文菜单、对话列表页面的情况
-        if (!e.target.closest('#settings-button') &&
-            !e.target.closest('#settings-menu') &&
-            !e.target.closest('#context-menu') &&
-            !e.target.closest('#chat-list-page')) {
-
-            // 切换输入框焦点状态
-            if (document.activeElement === messageInput) {
-                messageInput.blur();
-            } else {
-                messageInput.focus();
-            }
+        // 点击输入区域之外时，如果当前在输入则收起键盘
+        if (!e.target.closest('#input-container') && document.activeElement === messageInput) {
+            messageInput.blur();
         }
     });
 
@@ -96,13 +96,6 @@ export function initMessageInput(config) {
             webpageContentMenu.classList.remove('visible');
         }
 
-        // 输入框获得焦点，阻止事件冒泡
-        messageInput.addEventListener('click', (e) => e.stopPropagation());
-    });
-
-    messageInput.addEventListener('blur', () => {
-        // 输入框失去焦点时，移除点击事件监听
-        messageInput.removeEventListener('click', (e) => e.stopPropagation());
     });
 
     // 处理换行和输入

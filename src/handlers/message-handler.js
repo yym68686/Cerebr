@@ -2,32 +2,17 @@ import { chatManager } from '../utils/chat-manager.js';
 import { showImagePreview, createImageTag } from '../utils/ui.js';
 import { processMathAndMarkdown, renderMathInElement, textMayContainMath } from '../../htmd/latex.js';
 
-/**
- * Preloads and caches an image to a blob property on the img element.
- * This allows for instant copying later.
- * @param {HTMLImageElement} imgElement The image element to preload.
- */
-async function preloadAndCacheImage(imgElement) {
-    const imageUrl = imgElement.src;
-    // Don't preload base64 images, or if already cached
-    if (!imageUrl || imageUrl.startsWith('data:') || imgElement.cachedBlob) {
-        return;
-    }
+function isNearBottom(container, thresholdPx = 120) {
+    const remaining = container.scrollHeight - container.scrollTop - container.clientHeight;
+    return remaining < thresholdPx;
+}
 
-    // Use the proxy for external URLs
-    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(imageUrl)}`;
-
-    try {
-        const response = await fetch(proxyUrl);
-        if (!response.ok) {
-            console.warn(`Failed to preload image via proxy for ${imageUrl}: ${response.statusText}`);
-            return;
-        }
-        const blob = await response.blob();
-        imgElement.cachedBlob = blob;
-    } catch (err) {
-        console.error(`Failed to preload and cache image for ${imageUrl} via proxy:`, err);
-    }
+function scheduleAutoScroll(container) {
+    if (container.__cerebrAutoScrollRaf) return;
+    container.__cerebrAutoScrollRaf = requestAnimationFrame(() => {
+        container.scrollTop = container.scrollHeight;
+        container.__cerebrAutoScrollRaf = null;
+    });
 }
 
 /**
@@ -172,9 +157,6 @@ export async function appendMessage({
         }
     }
 
-    // Preload images for faster copying
-    messageDiv.querySelectorAll('img').forEach(preloadAndCacheImage);
-
     // 处理消息中的链接
     messageDiv.querySelectorAll('a').forEach(link => {
         link.target = '_blank';
@@ -201,6 +183,8 @@ export async function appendMessage({
         }
     });
 
+    const shouldStickToBottom = !fragment && isNearBottom(chatContainer);
+
     // 如果提供了文档片段，添加到片段中；否则直接添加到聊天容器
     if (fragment) {
         fragment.appendChild(messageDiv);
@@ -214,6 +198,8 @@ export async function appendMessage({
                     behavior: 'smooth'
                 });
             });
+        } else if (shouldStickToBottom && !skipHistory) {
+            scheduleAutoScroll(chatContainer);
         }
     }
 
@@ -240,8 +226,9 @@ export async function updateAIMessage({
     text,
     chatContainer
 }) {
+    const shouldStickToBottom = isNearBottom(chatContainer);
     let lastMessage = chatContainer.querySelector('.message:last-child');
-    const currentText = lastMessage.getAttribute('data-original-text') || '';
+    const currentText = lastMessage?.getAttribute('data-original-text') || '';
 
 
     // 处理文本内容
@@ -348,15 +335,15 @@ export async function updateAIMessage({
                 await renderMathInElement(mainContent);
             }
 
-            // Preload images for faster copying
-            mainContent.querySelectorAll('img').forEach(preloadAndCacheImage);
-
             // 处理新染的链接
             lastMessage.querySelectorAll('a').forEach(link => {
                 link.target = '_blank';
                 link.rel = 'noopener noreferrer';
             });
 
+            if (shouldStickToBottom) {
+                scheduleAutoScroll(chatContainer);
+            }
             return true;
         }
         return true; // 如果文本没有变长，也认为是成功的
@@ -370,6 +357,9 @@ export async function updateAIMessage({
             sender: 'ai',
             chatContainer
         });
+        if (shouldStickToBottom) {
+            scheduleAutoScroll(chatContainer);
+        }
         return true;
     }
 }

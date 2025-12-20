@@ -18,3 +18,8 @@ body {
     right: 0;
     bottom: 0;
 }
+
+:focus-visible {
+    outline: 2px solid var(--cerebr-focus-border-color);
+    outline-offset: 2px;
+}

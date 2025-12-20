@@ -16,6 +16,8 @@
 
 #context-menu.visible {
     display: block;
+    animation: menuAppear 0.14s ease-out;
+    transform-origin: top left;
 }
 
 .context-menu-item {
@@ -34,6 +36,12 @@
 
 .context-menu-item:hover {
     background-color: var(--cerebr-message-user-bg);
+}
+
+.context-menu-item:focus-visible {
+    outline: none;
+    background-color: var(--cerebr-message-user-bg);
+    box-shadow: 0 0 0 2px var(--cerebr-focus-border-color);
 }
 
 .context-menu-item svg {
@@ -67,4 +75,10 @@
 #regenerate-message svg {
     fill: currentColor;
     stroke: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #context-menu.visible {
+        animation: none;
+    }
 }

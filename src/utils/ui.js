@@ -111,3 +111,34 @@ export function createImageTag({
 
     return container;
 }
+
+function ensureToastContainer() {
+    let container = document.getElementById('toast-container');
+    if (container) return container;
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'toast-container';
+    container.setAttribute('role', 'status');
+    container.setAttribute('aria-live', 'polite');
+    container.setAttribute('aria-atomic', 'true');
+    document.body.appendChild(container);
+    return container;
+}
+
+export function showToast(message, { type = 'info', durationMs = 1600 } = {}) {
+    if (!message) return;
+    const container = ensureToastContainer();
+
+    const toast = document.createElement('div');
+    const typeClass = type ? ` toast--${type}` : '';
+    toast.className = `toast${typeClass}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+
+    const hide = () => {
+        toast.classList.add('toast--hide');
+        setTimeout(() => toast.remove(), 180);
+    };
+
+    setTimeout(hide, durationMs);
+}

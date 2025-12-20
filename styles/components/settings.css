@@ -65,6 +65,12 @@
     background-color: var(--cerebr-message-user-bg);
 }
 
+.menu-item:focus-visible {
+    outline: none;
+    background-color: var(--cerebr-message-user-bg);
+    box-shadow: 0 0 0 2px var(--cerebr-focus-border-color);
+}
+
 /* 开关样式 */
 .switch {
     position: relative;

@@ -17,8 +17,10 @@ export function showContextMenu({
         onMessageElementSelect(messageElement);
     }
 
-    // 设置菜单位置
-    contextMenu.style.display = 'block';
+    // 清理旧的内联 display（兼容旧版本）
+    contextMenu.style.display = '';
+    // 设置菜单可见
+    contextMenu.classList.add('visible');
 
     // 根据消息状态显示或隐藏停止更新按钮
     if (messageElement.classList.contains('updating')) {
@@ -48,7 +50,7 @@ export function showContextMenu({
 
 // 隐藏上下文菜单
 export function hideContextMenu({ contextMenu, onMessageElementReset }) {
-    contextMenu.style.display = 'none';
+    contextMenu.classList.remove('visible');
     if (onMessageElementReset) {
         onMessageElementReset();
     }
