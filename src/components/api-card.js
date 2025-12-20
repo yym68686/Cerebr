@@ -84,6 +84,9 @@ export function renderAPICards({
  * @param {boolean} params.isSelected - 是否选中
  * @returns {HTMLElement} 创建的卡片元素
  */
+
+import { normalizeChatCompletionsUrl } from '../utils/api-url.js';
+
 function createAPICard({
     config,
     index,
@@ -215,6 +218,10 @@ function createAPICard({
                 e.preventDefault();
                 e.stopPropagation();
 
+                if (input === baseUrlInput) {
+                    baseUrlInput.value = normalizeChatCompletionsUrl(baseUrlInput.value) || baseUrlInput.value.trim();
+                }
+
                 const maybePromise = onChange(index, buildNextConfig(), { kind: 'apiFields', flush: true });
                 if (maybePromise && typeof maybePromise.then === 'function') {
                     try {
@@ -263,6 +270,9 @@ function createAPICard({
     // 监听输入框变化
     [apiKeyInput, baseUrlInput, modelNameInput].forEach(input => {
         input.addEventListener('change', () => {
+            if (input === baseUrlInput) {
+                baseUrlInput.value = normalizeChatCompletionsUrl(baseUrlInput.value) || baseUrlInput.value.trim();
+            }
             onChange(index, buildNextConfig(), { kind: 'apiFields', flush: true });
         });
     });

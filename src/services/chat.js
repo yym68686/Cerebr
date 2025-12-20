@@ -6,6 +6,8 @@
  * @property {string} [modelName] - 模型名称，默认为 "gpt-4o"
  */
 
+import { normalizeChatCompletionsUrl } from '../utils/api-url.js';
+
 /**
  * 网页信息接口
  * @typedef {Object} WebpageInfo
@@ -44,7 +46,8 @@ export async function callAPI({
     userLanguage,
     webpageInfo = null,
 }, chatManager, chatId, onMessageUpdate) {
-    if (!apiConfig?.baseUrl || !apiConfig?.apiKey) {
+    const baseUrl = normalizeChatCompletionsUrl(apiConfig?.baseUrl);
+    if (!baseUrl || !apiConfig?.apiKey) {
         throw new Error('API 配置不完整');
     }
 
@@ -78,7 +81,7 @@ export async function callAPI({
     const controller = new AbortController();
     const signal = controller.signal;
 
-    const response = await fetch(apiConfig.baseUrl, {
+    const response = await fetch(baseUrl, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

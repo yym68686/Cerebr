@@ -16,6 +16,7 @@ import {
     initializeChatList
 } from './components/chat-list.js';
 import { initWebpageMenu, getEnabledTabsContent } from './components/webpage-menu.js';
+import { normalizeChatCompletionsUrl } from './utils/api-url.js';
 
 // 存储用户的问题历史
 let userQuestions = [];
@@ -595,7 +596,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const normalized = { ...(config || {}) };
         ensureConfigId(normalized);
         normalized.apiKey = normalized.apiKey ?? '';
-        normalized.baseUrl = normalized.baseUrl ?? 'https://api.openai.com/v1/chat/completions';
+        normalized.baseUrl = normalizeChatCompletionsUrl(
+            normalized.baseUrl ?? 'https://api.openai.com/v1/chat/completions'
+        ) || 'https://api.openai.com/v1/chat/completions';
         normalized.modelName = normalized.modelName ?? 'gpt-4o';
         normalized.advancedSettings = {
             ...(normalized.advancedSettings || {}),
