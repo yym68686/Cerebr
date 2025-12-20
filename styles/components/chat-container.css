@@ -26,3 +26,28 @@
 .keyboard-visible #chat-container {
     padding-bottom: calc(60px + env(safe-area-inset-bottom) + var(--keyboard-height, 0px) + var(--chat-bottom-extra-padding, 0px));
 }
+
+.chat-switch-placeholder {
+    height: 100%;
+    min-height: 160px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--cerebr-text-color-secondary);
+    user-select: none;
+}
+
+.chat-switch-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid transparent;
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: loading-spinner 0.8s linear infinite;
+}
+
+.chat-switch-text {
+    font-size: 13px;
+}

@@ -248,6 +248,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     void restoreDraft(draftChatId);
 
     // 监听对话切换，切换草稿与未读计数
+    let pendingReadingProgressChatId = null;
+    let readingProgressRestoring = false;
+    let readingProgressRestoredForChatId = null;
+
+    const tryRestoreReadingProgress = async (chatId) => {
+        if (!chatId) return;
+        if (chatId !== chatManager.getCurrentChat()?.id) return;
+        if (readingProgressRestoredForChatId === chatId) return;
+        if (readingProgressRestoring) return;
+
+        readingProgressRestoring = true;
+        try {
+            const ok = await readingProgressManager.restore(chatId);
+            if (ok) {
+                readingProgressRestoredForChatId = chatId;
+                if (pendingReadingProgressChatId === chatId) pendingReadingProgressChatId = null;
+            }
+        } finally {
+            readingProgressRestoring = false;
+        }
+    };
+
     document.addEventListener('cerebr:chatSwitched', (event) => {
         const nextChatId = event?.detail?.chatId;
         void (async () => {
@@ -257,8 +279,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             draftChatId = nextChatId || null;
             clearMessageInput(messageInput, uiConfig);
             await restoreDraft(draftChatId);
-            await readingProgressManager.restore(draftChatId);
+            pendingReadingProgressChatId = draftChatId;
+            readingProgressRestoredForChatId = null;
         })();
+    });
+
+    // 对话内容分批渲染时，尽早恢复阅读进度（等锚点消息出现后会自动成功）
+    document.addEventListener('cerebr:chatContentChunk', (event) => {
+        const chatId = event?.detail?.chatId;
+        if (!chatId) return;
+        if (pendingReadingProgressChatId !== chatId) return;
+        void tryRestoreReadingProgress(chatId);
     });
 
 

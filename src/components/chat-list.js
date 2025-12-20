@@ -2,6 +2,7 @@ import { appendMessage } from '../handlers/message-handler.js';
 import { storageAdapter, browserAdapter, isExtensionEnvironment } from '../utils/storage-adapter.js';
 
 let renderToken = 0;
+let chatContentToken = 0;
 
 function scheduleWork(callback) {
     if (typeof requestIdleCallback === 'function') {
@@ -9,6 +10,16 @@ function scheduleWork(callback) {
     } else {
         requestAnimationFrame(() => callback({ timeRemaining: () => 0, didTimeout: true }));
     }
+}
+
+function createChatSwitchPlaceholder() {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'chat-switch-placeholder';
+    wrapper.innerHTML = `
+        <div class="chat-switch-spinner" aria-hidden="true"></div>
+        <div class="chat-switch-text">正在加载对话…</div>
+    `;
+    return wrapper;
 }
 
 export function renderChatListIncremental(chatManager, chatCards, searchTerm = '') {
@@ -108,11 +119,88 @@ export async function loadChatContent(chat, chatContainer) {
     }
 }
 
+async function loadChatContentIncremental(chat, chatContainer, token) {
+    chatContainer.replaceChildren(createChatSwitchPlaceholder());
+    const messages = chat.messages;
+    if (!Array.isArray(messages) || messages.length === 0) {
+        chatContainer.innerHTML = '';
+        document.dispatchEvent(new CustomEvent('cerebr:chatContentChunk', { detail: { chatId: chat.id, done: true, rendered: 0 } }));
+        document.dispatchEvent(new CustomEvent('cerebr:chatContentLoaded', { detail: { chatId: chat.id } }));
+        return;
+    }
+
+    let index = 0;
+    const myToken = token;
+    let hasRenderedAny = false;
+
+    const renderChunk = async (deadline) => {
+        if (myToken !== chatContentToken) return;
+
+        const fragment = document.createDocumentFragment();
+        const nodes = [];
+
+        const shouldContinue = () => {
+            if (!deadline || typeof deadline.timeRemaining !== 'function') return false;
+            return deadline.didTimeout || deadline.timeRemaining() > 8;
+        };
+
+        const minPerChunk = 6;
+        const maxPerChunk = 14;
+        let rendered = 0;
+
+        while (index < messages.length &&
+            rendered < maxPerChunk &&
+            (rendered < minPerChunk || shouldContinue())) {
+            if (myToken !== chatContentToken) return;
+
+            const message = messages[index++];
+            if (!message?.content) continue;
+
+            const element = await appendMessage({
+                text: message,
+                sender: message.role === 'user' ? 'user' : 'ai',
+                chatContainer,
+                skipHistory: true,
+                fragment
+            });
+            nodes.push(element);
+            rendered++;
+        }
+
+        if (myToken !== chatContentToken) return;
+        if (!hasRenderedAny) {
+            chatContainer.replaceChildren(fragment);
+            hasRenderedAny = true;
+        } else {
+            chatContainer.appendChild(fragment);
+        }
+        requestAnimationFrame(() => {
+            nodes.forEach((el) => el?.classList?.add('show'));
+        });
+
+        document.dispatchEvent(new CustomEvent('cerebr:chatContentChunk', { detail: { chatId: chat.id, done: index >= messages.length, rendered: index } }));
+
+        if (index < messages.length) {
+            scheduleWork(renderChunk);
+            return;
+        }
+
+        document.dispatchEvent(new CustomEvent('cerebr:chatContentLoaded', { detail: { chatId: chat.id } }));
+    };
+
+    scheduleWork(renderChunk);
+}
+
 // 切换到指定对话
-export async function switchToChat(chatId, chatManager) {
-    const chat = await chatManager.switchChat(chatId);
+export function switchToChat(chatId, chatManager) {
+    // Optimistically switch current chat immediately; persist to storage in background.
+    void chatManager.switchChat(chatId).catch((err) => console.error('切换对话失败:', err));
+    const chat = chatManager.getCurrentChat();
     if (chat) {
-        await loadChatContent(chat, document.getElementById('chat-container'));
+        const token = ++chatContentToken;
+        const chatContainer = document.getElementById('chat-container');
+        chatContainer.replaceChildren(createChatSwitchPlaceholder());
+        void loadChatContentIncremental(chat, chatContainer, token);
 
         // 更新对话列表中的选中状态
         document.querySelectorAll('.chat-card').forEach(card => {
@@ -182,8 +270,11 @@ export function initChatListEvents({
         if (!card || card.classList.contains('template')) return;
 
         if (!e.target.closest('.delete-btn')) {
-            await switchToChat(card.dataset.chatId, chatManager);
-            if (onHide) onHide();
+            // 先准备聊天界面，再关闭列表页，避免“旧对话被清空”的闪动露出。
+            switchToChat(card.dataset.chatId, chatManager);
+            requestAnimationFrame(() => {
+                if (onHide) onHide();
+            });
         }
     });
 
@@ -205,7 +296,10 @@ export function initChatListEvents({
         // 如果删除的是当前对话，重新加载聊天内容
         const currentChat = chatManager.getCurrentChat();
         if (currentChat) {
-            await loadChatContent(currentChat, document.getElementById('chat-container'));
+            const token = ++chatContentToken;
+            const chatContainer = document.getElementById('chat-container');
+            chatContainer.replaceChildren(createChatSwitchPlaceholder());
+            void loadChatContentIncremental(currentChat, chatContainer, token);
             if (prevChatId !== currentChat.id) {
                 document.dispatchEvent(new CustomEvent('cerebr:chatSwitched', { detail: { chatId: currentChat.id } }));
             }
@@ -247,7 +341,7 @@ export function initializeChatList({
         }
 
         const newChat = chatManager.createNewChat();
-        await switchToChat(newChat.id, chatManager);
+        switchToChat(newChat.id, chatManager);
         settingsMenu.classList.remove('visible');
         messageInput.focus();
     });

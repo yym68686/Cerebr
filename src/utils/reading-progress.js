@@ -170,6 +170,9 @@ export function createReadingProgressManager({
             } else {
                 const anchorIndex = typeof state.anchorIndex === 'number' ? state.anchorIndex : 0;
                 const anchorOffsetPx = typeof state.anchorOffsetPx === 'number' ? state.anchorOffsetPx : 0;
+                if (anchorIndex >= messages.length) {
+                    return false;
+                }
                 const clampedIndex = clamp(anchorIndex, 0, messages.length - 1);
                 const anchor = messages[clampedIndex];
                 targetScrollTop = (anchor?.offsetTop || 0) + anchorOffsetPx;
