@@ -65,6 +65,37 @@ function insertPlainTextAtSelection(messageInput, text) {
     }
 }
 
+function ensureSelectionInInput(messageInput) {
+    if (!messageInput) return;
+    messageInput.focus();
+
+    const selection = window.getSelection();
+    if (!selection) return;
+
+    if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        if (messageInput.contains(range.startContainer)) {
+            return;
+        }
+    }
+
+    const range = document.createRange();
+    range.selectNodeContents(messageInput);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+}
+
+function execCommandInsertText(messageInput, text) {
+    try {
+        ensureSelectionInInput(messageInput);
+        // `execCommand` 已废弃，但在 contenteditable 中仍然是最稳的“进入原生撤销栈”的方式之一。
+        return document.execCommand('insertText', false, text);
+    } catch {
+        return false;
+    }
+}
+
 /**
  * 初始化消息输入组件
  * @param {Object} config - 配置对象
@@ -322,7 +353,11 @@ export function initMessageInput(config) {
             const text = e.clipboardData.getData('text/plain');
             if (text) {
                 e.preventDefault();
-                insertPlainTextAtSelection(messageInput, text);
+                // 优先使用 execCommand 以确保进入原生撤销栈（Cmd/Ctrl+Z 能先撤销粘贴内容）
+                const ok = execCommandInsertText(messageInput, text);
+                if (!ok) {
+                    insertPlainTextAtSelection(messageInput, text);
+                }
                 messageInput.dispatchEvent(new Event('input'));
             }
         }
