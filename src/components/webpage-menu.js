@@ -1,4 +1,65 @@
 import { storageAdapter, browserAdapter } from '../utils/storage-adapter.js';
+import { chatManager } from '../utils/chat-manager.js';
+
+const YT_TRANSCRIPT_KEY_PREFIX = 'cerebr_youtube_transcript_v1_';
+
+function isYouTubeHost(hostname) {
+    if (!hostname) return false;
+    const host = String(hostname).toLowerCase();
+    return host === 'youtube.com' || host.endsWith('.youtube.com') || host === 'youtu.be';
+}
+
+function getYouTubeVideoIdFromUrl(urlString) {
+    try {
+        const url = new URL(urlString);
+        if (!isYouTubeHost(url.hostname)) return null;
+
+        if (url.pathname === '/watch') return url.searchParams.get('v');
+        if (url.hostname === 'youtu.be') {
+            const id = url.pathname.replace(/^\/+/, '').split('/')[0];
+            return id || null;
+        }
+        const shortsMatch = url.pathname.match(/^\/shorts\/([^/?#]+)/);
+        if (shortsMatch) return shortsMatch[1];
+        const embedMatch = url.pathname.match(/^\/embed\/([^/?#]+)/);
+        if (embedMatch) return embedMatch[1];
+        return null;
+    } catch {
+        return null;
+    }
+}
+
+function sanitizeKeyPart(value) {
+    return String(value || '').replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80);
+}
+
+function makeYouTubeTranscriptKey({ videoId, lang }) {
+    const vid = sanitizeKeyPart(videoId);
+    const language = sanitizeKeyPart(lang || 'und');
+    return `${YT_TRANSCRIPT_KEY_PREFIX}${vid}_${language}`;
+}
+
+async function loadYouTubeTranscriptText(key) {
+    if (!key) return null;
+    const result = await storageAdapter.get(key);
+    const payload = result?.[key];
+    if (!payload) return null;
+    if (typeof payload === 'string') return payload;
+    return payload?.text || null;
+}
+
+async function saveYouTubeTranscript({ key, videoId, lang, text }) {
+    if (!key || !text) return;
+    await storageAdapter.set({
+        [key]: {
+            v: 1,
+            videoId,
+            lang: lang || null,
+            text,
+            updatedAt: Date.now()
+        }
+    });
+}
 
 // 过滤重复的标签页，只保留每个 URL 最新访问的标签页
 function getUniqueTabsByUrl(tabs) {
@@ -112,6 +173,7 @@ export async function getEnabledTabsContent() {
     const { webpageSwitches: switches } = await storageAdapter.get('webpageSwitches');
     let allTabs = await browserAdapter.getAllTabs();
     const currentTab = await browserAdapter.getCurrentTab();
+    const activeChatId = chatManager.getCurrentChat()?.id || null;
     let combinedContent = null;
 
     // 1. 过滤掉浏览器自身的特殊页面
@@ -147,14 +209,51 @@ export async function getEnabledTabsContent() {
                         skipWaitContent: true // 明确要求立即提取
                     });
 
-                    if (pageData && pageData.content) {
+                    if (pageData && (pageData.content || pageData.youtubeTranscript?.transcript)) {
+                        let content = pageData.content || '';
+
+                        // YouTube 字幕：优先使用本次提取结果；失败时回退到“当前对话已缓存的字幕”
+                        const videoId = tab?.url ? getYouTubeVideoIdFromUrl(tab.url) : null;
+                        const isYouTubeTab = (() => {
+                            if (!tab?.url) return false;
+                            try {
+                                return isYouTubeHost(new URL(tab.url).hostname);
+                            } catch {
+                                return false;
+                            }
+                        })();
+
+                        if (videoId && isYouTubeTab) {
+                            const youtubeTranscript = pageData.youtubeTranscript;
+                            let transcriptText = youtubeTranscript?.transcript || null;
+                            const lang = youtubeTranscript?.lang || null;
+                            const key = transcriptText
+                                ? makeYouTubeTranscriptKey({ videoId, lang })
+                                : (chatManager.getYouTubeTranscriptRef(activeChatId, videoId)?.key || null);
+
+                            if (transcriptText && key) {
+                                await saveYouTubeTranscript({ key, videoId, lang, text: transcriptText });
+                                if (activeChatId) {
+                                    chatManager.addYouTubeTranscriptRef(activeChatId, { key, videoId, lang });
+                                }
+                            }
+
+                            if (!transcriptText && key) {
+                                transcriptText = await loadYouTubeTranscriptText(key);
+                            }
+
+                            if (transcriptText) {
+                                content = `${content}\n\nYouTube 字幕：\n${transcriptText}`.trim();
+                            }
+                        }
+
                         if (!combinedContent) {
                             combinedContent = { pages: [] };
                         }
                         combinedContent.pages.push({
                             title: pageData.title,
                             url: tab.url,
-                            content: pageData.content,
+                            content,
                             isCurrent: tab.id === currentTab.id
                         });
                     }

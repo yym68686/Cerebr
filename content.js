@@ -677,6 +677,12 @@ function parseTimedTextJson3ToPlainText(json3) {
   }
 }
 
+function makeYouTubeTranscriptStorageKey(videoId, lang) {
+  const safeVideoId = String(videoId || '').replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80);
+  const safeLang = String(lang || 'und').replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80);
+  return `cerebr_youtube_transcript_v1_${safeVideoId}_${safeLang}`;
+}
+
 async function extractYouTubeTranscriptText() {
   const videoId = getYouTubeVideoIdFromUrl(window.location.href);
   if (!videoId) return null;
@@ -686,10 +692,34 @@ async function extractYouTubeTranscriptText() {
     const capturedUrl = resp?.url;
     if (!capturedUrl) return null;
 
+    // Prefer locally cached transcript (written by sidebar) to avoid repeated network fetch.
+    const key = makeYouTubeTranscriptStorageKey(videoId, resp?.lang || null);
+    try {
+      const cached = await chrome.storage.local.get(key);
+      const payload = cached?.[key];
+      const cachedText = typeof payload === 'string' ? payload : payload?.text;
+      if (cachedText) {
+        return {
+          videoId,
+          lang: resp?.lang || null,
+          caps: resp?.caps || null,
+          transcript: cachedText
+        };
+      }
+    } catch {
+      // ignore
+    }
+
     const response = await chrome.runtime.sendMessage({ type: 'FETCH_YOUTUBE_TIMEDTEXT', url: capturedUrl });
     if (!response?.success || !response.text) return null;
     const parsed = parseTimedTextJson3ToPlainText(response.text);
-    return parsed || null;
+    if (!parsed) return null;
+    return {
+      videoId,
+      lang: resp?.lang || null,
+      caps: resp?.caps || null,
+      transcript: parsed
+    };
   } catch {
     return null;
   }
@@ -739,66 +769,65 @@ async function extractPageContent(skipWaitContent = false) {
       return null;
     }
 
-    // 非 PDF：短 TTL 缓存，减少重复提取导致的卡顿
+    // 非 PDF：短 TTL 缓存，减少重复提取导致的卡顿（但 YouTube 字幕仍会每次尝试获取）
     const now = Date.now();
     const currentUrl = window.location.href;
+
+    let mainContent = '';
+    let usedCache = false;
+
     if (lastExtractedPage &&
         lastExtractedPage.url === currentUrl &&
         now - lastExtractedPage.createdAt < PAGE_TEXT_CACHE_TTL_MS) {
-      return {
-        title: lastExtractedPage.title,
-        url: lastExtractedPage.url,
-        content: lastExtractedPage.content
-      };
-    }
-
-    const iframes = document.querySelectorAll('iframe');
-    let frameContent = '';
-    for (const iframe of iframes) {
-      try {
-        if (iframe.contentDocument || iframe.contentWindow) {
-          const iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
-          const content = iframeDocument.body.innerText;
-          frameContent += content;
+      mainContent = lastExtractedPage.content || '';
+      usedCache = true;
+    } else {
+      const iframes = document.querySelectorAll('iframe');
+      let frameContent = '';
+      for (const iframe of iframes) {
+        try {
+          if (iframe.contentDocument || iframe.contentWindow) {
+            const iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
+            const content = iframeDocument.body.innerText;
+            frameContent += content;
+          }
+        } catch (e) {
+          // console.log('无法访问该iframe内容:', e.message);
         }
-      } catch (e) {
-        // console.log('无法访问该iframe内容:', e.message);
       }
+
+      const tempContainer = document.body.cloneNode(true);
+
+      // 将表单元素的实时 value 同步到克隆的节点中，以便 innerText 可以获取到
+      const originalFormElements = document.body.querySelectorAll('textarea, input');
+      const clonedFormElements = tempContainer.querySelectorAll('textarea, input');
+      originalFormElements.forEach((el, index) => {
+        if (clonedFormElements[index] && el.value) {
+          clonedFormElements[index].textContent = el.value;
+        }
+      });
+
+      const selectorsToRemove = [
+          'script', 'style', 'nav', 'header', 'footer',
+          'iframe', 'noscript', 'img', 'svg', 'video',
+          '[role="complementary"]', '[role="navigation"]',
+          '.sidebar', '.nav', '.footer', '.header'
+      ];
+      selectorsToRemove.forEach(selector => {
+          tempContainer.querySelectorAll(selector).forEach(element => element.remove());
+      });
+
+      mainContent = tempContainer.innerText + frameContent;
+      mainContent = mainContent.replace(/\s+/g, ' ').replace(/\n\s*\n/g, '\n').trim();
     }
 
-    const tempContainer = document.body.cloneNode(true);
-
-    // 将表单元素的实时 value 同步到克隆的节点中，以便 innerText 可以获取到
-    const originalFormElements = document.body.querySelectorAll('textarea, input');
-    const clonedFormElements = tempContainer.querySelectorAll('textarea, input');
-    originalFormElements.forEach((el, index) => {
-      if (clonedFormElements[index] && el.value) {
-        clonedFormElements[index].textContent = el.value;
-      }
-    });
-
-    const selectorsToRemove = [
-        'script', 'style', 'nav', 'header', 'footer',
-        'iframe', 'noscript', 'img', 'svg', 'video',
-        '[role="complementary"]', '[role="navigation"]',
-        '.sidebar', '.nav', '.footer', '.header'
-    ];
-    selectorsToRemove.forEach(selector => {
-        tempContainer.querySelectorAll(selector).forEach(element => element.remove());
-    });
-
-    let mainContent = tempContainer.innerText + frameContent;
-    mainContent = mainContent.replace(/\s+/g, ' ').replace(/\n\s*\n/g, '\n').trim();
-
-    // YouTube：如果视频有字幕，则提取字幕并加入内容
+    // YouTube：字幕单独返回（由侧边栏决定如何拼接/缓存）
+    let youtubeTranscript = null;
     if (isYouTubeHost(window.location.hostname)) {
-      const transcript = await extractYouTubeTranscriptText();
-      if (transcript) {
-        mainContent = `${mainContent}\n\nYouTube 字幕：\n${transcript}`.trim();
-      }
+      youtubeTranscript = await extractYouTubeTranscriptText();
     }
 
-    if (mainContent.length < 40) {
+    if (mainContent.length < 40 && !youtubeTranscript?.transcript) {
       console.log('提取的内容太少，返回 null');
       return null;
     }
@@ -806,17 +835,20 @@ async function extractPageContent(skipWaitContent = false) {
     const gptTokenCount = await estimateGPTTokens(mainContent);
     console.log('页面内容提取完成，内容长度:', mainContent.length, 'GPT tokens:', gptTokenCount);
 
-    lastExtractedPage = {
-      title: document.title,
-      url: currentUrl,
-      content: mainContent,
-      createdAt: now
-    };
+    if (!usedCache) {
+      lastExtractedPage = {
+        title: document.title,
+        url: currentUrl,
+        content: mainContent,
+        createdAt: now
+      };
+    }
 
     return {
       title: document.title,
       url: currentUrl,
-      content: mainContent
+      content: mainContent,
+      youtubeTranscript
     };
   }
 

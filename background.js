@@ -276,14 +276,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const tabId = sender?.tab?.id;
         const videoId = message?.videoId;
         if (!tabId || !videoId) {
-          sendResponse({ success: false, url: null });
+          sendResponse({ success: false, url: null, lang: null, caps: null });
           return;
         }
         pruneYouTubeTimedTextCache();
         const cached = ytTimedTextUrlByTabAndVideo.get(ytTimedTextKey(tabId, videoId));
-        sendResponse({ success: true, url: cached?.url || null });
+        let lang = null;
+        let caps = null;
+        if (cached?.url) {
+          try {
+            const url = new URL(cached.url);
+            lang = url.searchParams.get('lang');
+            caps = url.searchParams.get('caps');
+          } catch {
+            // ignore
+          }
+        }
+        sendResponse({ success: true, url: cached?.url || null, lang, caps });
       } catch {
-        sendResponse({ success: false, url: null });
+        sendResponse({ success: false, url: null, lang: null, caps: null });
       }
     })();
     return true;

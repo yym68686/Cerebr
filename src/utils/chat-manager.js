@@ -5,6 +5,8 @@ const CHATS_INDEX_V2_KEY = 'cerebr_chats_index_v2';
 const CHAT_V2_PREFIX = 'cerebr_chat_v2_';
 const CURRENT_CHAT_ID_KEY = 'cerebr_current_chat_id';
 
+const YT_TRANSCRIPT_REF_FIELD = 'youtubeTranscriptRefs';
+
 function chatKeyV2(chatId) {
     return `${CHAT_V2_PREFIX}${chatId}`;
 }
@@ -123,10 +125,33 @@ export class ChatManager {
         if (!this.chats.has(chatId)) {
             throw new Error('对话不存在');
         }
+
+        const deletedChat = this.chats.get(chatId);
+        const deletedRefs = Array.isArray(deletedChat?.[YT_TRANSCRIPT_REF_FIELD])
+            ? deletedChat[YT_TRANSCRIPT_REF_FIELD]
+            : [];
+        const deletedKeys = Array.from(new Set(deletedRefs.map(r => r?.key).filter(Boolean)));
+
         this.chats.delete(chatId);
         this._pendingRemovals.add(chatKeyV2(chatId));
         this._indexDirty = true;
         this.saveChats();
+
+        // 清理不再被任何对话引用的 YouTube 字幕缓存
+        if (deletedKeys.length > 0) {
+            const stillReferenced = new Set();
+            for (const chat of this.chats.values()) {
+                const refs = Array.isArray(chat?.[YT_TRANSCRIPT_REF_FIELD]) ? chat[YT_TRANSCRIPT_REF_FIELD] : [];
+                refs.forEach((ref) => {
+                    if (ref?.key) stillReferenced.add(ref.key);
+                });
+            }
+
+            const keysToRemove = deletedKeys.filter((k) => !stillReferenced.has(k));
+            if (keysToRemove.length > 0) {
+                await this.storage.remove(keysToRemove).catch(() => {});
+            }
+        }
 
         // 如果删除的是当前对话，切换到其他对话
         if (chatId === this.currentChatId) {
@@ -140,6 +165,62 @@ export class ChatManager {
                 this.currentChatId = newChat.id;
             }
         }
+    }
+
+    /**
+     * 记录当前对话引用的 YouTube 字幕缓存 key（用于跨消息复用 & 删除对话时 GC）。
+     * @param {string} chatId
+     * @param {{key: string, videoId?: string, lang?: string, updatedAt?: number}} ref
+     */
+    addYouTubeTranscriptRef(chatId, ref) {
+        if (!chatId || !ref?.key) return;
+        const chat = this.chats.get(chatId);
+        if (!chat) return;
+
+        if (!Array.isArray(chat[YT_TRANSCRIPT_REF_FIELD])) {
+            chat[YT_TRANSCRIPT_REF_FIELD] = [];
+        }
+
+        const exists = chat[YT_TRANSCRIPT_REF_FIELD].some((r) => r?.key === ref.key);
+        if (!exists) {
+            chat[YT_TRANSCRIPT_REF_FIELD].push({
+                key: ref.key,
+                videoId: ref.videoId || null,
+                lang: ref.lang || null,
+                updatedAt: ref.updatedAt || Date.now()
+            });
+        } else {
+            // Update metadata if present
+            const idx = chat[YT_TRANSCRIPT_REF_FIELD].findIndex((r) => r?.key === ref.key);
+            if (idx >= 0) {
+                const current = chat[YT_TRANSCRIPT_REF_FIELD][idx] || {};
+                chat[YT_TRANSCRIPT_REF_FIELD][idx] = {
+                    ...current,
+                    videoId: ref.videoId || current.videoId || null,
+                    lang: ref.lang || current.lang || null,
+                    updatedAt: ref.updatedAt || Date.now()
+                };
+            }
+        }
+
+        this._dirtyChatIds.add(chatId);
+        this.saveChats();
+    }
+
+    /**
+     * 找到某个对话里对某个视频的字幕引用（优先最新）。
+     * @param {string} chatId
+     * @param {string} videoId
+     */
+    getYouTubeTranscriptRef(chatId, videoId) {
+        if (!chatId || !videoId) return null;
+        const chat = this.chats.get(chatId);
+        if (!chat) return null;
+        const refs = Array.isArray(chat?.[YT_TRANSCRIPT_REF_FIELD]) ? chat[YT_TRANSCRIPT_REF_FIELD] : [];
+        const matches = refs.filter((r) => r?.videoId === videoId && r?.key);
+        if (matches.length === 0) return null;
+        matches.sort((a, b) => (b?.updatedAt || 0) - (a?.updatedAt || 0));
+        return matches[0];
     }
 
     getCurrentChat() {
