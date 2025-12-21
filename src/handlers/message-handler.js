@@ -7,9 +7,51 @@ function isNearBottom(container, thresholdPx = 120) {
     return remaining < thresholdPx;
 }
 
+function ensureAutoScrollTracking(container) {
+    if (!container || container.__cerebrAutoScrollTrackingAttached) return;
+    container.__cerebrAutoScrollTrackingAttached = true;
+    container.__cerebrUserPausedAutoScroll = false;
+    container.__cerebrLastScrollTop = container.scrollTop;
+    container.__cerebrIgnoreNextScroll = false;
+
+    const UNPAUSE_THRESHOLD_PX = 120;
+    const UPWARD_PAUSE_DELTA_PX = 0;
+
+    container.addEventListener('scroll', () => {
+        if (container.__cerebrIgnoreNextScroll) {
+            container.__cerebrIgnoreNextScroll = false;
+            container.__cerebrLastScrollTop = container.scrollTop;
+            return;
+        }
+
+        const prev = typeof container.__cerebrLastScrollTop === 'number'
+            ? container.__cerebrLastScrollTop
+            : container.scrollTop;
+        const delta = container.scrollTop - prev;
+        container.__cerebrLastScrollTop = container.scrollTop;
+
+        // 用户向上滚动：立即暂停自动跟随（即使只滚动很小距离）
+        if (delta < -UPWARD_PAUSE_DELTA_PX) {
+            container.__cerebrUserPausedAutoScroll = true;
+            // 如果已经排队了自动滚动，立即取消，避免“又被拉回去”的体感
+            if (container.__cerebrAutoScrollRaf) {
+                cancelAnimationFrame(container.__cerebrAutoScrollRaf);
+                container.__cerebrAutoScrollRaf = null;
+            }
+            return;
+        }
+
+        // 当用户滚回底部附近，自动恢复跟随
+        if (isNearBottom(container, UNPAUSE_THRESHOLD_PX)) {
+            container.__cerebrUserPausedAutoScroll = false;
+        }
+    }, { passive: true });
+}
+
 function scheduleAutoScroll(container) {
     if (container.__cerebrAutoScrollRaf) return;
     container.__cerebrAutoScrollRaf = requestAnimationFrame(() => {
+        container.__cerebrIgnoreNextScroll = true;
         container.scrollTop = container.scrollHeight;
         container.__cerebrAutoScrollRaf = null;
     });
@@ -131,6 +173,7 @@ export async function appendMessage({
     skipHistory = false,
     fragment = null
 }) {
+    ensureAutoScrollTracking(chatContainer);
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${sender}-message`;
 
@@ -280,7 +323,9 @@ export async function appendMessage({
         }
     });
 
-    const shouldStickToBottom = !fragment && isNearBottom(chatContainer);
+    const shouldStickToBottom = !fragment &&
+        !chatContainer.__cerebrUserPausedAutoScroll &&
+        isNearBottom(chatContainer);
 
     // 如果提供了文档片段，添加到片段中；否则直接添加到聊天容器
     if (fragment) {
@@ -323,7 +368,8 @@ export async function updateAIMessage({
     text,
     chatContainer
 }) {
-    const shouldStickToBottom = isNearBottom(chatContainer);
+    ensureAutoScrollTracking(chatContainer);
+    const shouldStickToBottom = !chatContainer.__cerebrUserPausedAutoScroll && isNearBottom(chatContainer);
     let lastMessage = chatContainer.querySelector('.message:last-child');
     const currentText = lastMessage?.getAttribute('data-original-text') || '';
 
