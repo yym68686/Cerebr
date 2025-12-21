@@ -70,6 +70,7 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
 
 - ↔️ **Resize Sidebar** - Drag the sidebar’s left edge to resize; double-click the edge to reset to default width
 - ⌨️ **Send Message** - `Enter` to send, `Shift+Enter` for a new line, `Esc` to blur the input
+- ⬆️⬇️ **Recall Previous Questions** - When the input is empty, press `↑`/`↓` to cycle through your recent questions; press `↓` at the newest item to return to an empty input
 - 📋 **Context Menu** - Right-click a message (or long-press on touch devices) for copy/regenerate/delete; `Esc` to close
 - 🖼️ **Image Preview** - Click an image to preview; press `Esc` or click outside to close
 

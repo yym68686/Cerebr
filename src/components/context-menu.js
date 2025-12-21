@@ -12,6 +12,13 @@ export function showContextMenu({
 }) {
     event.preventDefault();
 
+    // 记录打开菜单前的焦点，便于关闭时恢复
+    try {
+        contextMenu.__cerebrReturnFocusEl = document.activeElement;
+    } catch {
+        // ignore
+    }
+
     // 调用消息元素选择回调
     if (onMessageElementSelect) {
         onMessageElementSelect(messageElement);
@@ -46,6 +53,13 @@ export function showContextMenu({
 
     contextMenu.style.left = x + 'px';
     contextMenu.style.top = y + 'px';
+
+    // 让键盘用户开菜单后可直接用方向键/回车操作
+    requestAnimationFrame(() => {
+        const items = Array.from(contextMenu.querySelectorAll('[role="menuitem"]'));
+        const firstVisible = items.find((el) => getComputedStyle(el).display !== 'none');
+        firstVisible?.focus?.({ preventScroll: true });
+    });
 }
 
 // 隐藏上下文菜单
@@ -53,6 +67,12 @@ export function hideContextMenu({ contextMenu, onMessageElementReset }) {
     contextMenu.classList.remove('visible');
     if (onMessageElementReset) {
         onMessageElementReset();
+    }
+
+    const returnFocusEl = contextMenu.__cerebrReturnFocusEl;
+    contextMenu.__cerebrReturnFocusEl = null;
+    if (returnFocusEl?.isConnected) {
+        returnFocusEl.focus?.({ preventScroll: true });
     }
 }
 

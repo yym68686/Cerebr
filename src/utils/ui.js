@@ -45,8 +45,15 @@ export function showImagePreview({
     base64Data,
     config
 }) {
+    try {
+        config.previewModal.__cerebrReturnFocusEl = document.activeElement;
+    } catch {
+        // ignore
+    }
     config.previewImage.src = base64Data;
     config.previewModal.classList.add('visible');
+    const closeButton = config.previewModal.querySelector?.('.image-preview-close');
+    closeButton?.focus?.({ preventScroll: true });
 }
 
 /**
@@ -58,6 +65,12 @@ export function hideImagePreview({
 }) {
     config.previewModal.classList.remove('visible');
     config.previewImage.src = '';
+
+    const returnFocusEl = config.previewModal.__cerebrReturnFocusEl;
+    config.previewModal.__cerebrReturnFocusEl = null;
+    if (returnFocusEl?.isConnected) {
+        returnFocusEl.focus?.({ preventScroll: true });
+    }
 }
 
 /**
@@ -71,8 +84,20 @@ export function hideImagePreview({
 export function createImageTag({
     base64Data,
     fileName = '图片',
-    config
+    config = {}
 }) {
+    const safeConfig = config || {};
+    if (!safeConfig.onDeleteClick) {
+        safeConfig.onDeleteClick = (container) => {
+            try {
+                container.remove();
+                const input = container.closest?.('#message-input');
+                input?.dispatchEvent?.(new Event('input', { bubbles: true }));
+            } catch {
+                // ignore
+            }
+        };
+    }
     const container = document.createElement('span');
     container.className = 'image-tag';
     container.contentEditable = false;
@@ -92,8 +117,8 @@ export function createImageTag({
     deleteBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (config.onDeleteClick) {
-            config.onDeleteClick(container);
+        if (safeConfig.onDeleteClick) {
+            safeConfig.onDeleteClick(container);
         }
     });
 
@@ -104,8 +129,8 @@ export function createImageTag({
     thumbnail.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (config.onImageClick) {
-            config.onImageClick(base64Data);
+        if (safeConfig.onImageClick) {
+            safeConfig.onImageClick(base64Data);
         }
     });
 

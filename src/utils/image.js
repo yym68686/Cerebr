@@ -7,7 +7,7 @@
  * @param {Function} config.onSuccess - 成功处理后的回调函数
  * @param {Function} config.onError - 错误处理的回调函数
  */
-export function handleImageDrop(e, config) {
+export async function handleImageDrop(e, config) {
     const {
         messageInput,
         createImageTag,
@@ -23,23 +23,20 @@ export function handleImageDrop(e, config) {
         if (e.dataTransfer.files.length > 0) {
             const file = e.dataTransfer.files[0];
             if (file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = () => {
-                    try {
-                        insertImageToInput({
-                            messageInput,
-                            createImageTag,
-                            imageData: {
-                                base64Data: reader.result,
-                                fileName: file.name
-                            }
-                        });
-                        onSuccess();
-                    } catch (error) {
-                        onError(error);
-                    }
-                };
-                reader.readAsDataURL(file);
+                try {
+                    const base64Data = await readImageFileAsDataUrl(file);
+                    insertImageToInput({
+                        messageInput,
+                        createImageTag,
+                        imageData: {
+                            base64Data,
+                            fileName: file.name
+                        }
+                    });
+                    onSuccess();
+                } catch (error) {
+                    onError(error);
+                }
                 return;
             }
         }
@@ -67,6 +64,102 @@ export function handleImageDrop(e, config) {
     } catch (error) {
         onError(error);
     }
+}
+
+function estimateDataUrlBytes(dataUrl) {
+    if (typeof dataUrl !== 'string') return 0;
+    const commaIndex = dataUrl.indexOf(',');
+    if (commaIndex === -1) return 0;
+    const base64 = dataUrl.slice(commaIndex + 1);
+    // base64 length -> bytes (rough)
+    return Math.floor((base64.length * 3) / 4);
+}
+
+function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error || new Error('读取图片失败'));
+        reader.readAsDataURL(file);
+    });
+}
+
+function loadImage(dataUrl) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('解析图片失败'));
+        img.src = dataUrl;
+    });
+}
+
+/**
+ * 将图片文件读取为 dataURL，并在较大时做降采样压缩，避免传输/渲染卡顿。
+ * @param {File} file
+ * @param {Object} [options]
+ * @param {number} [options.maxBytes=3500000] - 目标最大字节数（近似）
+ * @param {number} [options.maxDimension=1600] - 最大边长
+ * @param {number} [options.maxPixels=2600000] - 最大像素数（约 2.6MP）
+ * @returns {Promise<string>} dataURL
+ */
+export async function readImageFileAsDataUrl(
+    file,
+    { maxBytes = 3_500_000, maxDimension = 1600, maxPixels = 2_600_000 } = {}
+) {
+    if (!file || !file.type?.startsWith('image/')) {
+        throw new Error('不是图片文件');
+    }
+
+    const originalDataUrl = await readFileAsDataUrl(file);
+    if (file.size <= maxBytes) return originalDataUrl;
+
+    const img = await loadImage(originalDataUrl);
+    const srcWidth = img.naturalWidth || img.width;
+    const srcHeight = img.naturalHeight || img.height;
+    if (!srcWidth || !srcHeight) return originalDataUrl;
+
+    let scale = 1;
+    const maxSide = Math.max(srcWidth, srcHeight);
+    if (maxSide > maxDimension) {
+        scale = Math.min(scale, maxDimension / maxSide);
+    }
+    const pixels = srcWidth * srcHeight;
+    if (pixels > maxPixels) {
+        scale = Math.min(scale, Math.sqrt(maxPixels / pixels));
+    }
+
+    if (scale >= 0.999) {
+        // 仅文件较大但像素不大：尝试压 jpeg
+        scale = 1;
+    }
+
+    const targetWidth = Math.max(1, Math.round(srcWidth * scale));
+    const targetHeight = Math.max(1, Math.round(srcHeight * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) return originalDataUrl;
+
+    ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+    // 逐步降低质量，直到接近目标大小（或达到下限）
+    const mimeType = 'image/jpeg';
+    let quality = 0.86;
+    let optimized = canvas.toDataURL(mimeType, quality);
+    for (let i = 0; i < 3 && estimateDataUrlBytes(optimized) > maxBytes && quality > 0.62; i++) {
+        quality -= 0.1;
+        optimized = canvas.toDataURL(mimeType, quality);
+    }
+
+    // 如果仍然过大，拒绝插入（避免后续发送必然失败）
+    const optimizedBytes = estimateDataUrlBytes(optimized);
+    if (optimizedBytes > Math.max(maxBytes * 1.8, 8_000_000)) {
+        throw new Error('图片过大，建议压缩或裁剪后再发送');
+    }
+
+    return optimizedBytes <= estimateDataUrlBytes(originalDataUrl) ? optimized : originalDataUrl;
 }
 
 /**

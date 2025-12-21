@@ -3,12 +3,67 @@
  * 处理用户输入、粘贴、拖放图片等交互
  */
 
-import { adjustTextareaHeight, createImageTag, showImagePreview, hideImagePreview } from '../utils/ui.js';
-import { handleImageDrop } from '../utils/image.js';
+import { adjustTextareaHeight, createImageTag, showToast } from '../utils/ui.js';
+import { handleImageDrop, readImageFileAsDataUrl } from '../utils/image.js';
 import { syncChatBottomExtraPadding } from '../utils/scroll.js';
 
 // 跟踪输入法状态
 let isComposing = false;
+
+function isInputEffectivelyEmpty(messageInput) {
+    const hasImages = !!messageInput.querySelector?.('.image-tag');
+    const text = (messageInput.textContent || '').trim();
+    return !hasImages && !text;
+}
+
+function insertPlainTextAtSelection(messageInput, text) {
+    if (!messageInput) return;
+    if (!text) return;
+
+    messageInput.focus();
+
+    const selection = window.getSelection();
+    let range;
+    if (selection.rangeCount > 0) {
+        range = selection.getRangeAt(0);
+    } else {
+        range = document.createRange();
+        range.selectNodeContents(messageInput);
+        range.collapse(false);
+    }
+
+    if (!messageInput.contains(range.startContainer)) {
+        range.selectNodeContents(messageInput);
+        range.collapse(false);
+    }
+
+    range.deleteContents();
+
+    const lines = String(text).replace(/\r\n?/g, '\n').split('\n');
+    const fragment = document.createDocumentFragment();
+    let lastNode = null;
+
+    lines.forEach((line, index) => {
+        if (line) {
+            lastNode = document.createTextNode(line);
+            fragment.appendChild(lastNode);
+        }
+        if (index < lines.length - 1) {
+            lastNode = document.createElement('br');
+            fragment.appendChild(lastNode);
+        }
+    });
+
+    range.insertNode(fragment);
+
+    if (lastNode) {
+        const newRange = document.createRange();
+        newRange.setStartAfter(lastNode);
+        newRange.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(newRange);
+    }
+}
 
 /**
  * 初始化消息输入组件
@@ -70,12 +125,20 @@ export function initMessageInput(config) {
     });
 
     // 监听输入框变化
+    let historyCursor = null;
+    let isHistoryNavigation = false;
+
     messageInput.addEventListener('input', function() {
         adjustTextareaHeight({
             textarea: this,
             config: uiConfig.textarea
         });
         syncChatBottomExtraPadding();
+
+        // 用户主动输入会退出历史回溯模式
+        if (!isHistoryNavigation) {
+            historyCursor = null;
+        }
 
         // 如果正在使用输入法，则不处理 placeholder
         if (isComposing) {
@@ -129,6 +192,7 @@ export function initMessageInput(config) {
                 return;
             }
             e.preventDefault();
+            historyCursor = null;
             const text = this.textContent.trim();
             if (text || this.querySelector('.image-tag')) {  // 检查是否有文本或图片
                 // Defer heavy work to keep the keydown handler fast.
@@ -139,19 +203,41 @@ export function initMessageInput(config) {
         } else if (e.key === 'Escape') {
             // 按 ESC 键时让输入框失去焦点
             messageInput.blur();
-        } else if (e.key === 'ArrowUp' && e.target.textContent.trim() === '') {
-            // 处理输入框特定的键盘事件
-            // 当按下向上键且输入框为空时
-            e.preventDefault(); // 阻止默认行为
+        } else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {
+            // 空输入框：上下方向键循环历史问题；进入历史模式后继续可上下切换；向下到末尾回到空输入框
+            const empty = isInputEffectivelyEmpty(e.target);
 
-            // 如果有历史记录
-            if (userQuestions.length > 0) {
-                // 获取最后一个问题
-                e.target.textContent = userQuestions[userQuestions.length - 1];
-                // 触发入事件以调整高度
+            // ArrowUp：仅在“空输入框”或“已在历史模式”时接管，避免影响多行编辑/光标移动
+            if (e.key === 'ArrowUp' && userQuestions.length > 0 && (empty || historyCursor !== null)) {
+                e.preventDefault();
+                isHistoryNavigation = true;
+                if (historyCursor === null) {
+                    historyCursor = userQuestions.length - 1;
+                } else {
+                    historyCursor = Math.max(0, historyCursor - 1);
+                }
+                e.target.textContent = userQuestions[historyCursor] || '';
                 e.target.dispatchEvent(new Event('input', { bubbles: true }));
-                // 移动光标到末尾
                 moveCaretToEnd(e.target);
+                isHistoryNavigation = false;
+                return;
+            }
+
+            // ArrowDown：仅在历史模式下接管
+            if (e.key === 'ArrowDown' && historyCursor !== null) {
+                e.preventDefault();
+                isHistoryNavigation = true;
+                if (historyCursor < userQuestions.length - 1) {
+                    historyCursor += 1;
+                    e.target.textContent = userQuestions[historyCursor] || '';
+                } else {
+                    historyCursor = null;
+                    e.target.textContent = '';
+                }
+                e.target.dispatchEvent(new Event('input', { bubbles: true }));
+                moveCaretToEnd(e.target);
+                isHistoryNavigation = false;
+                return;
             }
         } else if ((e.key === 'Backspace' || e.key === 'Delete')) {
             // 处理图片标签的删除
@@ -185,18 +271,15 @@ export function initMessageInput(config) {
 
     // 粘贴事件处理
     messageInput.addEventListener('paste', async (e) => {
-        e.preventDefault(); // 阻止默认粘贴行为
-
         const items = Array.from(e.clipboardData.items);
         const imageItem = items.find(item => item.type.startsWith('image/'));
 
         if (imageItem) {
+            e.preventDefault(); // 阻止默认粘贴行为
             // 处理图片粘贴
             const file = imageItem.getAsFile();
-            const reader = new FileReader();
-
-            reader.onload = async () => {
-                const base64Data = reader.result;
+            try {
+                const base64Data = await readImageFileAsDataUrl(file);
                 const imageTag = createImageTag({
                     base64Data,
                     fileName: file.name,
@@ -205,7 +288,11 @@ export function initMessageInput(config) {
 
                 // 在光标位置插入图片标签
                 const selection = window.getSelection();
-                const range = selection.getRangeAt(0);
+                const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : document.createRange();
+                if (selection.rangeCount === 0) {
+                    range.selectNodeContents(messageInput);
+                    range.collapse(false);
+                }
                 range.deleteContents();
                 range.insertNode(imageTag);
 
@@ -219,20 +306,25 @@ export function initMessageInput(config) {
                 // 移除可能存在的多余行
                 const brElements = messageInput.getElementsByTagName('br');
                 Array.from(brElements).forEach(br => {
-                    if (br.previousSibling && br.previousSibling.classList && br.previousSibling.classList.contains('image-tag')) {
+                    if (br.previousSibling?.classList?.contains('image-tag')) {
                         br.remove();
                     }
                 });
 
                 // 触发输入事件以调整高度
                 messageInput.dispatchEvent(new Event('input'));
-            };
-
-            reader.readAsDataURL(file);
+            } catch (error) {
+                console.error('处理粘贴图片失败:', error);
+                showToast(error?.message || '处理图片失败', { type: 'error' });
+            }
         } else {
             // 处理文本粘贴
             const text = e.clipboardData.getData('text/plain');
-            document.execCommand('insertText', false, text);
+            if (text) {
+                e.preventDefault();
+                insertPlainTextAtSelection(messageInput, text);
+                messageInput.dispatchEvent(new Event('input'));
+            }
         }
     });
 
@@ -256,6 +348,7 @@ export function initMessageInput(config) {
             },
             onError: (error) => {
                 console.error('处理拖放事件失败:', error);
+                showToast(error?.message || '处理图片失败', { type: 'error' });
             }
         });
     });

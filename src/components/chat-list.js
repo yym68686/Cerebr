@@ -365,10 +365,19 @@ export function initializeChatList({
     const clearSearchBtn = chatListPage.querySelector('.clear-search-btn');
     const chatCards = chatListPage.querySelector('.chat-cards');
 
+    let searchTimer = null;
+    let lastSearchTerm = '';
+
     searchInput.addEventListener('input', () => {
         const searchTerm = searchInput.value;
-        renderChatListIncremental(chatManager, chatCards, searchTerm);
         clearSearchBtn.style.display = searchTerm ? 'flex' : 'none';
+
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+            if (searchTerm === lastSearchTerm) return;
+            lastSearchTerm = searchTerm;
+            renderChatListIncremental(chatManager, chatCards, searchTerm);
+        }, 140);
     });
 
     clearSearchBtn.addEventListener('click', () => {

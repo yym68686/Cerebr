@@ -53,13 +53,64 @@ document.addEventListener('DOMContentLoaded', async () => {
     syncChatBottomExtraPadding();
     window.addEventListener('resize', () => syncChatBottomExtraPadding());
 
-    // 基础键盘可访问性：让 role="menuitem" 的元素可用 Enter/Space 触发
+    // 基础键盘可访问性：菜单可用 Enter/Space 触发，方向键切换
     document.addEventListener('keydown', (e) => {
         const active = document.activeElement;
         if (!active || active.getAttribute('role') !== 'menuitem') return;
+
+        const menu = active.closest?.('[role="menu"]');
+        if (menu && !menu.classList.contains('visible')) {
+            // 菜单被隐藏时不抢键盘事件
+            return;
+        }
+
+        const isVisible = (el) => {
+            const style = getComputedStyle(el);
+            return style.display !== 'none' && style.visibility !== 'hidden';
+        };
+
+        const getMenuItems = () => {
+            if (!menu) return [];
+            return Array.from(menu.querySelectorAll('[role="menuitem"]')).filter(isVisible);
+        };
+
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             active.click();
+            return;
+        }
+
+        if (!menu) return;
+
+        const items = getMenuItems();
+        if (items.length === 0) return;
+
+        const currentIndex = Math.max(0, items.indexOf(active));
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            const next = items[(currentIndex + 1) % items.length];
+            next?.focus?.({ preventScroll: true });
+            return;
+        }
+
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            const next = items[(currentIndex - 1 + items.length) % items.length];
+            next?.focus?.({ preventScroll: true });
+            return;
+        }
+
+        if (e.key === 'Home') {
+            e.preventDefault();
+            items[0]?.focus?.({ preventScroll: true });
+            return;
+        }
+
+        if (e.key === 'End') {
+            e.preventDefault();
+            items[items.length - 1]?.focus?.({ preventScroll: true });
+            return;
         }
     });
 
@@ -1045,6 +1096,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     document.addEventListener('keydown', (e) => {
+        // 简单的焦点陷阱：图片预览打开时，Tab 不要跑出对话框
+        if (previewModal.classList.contains('visible') && e.key === 'Tab') {
+            const focusables = Array.from(previewModal.querySelectorAll(
+                'button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])'
+            )).filter((el) => {
+                const style = getComputedStyle(el);
+                return style.display !== 'none' && style.visibility !== 'hidden';
+            });
+            if (focusables.length === 0) {
+                e.preventDefault();
+                return;
+            }
+            const first = focusables[0];
+            const last = focusables[focusables.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus({ preventScroll: true });
+                return;
+            }
+            if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus({ preventScroll: true });
+                return;
+            }
+        }
+
         if (e.key !== 'Escape') return;
 
         let handled = false;

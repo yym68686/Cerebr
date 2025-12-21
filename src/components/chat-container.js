@@ -188,6 +188,7 @@ export function initChatContainer({
             },
             onError: (error) => {
                 console.error('处理拖放事件失败:', error);
+                showToast(error?.message || '处理图片失败', { type: 'error' });
             }
         });
     });

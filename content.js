@@ -615,6 +615,9 @@ window.addEventListener('unhandledrejection', (event) => {
 
 
 // 修改 extractPageContent 函数
+const PAGE_TEXT_CACHE_TTL_MS = 15_000;
+let lastExtractedPage = null; // { url, title, content, createdAt }
+
 async function extractPageContent(skipWaitContent = false) {
   // console.log('extractPageContent 开始提取页面内容');
 
@@ -658,6 +661,20 @@ async function extractPageContent(skipWaitContent = false) {
       }
       return null;
     }
+
+    // 非 PDF：短 TTL 缓存，减少重复提取导致的卡顿
+    const now = Date.now();
+    const currentUrl = window.location.href;
+    if (lastExtractedPage &&
+        lastExtractedPage.url === currentUrl &&
+        now - lastExtractedPage.createdAt < PAGE_TEXT_CACHE_TTL_MS) {
+      return {
+        title: lastExtractedPage.title,
+        url: lastExtractedPage.url,
+        content: lastExtractedPage.content
+      };
+    }
+
     const iframes = document.querySelectorAll('iframe');
     let frameContent = '';
     for (const iframe of iframes) {
@@ -704,9 +721,16 @@ async function extractPageContent(skipWaitContent = false) {
     const gptTokenCount = await estimateGPTTokens(mainContent);
     console.log('页面内容提取完成，内容长度:', mainContent.length, 'GPT tokens:', gptTokenCount);
 
+    lastExtractedPage = {
+      title: document.title,
+      url: currentUrl,
+      content: mainContent,
+      createdAt: now
+    };
+
     return {
       title: document.title,
-      url: window.location.href,
+      url: currentUrl,
       content: mainContent
     };
   }
@@ -717,12 +741,49 @@ async function extractPageContent(skipWaitContent = false) {
   return null;
 }
 
-// PDF.js 库的路径
-const PDFJS_PATH = chrome.runtime.getURL('lib/pdf.js');
 const PDFJS_WORKER_PATH = chrome.runtime.getURL('lib/pdf.worker.js');
 
-// 设置 PDF.js worker 路径
-pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_PATH;
+let pdfJsReadyPromise = null;
+
+function hasPdfJs() {
+  return typeof globalThis.pdfjsLib === 'object' &&
+    typeof globalThis.pdfjsLib.getDocument === 'function' &&
+    globalThis.pdfjsLib.GlobalWorkerOptions;
+}
+
+async function ensurePdfJsReady() {
+  if (hasPdfJs()) {
+    try {
+      globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_PATH;
+    } catch {
+      // ignore
+    }
+    return true;
+  }
+
+  if (pdfJsReadyPromise) return pdfJsReadyPromise;
+
+  pdfJsReadyPromise = (async () => {
+    const response = await chrome.runtime.sendMessage({ type: 'ENSURE_PDFJS' });
+    if (!response?.success) {
+      throw new Error(response?.error || 'ENSURE_PDFJS failed');
+    }
+
+    if (!hasPdfJs()) {
+      throw new Error('PDF.js loaded but pdfjsLib is unavailable');
+    }
+
+    globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_PATH;
+    return true;
+  })();
+
+  try {
+    return await pdfJsReadyPromise;
+  } catch (error) {
+    pdfJsReadyPromise = null; // allow retry
+    throw error;
+  }
+}
 
 let inFlightPdfUrl = null;
 let inFlightPdfExtraction = null;
@@ -752,6 +813,9 @@ function setCachedPdfText(url, text) {
 }
 
 async function extractTextFromPDF(url) {
+  await ensurePdfJsReady();
+  const pdfjsLib = globalThis.pdfjsLib;
+
   const cachedText = getCachedPdfText(url);
   if (cachedText) return cachedText;
 

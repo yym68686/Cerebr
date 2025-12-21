@@ -23,6 +23,35 @@ self.addEventListener('activate', (event) => {
 // 添加启动日志
 // console.log('Background script loaded at:', new Date().toISOString());
 
+// 按需注入 PDF.js：避免每个页面都加载 300KB+ 的库
+const pdfJsInjectedTabs = new Set();
+
+chrome.tabs?.onRemoved?.addListener?.((tabId) => {
+  pdfJsInjectedTabs.delete(tabId);
+});
+
+chrome.tabs?.onUpdated?.addListener?.((tabId, changeInfo) => {
+  if (changeInfo?.status === 'loading') {
+    pdfJsInjectedTabs.delete(tabId);
+  }
+});
+
+async function ensurePdfJsInjected(tabId) {
+  if (!tabId) return { success: false, error: 'Missing tabId' };
+  if (pdfJsInjectedTabs.has(tabId)) return { success: true, alreadyInjected: true };
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['lib/pdf.js']
+    });
+    pdfJsInjectedTabs.add(tabId);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error?.message || String(error) };
+  }
+}
+
 function checkCustomShortcut(callback) {
   chrome.commands.getAll((commands) => {
       const toggleCommand = commands.find(command => command.name === '_execute_action' || command.name === '_execute_browser_action');
@@ -125,6 +154,15 @@ chrome.runtime.onConnect.addListener((p) => {
 // 监听来自 content script 的消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // console.log('收到消息:', message, '来自:', sender.tab?.id);
+
+  if (message.type === 'ENSURE_PDFJS') {
+    (async () => {
+      const tabId = sender?.tab?.id;
+      const result = await ensurePdfJsInjected(tabId);
+      sendResponse(result);
+    })();
+    return true;
+  }
 
   if (message.type === 'GET_ALL_TABS') {
     (async () => {
