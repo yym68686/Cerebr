@@ -618,6 +618,83 @@ window.addEventListener('unhandledrejection', (event) => {
 const PAGE_TEXT_CACHE_TTL_MS = 15_000;
 let lastExtractedPage = null; // { url, title, content, createdAt }
 
+function isYouTubeHost(hostname) {
+  if (!hostname) return false;
+  const host = String(hostname).toLowerCase();
+  return host === 'youtube.com' || host.endsWith('.youtube.com') || host === 'youtu.be';
+}
+
+function getYouTubeVideoIdFromUrl(urlString) {
+  try {
+    const url = new URL(urlString);
+    if (!isYouTubeHost(url.hostname)) return null;
+
+    // https://www.youtube.com/watch?v=VIDEO_ID
+    if (url.pathname === '/watch') {
+      return url.searchParams.get('v');
+    }
+
+    // https://youtu.be/VIDEO_ID
+    if (url.hostname === 'youtu.be') {
+      const id = url.pathname.replace(/^\/+/, '').split('/')[0];
+      return id || null;
+    }
+
+    // https://www.youtube.com/shorts/VIDEO_ID
+    const shortsMatch = url.pathname.match(/^\/shorts\/([^/?#]+)/);
+    if (shortsMatch) return shortsMatch[1];
+
+    // https://www.youtube.com/embed/VIDEO_ID
+    const embedMatch = url.pathname.match(/^\/embed\/([^/?#]+)/);
+    if (embedMatch) return embedMatch[1];
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function parseTimedTextJson3ToPlainText(json3) {
+  try {
+    const data = typeof json3 === 'string' ? JSON.parse(json3) : json3;
+    const events = data?.events;
+    if (!Array.isArray(events) || events.length === 0) return '';
+
+    const out = [];
+    let last = '';
+    for (const ev of events) {
+      const segs = ev?.segs;
+      if (!Array.isArray(segs) || segs.length === 0) continue;
+      const line = segs.map(s => s?.utf8 || '').join('').trim();
+      if (!line) continue;
+      if (line === last) continue;
+      out.push(line);
+      last = line;
+    }
+    return out.join('\n');
+  } catch {
+    return '';
+  }
+}
+
+async function extractYouTubeTranscriptText() {
+  const videoId = getYouTubeVideoIdFromUrl(window.location.href);
+  if (!videoId) return null;
+
+  try {
+    const resp = await chrome.runtime.sendMessage({ type: 'GET_YOUTUBE_TIMEDTEXT_URL', videoId });
+    const capturedUrl = resp?.url;
+    if (!capturedUrl) return null;
+
+    const response = await chrome.runtime.sendMessage({ type: 'FETCH_YOUTUBE_TIMEDTEXT', url: capturedUrl });
+    if (!response?.success || !response.text) return null;
+    const parsed = parseTimedTextJson3ToPlainText(response.text);
+    return parsed || null;
+  } catch {
+    return null;
+  }
+}
+
 async function extractPageContent(skipWaitContent = false) {
   // console.log('extractPageContent 开始提取页面内容');
 
@@ -712,6 +789,14 @@ async function extractPageContent(skipWaitContent = false) {
 
     let mainContent = tempContainer.innerText + frameContent;
     mainContent = mainContent.replace(/\s+/g, ' ').replace(/\n\s*\n/g, '\n').trim();
+
+    // YouTube：如果视频有字幕，则提取字幕并加入内容
+    if (isYouTubeHost(window.location.hostname)) {
+      const transcript = await extractYouTubeTranscriptText();
+      if (transcript) {
+        mainContent = `${mainContent}\n\nYouTube 字幕：\n${transcript}`.trim();
+      }
+    }
 
     if (mainContent.length < 40) {
       console.log('提取的内容太少，返回 null');

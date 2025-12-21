@@ -53,13 +53,6 @@ export function showContextMenu({
 
     contextMenu.style.left = x + 'px';
     contextMenu.style.top = y + 'px';
-
-    // 让键盘用户开菜单后可直接用方向键/回车操作
-    requestAnimationFrame(() => {
-        const items = Array.from(contextMenu.querySelectorAll('[role="menuitem"]'));
-        const firstVisible = items.find((el) => getComputedStyle(el).display !== 'none');
-        firstVisible?.focus?.({ preventScroll: true });
-    });
 }
 
 // 隐藏上下文菜单

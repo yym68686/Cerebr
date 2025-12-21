@@ -26,13 +26,74 @@ self.addEventListener('activate', (event) => {
 // 按需注入 PDF.js：避免每个页面都加载 300KB+ 的库
 const pdfJsInjectedTabs = new Set();
 
+// YouTube timedtext URL 缓存：从 webRequest 捕获“带签名的完整 URL”，避免自行构造参数
+const ytTimedTextUrlByTabAndVideo = new Map(); // key: `${tabId}:${videoId}` -> { url, createdAt }
+const YT_TIMEDTEXT_TTL_MS = 10 * 60 * 1000;
+
+function ytTimedTextKey(tabId, videoId) {
+  return `${tabId}:${videoId}`;
+}
+
+function pruneYouTubeTimedTextCache() {
+  const now = Date.now();
+  for (const [key, value] of ytTimedTextUrlByTabAndVideo.entries()) {
+    if (!value?.createdAt || now - value.createdAt > YT_TIMEDTEXT_TTL_MS) {
+      ytTimedTextUrlByTabAndVideo.delete(key);
+    }
+  }
+  // Hard cap to avoid unbounded growth
+  const MAX_ENTRIES = 200;
+  if (ytTimedTextUrlByTabAndVideo.size > MAX_ENTRIES) {
+    const entries = Array.from(ytTimedTextUrlByTabAndVideo.entries());
+    entries.sort((a, b) => (b[1]?.createdAt || 0) - (a[1]?.createdAt || 0));
+    entries.slice(MAX_ENTRIES).forEach(([k]) => ytTimedTextUrlByTabAndVideo.delete(k));
+  }
+}
+
+try {
+  chrome.webRequest?.onBeforeRequest?.addListener?.(
+    (details) => {
+      try {
+        // tabId 可能为 -1（例如扩展页/后台请求），只缓存来自页面的请求
+        if (typeof details?.tabId !== 'number' || details.tabId < 0) return;
+        const url = new URL(details.url);
+        if (url.hostname !== 'www.youtube.com' || url.pathname !== '/api/timedtext') return;
+        const videoId = url.searchParams.get('v');
+        if (!videoId) return;
+        ytTimedTextUrlByTabAndVideo.set(ytTimedTextKey(details.tabId, videoId), {
+          url: url.toString(),
+          createdAt: Date.now()
+        });
+        pruneYouTubeTimedTextCache();
+      } catch {
+        // ignore
+      }
+    },
+    { urls: ['*://www.youtube.com/api/timedtext*'] }
+  );
+} catch {
+  // ignore (e.g., missing permission in some environments)
+}
+
 chrome.tabs?.onRemoved?.addListener?.((tabId) => {
   pdfJsInjectedTabs.delete(tabId);
+  // 清理该 tab 的 timedtext 缓存
+  for (const key of ytTimedTextUrlByTabAndVideo.keys()) {
+    if (key.startsWith(`${tabId}:`)) {
+      ytTimedTextUrlByTabAndVideo.delete(key);
+    }
+  }
 });
 
 chrome.tabs?.onUpdated?.addListener?.((tabId, changeInfo) => {
   if (changeInfo?.status === 'loading') {
     pdfJsInjectedTabs.delete(tabId);
+    // 页面刷新/跳转后清理该 tab 的 timedtext 缓存（新视频会产生新 URL）
+    for (const key of ytTimedTextUrlByTabAndVideo.keys()) {
+      if (key.startsWith(`${tabId}:`)) {
+        ytTimedTextUrlByTabAndVideo.delete(key);
+      }
+    }
   }
 });
 
@@ -160,6 +221,70 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const tabId = sender?.tab?.id;
       const result = await ensurePdfJsInjected(tabId);
       sendResponse(result);
+    })();
+    return true;
+  }
+
+  if (message.type === 'FETCH_YOUTUBE_TIMEDTEXT') {
+    (async () => {
+      try {
+        const urlString = message?.url;
+        if (!urlString || typeof urlString !== 'string') {
+          sendResponse({ success: false, error: 'Missing url' });
+          return;
+        }
+
+        let url;
+        try {
+          url = new URL(urlString);
+        } catch {
+          sendResponse({ success: false, error: 'Invalid url' });
+          return;
+        }
+
+        const host = url.hostname.toLowerCase();
+        const isYouTube = host === 'youtube.com' || host.endsWith('.youtube.com');
+        if (!isYouTube || url.pathname !== '/api/timedtext') {
+          sendResponse({ success: false, error: 'URL not allowed' });
+          return;
+        }
+
+        // Avoid leaking cookies; the timedtext URL is typically fully signed.
+        const resp = await fetch(url.toString(), { credentials: 'omit' });
+        if (!resp.ok) {
+          const preview = await resp.text().catch(() => '');
+          sendResponse({
+            success: false,
+            error: `HTTP ${resp.status}`,
+            preview: preview.slice(0, 300)
+          });
+          return;
+        }
+
+        const text = await resp.text();
+        sendResponse({ success: true, text });
+      } catch (error) {
+        sendResponse({ success: false, error: error?.message || String(error) });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === 'GET_YOUTUBE_TIMEDTEXT_URL') {
+    (async () => {
+      try {
+        const tabId = sender?.tab?.id;
+        const videoId = message?.videoId;
+        if (!tabId || !videoId) {
+          sendResponse({ success: false, url: null });
+          return;
+        }
+        pruneYouTubeTimedTextCache();
+        const cached = ytTimedTextUrlByTabAndVideo.get(ytTimedTextKey(tabId, videoId));
+        sendResponse({ success: true, url: cached?.url || null });
+      } catch {
+        sendResponse({ success: false, url: null });
+      }
     })();
     return true;
   }
