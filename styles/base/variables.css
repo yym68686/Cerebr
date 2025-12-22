@@ -5,9 +5,10 @@
     --cerebr-fs-13: 13px;
     --cerebr-fs-14: 14px;
     --cerebr-fs-16: 16px;
-    --cerebr-bg-color: #ffffff;
-    --cerebr-text-color: #333333;
+    --cerebr-bg-color: #f5f5f7;
+    --cerebr-text-color: #1d1d1f;
     --cerebr-text-color-secondary: rgba(0, 0, 0, 0.55);
+    --cerebr-hover-bg-color: rgba(0, 0, 0, 0.05);
     --cerebr-surface-bg: rgba(255, 255, 255, 0.72);
     --cerebr-surface-border: rgba(0, 0, 0, 0.14);
     --cerebr-surface-backdrop-filter: blur(var(--cerebr-blur-radius)) saturate(1.2);
@@ -15,8 +16,8 @@
     --settings-border-color: var(--cerebr-surface-border);
     --settings-hover-bg-color: var(--cerebr-message-user-bg);
     --cerebr-message-user-bg: #e6eaf0;
-    --cerebr-message-ai-bg: #f8fafc;
-    --cerebr-input-bg: #f8f8f8;
+    --cerebr-message-ai-bg: #ffffff;
+    --cerebr-input-bg: #ffffff;
     --cerebr-icon-color: #666666;
     /* --cerebr-bg-color: #f2f2f7;
     --cerebr-text-color: #1d1d1f;
@@ -62,6 +63,7 @@
     --cerebr-bg-color: #262B33;
     --cerebr-text-color: #d8dde6;
     --cerebr-text-color-secondary: rgba(255, 255, 255, 0.62);
+    --cerebr-hover-bg-color: rgba(255, 255, 255, 0.08);
     --cerebr-surface-bg: rgba(38, 43, 51, 0.78);
     --cerebr-surface-border: rgba(255, 255, 255, 0.14);
     --cerebr-surface-backdrop-filter: blur(var(--cerebr-blur-radius)) saturate(1.15);
@@ -115,6 +117,7 @@
         --cerebr-bg-color: #262B33;
         --cerebr-text-color: #d8dde6;
         --cerebr-text-color-secondary: rgba(255, 255, 255, 0.62);
+        --cerebr-hover-bg-color: rgba(255, 255, 255, 0.08);
         --cerebr-surface-bg: rgba(38, 43, 51, 0.78);
         --cerebr-surface-border: rgba(255, 255, 255, 0.14);
         --cerebr-surface-backdrop-filter: blur(var(--cerebr-blur-radius)) saturate(1.15);
