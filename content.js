@@ -94,6 +94,7 @@ class CerebrSidebar {
     try {
       // console.log('开始初始化侧边栏');
       const container = document.createElement('cerebr-root');
+      this.container = container;
 
       // 防止外部JavaScript访问和修改我们的元素
       Object.defineProperty(container, 'remove', {
@@ -549,6 +550,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 	            sendResponse({ success: false, ignored: true, reason: 'SIDEBAR_HIDDEN' });
 	            return true;
 	        }
+
+	        // 当当前页面就是 Cerebr 网页版时：快捷键由“焦点所在 UI”决定，避免与侧边栏冲突
+	        const isCerebrWebAppDocument = () => {
+	            return !!(
+	                document.getElementById('chat-container') &&
+	                document.getElementById('message-input') &&
+	                document.getElementById('new-chat')
+	            );
+	        };
+	        if (isCerebrWebAppDocument()) {
+	            const sidebarHost = sidebar?.container;
+	            const isSidebarFocused = !!sidebarHost && document.activeElement === sidebarHost;
+	            if (!isSidebarFocused) {
+	                sendResponse({ success: false, ignored: true, reason: 'FOCUS_NOT_IN_SIDEBAR' });
+	                return true;
+	            }
+	        }
+
 	        const iframe = sidebar?.sidebar?.querySelector('.cerebr-sidebar__iframe');
 	        if (iframe?.contentWindow) {
 	            iframe.contentWindow.postMessage({ type: 'NEW_CHAT' }, '*');

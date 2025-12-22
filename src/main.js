@@ -62,6 +62,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     syncChatBottomExtraPadding();
     window.addEventListener('resize', () => syncChatBottomExtraPadding());
 
+    // 网页版“新的对话”快捷键：Windows/Default Alt+X，Mac Ctrl+X
+    // 扩展环境下由浏览器 commands 统一处理，避免重复触发。
+    if (!isExtensionEnvironment) {
+        const platform = navigator.userAgentData?.platform || navigator.platform || '';
+        const isMac = /mac|iphone|ipad|ipod/i.test(platform);
+
+        const isNewChatShortcut = (event) => {
+            if (event.isComposing) return false;
+            const code = event.code;
+            const key = (event.key || '').toLowerCase();
+            const isX = code ? code === 'KeyX' : key === 'x';
+            if (!isX) return false;
+
+            if (isMac) {
+                return !!(event.ctrlKey && !event.metaKey && !event.altKey);
+            }
+            return !!(event.altKey && !event.ctrlKey && !event.metaKey);
+        };
+
+        document.addEventListener('keydown', (event) => {
+            if (!newChatButton) return;
+            if (!isNewChatShortcut(event)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            newChatButton.click();
+        }, { capture: true });
+    }
+
     // 基础键盘可访问性：菜单可用 Enter/Space 触发，方向键切换
     document.addEventListener('keydown', (e) => {
         const active = document.activeElement;
