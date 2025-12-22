@@ -543,15 +543,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 	        return true;
 	    }
 
-    // 处理 NEW_CHAT 消息
-    if (message.type === 'NEW_CHAT') {
-        const iframe = sidebar?.sidebar?.querySelector('.cerebr-sidebar__iframe');
-        if (iframe) {
-            iframe.contentWindow.postMessage({ type: 'NEW_CHAT' }, '*');
-        }
-        sendResponse({ success: true });
-        return true;
-    }
+	    // 处理 NEW_CHAT 消息
+	    if (message.type === 'NEW_CHAT') {
+	        if (!sidebar?.isVisible) {
+	            sendResponse({ success: false, ignored: true, reason: 'SIDEBAR_HIDDEN' });
+	            return true;
+	        }
+	        const iframe = sidebar?.sidebar?.querySelector('.cerebr-sidebar__iframe');
+	        if (iframe?.contentWindow) {
+	            iframe.contentWindow.postMessage({ type: 'NEW_CHAT' }, '*');
+	            sendResponse({ success: true });
+	        } else {
+	            sendResponse({ success: false, error: 'Sidebar iframe not found' });
+	        }
+	        return true;
+	    }
 
     return true;
 });
