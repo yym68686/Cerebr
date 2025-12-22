@@ -103,6 +103,10 @@
 }
 
 .preference-select {
+    /* Keep selects visually aligned across rows */
+    width: 120px;
+    min-width: 120px;
+    flex: 0 0 120px;
     background: transparent;
     border: none;
     color: var(--cerebr-text-secondary-color);
