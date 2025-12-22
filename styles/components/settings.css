@@ -146,7 +146,7 @@ input:checked + .slider:before {
 
 .toggle-icon {
     transition: transform 0.3s ease;
-    font-size: 12px;
+    font-size: var(--cerebr-fs-12);
     color: var(--cerebr-text-color);
     opacity: 0.6;
 }
@@ -164,7 +164,7 @@ input:checked + .slider:before {
 
 .setting-item label {
     display: block;
-    font-size: 12px;
+    font-size: var(--cerebr-fs-12);
     margin-bottom: 4px;
     color: var(--cerebr-text-color);
     opacity: 0.8;
@@ -178,7 +178,7 @@ input:checked + .slider:before {
     border-radius: 4px;
     background: var(--cerebr-message-ai-bg);
     color: var(--cerebr-text-color);
-    font-size: 14px;
+    font-size: var(--cerebr-fs-14);
     line-height: 1.5;
     resize: vertical;
     font-family: inherit;

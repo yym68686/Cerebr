@@ -49,5 +49,5 @@
 }
 
 .chat-switch-text {
-    font-size: 13px;
+    font-size: var(--cerebr-fs-13);
 }

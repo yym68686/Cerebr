@@ -113,10 +113,10 @@
                     <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
             </div>
-            <div class="menu-item" id="feedback-button" role="menuitem" tabindex="0">
-                <span>用户反馈</span>
+            <div class="menu-item" id="preferences-toggle" role="menuitem" tabindex="0">
+                <span>偏好设置</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M11 2H14V5M14 2L7 9M14 8V13C14 13.5523 13.5523 14 13 14H3C2.44772 14 2 13.5523 2 13V3C2 2.44772 2.44772 2 3 2H8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
             </div>
         </div>
@@ -178,6 +178,53 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+    <div id="preferences-settings">
+        <div class="settings-header">
+            <button class="back-button" aria-label="返回">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M12 4L6 10L12 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <span class="settings-title">偏好设置</span>
+        </div>
+        <div class="preferences-content">
+            <div class="preferences-card">
+                <div class="preference-row">
+                    <span class="preference-label">版本号</span>
+                    <span class="preference-value" id="preferences-version">-</span>
+                </div>
+                <a class="preference-row preference-link" id="preferences-oss" href="https://github.com/yym68686/Cerebr" target="_blank" rel="noreferrer noopener">
+                    <span class="preference-label">开源地址</span>
+                    <span class="preference-value">
+                        GitHub
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                            <path d="M11 2H14V5M14 2L7 9M14 8V13C14 13.5523 13.5523 14 13 14H3C2.44772 14 2 13.5523 2 13V3C2 2.44772 2.44772 2 3 2H8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                </a>
+                <div class="preference-row">
+                    <label class="preference-label" for="preferences-font-scale">字体大小</label>
+                    <select class="preference-select" id="preferences-font-scale" aria-label="字体大小设置">
+                        <option value="0.9">小</option>
+                        <option value="1" selected>标准</option>
+                        <option value="1.1">大</option>
+                        <option value="1.2">特大</option>
+                    </select>
+                </div>
+            </div>
+            <div class="preferences-card">
+                <button class="preference-row preference-action" id="preferences-feedback" type="button">
+                    <span class="preference-label">用户反馈</span>
+                    <span class="preference-value">
+                        去 GitHub
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                            <path d="M11 2H14V5M14 2L7 9M14 8V13C14 13.5523 13.5523 14 13 14H3C2.44772 14 2 13.5523 2 13V3C2 2.44772 2.44772 2 3 2H8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                </button>
             </div>
         </div>
     </div>

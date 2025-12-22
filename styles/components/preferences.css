@@ -1,0 +1,89 @@
+/* 偏好设置页面样式 */
+#preferences-settings {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+    display: none;
+    overflow-y: auto;
+    flex-direction: column;
+    background: var(--cerebr-bg-color);
+}
+
+#preferences-settings.visible {
+    display: flex;
+}
+
+.preferences-content {
+    padding: 16px;
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.preferences-card {
+    background: var(--cerebr-message-ai-bg);
+    border: 1px solid var(--cerebr-card-border-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.preference-row {
+    width: 100%;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--cerebr-text-color);
+    background: transparent;
+    border: none;
+    text-align: left;
+    box-sizing: border-box;
+}
+
+.preference-row + .preference-row {
+    border-top: 1px solid var(--cerebr-card-border-color);
+}
+
+.preference-action,
+.preference-link {
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.preference-action:hover,
+.preference-link:hover {
+    background-color: var(--cerebr-message-user-bg);
+}
+
+.preference-action:focus-visible,
+.preference-link:focus-visible,
+.preference-select:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--cerebr-focus-border-color);
+}
+
+.preference-label {
+    font-weight: 500;
+}
+
+.preference-value {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    opacity: 0.75;
+}
+
+.preference-select {
+    background: var(--cerebr-input-bg);
+    border: 1px solid var(--cerebr-input-border-color);
+    color: var(--cerebr-text-color);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: var(--cerebr-fs-14);
+}

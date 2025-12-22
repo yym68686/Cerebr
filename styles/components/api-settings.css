@@ -65,7 +65,7 @@
 }
 
 .settings-title {
-    font-size: 16px;
+    font-size: var(--cerebr-fs-16);
     font-weight: 500;
     color: var(--cerebr-text-color);
 }
@@ -150,7 +150,7 @@
 }
 
 .form-group label {
-    font-size: 12px;
+    font-size: var(--cerebr-fs-12);
     opacity: 0.8;
 }
 
@@ -160,7 +160,7 @@
     padding: 8px;
     border-radius: 4px;
     color: var(--cerebr-text-color);
-    font-size: 14px;
+    font-size: var(--cerebr-fs-14);
     transition: border-color 0.2s ease;
 }
 

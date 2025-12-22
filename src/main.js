@@ -38,17 +38,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     const stopUpdateButton = document.getElementById('stop-update');
     const settingsButton = document.getElementById('settings-button');
     const settingsMenu = document.getElementById('settings-menu');
-    const feedbackButton = document.getElementById('feedback-button');
+    const preferencesToggle = document.getElementById('preferences-toggle');
     const previewModal = document.querySelector('.image-preview-modal');
     const previewImage = previewModal.querySelector('img');
     const chatListPage = document.getElementById('chat-list-page');
     const newChatButton = document.getElementById('new-chat');
     const chatListButton = document.getElementById('chat-list');
     const apiSettings = document.getElementById('api-settings');
+    const preferencesSettings = document.getElementById('preferences-settings');
     const deleteMessageButton = document.getElementById('delete-message');
     const regenerateMessageButton = document.getElementById('regenerate-message');
     const webpageQAContainer = document.getElementById('webpage-qa');
     const webpageContentMenu = document.getElementById('webpage-content-menu');
+    const preferencesVersion = document.getElementById('preferences-version');
+    const preferencesFontScale = document.getElementById('preferences-font-scale');
+    const preferencesFeedback = document.getElementById('preferences-feedback');
 
     syncChatBottomExtraPadding();
     window.addEventListener('resize', () => syncChatBottomExtraPadding());
@@ -159,12 +163,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    // 添加反馈按钮点击事件
-    feedbackButton.addEventListener('click', () => {
-        const newIssueUrl = 'https://github.com/yym68686/Cerebr/issues/new';
-        window.open(newIssueUrl, '_blank');
-        settingsMenu.classList.remove('visible'); // 使用 classList 来正确切换菜单状态
-    });
+    const OSS_URL = 'https://github.com/yym68686/Cerebr';
+    const FEEDBACK_URL = `${OSS_URL}/issues/new`;
+
+    const openExternal = (url) => {
+        window.open(url, '_blank', 'noopener,noreferrer');
+    };
 
     // 初始化聊天容器
     const chatContainerManager = initChatContainer({
@@ -667,10 +671,94 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 初始化主题
     await initTheme();
 
+    // 字体大小设置（通过 CSS 变量控制）
+    const FONT_SCALE_KEY = 'fontScale';
+    const FONT_SCALE_PRESETS = [0.9, 1, 1.1, 1.2];
+
+    const toPreset = (value) => {
+        if (typeof value === 'number' && Number.isFinite(value) && FONT_SCALE_PRESETS.includes(value)) return value;
+        if (typeof value === 'string') {
+            const parsed = Number.parseFloat(value);
+            if (Number.isFinite(parsed) && FONT_SCALE_PRESETS.includes(parsed)) return parsed;
+        }
+        return 1;
+    };
+
+    const applyFontScale = (scale) => {
+        const root = document.documentElement;
+        const scaledPx = (px) => `${Math.round(px * scale * 10) / 10}px`;
+        root.style.setProperty('--cerebr-fs-12', scaledPx(12));
+        root.style.setProperty('--cerebr-fs-13', scaledPx(13));
+        root.style.setProperty('--cerebr-fs-14', scaledPx(14));
+        root.style.setProperty('--cerebr-fs-16', scaledPx(16));
+    };
+
+    try {
+        const result = await syncStorageAdapter.get(FONT_SCALE_KEY);
+        const initialScale = toPreset(result?.[FONT_SCALE_KEY]);
+        applyFontScale(initialScale);
+        if (preferencesFontScale) {
+            preferencesFontScale.value = String(initialScale);
+        }
+    } catch (error) {
+        console.error('初始化字体大小失败:', error);
+        applyFontScale(1);
+    }
+
     // API 设置功能
     const apiSettingsToggle = document.getElementById('api-settings-toggle');
-    const backButton = document.querySelector('.back-button');
-    const apiCards = document.querySelector('.api-cards');
+    const backButton = apiSettings.querySelector('.back-button');
+    const apiCards = apiSettings.querySelector('.api-cards');
+
+    // 偏好设置页面
+    const preferencesBackButton = preferencesSettings?.querySelector('.back-button');
+
+    const getAppVersion = () => {
+        try {
+            if (typeof chrome !== 'undefined' && chrome.runtime?.getManifest) return chrome.runtime.getManifest().version;
+            if (typeof browser !== 'undefined' && browser.runtime?.getManifest) return browser.runtime.getManifest().version;
+        } catch (error) {
+            console.warn('读取版本号失败:', error);
+        }
+        return '-';
+    };
+
+    if (preferencesVersion) {
+        preferencesVersion.textContent = getAppVersion();
+    }
+
+    if (preferencesToggle && preferencesSettings) {
+        preferencesToggle.addEventListener('click', () => {
+            preferencesSettings.classList.add('visible');
+            settingsMenu.classList.remove('visible');
+            webpageContentMenu.classList.remove('visible');
+        });
+    }
+
+    if (preferencesBackButton && preferencesSettings) {
+        preferencesBackButton.addEventListener('click', () => {
+            preferencesSettings.classList.remove('visible');
+        });
+    }
+
+    if (preferencesFeedback) {
+        preferencesFeedback.addEventListener('click', () => {
+            openExternal(FEEDBACK_URL);
+            preferencesSettings?.classList.remove('visible');
+        });
+    }
+
+    if (preferencesFontScale) {
+        preferencesFontScale.addEventListener('change', async () => {
+            const selected = toPreset(preferencesFontScale.value);
+            applyFontScale(selected);
+            try {
+                await syncStorageAdapter.set({ [FONT_SCALE_KEY]: selected });
+            } catch (error) {
+                console.error('保存字体大小失败:', error);
+            }
+        });
+    }
 
     const SYSTEM_PROMPT_SYNC_THRESHOLD_BYTES = 6000;
     const SYSTEM_PROMPT_KEY_PREFIX = 'apiConfigSystemPrompt_';

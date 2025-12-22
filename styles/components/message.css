@@ -6,7 +6,7 @@
     width: fit-content;
     max-width: calc(100% - 32px);
     word-wrap: break-word;
-    font-size: 14px;
+    font-size: var(--cerebr-fs-14);
     line-height: 1.5;
     position: relative;
     opacity: 0;

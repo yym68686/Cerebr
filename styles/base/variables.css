@@ -1,6 +1,10 @@
 /* 根变量（默认浅色主题） */
 :root {
     color-scheme: light dark;
+    --cerebr-fs-12: 12px;
+    --cerebr-fs-13: 13px;
+    --cerebr-fs-14: 14px;
+    --cerebr-fs-16: 16px;
     --cerebr-bg-color: #ffffff;
     --cerebr-text-color: #333333;
     --cerebr-text-color-secondary: rgba(0, 0, 0, 0.55);

@@ -35,7 +35,7 @@
     padding: 16px;
     text-align: center;
     color: var(--cerebr-text-color-secondary);
-    font-size: 14px;
+    font-size: var(--cerebr-fs-14);
 }
 
 .chat-card {
@@ -68,7 +68,7 @@
 }
 
 .chat-card .chat-title {
-    font-size: 14px;
+    font-size: var(--cerebr-fs-14);
     color: var(--cerebr-text-color);
     flex-grow: 1;
     margin-right: 12px;
@@ -169,7 +169,7 @@
 #chat-search-input {
     width: 100%;
     padding: 10px 15px;
-    font-size: 14px;
+    font-size: var(--cerebr-fs-14);
     border-radius: 8px;
     border: 1px solid var(--cerebr-card-border-color);
     background: var(--cerebr-message-ai-bg);

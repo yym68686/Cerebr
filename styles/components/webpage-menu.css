@@ -23,7 +23,7 @@
 .webpage-menu-empty {
     padding: 10px 8px;
     color: var(--cerebr-text-color-secondary);
-    font-size: 13px;
+    font-size: var(--cerebr-fs-13);
 }
 
 .webpage-menu-item {
