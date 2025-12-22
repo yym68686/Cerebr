@@ -743,18 +743,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 偏好设置页面
     const preferencesBackButton = preferencesSettings?.querySelector('.back-button');
 
-    const getAppVersion = () => {
+    const getAppVersion = async () => {
         try {
             if (typeof chrome !== 'undefined' && chrome.runtime?.getManifest) return chrome.runtime.getManifest().version;
             if (typeof browser !== 'undefined' && browser.runtime?.getManifest) return browser.runtime.getManifest().version;
         } catch (error) {
             console.warn('读取版本号失败:', error);
         }
-        return '-';
+
+        const metaVersion = document.querySelector('meta[name="cerebr-version"]')?.getAttribute('content');
+        if (metaVersion) return metaVersion;
+
+        const fetchManifestVersion = async (path) => {
+            try {
+                const response = await fetch(new URL(path, window.location.href), { cache: 'no-store' });
+                if (!response.ok) return null;
+                const manifest = await response.json();
+                return manifest?.version ? String(manifest.version) : null;
+            } catch (error) {
+                console.warn(`读取 ${path} 版本号失败:`, error);
+                return null;
+            }
+        };
+
+        return await fetchManifestVersion('./manifest.json')
+            || await fetchManifestVersion('/manifest.json')
+            || await fetchManifestVersion('./manifest.firefox.json')
+            || await fetchManifestVersion('/manifest.firefox.json')
+            || '-';
     };
 
     if (preferencesVersion) {
-        preferencesVersion.textContent = getAppVersion();
+        preferencesVersion.textContent = await getAppVersion();
     }
 
     if (preferencesLanguage) {
