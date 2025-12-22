@@ -4,6 +4,8 @@
  * @property {number} maxHeight - 输入框最大高度
  */
 
+import { t } from './i18n.js';
+
 /**
  * 图片预览配置接口
  * @property {HTMLElement} previewModal - 预览模态框元素
@@ -83,9 +85,10 @@ export function hideImagePreview({
  */
 export function createImageTag({
     base64Data,
-    fileName = '图片',
+    fileName = null,
     config = {}
 }) {
+    const resolvedFileName = fileName || t('label_image');
     const safeConfig = config || {};
     if (!safeConfig.onDeleteClick) {
         safeConfig.onDeleteClick = (container) => {
@@ -102,16 +105,16 @@ export function createImageTag({
     container.className = 'image-tag';
     container.contentEditable = false;
     container.setAttribute('data-image', base64Data);
-    container.title = fileName;
+    container.title = resolvedFileName;
 
     const thumbnail = document.createElement('img');
     thumbnail.src = base64Data.startsWith('data:') ? base64Data : `data:image/png;base64,${base64Data}`;
-    thumbnail.alt = fileName;
+    thumbnail.alt = resolvedFileName;
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'delete-btn';
     deleteBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-linecap="round"/></svg>';
-    deleteBtn.title = '删除图片';
+    deleteBtn.title = t('label_delete_image');
 
     // 点击删除按钮时删除整个标签
     deleteBtn.addEventListener('click', (e) => {

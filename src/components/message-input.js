@@ -6,6 +6,7 @@
 import { adjustTextareaHeight, createImageTag, showToast } from '../utils/ui.js';
 import { handleImageDrop, readImageFileAsDataUrl } from '../utils/image.js';
 import { syncChatBottomExtraPadding } from '../utils/scroll.js';
+import { t } from '../utils/i18n.js';
 
 // 跟踪输入法状态
 let isComposing = false;
@@ -346,7 +347,7 @@ export function initMessageInput(config) {
                 messageInput.dispatchEvent(new Event('input'));
             } catch (error) {
                 console.error('处理粘贴图片失败:', error);
-                showToast(error?.message || '处理图片失败', { type: 'error' });
+                showToast(error?.message || t('toast_handle_image_failed'), { type: 'error' });
             }
         } else {
             // 处理文本粘贴
@@ -383,7 +384,7 @@ export function initMessageInput(config) {
             },
             onError: (error) => {
                 console.error('处理拖放事件失败:', error);
-                showToast(error?.message || '处理图片失败', { type: 'error' });
+                showToast(error?.message || t('toast_handle_image_failed'), { type: 'error' });
             }
         });
     });
@@ -404,7 +405,7 @@ export function setPlaceholder({ messageInput, placeholder, timeout }) {
         messageInput.setAttribute('placeholder', placeholder);
         if (timeout) {
             setTimeout(() => {
-                messageInput.setAttribute('placeholder', '输入消息...');
+                messageInput.setAttribute('placeholder', t('message_input_placeholder'));
             }, timeout);
         }
     }

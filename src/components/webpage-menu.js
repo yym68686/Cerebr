@@ -1,5 +1,6 @@
 import { storageAdapter, browserAdapter } from '../utils/storage-adapter.js';
 import { chatManager } from '../utils/chat-manager.js';
+import { t } from '../utils/i18n.js';
 
 const YT_TRANSCRIPT_KEY_PREFIX = 'cerebr_youtube_transcript_v1_';
 
@@ -74,7 +75,7 @@ function getUniqueTabsByUrl(tabs) {
 }
 
 async function populateWebpageContentMenu(webpageContentMenu) {
-    webpageContentMenu.innerHTML = '<div class="webpage-menu-loading">加载标签页…</div>';
+    webpageContentMenu.innerHTML = `<div class="webpage-menu-loading">${t('webpage_tabs_loading')}</div>`;
     let allTabs = await browserAdapter.getAllTabs();
 
     // 1. 过滤掉浏览器自身的特殊页面
@@ -91,7 +92,7 @@ async function populateWebpageContentMenu(webpageContentMenu) {
     webpageContentMenu.innerHTML = '';
 
     if (finalTabs.length === 0) {
-        webpageContentMenu.innerHTML = '<div class="webpage-menu-empty">没有可用的标签页</div>';
+        webpageContentMenu.innerHTML = `<div class="webpage-menu-empty">${t('webpage_tabs_empty')}</div>`;
         return;
     }
 
@@ -243,7 +244,7 @@ export async function getEnabledTabsContent() {
                             }
 
                             if (transcriptText) {
-                                content = `${content}\n\nYouTube 字幕：\n${transcriptText}`.trim();
+                                content = `${content}\n\n${t('youtube_transcript_prefix')}\n${transcriptText}`.trim();
                             }
                         }
 

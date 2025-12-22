@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -23,20 +23,20 @@
 </head>
 <body>
     <div id="chat-container"></div>
-    <div id="context-menu" role="menu" aria-label="消息操作菜单">
+    <div id="context-menu" role="menu" aria-label="消息操作菜单" data-i18n-attr="aria-label:context_menu_label">
         <div class="context-menu-item" id="copy-message" role="menuitem" tabindex="0">
             <svg viewBox="0 0 24 24">
                 <rect x="8" y="8" width="12" height="12" rx="1"/>
                 <path d="M4 16V4a1 1 0 0 1 1-1h11"/>
             </svg>
-            复制消息
+            <span data-i18n="context_copy_message">复制消息</span>
         </div>
         <div class="context-menu-item" id="copy-code" role="menuitem" tabindex="0">
             <svg viewBox="0 0 24 24">
                 <path d="M16 18L22 12L16 6"/>
                 <path d="M8 6L2 12L8 18"/>
             </svg>
-            复制代码
+            <span data-i18n="context_copy_code">复制代码</span>
         </div>
         <div class="context-menu-item" id="copy-image" role="menuitem" tabindex="0">
             <svg viewBox="0 0 24 24">
@@ -44,25 +44,25 @@
                 <circle cx="8.5" cy="8.5" r="1.5"/>
                 <polyline points="21 15 16 10 5 21"/>
             </svg>
-            复制图片
+            <span data-i18n="context_copy_image">复制图片</span>
         </div>
         <div class="context-menu-item" id="copy-math" role="menuitem" tabindex="0">
             <svg viewBox="0 0 24 24">
                 <path fill="currentColor" d="M6 19.5c.2 0 .32-.08.45-.25l5.75-8.5 5.65-8.2c.08-.1.1-.2.1-.28 0-.23-.2-.38-.43-.38-.2 0-.33.06-.48.28l-5.65 8.2-5.75 8.5c-.08.1-.1.2-.1.29 0 .24.2.34.46.34zM5.2 8.1v2.1c0 .27.17.42.41.42.23 0 .41-.15.41-.42V8.1h2c.27 0 .41-.17.41-.41 0-.23-.14-.41-.41-.41h-2V4.6c0-.27-.18-.42-.41-.42-.24 0-.41.15-.41.42v2.68h-2c-.27 0-.41.18-.41.41 0 .24.14.41.41.41h2zm9.2 8.6c0 .23.15.4.35.4h5.1c.27 0 .41-.17.41-.4 0-.23-.14-.4-.41-.4h-5.1c-.2 0-.35.17-.35.4z"/>
             </svg>
-            复制公式
+            <span data-i18n="context_copy_math">复制公式</span>
         </div>
         <div class="context-menu-item" id="regenerate-message" role="menuitem" tabindex="0">
             <svg viewBox="0 0 24 24">
                 <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="currentColor"></path>
             </svg>
-            重新生成
+            <span data-i18n="context_regenerate">重新生成</span>
         </div>
         <div class="context-menu-item" id="stop-update" role="menuitem" tabindex="0">
             <svg viewBox="0 0 24 24">
                 <path d="M6 6h12v12H6z"/>
             </svg>
-            停止更新
+            <span data-i18n="context_stop_update">停止更新</span>
         </div>
         <div class="context-menu-item" id="delete-message" role="menuitem" tabindex="0">
             <svg viewBox="0 0 24 24">
@@ -70,51 +70,51 @@
                 <path d="M3 7h18"/>
                 <path d="M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/>
             </svg>
-            删除消息
+            <span data-i18n="context_delete_message">删除消息</span>
         </div>
     </div>
     <div id="input-container">
-        <button id="settings-button" aria-label="打开设置">
+        <button id="settings-button" aria-label="打开设置" data-i18n-attr="aria-label:aria_open_settings">
             <svg viewBox="0 0 24 24">
                 <circle cx="12" cy="6" r="2"/>
                 <circle cx="12" cy="12" r="2"/>
                 <circle cx="12" cy="18" r="2"/>
             </svg>
         </button>
-        <div id="settings-menu" role="menu" aria-label="设置菜单">
+        <div id="settings-menu" role="menu" aria-label="设置菜单" data-i18n-attr="aria-label:settings_menu_label">
             <div class="menu-item" id="theme-toggle" role="menuitem" tabindex="0">
-                <span>深色模式</span>
+                <span data-i18n="settings_dark_mode">深色模式</span>
                 <label class="switch">
                     <input type="checkbox" id="theme-switch">
                     <span class="slider"></span>
                 </label>
             </div>
             <div class="menu-item" id="webpage-qa" role="menuitem" tabindex="0">
-                <span>网页内容</span>
+                <span data-i18n="settings_webpage_content">网页内容</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
             </div>
             <div class="menu-item" id="new-chat" role="menuitem" tabindex="0">
-                <span>新的对话</span>
+                <span data-i18n="settings_new_chat">新的对话</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                 </svg>
             </div>
             <div class="menu-item" id="chat-list" role="menuitem" tabindex="0">
-                <span>对话列表</span>
+                <span data-i18n="settings_chat_list">对话列表</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                 </svg>
             </div>
             <div class="menu-item" id="api-settings-toggle" role="menuitem" tabindex="0">
-                <span>API 设置</span>
+                <span data-i18n="settings_api_settings">API 设置</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
             </div>
             <div class="menu-item" id="preferences-toggle" role="menuitem" tabindex="0">
-                <span>偏好设置</span>
+                <span data-i18n="settings_preferences">偏好设置</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                     <path d="M2 4H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                     <path d="M2 8H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -125,16 +125,16 @@
                 </svg>
             </div>
         </div>
-        <div id="message-input" contenteditable="true" placeholder="输入消息..." role="textbox" aria-label="消息输入框" aria-multiline="true" spellcheck="true"></div>
+        <div id="message-input" contenteditable="true" placeholder="输入消息..." role="textbox" aria-label="消息输入框" aria-multiline="true" spellcheck="true" data-i18n-attr="placeholder:message_input_placeholder;aria-label:message_input_aria"></div>
     </div>
     <div id="api-settings">
         <div class="settings-header">
-            <button class="back-button" aria-label="返回">
+            <button class="back-button" aria-label="返回" data-i18n-attr="aria-label:aria_back">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path d="M12 4L6 10L12 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
             </button>
-            <span class="settings-title">API 设置</span>
+            <span class="settings-title" data-i18n="title_api_settings">API 设置</span>
         </div>
         <div class="api-cards">
             <!-- 卡片模板 -->
@@ -143,15 +143,15 @@
                     <div class="api-form">
                         <div class="form-group">
                             <div class="form-group-header">
-                                <label>API Key</label>
+                                <label data-i18n="api_key_label">API Key</label>
                                 <div class="card-actions">
-                                    <button class="card-button duplicate-btn" aria-label="复制该配置">
+                                    <button class="card-button duplicate-btn" aria-label="复制该配置" data-i18n-attr="aria-label:api_duplicate_config_aria">
                                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                                             <path d="M13 5H7V11H13V5Z" stroke="currentColor" stroke-width="1.5"/>
                                             <path d="M10 3H4V9" stroke="currentColor" stroke-width="1.5"/>
                                         </svg>
                                     </button>
-                                    <button class="card-button delete-btn" aria-label="删除该配置">
+                                    <button class="card-button delete-btn" aria-label="删除该配置" data-i18n-attr="aria-label:api_delete_config_aria">
                                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                                             <path d="M3 4H13" stroke="currentColor" stroke-width="1.5"/>
                                             <path d="M5 4V12H11V4" stroke="currentColor" stroke-width="1.5"/>
@@ -159,24 +159,24 @@
                                     </button>
                                 </div>
                             </div>
-                            <input type="text" class="api-key" placeholder="输入 API Key">
+                            <input type="text" class="api-key" placeholder="输入 API Key" data-i18n-attr="placeholder:api_key_placeholder">
                         </div>
                         <div class="form-group">
-                            <label>Base URL</label>
-                            <input type="text" class="base-url" placeholder="输入 Base URL">
+                            <label data-i18n="base_url_label">Base URL</label>
+                            <input type="text" class="base-url" placeholder="输入 Base URL" data-i18n-attr="placeholder:base_url_placeholder">
                         </div>
                         <div class="form-group">
-                            <label>Model Name</label>
-                            <input type="text" class="model-name" placeholder="输入模型名称">
+                            <label data-i18n="model_name_label">Model Name</label>
+                            <input type="text" class="model-name" placeholder="输入模型名称" data-i18n-attr="placeholder:model_name_placeholder">
                         </div>
                         <div class="advanced-settings">
                             <div class="advanced-settings-header" tabindex="0">
-                                <span>高级设置</span>
+                                <span data-i18n="api_advanced_settings">高级设置</span>
                                 <span class="toggle-icon">▼</span>
                             </div>
                             <div class="advanced-settings-content" style="display: none;">
                                 <div class="setting-item">
-                                    <label for="system-prompt">系统提示</label>
+                                    <label for="system-prompt" data-i18n="api_system_prompt_label">系统提示</label>
                                     <textarea id="system-prompt" class="system-prompt" rows="3"></textarea>
                                 </div>
                             </div>
@@ -188,21 +188,21 @@
     </div>
     <div id="preferences-settings">
         <div class="settings-header">
-            <button class="back-button" aria-label="返回">
+            <button class="back-button" aria-label="返回" data-i18n-attr="aria-label:aria_back">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path d="M12 4L6 10L12 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
             </button>
-            <span class="settings-title">偏好设置</span>
+            <span class="settings-title" data-i18n="title_preferences">偏好设置</span>
         </div>
         <div class="preferences-content">
             <div class="preferences-card">
                 <div class="preference-row">
-                    <span class="preference-label">版本号</span>
+                    <span class="preference-label" data-i18n="preferences_version">版本号</span>
                     <span class="preference-value" id="preferences-version">-</span>
                 </div>
                 <a class="preference-row preference-link" id="preferences-oss" href="https://github.com/yym68686/Cerebr" target="_blank" rel="noreferrer noopener">
-                    <span class="preference-label">开源地址</span>
+                    <span class="preference-label" data-i18n="preferences_open_source">开源地址</span>
                     <span class="preference-value">
                         GitHub
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -210,8 +210,8 @@
                         </svg>
                     </span>
                 </a>
-                <a class="preference-row preference-link" id="preferences-telegram" href="https://t.me/cerebr_chat" target="_blank" rel="noreferrer noopener" title="t.me/cerebr_chat" aria-label="Telegram 交流群：t.me/cerebr_chat">
-                    <span class="preference-label">交流群</span>
+                <a class="preference-row preference-link" id="preferences-telegram" href="https://t.me/cerebr_chat" target="_blank" rel="noreferrer noopener" title="t.me/cerebr_chat" aria-label="Telegram 交流群：t.me/cerebr_chat" data-i18n-attr="aria-label:preferences_group_aria">
+                    <span class="preference-label" data-i18n="preferences_group">交流群</span>
                     <span class="preference-value">
                         Telegram
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -220,20 +220,29 @@
                     </span>
                 </a>
                 <div class="preference-row">
-                    <label class="preference-label" for="preferences-font-scale">字体大小</label>
-                    <select class="preference-select" id="preferences-font-scale" aria-label="字体大小设置">
-                        <option value="0.9">小</option>
-                        <option value="1" selected>标准</option>
-                        <option value="1.1">大</option>
-                        <option value="1.2">特大</option>
+                    <label class="preference-label" for="preferences-language" data-i18n="preferences_language_label">语言</label>
+                    <select class="preference-select" id="preferences-language" aria-label="语言设置" data-i18n-attr="aria-label:preferences_language_aria">
+                        <option value="auto" data-i18n="language_auto">自动</option>
+                        <option value="en" data-i18n="language_en">English</option>
+                        <option value="zh_CN" data-i18n="language_zh_cn">简体中文</option>
+                        <option value="zh_TW" data-i18n="language_zh_tw">繁體中文</option>
+                    </select>
+                </div>
+                <div class="preference-row">
+                    <label class="preference-label" for="preferences-font-scale" data-i18n="preferences_font_size">字体大小</label>
+                    <select class="preference-select" id="preferences-font-scale" aria-label="字体大小设置" data-i18n-attr="aria-label:preferences_font_size_aria">
+                        <option value="0.9" data-i18n="font_size_small">小</option>
+                        <option value="1" selected data-i18n="font_size_standard">标准</option>
+                        <option value="1.1" data-i18n="font_size_large">大</option>
+                        <option value="1.2" data-i18n="font_size_xlarge">特大</option>
                     </select>
                 </div>
             </div>
             <div class="preferences-card">
                 <button class="preference-row preference-action" id="preferences-feedback" type="button">
-                    <span class="preference-label">用户反馈</span>
+                    <span class="preference-label" data-i18n="preferences_feedback">用户反馈</span>
                     <span class="preference-value">
-                        去 GitHub
+                        <span data-i18n="preferences_feedback_action">去 GitHub</span>
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                             <path d="M11 2H14V5M14 2L7 9M14 8V13C14 13.5523 13.5523 14 13 14H3C2.44772 14 2 13.5523 2 13V3C2 2.44772 2.44772 2 3 2H8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
@@ -244,15 +253,15 @@
     </div>
     <div id="chat-list-page">
         <div class="settings-header">
-            <button class="back-button" aria-label="返回">
+            <button class="back-button" aria-label="返回" data-i18n-attr="aria-label:aria_back">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path d="M12 4L6 10L12 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
             </button>
-            <span class="settings-title">对话列表</span>
+            <span class="settings-title" data-i18n="title_chat_list">对话列表</span>
             <div class="search-container">
-                <input type="search" id="chat-search-input" placeholder="搜索对话...">
-                <button class="clear-search-btn" style="display: none;" aria-label="清除搜索">
+                <input type="search" id="chat-search-input" placeholder="搜索对话..." data-i18n-attr="placeholder:chat_search_placeholder">
+                <button class="clear-search-btn" style="display: none;" aria-label="清除搜索" data-i18n-attr="aria-label:chat_clear_search_aria">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                         <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
@@ -263,9 +272,9 @@
             <!-- 对话卡片模板 -->
             <div class="chat-card template" style="display: none;">
                 <div class="card-content">
-                    <div class="chat-title">新对话</div>
+                    <div class="chat-title" data-i18n="chat_new_title">新对话</div>
                     <div class="card-actions">
-                        <button class="card-button delete-btn" aria-label="删除该对话">
+                        <button class="card-button delete-btn" aria-label="删除该对话" data-i18n-attr="aria-label:chat_delete_chat_aria">
                             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                                 <path d="M3 4H13" stroke="currentColor" stroke-width="1.5"/>
                                 <path d="M5 4V12H11V4" stroke="currentColor" stroke-width="1.5"/>
@@ -276,10 +285,10 @@
             </div>
         </div>
     </div>
-    <div class="image-preview-modal" role="dialog" aria-modal="true" aria-label="图片预览">
+    <div class="image-preview-modal" role="dialog" aria-modal="true" aria-label="图片预览" data-i18n-attr="aria-label:image_preview_label">
         <div class="image-preview-content" role="document">
-            <img src="" alt="预览图片">
-            <button class="image-preview-close" aria-label="关闭图片预览">
+            <img src="" alt="预览图片" data-i18n-attr="alt:image_preview_alt">
+            <button class="image-preview-close" aria-label="关闭图片预览" data-i18n-attr="aria-label:image_preview_close_aria">
                 <svg viewBox="0 0 24 24" fill="none">
                     <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-linecap="round"/>
                 </svg>

@@ -1,5 +1,6 @@
 import { appendMessage } from '../handlers/message-handler.js';
 import { storageAdapter, browserAdapter, isExtensionEnvironment } from '../utils/storage-adapter.js';
+import { t } from '../utils/i18n.js';
 
 let renderToken = 0;
 let chatContentToken = 0;
@@ -17,7 +18,7 @@ function createChatSwitchPlaceholder() {
     wrapper.className = 'chat-switch-placeholder';
     wrapper.innerHTML = `
         <div class="chat-switch-spinner" aria-hidden="true"></div>
-        <div class="chat-switch-text">正在加载对话…</div>
+        <div class="chat-switch-text">${t('chat_switch_loading')}</div>
     `;
     return wrapper;
 }
@@ -52,7 +53,7 @@ export function renderChatListIncremental(chatManager, chatCards, searchTerm = '
     if (filteredChats.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'chat-list-empty-state';
-        empty.textContent = searchTerm ? '没有匹配的对话' : '暂无对话';
+        empty.textContent = searchTerm ? t('chat_list_no_match') : t('chat_list_empty');
         chatCards.appendChild(empty);
         return;
     }
@@ -340,7 +341,7 @@ export function initializeChatList({
             }
         }
 
-        const newChat = chatManager.createNewChat();
+        const newChat = chatManager.createNewChat(t('chat_new_title'));
         switchToChat(newChat.id, chatManager);
         settingsMenu.classList.remove('visible');
         messageInput.focus();

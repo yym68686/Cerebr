@@ -7,6 +7,7 @@
  */
 
 import { normalizeChatCompletionsUrl } from '../utils/api-url.js';
+import { t } from '../utils/i18n.js';
 
 /**
  * 网页信息接口
@@ -48,7 +49,7 @@ export async function callAPI({
 }, chatManager, chatId, onMessageUpdate) {
     const baseUrl = normalizeChatCompletionsUrl(apiConfig?.baseUrl);
     if (!baseUrl || !apiConfig?.apiKey) {
-        throw new Error('API 配置不完整');
+        throw new Error(t('error_api_config_incomplete'));
     }
 
     // 构建系统消息
@@ -60,8 +61,11 @@ export async function callAPI({
         content: `${systemPrompt}${
             (webpageInfo && webpageInfo.pages) ?
             webpageInfo.pages.map(page => {
-                const prefix = page.isCurrent ? '当前网页内容' : '其他打开的网页';
-                return `\n${prefix}：\n标题：${page.title}\nURL：${page.url}\n内容：${page.content}`;
+                const prefix = page.isCurrent ? t('webpage_prefix_current') : t('webpage_prefix_other');
+                const titleLabel = t('webpage_title_label');
+                const urlLabel = t('webpage_url_label');
+                const contentLabel = t('webpage_content_label');
+                return `\n${prefix}:\n${titleLabel}: ${page.title}\n${urlLabel}: ${page.url}\n${contentLabel}: ${page.content}`;
             }).join('\n\n---\n') :
             ''
         }`
@@ -110,7 +114,7 @@ export async function callAPI({
             // 处理流式响应
             reader = response.body?.getReader?.();
             if (!reader) {
-                throw new Error('响应体不可读');
+                throw new Error(t('error_response_unreadable'));
             }
 
             let buffer = '';

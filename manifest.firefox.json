@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Cerebr",
+  "default_locale": "en",
+  "name": "__MSG_extension_name__",
   "version": "2.3.79",
-  "description": "Cerebr - 智能AI聊天助手",
+  "description": "__MSG_extension_description__",
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   },
@@ -22,7 +23,7 @@
   ],
   "host_permissions": ["<all_urls>", "file:///*"],
   "action": {
-    "default_title": "打开 Cerebr 侧边栏",
+    "default_title": "__MSG_action_open_sidebar__",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
@@ -36,7 +37,7 @@
         "windows": "Alt+Z",
         "mac": "MacCtrl+Z"
       },
-      "description": "打开/关闭 Cerebr 侧边栏"
+      "description": "__MSG_command_toggle_sidebar_description__"
     },
     "new_chat": {
       "suggested_key": {
@@ -44,7 +45,7 @@
         "windows": "Alt+X",
         "mac": "MacCtrl+X"
       },
-      "description": "创建新的对话"
+      "description": "__MSG_command_new_chat_description__"
     }
   },
   "background": {

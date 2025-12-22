@@ -7,6 +7,8 @@
  * @param {Function} config.onSuccess - 成功处理后的回调函数
  * @param {Function} config.onError - 错误处理的回调函数
  */
+import { t } from './i18n.js';
+
 export async function handleImageDrop(e, config) {
     const {
         messageInput,
@@ -79,7 +81,7 @@ function readFileAsDataUrl(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(reader.error || new Error('读取图片失败'));
+        reader.onerror = () => reject(reader.error || new Error(t('error_read_image_failed')));
         reader.readAsDataURL(file);
     });
 }
@@ -88,7 +90,7 @@ function loadImage(dataUrl) {
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error('解析图片失败'));
+        img.onerror = () => reject(new Error(t('error_parse_image_failed')));
         img.src = dataUrl;
     });
 }
@@ -107,7 +109,7 @@ export async function readImageFileAsDataUrl(
     { maxBytes = 3_500_000, maxDimension = 1600, maxPixels = 2_600_000 } = {}
 ) {
     if (!file || !file.type?.startsWith('image/')) {
-        throw new Error('不是图片文件');
+        throw new Error(t('error_not_image_file'));
     }
 
     const originalDataUrl = await readFileAsDataUrl(file);
@@ -156,7 +158,7 @@ export async function readImageFileAsDataUrl(
     // 如果仍然过大，拒绝插入（避免后续发送必然失败）
     const optimizedBytes = estimateDataUrlBytes(optimized);
     if (optimizedBytes > Math.max(maxBytes * 1.8, 8_000_000)) {
-        throw new Error('图片过大，建议压缩或裁剪后再发送');
+        throw new Error(t('error_image_too_large'));
     }
 
     return optimizedBytes <= estimateDataUrlBytes(originalDataUrl) ? optimized : originalDataUrl;

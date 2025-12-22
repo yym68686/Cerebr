@@ -19,6 +19,7 @@ import { initWebpageMenu, getEnabledTabsContent } from './components/webpage-men
 import { normalizeChatCompletionsUrl } from './utils/api-url.js';
 import { ensureChatElementVisible, syncChatBottomExtraPadding } from './utils/scroll.js';
 import { createReadingProgressManager } from './utils/reading-progress.js';
+import { applyI18n, initI18n, getLanguagePreference, setLanguagePreference, reloadI18n, t } from './utils/i18n.js';
 
 // 存储用户的问题历史
 let userQuestions = [];
@@ -29,6 +30,9 @@ let apiConfigs = [];
 let selectedConfigIndex = 0;
 
 document.addEventListener('DOMContentLoaded', async () => {
+    await initI18n();
+    applyI18n(document);
+
     const chatContainer = document.getElementById('chat-container');
     const messageInput = document.getElementById('message-input');
     const contextMenu = document.getElementById('context-menu');
@@ -53,6 +57,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const preferencesVersion = document.getElementById('preferences-version');
     const preferencesFontScale = document.getElementById('preferences-font-scale');
     const preferencesFeedback = document.getElementById('preferences-feedback');
+    const preferencesLanguage = document.getElementById('preferences-language');
 
     syncChatBottomExtraPadding();
     window.addEventListener('resize', () => syncChatBottomExtraPadding());
@@ -208,6 +213,31 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 初始化ChatManager
     await chatManager.initialize();
+
+    // 将“默认/新对话”这类未改名且无消息的对话标题同步为当前语言
+    try {
+        const newTitle = t('chat_new_title');
+        const defaultTitle = t('chat_default_title');
+        const legacyNewTitles = new Set(['新对话', '新對話', 'New chat']);
+        const legacyDefaultTitles = new Set(['默认对话', '預設對話', 'Default chat', 'Default Chat']);
+        let changed = false;
+        for (const chat of chatManager.getAllChats()) {
+            if (!chat || !Array.isArray(chat.messages) || chat.messages.length !== 0) continue;
+            if (legacyNewTitles.has(chat.title) && chat.title !== newTitle) {
+                chat.title = newTitle;
+                changed = true;
+            }
+            if (legacyDefaultTitles.has(chat.title) && chat.title !== defaultTitle) {
+                chat.title = defaultTitle;
+                changed = true;
+            }
+        }
+        if (changed) {
+            chatManager.saveChats();
+        }
+    } catch {
+        // ignore
+    }
 
     const readingProgressManager = createReadingProgressManager({
         chatContainer,
@@ -474,7 +504,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             console.error('重新生成消息失败:', error);
             appendMessage({
-                text: '重新生成失败: ' + error.message,
+                text: t('error_regenerate_failed', [error.message]),
                 sender: 'ai',
                 chatContainer,
                 skipHistory: true,
@@ -563,7 +593,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             console.error('发送消息失败:', error);
             appendMessage({
-                text: '发送失败: ' + error.message,
+                text: t('error_send_failed', [error.message]),
                 sender: 'ai',
                 chatContainer,
                 skipHistory: true,
@@ -725,6 +755,46 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (preferencesVersion) {
         preferencesVersion.textContent = getAppVersion();
+    }
+
+    if (preferencesLanguage) {
+        try {
+            preferencesLanguage.value = await getLanguagePreference();
+        } catch {
+            preferencesLanguage.value = 'auto';
+        }
+        preferencesLanguage.addEventListener('change', async () => {
+            try {
+                await setLanguagePreference(preferencesLanguage.value);
+                await reloadI18n();
+                applyI18n(document);
+
+                // 同步更新空对话的默认标题
+                try {
+                    const newTitle = t('chat_new_title');
+                    const defaultTitle = t('chat_default_title');
+                    const legacyNewTitles = new Set(['新对话', '新對話', 'New chat']);
+                    const legacyDefaultTitles = new Set(['默认对话', '預設對話', 'Default chat', 'Default Chat']);
+                    let changed = false;
+                    for (const chat of chatManager.getAllChats?.() || []) {
+                        if (!chat || !Array.isArray(chat.messages) || chat.messages.length !== 0) continue;
+                        if (legacyNewTitles.has(chat.title) && chat.title !== newTitle) {
+                            chat.title = newTitle;
+                            changed = true;
+                        }
+                        if (legacyDefaultTitles.has(chat.title) && chat.title !== defaultTitle) {
+                            chat.title = defaultTitle;
+                            changed = true;
+                        }
+                    }
+                    if (changed) chatManager.saveChats?.();
+                } catch {
+                    // ignore
+                }
+            } catch (error) {
+                console.error('保存语言设置失败:', error);
+            }
+        });
     }
 
     if (preferencesToggle && preferencesSettings) {

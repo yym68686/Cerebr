@@ -2,6 +2,7 @@ import { createImageTag, showToast } from '../utils/ui.js';
 import { showContextMenu, hideContextMenu, copyMessageContent } from './context-menu.js';
 import { handleImageDrop } from '../utils/image.js';
 import { updateAIMessage } from '../handlers/message-handler.js';
+import { t } from '../utils/i18n.js';
 
 /**
  * 初始化聊天容器的所有功能
@@ -188,7 +189,7 @@ export function initChatContainer({
             },
             onError: (error) => {
                 console.error('处理拖放事件失败:', error);
-                showToast(error?.message || '处理图片失败', { type: 'error' });
+                showToast(error?.message || t('toast_handle_image_failed'), { type: 'error' });
             }
         });
     });
@@ -232,7 +233,7 @@ export function initChatContainer({
             copyMessageContent({
                 messageElement: currentMessageElement,
                 onSuccess: () => {
-                    showToast('已复制消息', { type: 'success' });
+                    showToast(t('toast_copied_message'), { type: 'success' });
                     hideContextMenu({
                         contextMenu,
                         onMessageElementReset: () => {
@@ -243,7 +244,7 @@ export function initChatContainer({
                 },
                 onError: (err) => {
                     console.error('复制失败:', err);
-                    showToast('复制失败', { type: 'error' });
+                    showToast(t('toast_copy_failed'), { type: 'error' });
                 }
             });
         });
@@ -254,7 +255,7 @@ export function initChatContainer({
                 const codeText = currentCodeElement.textContent;
                 navigator.clipboard.writeText(codeText)
                     .then(() => {
-                        showToast('已复制代码', { type: 'success' });
+                        showToast(t('toast_copied_code'), { type: 'success' });
                         hideContextMenu({
                             contextMenu,
                             onMessageElementReset: () => {
@@ -265,7 +266,7 @@ export function initChatContainer({
                     })
                     .catch(err => {
                         console.error('复制代码失败:', err);
-                        showToast('复制代码失败', { type: 'error' });
+                        showToast(t('toast_copy_code_failed'), { type: 'error' });
                     });
             }
         });
@@ -299,7 +300,7 @@ export function initChatContainer({
                             const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(imageUrl)}`;
                             response = await fetch(proxyUrl);
                             if (!response.ok) {
-                                throw new Error(`通过代理获取图片失败: ${response.statusText}`);
+                                throw new Error(t('error_fetch_image_proxy_failed', [response.statusText]));
                             }
                         }
                         blob = await response.blob();
@@ -311,14 +312,14 @@ export function initChatContainer({
                     await navigator.clipboard.write([
                         new ClipboardItem({ [blob.type]: blob })
                     ]);
-                    showToast('已复制图片', { type: 'success' });
+                    showToast(t('toast_copied_image'), { type: 'success' });
                 } else {
-                    throw new Error('无法获取图片数据。');
+                    throw new Error(t('error_unable_get_image_data'));
                 }
 
             } catch (err) {
                 console.error('复制图片失败:', err);
-                showToast(err.message || '复制图片失败', { type: 'error', durationMs: 2200 });
+                showToast(err?.message || t('toast_copy_image_failed'), { type: 'error', durationMs: 2200 });
             } finally {
                 hideContextMenu({
                     contextMenu,
@@ -484,7 +485,7 @@ export function initChatContainer({
 
                 if (mathContent) {
                     await navigator.clipboard.writeText(mathContent);
-                    showToast('已复制公式', { type: 'success' });
+                    showToast(t('toast_copied_math'), { type: 'success' });
 
                     // 隐藏上下文菜单
                     hideContextMenu({
@@ -495,11 +496,11 @@ export function initChatContainer({
                     });
                 } else {
                     console.error('没有找到可复制的数学公式内容');
-                    showToast('没有找到可复制的公式', { type: 'error' });
+                    showToast(t('toast_no_math_found'), { type: 'error' });
                 }
             } catch (err) {
                 console.error('复制公式失败:', err);
-                showToast('复制公式失败', { type: 'error' });
+                showToast(t('toast_copy_math_failed'), { type: 'error' });
             }
         });
     }

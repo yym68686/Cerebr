@@ -1,6 +1,7 @@
 import { chatManager } from '../utils/chat-manager.js';
 import { showImagePreview, createImageTag, showToast } from '../utils/ui.js';
 import { processMathAndMarkdown, renderMathInElement, textMayContainMath } from '../../htmd/latex.js';
+import { t } from '../utils/i18n.js';
 
 function isNearBottom(container, thresholdPx = 120) {
     const remaining = container.scrollHeight - container.scrollTop - container.clientHeight;
@@ -60,7 +61,7 @@ function scheduleAutoScroll(container) {
 function createTypingIndicator() {
     const wrapper = document.createElement('span');
     wrapper.className = 'typing-indicator';
-    wrapper.setAttribute('aria-label', '正在思考');
+    wrapper.setAttribute('aria-label', t('label_thinking'));
 
     for (let i = 0; i < 3; i++) {
         const dot = document.createElement('span');
@@ -100,7 +101,7 @@ function enhanceCodeBlocks(root) {
 
         pre.addEventListener('mouseenter', () => {
             isHovered = true;
-            setLabel('复制');
+            setLabel(t('label_copy'));
         });
 
         pre.addEventListener('mouseleave', () => {
@@ -127,20 +128,20 @@ function enhanceCodeBlocks(root) {
             const codeText = code.textContent ?? '';
             try {
                 await navigator.clipboard.writeText(codeText);
-                showToast('已复制代码', { type: 'success' });
-                setLabel('已复制');
+                showToast(t('toast_copied_code'), { type: 'success' });
+                setLabel(t('label_copied'));
                 if (copiedTimer) clearTimeout(copiedTimer);
                 copiedTimer = setTimeout(() => {
                     copiedTimer = null;
-                    setLabel(isHovered ? '复制' : originalLabel);
+                    setLabel(isHovered ? t('label_copy') : originalLabel);
                 }, 800);
             } catch {
-                showToast('复制失败', { type: 'error' });
-                setLabel('复制失败');
+                showToast(t('toast_copy_failed'), { type: 'error' });
+                setLabel(t('label_copy_failed'));
                 if (copiedTimer) clearTimeout(copiedTimer);
                 copiedTimer = setTimeout(() => {
                     copiedTimer = null;
-                    setLabel(isHovered ? '复制' : originalLabel);
+                    setLabel(isHovered ? t('label_copy') : originalLabel);
                 }, 900);
             }
         });
@@ -250,7 +251,7 @@ export async function appendMessage({
         // 添加占位文本容器
         const placeholderDiv = document.createElement('div');
         placeholderDiv.className = 'reasoning-placeholder';
-        placeholderDiv.textContent = '深度思考';
+        placeholderDiv.textContent = t('label_deep_thinking');
         reasoningDiv.appendChild(placeholderDiv);
 
         // 添加文本容器
@@ -403,7 +404,7 @@ export async function updateAIMessage({
                     // 添加占位文本容器
                     const placeholderDiv = document.createElement('div');
                     placeholderDiv.className = 'reasoning-placeholder';
-                    placeholderDiv.textContent = '深度思考';
+                    placeholderDiv.textContent = t('label_deep_thinking');
                     reasoningDiv.appendChild(placeholderDiv);
 
                     // 添加文本容器
