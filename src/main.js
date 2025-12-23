@@ -30,37 +30,43 @@ let apiConfigs = [];
 let selectedConfigIndex = 0;
 
 document.addEventListener('DOMContentLoaded', async () => {
-    await initI18n();
-    applyI18n(document);
+    try {
+        await initI18n();
+        applyI18n(document);
 
-    const chatContainer = document.getElementById('chat-container');
-    const messageInput = document.getElementById('message-input');
-    const contextMenu = document.getElementById('context-menu');
-    const copyMessageButton = document.getElementById('copy-message');
-    const copyCodeButton = document.getElementById('copy-code');
-    const copyImageButton = document.getElementById('copy-image');
-    const stopUpdateButton = document.getElementById('stop-update');
-    const settingsButton = document.getElementById('settings-button');
-    const settingsMenu = document.getElementById('settings-menu');
-    const preferencesToggle = document.getElementById('preferences-toggle');
-    const previewModal = document.querySelector('.image-preview-modal');
-    const previewImage = previewModal.querySelector('img');
-    const chatListPage = document.getElementById('chat-list-page');
-    const newChatButton = document.getElementById('new-chat');
-    const chatListButton = document.getElementById('chat-list');
-    const apiSettings = document.getElementById('api-settings');
-    const preferencesSettings = document.getElementById('preferences-settings');
-    const deleteMessageButton = document.getElementById('delete-message');
-    const regenerateMessageButton = document.getElementById('regenerate-message');
-    const webpageQAContainer = document.getElementById('webpage-qa');
-    const webpageContentMenu = document.getElementById('webpage-content-menu');
-    const preferencesVersion = document.getElementById('preferences-version');
-    const preferencesFontScale = document.getElementById('preferences-font-scale');
-    const preferencesFeedback = document.getElementById('preferences-feedback');
-    const preferencesLanguage = document.getElementById('preferences-language');
+        const chatContainer = document.getElementById('chat-container');
+        const messageInput = document.getElementById('message-input');
+        const contextMenu = document.getElementById('context-menu');
+        const copyMessageButton = document.getElementById('copy-message');
+        const copyCodeButton = document.getElementById('copy-code');
+        const copyImageButton = document.getElementById('copy-image');
+        const stopUpdateButton = document.getElementById('stop-update');
+        const settingsButton = document.getElementById('settings-button');
+        const settingsMenu = document.getElementById('settings-menu');
+        const preferencesToggle = document.getElementById('preferences-toggle');
+        const previewModal = document.querySelector('.image-preview-modal');
+        const previewImage = previewModal?.querySelector('img') || null;
+        const chatListPage = document.getElementById('chat-list-page');
+        const newChatButton = document.getElementById('new-chat');
+        const chatListButton = document.getElementById('chat-list');
+        const apiSettings = document.getElementById('api-settings');
+        const preferencesSettings = document.getElementById('preferences-settings');
+        const deleteMessageButton = document.getElementById('delete-message');
+        const regenerateMessageButton = document.getElementById('regenerate-message');
+        const webpageQAContainer = document.getElementById('webpage-qa');
+        const webpageContentMenu = document.getElementById('webpage-content-menu');
+        const preferencesVersion = document.getElementById('preferences-version');
+        const preferencesFontScale = document.getElementById('preferences-font-scale');
+        const preferencesFeedback = document.getElementById('preferences-feedback');
+        const preferencesLanguage = document.getElementById('preferences-language');
 
-    syncChatBottomExtraPadding();
-    window.addEventListener('resize', () => syncChatBottomExtraPadding());
+        if (!chatContainer || !messageInput || !contextMenu) {
+            console.error('[Cerebr] 初始化失败：缺少 #chat-container / #message-input / #context-menu');
+            return;
+        }
+
+        syncChatBottomExtraPadding();
+        window.addEventListener('resize', () => syncChatBottomExtraPadding());
 
     // 网页版“新的对话”快捷键：Windows/Default Alt+X，Mac Ctrl+X
     // 扩展环境下由浏览器 commands 统一处理，避免重复触发。
@@ -160,13 +166,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    chatContainer.addEventListener('click', (e) => {
-        if (!isFinePointer()) return;
-        if (document.activeElement === messageInput) return;
-        if (window.getSelection().toString()) return;
-        if (e.target.closest('#settings-button, #settings-menu, #context-menu, a, button, input, textarea, select')) return;
-        messageInput.focus();
-    });
+        chatContainer.addEventListener('click', (e) => {
+            if (!isFinePointer()) return;
+            if (document.activeElement === messageInput) return;
+            if (window.getSelection().toString()) return;
+            if (e.target.closest('#settings-button, #settings-menu, #context-menu, a, button, input, textarea, select')) return;
+            messageInput.focus();
+        });
 
     // 修改: 创建一个对象引用来保存当前控制器
     // pendingAbort 用于处理“首 token 前”用户立刻点停止的情况
@@ -174,7 +180,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentController = null;
 
     // 创建UI工具配置
-    const uiConfig = {
+        const uiConfig = {
         textarea: {
             maxHeight: 200
         },
@@ -184,6 +190,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         },
         imageTag: {
             onImageClick: (base64Data) => {
+                if (!uiConfig.imagePreview.previewModal || !uiConfig.imagePreview.previewImage) return;
                 showImagePreview({
                     base64Data,
                     config: uiConfig.imagePreview
@@ -194,7 +201,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 messageInput.dispatchEvent(new Event('input'));
             }
         }
-    };
+        };
 
     const OSS_URL = 'https://github.com/yym68686/Cerebr';
     const FEEDBACK_URL = `${OSS_URL}/issues/new`;
@@ -277,24 +284,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     chatContainerManager.initializeUserQuestions();
 
     // 初始化对话列表组件
-    initChatListEvents({
-        chatListPage,
-        chatCards: chatListPage.querySelector('.chat-cards'),
-        chatManager,
-        loadChatContent: (chat) => loadChatContent(chat, chatContainer),
-        onHide: hideChatList.bind(null, chatListPage)
-    });
+    if (chatListPage) {
+        initChatListEvents({
+            chatListPage,
+            chatCards: chatListPage.querySelector('.chat-cards'),
+            chatManager,
+            loadChatContent: (chat) => loadChatContent(chat, chatContainer),
+            onHide: hideChatList.bind(null, chatListPage)
+        });
 
-    // 初始化聊天列表功能
-    initializeChatList({
-        chatListPage,
-        chatManager,
-        newChatButton,
-        chatListButton,
-        settingsMenu,
-        apiSettings,
-        loadChatContent: (chat) => loadChatContent(chat, chatContainer)
-    });
+        // 初始化聊天列表功能
+        initializeChatList({
+            chatListPage,
+            chatManager,
+            newChatButton,
+            chatListButton,
+            settingsMenu,
+            apiSettings,
+            loadChatContent: (chat) => loadChatContent(chat, chatContainer)
+        });
+    }
 
     // 加载当前对话内容
     const currentChat = chatManager.getCurrentChat();
@@ -312,7 +321,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // 如果不是扩展环境，隐藏网页问答功能
-    if (!isExtensionEnvironment) {
+    if (!isExtensionEnvironment && webpageQAContainer) {
         webpageQAContainer.style.display = 'none';
     }
 
@@ -650,35 +659,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // 修改点击事件监听器
-    document.addEventListener('click', (e) => {
-        const isInSettingsArea = settingsButton.contains(e.target) || settingsMenu.contains(e.target);
-        const isInWebpageMenuArea = webpageQAContainer.contains(e.target) || webpageContentMenu.contains(e.target);
+        document.addEventListener('click', (e) => {
+            const isInSettingsArea = !!e.target.closest?.('#settings-button, #settings-menu');
+            const isInWebpageMenuArea = !!e.target.closest?.('#webpage-qa, #webpage-content-menu');
 
-        // 点击网页内容二级菜单内部时，不要误关一级菜单
-        if (!isInSettingsArea && !isInWebpageMenuArea) {
-            settingsMenu.classList.remove('visible');
-        }
+            // 点击网页内容二级菜单内部时，不要误关一级菜单
+            if (!isInSettingsArea && !isInWebpageMenuArea) {
+                settingsMenu?.classList?.remove('visible');
+            }
 
-        if (!isInWebpageMenuArea) {
-            webpageContentMenu.classList.remove('visible');
-        }
-    });
+            if (!isInWebpageMenuArea) {
+                webpageContentMenu?.classList?.remove('visible');
+            }
+        });
 
    // 初始化网页内容二级菜单
-   if (isExtensionEnvironment) {
-    initWebpageMenu({ webpageQAContainer, webpageContentMenu });
-   }
-
-    // 确保设置按钮的点击事件在文档点击事件之前处理
-    settingsButton.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const isVisible = settingsMenu.classList.toggle('visible');
-
-        // 如果设置菜单被隐藏，也一并隐藏网页内容菜单
-        if (!isVisible) {
-            webpageContentMenu.classList.remove('visible');
+        if (isExtensionEnvironment && webpageQAContainer && webpageContentMenu) {
+            initWebpageMenu({ webpageQAContainer, webpageContentMenu });
         }
-    });
+
+        // 确保设置按钮的点击事件在文档点击事件之前处理
+        settingsButton?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isVisible = settingsMenu?.classList?.toggle('visible');
+
+            // 如果设置菜单被隐藏，也一并隐藏网页内容菜单
+            if (!isVisible) {
+                webpageContentMenu?.classList?.remove('visible');
+            }
+        });
 
     // 主题切换
     const themeToggle = document.getElementById('theme-toggle');
@@ -706,9 +715,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // 监听主题切换
-    themeSwitch.addEventListener('change', () => {
-        setTheme(themeSwitch.checked, themeConfig);
-    });
+        if (themeSwitch) {
+            themeSwitch.addEventListener('change', () => {
+                setTheme(themeSwitch.checked, themeConfig);
+            });
+        }
 
     if (themeToggle && themeSwitch) {
         themeToggle.addEventListener('click', (e) => {
@@ -719,12 +730,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // 监听系统主题变化
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', async (e) => {
-        const data = await syncStorageAdapter.get('theme');
-        if (!data.theme) {  // 只有在用户没有手动设置主题时才跟随系统
-            setTheme(e.matches, themeConfig);
+        const prefersDarkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const handleSystemThemeChange = async (e) => {
+            const data = await syncStorageAdapter.get('theme');
+            if (!data.theme) {  // 只有在用户没有手动设置主题时才跟随系统
+                setTheme(e.matches, themeConfig);
+            }
+        };
+        if (typeof prefersDarkQuery.addEventListener === 'function') {
+            prefersDarkQuery.addEventListener('change', handleSystemThemeChange);
+        } else if (typeof prefersDarkQuery.addListener === 'function') {
+            prefersDarkQuery.addListener(handleSystemThemeChange);
         }
-    });
 
     // 初始化主题
     await initTheme();
@@ -765,8 +782,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // API 设置功能
     const apiSettingsToggle = document.getElementById('api-settings-toggle');
-    const backButton = apiSettings.querySelector('.back-button');
-    const apiCards = apiSettings.querySelector('.api-cards');
+    const backButton = apiSettings?.querySelector('.back-button') || null;
+    const apiCards = apiSettings?.querySelector('.api-cards') || null;
 
     // 偏好设置页面
     const preferencesBackButton = preferencesSettings?.querySelector('.back-button');
@@ -848,8 +865,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (preferencesToggle && preferencesSettings) {
         preferencesToggle.addEventListener('click', () => {
             preferencesSettings.classList.add('visible');
-            settingsMenu.classList.remove('visible');
-            webpageContentMenu.classList.remove('visible');
+            settingsMenu?.classList?.remove('visible');
+            webpageContentMenu?.classList?.remove('visible');
         });
     }
 
@@ -1032,7 +1049,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             cardSelector: '.api-card',
             onSelect: () => {
                 // 关闭API设置面板
-                apiSettings.classList.remove('visible');
+                apiSettings?.classList?.remove('visible');
             }
         });
     };
@@ -1276,34 +1293,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadAPIConfigs();
 
     // 显示/隐藏 API 设置
-    apiSettingsToggle.addEventListener('click', () => {
-        apiSettings.classList.add('visible');
-        settingsMenu.classList.remove('visible');
-        // 确保每次打开设置时都重新渲染卡片
-        renderAPICardsWithCallbacks();
-    });
+        apiSettingsToggle?.addEventListener('click', () => {
+            apiSettings?.classList?.add('visible');
+            settingsMenu?.classList?.remove('visible');
+            // 确保每次打开设置时都重新渲染卡片
+            renderAPICardsWithCallbacks();
+        });
 
     // 返回聊天界面
-    backButton.addEventListener('click', () => {
-        apiSettings.classList.remove('visible');
-    });
+        backButton?.addEventListener('click', () => {
+            apiSettings?.classList?.remove('visible');
+        });
 
     // 图片预览功能
-    const closeButton = previewModal.querySelector('.image-preview-close');
+        const closeButton = previewModal?.querySelector?.('.image-preview-close') || null;
 
-    closeButton.addEventListener('click', () => {
-        hideImagePreview({ config: uiConfig.imagePreview });
-    });
-
-    previewModal.addEventListener('click', (e) => {
-        if (e.target === previewModal) {
+        closeButton?.addEventListener('click', () => {
+            if (!uiConfig.imagePreview.previewModal || !uiConfig.imagePreview.previewImage) return;
             hideImagePreview({ config: uiConfig.imagePreview });
-        }
-    });
+        });
+
+        previewModal?.addEventListener('click', (e) => {
+            if (e.target === previewModal) {
+                if (!uiConfig.imagePreview.previewModal || !uiConfig.imagePreview.previewImage) return;
+                hideImagePreview({ config: uiConfig.imagePreview });
+            }
+        });
 
     document.addEventListener('keydown', (e) => {
         // 简单的焦点陷阱：图片预览打开时，Tab 不要跑出对话框
-        if (previewModal.classList.contains('visible') && e.key === 'Tab') {
+        if (previewModal?.classList?.contains('visible') && e.key === 'Tab') {
             const focusables = Array.from(previewModal.querySelectorAll(
                 'button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])'
             )).filter((el) => {
@@ -1332,32 +1351,34 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         let handled = false;
 
-        if (previewModal.classList.contains('visible')) {
-            hideImagePreview({ config: uiConfig.imagePreview });
+        if (previewModal?.classList?.contains('visible')) {
+            if (uiConfig.imagePreview.previewModal && uiConfig.imagePreview.previewImage) {
+                hideImagePreview({ config: uiConfig.imagePreview });
+            }
             handled = true;
         }
 
-        if (contextMenu.classList.contains('visible')) {
+        if (contextMenu?.classList?.contains('visible')) {
             hideContextMenu({ contextMenu, onMessageElementReset: () => {} });
             handled = true;
         }
 
-        if (webpageContentMenu.classList.contains('visible')) {
+        if (webpageContentMenu?.classList?.contains('visible')) {
             webpageContentMenu.classList.remove('visible');
             handled = true;
         }
 
-        if (settingsMenu.classList.contains('visible')) {
+        if (settingsMenu?.classList?.contains('visible')) {
             settingsMenu.classList.remove('visible');
             handled = true;
         }
 
-        if (apiSettings.classList.contains('visible')) {
+        if (apiSettings?.classList?.contains('visible')) {
             apiSettings.classList.remove('visible');
             handled = true;
         }
 
-        if (chatListPage.classList.contains('show')) {
+        if (chatListPage?.classList?.contains('show')) {
             hideChatList(chatListPage);
             handled = true;
         }
@@ -1366,4 +1387,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             e.preventDefault();
         }
     });
+    } catch (error) {
+        console.error('[Cerebr] 初始化失败:', error);
+    }
 });

@@ -229,7 +229,12 @@ export function initChatContainer({
         regenerateMessage
     }) {
         // 点击复制按钮
-        copyMessageButton.addEventListener('click', () => {
+        const on = (el, type, handler, options) => {
+            if (!el) return;
+            el.addEventListener(type, handler, options);
+        };
+
+        on(copyMessageButton, 'click', () => {
             copyMessageContent({
                 messageElement: currentMessageElement,
                 onSuccess: () => {
@@ -250,7 +255,7 @@ export function initChatContainer({
         });
 
         // 点击复制代码按钮
-        copyCodeButton.addEventListener('click', () => {
+        on(copyCodeButton, 'click', () => {
             if (currentCodeElement) {
                 const codeText = currentCodeElement.textContent;
                 navigator.clipboard.writeText(codeText)
@@ -272,12 +277,12 @@ export function initChatContainer({
         });
 
         // 点击复制图片按钮
-        copyImageButton.addEventListener('click', async () => {
-            const imageUrl = copyImageButton.dataset.src;
+        on(copyImageButton, 'click', async () => {
+            const imageUrl = copyImageButton?.dataset?.src;
             if (!imageUrl) return;
 
             // Find the actual image element in the message
-            const imgElement = currentMessageElement.querySelector(`img[src="${imageUrl}"]`);
+            const imgElement = currentMessageElement?.querySelector?.(`img[src="${imageUrl}"]`) || null;
 
             try {
                 let blob = imgElement ? imgElement.cachedBlob : null;
@@ -332,13 +337,13 @@ export function initChatContainer({
         });
 
         // 添加停止更新按钮的点击事件处理
-        stopUpdateButton.addEventListener('click', () => {
-            if (abortController.current) {
+        on(stopUpdateButton, 'click', () => {
+            if (abortController?.current) {
                 abortController.current.abort();  // 中止当前请求
                 abortController.current = null;
             } else {
                 // 兼容“首 token 前”用户立即停止：controller 还未暴露出来时先记账
-                abortController.pendingAbort = true;
+                if (abortController) abortController.pendingAbort = true;
             }
             hideContextMenu({
                 contextMenu,
@@ -347,10 +352,10 @@ export function initChatContainer({
         });
 
         // 添加删除消息按钮的点击事件处理
-        deleteMessageButton.addEventListener('click', () => {
+        on(deleteMessageButton, 'click', () => {
             if (currentMessageElement) {
                 // 如果消息正在更新，先中止请求
-                if (currentMessageElement.classList.contains('updating') && abortController.current) {
+                if (currentMessageElement.classList.contains('updating') && abortController?.current) {
                     abortController.current.abort();
                     abortController.current = null;
                 }
@@ -378,7 +383,7 @@ export function initChatContainer({
         });
 
         // 添加重新生成消息按钮的点击事件处理
-        regenerateMessageButton.addEventListener('click', () => {
+        on(regenerateMessageButton, 'click', () => {
             if (currentMessageElement) {
                 regenerateMessage(currentMessageElement);
                 // 隐藏右键菜单
