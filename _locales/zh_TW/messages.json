@@ -1,6 +1,6 @@
 {
   "extension_name": { "message": "Cerebr" },
-  "extension_description": { "message": "Cerebr - 智能AI聊天助手" },
+  "extension_description": { "message": "Cerebr - 智慧AI聊天助理" },
   "action_open_sidebar": { "message": "開啟 Cerebr 側邊欄" },
   "command_toggle_sidebar_description": { "message": "開啟/關閉 Cerebr 側邊欄" },
   "command_new_chat_description": { "message": "建立新的對話" },
@@ -40,9 +40,9 @@
   "api_system_prompt_label": { "message": "系統提示" },
 
   "title_preferences": { "message": "偏好設定" },
-  "preferences_version": { "message": "版本號" },
-  "preferences_open_source": { "message": "開源位址" },
-  "preferences_group": { "message": "交流群" },
+  "preferences_version": { "message": "程式版本" },
+  "preferences_open_source": { "message": "專案首頁" },
+  "preferences_group": { "message": "交流群組" },
   "preferences_group_aria": { "message": "Telegram 交流群：t.me/cerebr_chat" },
   "preferences_font_size": { "message": "字體大小" },
   "preferences_font_size_aria": { "message": "字體大小設定" },
@@ -57,7 +57,7 @@
   "language_zh_cn": { "message": "简体中文" },
   "language_zh_tw": { "message": "繁體中文" },
 
-  "preferences_feedback": { "message": "使用者回饋" },
+  "preferences_feedback": { "message": "意見回饋" },
   "preferences_feedback_action": { "message": "前往 GitHub" },
 
   "title_chat_list": { "message": "對話列表" },
@@ -109,7 +109,7 @@
   "error_send_failed": { "message": "傳送失敗: $1" },
   "error_regenerate_failed": { "message": "重新產生失敗: $1" },
   "error_unable_get_image_data": { "message": "無法取得圖片資料。" },
-  "error_fetch_image_proxy_failed": { "message": "透過代理取得圖片失敗: $1" },
+  "error_fetch_image_proxy_failed": { "message": "透過代理伺服器取得圖片失敗：$1" },
   "error_read_image_failed": { "message": "讀取圖片失敗" },
   "error_parse_image_failed": { "message": "解析圖片失敗" },
   "error_not_image_file": { "message": "不是圖片檔案" },
