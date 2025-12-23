@@ -130,6 +130,58 @@ export function initMessageInput(config) {
     };
 
     let sendQueued = false;
+    let suppressNextInput = false;
+    let lastEnterKeydownAt = 0;
+    let lastEnterKeydownWasShift = false;
+    const ENTER_SHIFT_WINDOW_MS = 400;
+    let lastInputHtml = '';
+
+    const isEnterLikeInputEvent = (event) => {
+        const inputType = event?.inputType;
+        if (inputType === 'insertParagraph' || inputType === 'insertLineBreak') return true;
+        if (inputType === 'insertText' && event?.data === '\n') return true;
+        return false;
+    };
+
+    const isShiftEnter = () => {
+        if (!lastEnterKeydownWasShift) return false;
+        return Date.now() - lastEnterKeydownAt < ENTER_SHIFT_WINDOW_MS;
+    };
+
+    const execCommandUndo = () => {
+        try {
+            ensureSelectionInInput(messageInput);
+            return document.execCommand('undo');
+        } catch {
+            return false;
+        }
+    };
+
+    const removeTrailingLineBreakArtifacts = () => {
+        let removed = false;
+        while (messageInput.lastChild) {
+            const node = messageInput.lastChild;
+            if (node.nodeType === Node.ELEMENT_NODE) {
+                const tag = node.tagName;
+                if (tag === 'BR') {
+                    node.remove();
+                    removed = true;
+                    continue;
+                }
+                if (tag === 'DIV') {
+                    const html = (node.innerHTML || '').replace(/\s+/g, '').toLowerCase();
+                    const isEmptyDiv = html === '' || html === '<br>' || html === '<br/>';
+                    if (isEmptyDiv) {
+                        node.remove();
+                        removed = true;
+                        continue;
+                    }
+                }
+            }
+            break;
+        }
+        return removed;
+    };
 
     const requestSendMessage = () => {
         if (sendQueued) return true;
@@ -179,7 +231,51 @@ export function initMessageInput(config) {
     let historyCursor = null;
     let isHistoryNavigation = false;
 
-    messageInput.addEventListener('input', function() {
+    messageInput.addEventListener('input', function(e) {
+        const normalizeHtml = (html) => String(html || '').replace(/\s+/g, '').toLowerCase();
+
+        if (suppressNextInput) {
+            suppressNextInput = false;
+            return;
+        }
+
+        const normalizedPrev = normalizeHtml(lastInputHtml);
+        const normalizedCurr = normalizeHtml(this.innerHTML);
+        const appended = normalizedCurr.startsWith(normalizedPrev) ? normalizedCurr.slice(normalizedPrev.length) : '';
+        const looksLikeEnterInsert =
+            isEnterLikeInputEvent(e) ||
+            appended === '<div><br></div>' ||
+            appended === '<br>' ||
+            appended === '<br/>';
+
+        if (!isComposing && looksLikeEnterInsert && !isShiftEnter()) {
+            const removed = removeTrailingLineBreakArtifacts();
+            const hadUndo = removed ? false : execCommandUndo();
+            if (hadUndo) suppressNextInput = true;
+
+            requestSendMessage();
+
+            adjustTextareaHeight({
+                textarea: this,
+                config: uiConfig.textarea
+            });
+            syncChatBottomExtraPadding();
+
+            // 用户主动输入会退出历史回溯模式
+            if (!isHistoryNavigation) {
+                historyCursor = null;
+            }
+
+            // 处理 placeholder 的显示
+            if (this.textContent.trim() === '' && !this.querySelector('.image-tag')) {
+                while (this.firstChild) {
+                    this.removeChild(this.firstChild);
+                }
+            }
+            lastInputHtml = this.innerHTML;
+            return;
+        }
+
         adjustTextareaHeight({
             textarea: this,
             config: uiConfig.textarea
@@ -203,6 +299,8 @@ export function initMessageInput(config) {
                 this.removeChild(this.firstChild);
             }
         }
+
+        lastInputHtml = this.innerHTML;
     });
 
     // 监听输入框的焦点状态
@@ -239,7 +337,8 @@ export function initMessageInput(config) {
     messageInput.addEventListener('beforeinput', (e) => {
         if (isComposing) return;
 
-        if (e.inputType !== 'insertParagraph') return;
+        if (!isEnterLikeInputEvent(e)) return;
+        if (isShiftEnter()) return;
 
         const htmlBefore = messageInput.innerHTML;
 
@@ -265,6 +364,11 @@ export function initMessageInput(config) {
             e.code === 'Enter' ||
             e.keyCode === 13 ||
             e.which === 13;
+
+        if (isEnter) {
+            lastEnterKeydownAt = Date.now();
+            lastEnterKeydownWasShift = !!e.shiftKey;
+        }
 
         if (isEnter && !e.shiftKey) {
             if (isComposing) {
