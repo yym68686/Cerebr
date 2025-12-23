@@ -129,6 +129,25 @@ export function initMessageInput(config) {
         }
     };
 
+    let sendQueued = false;
+
+    const requestSendMessage = () => {
+        if (sendQueued) return true;
+
+        historyCursor = null;
+
+        const text = messageInput.textContent.trim();
+        if (!text && !messageInput.querySelector('.image-tag')) return false;
+
+        setTimeout(() => {
+            sendQueued = false;
+            void sendMessage();
+        }, 0);
+
+        sendQueued = true;
+        return true;
+    };
+
     // 点击输入框时不触发全局点击逻辑（比如关闭菜单、失焦）
     messageInput.addEventListener('click', (e) => e.stopPropagation());
 
@@ -217,21 +236,43 @@ export function initMessageInput(config) {
         isComposing = false;
     });
 
+    messageInput.addEventListener('beforeinput', (e) => {
+        if (isComposing) return;
+
+        if (e.inputType !== 'insertParagraph') return;
+
+        const htmlBefore = messageInput.innerHTML;
+
+        if (e.cancelable) {
+            e.preventDefault();
+        }
+
+        const queued = requestSendMessage();
+
+        setTimeout(() => {
+            if (!queued && messageInput.innerHTML !== htmlBefore) {
+                messageInput.innerHTML = htmlBefore;
+                if (isInputEffectivelyEmpty(messageInput)) {
+                    messageInput.dispatchEvent(new Event('input'));
+                }
+            }
+        }, 0);
+    });
+
     messageInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
+        const isEnter =
+            e.key === 'Enter' ||
+            e.code === 'Enter' ||
+            e.keyCode === 13 ||
+            e.which === 13;
+
+        if (isEnter && !e.shiftKey) {
             if (isComposing) {
                 // 如果正在使用输入法，不发送消息
                 return;
             }
             e.preventDefault();
-            historyCursor = null;
-            const text = this.textContent.trim();
-            if (text || this.querySelector('.image-tag')) {  // 检查是否有文本或图片
-                // Defer heavy work to keep the keydown handler fast.
-                setTimeout(() => {
-                    void sendMessage();
-                }, 0);
-            }
+            requestSendMessage();
         } else if (e.key === 'Escape') {
             // 按 ESC 键时让输入框失去焦点
             messageInput.blur();
