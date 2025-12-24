@@ -103,21 +103,58 @@ export function initChatContainer({
     let touchStartY;
     const LONG_PRESS_DURATION = 200; // 长按触发时间为200ms
 
+    const isMathElement = (element) => {
+        if (!(element instanceof Element)) return false;
+        const tagName = element.tagName?.toLowerCase?.();
+        const isMjx = tagName?.startsWith('mjx-');
+        const hasContainer = element.closest('mjx-container') !== null;
+        return isMjx || hasContainer;
+    };
+
+    const getMathContentFromContainer = (container) => {
+        if (!(container instanceof Element)) return '';
+
+        const mjxTexElement =
+            container.querySelector('script[type="math/tex; mode=display"]') ||
+            container.querySelector('script[type="math/tex"]');
+        if (mjxTexElement?.textContent) return mjxTexElement.textContent.trim();
+
+        const mjxInternal = container.querySelector('mjx-math');
+        const internalLabel = mjxInternal?.getAttribute?.('aria-label');
+        if (internalLabel) return internalLabel.replace(/^TeX:\s*/, '').trim();
+
+        const assistiveMml = container.querySelector('mjx-assistive-mml');
+        const assistiveLabel = assistiveMml?.getAttribute?.('aria-label');
+        if (assistiveLabel) return assistiveLabel.replace(/^TeX:\s*/, '').trim();
+
+        const containerLabel = container.getAttribute?.('aria-label');
+        if (containerLabel) return containerLabel.replace(/^TeX:\s*/, '').trim();
+
+        return (container.textContent || '').trim();
+    };
+
     chatContainer.addEventListener('touchstart', (e) => {
-        const messageElement = e.target.closest('.ai-message, .user-message');
+        const targetElement = e.target instanceof Element ? e.target : e.target?.parentElement;
+        if (!targetElement) return;
+
+        const messageElement = targetElement.closest('.ai-message, .user-message');
         if (!messageElement) return;
 
         touchStartX = e.touches[0].clientX;
         touchStartY = e.touches[0].clientY;
 
         touchTimeout = setTimeout(() => {
-            const codeElement = e.target.closest('pre > code');
+            const codeElement = targetElement.closest('pre > code');
+            const imageElement = targetElement.closest('img');
+            const mathContainer = isMathElement(targetElement) ? targetElement.closest('mjx-container') : null;
             currentMessageElement = messageElement;
             currentCodeElement = codeElement;
 
             // 获取菜单元素
             const copyMessageButton = document.getElementById('copy-message');
             const copyCodeButton = document.getElementById('copy-code');
+            const copyMathButton = document.getElementById('copy-math');
+            const copyImageButton = document.getElementById('copy-image');
             const stopUpdateButton = document.getElementById('stop-update');
             const deleteMessageButton = document.getElementById('delete-message');
             const regenerateMessageButton = document.getElementById('regenerate-message');
@@ -126,8 +163,28 @@ export function initChatContainer({
             regenerateMessageButton.style.display = 'flex';
             copyMessageButton.style.display = 'flex';
             deleteMessageButton.style.display = 'flex';
-            copyCodeButton.style.display = codeElement ? 'flex' : 'none';
+            copyCodeButton.style.display = !mathContainer && codeElement ? 'flex' : 'none';
             stopUpdateButton.style.display = (messageElement.classList.contains('ai-message') && messageElement.classList.contains('updating')) ? 'flex' : 'none';
+
+            if (copyMathButton) {
+                if (mathContainer) {
+                    copyMathButton.style.display = 'flex';
+                    copyMathButton.dataset.mathContent = getMathContentFromContainer(mathContainer);
+                } else {
+                    copyMathButton.style.display = 'none';
+                    delete copyMathButton.dataset.mathContent;
+                }
+            }
+
+            const isImagePress = !mathContainer && imageElement && messageElement.classList.contains('ai-message');
+            if (copyImageButton) {
+                copyImageButton.style.display = isImagePress ? 'flex' : 'none';
+                if (isImagePress) {
+                    copyImageButton.dataset.src = imageElement.src;
+                } else {
+                    delete copyImageButton.dataset.src;
+                }
+            }
 
             showContextMenu({
                 event: {
@@ -401,15 +458,6 @@ export function initChatContainer({
     // 设置数学公式上下文菜单处理
     function setupMathContextMenu() {
         document.addEventListener('contextmenu', (event) => {
-            // 检查是否点击了 MathJax 3 的任何元素
-            const isMathElement = (element) => {
-                if (!(element instanceof Element)) return false;
-                const tagName = element.tagName?.toLowerCase?.();
-                const isMjx = tagName?.startsWith('mjx-');
-                const hasContainer = element.closest('mjx-container') !== null;
-                return isMjx || hasContainer;
-            };
-
             if (!isMathElement(event.target)) return;
 
             event.preventDefault();
@@ -449,37 +497,7 @@ export function initChatContainer({
                 stopUpdateButton
             });
 
-            // 设置数学公式内容
-            const assistiveMml = container.querySelector('mjx-assistive-mml');
-            let mathContent;
-
-            // 获取原始的 LaTeX 源码
-            const mjxTexElement = container.querySelector('script[type="math/tex; mode=display"]') ||
-                container.querySelector('script[type="math/tex"]');
-
-            if (mjxTexElement) {
-                mathContent = mjxTexElement.textContent;
-            } else {
-                // 如果找不到原始 LaTeX，尝试从 MathJax 内部存储获取
-                const mjxInternal = container.querySelector('mjx-math');
-                if (mjxInternal) {
-                    const texAttr = mjxInternal.getAttribute('aria-label');
-                    if (texAttr) {
-                        // 移除 "TeX:" 前缀（如果有的话）
-                        mathContent = texAttr.replace(/^TeX:\s*/, '');
-                    }
-                }
-            }
-
-            // 如果还是没有找到，尝试其他方法
-            if (!mathContent && assistiveMml) {
-                const texAttr = assistiveMml.getAttribute('aria-label');
-                if (texAttr) {
-                    mathContent = texAttr.replace(/^TeX:\s*/, '');
-                }
-            }
-
-            mathContextMenu.dataset.mathContent = mathContent || container.textContent;
+            mathContextMenu.dataset.mathContent = getMathContentFromContainer(container);
         }, { capture: true, passive: false });
 
         // 复制数学公式
