@@ -711,7 +711,7 @@ export function clearMessageInput(messageInput, config) {
  * 将光标移动到元素末尾
  * @param {HTMLElement} element - 要操作的元素
  */
-function moveCaretToEnd(element) {
+export function moveCaretToEnd(element) {
     const range = document.createRange();
     range.selectNodeContents(element);
     range.collapse(false);
@@ -775,12 +775,7 @@ export function handleWindowMessage(event, config) {
         }
     } else if (event.data.type === 'FOCUS_INPUT') {
         messageInput.focus();
-        const range = document.createRange();
-        range.selectNodeContents(messageInput);
-        range.collapse(false);
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
+        moveCaretToEnd(messageInput);
     } else if (event.data.type === 'UPDATE_PLACEHOLDER') {
         setPlaceholder({
             messageInput,

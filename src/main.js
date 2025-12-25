@@ -7,7 +7,7 @@ import { initChatContainer } from './components/chat-container.js';
 import { showImagePreview, hideImagePreview, showToast } from './utils/ui.js';
 import { renderAPICards, createCardCallbacks, selectCard } from './components/api-card.js';
 import { storageAdapter, syncStorageAdapter, browserAdapter, isExtensionEnvironment } from './utils/storage-adapter.js';
-import { initMessageInput, getFormattedMessageContent, buildMessageContent, clearMessageInput, handleWindowMessage } from './components/message-input.js';
+import { initMessageInput, getFormattedMessageContent, buildMessageContent, clearMessageInput, handleWindowMessage, moveCaretToEnd } from './components/message-input.js';
 import './utils/viewport.js';
 import {
     hideChatList,
@@ -166,13 +166,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-        chatContainer.addEventListener('click', (e) => {
-            if (!isFinePointer()) return;
-            if (document.activeElement === messageInput) return;
-            if (window.getSelection().toString()) return;
-            if (e.target.closest('#settings-button, #settings-menu, #context-menu, a, button, input, textarea, select')) return;
-            messageInput.focus();
-        });
+    chatContainer.addEventListener('click', (e) => {
+        if (!isFinePointer()) return;
+        if (document.activeElement === messageInput) return;
+        if (window.getSelection().toString()) return;
+        if (e.target.closest('#settings-button, #settings-menu, #context-menu, a, button, input, textarea, select')) return;
+        messageInput.focus();
+        moveCaretToEnd(messageInput);
+    });
 
     // 修改: 创建一个对象引用来保存当前控制器
     // pendingAbort 用于处理“首 token 前”用户立刻点停止的情况
@@ -180,7 +181,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentController = null;
 
     // 创建UI工具配置
-        const uiConfig = {
+    const uiConfig = {
         textarea: {
             maxHeight: 200
         },
@@ -201,7 +202,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 messageInput.dispatchEvent(new Event('input'));
             }
         }
-        };
+    };
 
     const OSS_URL = 'https://github.com/yym68686/Cerebr';
     const FEEDBACK_URL = `${OSS_URL}/issues/new`;
