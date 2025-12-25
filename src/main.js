@@ -4,7 +4,7 @@ import { chatManager } from './utils/chat-manager.js';
 import { appendMessage } from './handlers/message-handler.js';
 import { hideContextMenu } from './components/context-menu.js';
 import { initChatContainer } from './components/chat-container.js';
-import { showImagePreview, hideImagePreview } from './utils/ui.js';
+import { showImagePreview, hideImagePreview, showToast } from './utils/ui.js';
 import { renderAPICards, createCardCallbacks, selectCard } from './components/api-card.js';
 import { storageAdapter, syncStorageAdapter, browserAdapter, isExtensionEnvironment } from './utils/storage-adapter.js';
 import { initMessageInput, getFormattedMessageContent, buildMessageContent, clearMessageInput, handleWindowMessage } from './components/message-input.js';
@@ -489,28 +489,39 @@ document.addEventListener('DOMContentLoaded', async () => {
             const currentChat = chatManager.getCurrentChat();
             if (!currentChat) return;
 
-            const domMessages = Array.from(chatContainer.querySelectorAll('.user-message, .ai-message'));
-            const aiMessageDomIndex = domMessages.indexOf(aiMessageElement);
+            // 清理可能残留的“首 token 前占位”消息，避免 DOM/历史对不齐导致误删用户消息
+            chatContainer.querySelectorAll('.ai-message').forEach((el) => {
+                const original = el.getAttribute('data-original-text') || '';
+                if (!original.trim() && el.querySelector('.typing-indicator')) {
+                    el.remove();
+                }
+            });
 
-            // 通过比较DOM和历史记录中的消息数量，判断是否在从一个临时错误消息中重新生成
-            const historyMessages = currentChat.messages.filter(m => ['user', 'assistant'].includes(m.role));
-            if (domMessages.length === historyMessages.length && aiMessageDomIndex !== -1) {
-                // 正常情况：重新生成一个已保存的响应。
-                // 我们需要从历史记录中删除旧的响应。
-                currentChat.messages.splice(aiMessageDomIndex);
-            } else if (domMessages.length === historyMessages.length + 2) {
-                currentChat.messages.push({
-                    role: 'user',
-                    content: userMessageElement.textContent
-                });
+            const domMessages = Array.from(chatContainer.querySelectorAll('.user-message, .ai-message'));
+            const userMessageDomIndex = domMessages.indexOf(userMessageElement);
+            const aiMessageDomIndex = aiMessageElement ? domMessages.indexOf(aiMessageElement) : -1;
+
+            const truncateFromIndex = aiMessageDomIndex !== -1
+                ? aiMessageDomIndex
+                : (userMessageDomIndex !== -1 ? userMessageDomIndex + 1 : currentChat.messages.length);
+
+            // 如果历史记录少于 DOM（例如此前异常清空），尝试从 DOM 补齐到可重试的最小集合
+            if (currentChat.messages.length < truncateFromIndex) {
+                for (let i = currentChat.messages.length; i < truncateFromIndex && i < domMessages.length; i++) {
+                    const el = domMessages[i];
+                    const original = el.getAttribute('data-original-text');
+                    const content = (original && original.trim()) ? original : (el.textContent || '');
+                    const role = el.classList.contains('user-message') ? 'user' : 'assistant';
+                    currentChat.messages.push({ role, content });
+                }
             }
-            // 错误情况：如果 domMessages.length > historyMessages.length，
-            // 意味着最后一个消息是未保存的错误消息。
-            // 在这种情况下，我们不修改历史记录，因为它已经是正确的了。
+
+            // 从历史记录中移除要重新生成的 assistant（以及其后的所有消息）
+            currentChat.messages.splice(truncateFromIndex);
             chatManager.saveChats();
 
-            // 从DOM中移除AI消息（无论是错误消息还是旧的成功消息）及其之后的所有消息
-            domMessages.slice(currentChat.messages.length).forEach(el => el.remove());
+            // 从 DOM 中移除将被重新生成的消息及其后的所有消息（保留用户提问）
+            domMessages.slice(truncateFromIndex).forEach(el => el.remove());
 
             const messagesToResend = currentChat.messages;
 
@@ -540,12 +551,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             console.error('重新生成消息失败:', error);
-            appendMessage({
-                text: t('error_regenerate_failed', [error.message]),
-                sender: 'ai',
-                chatContainer,
-                skipHistory: true,
-            });
+            showToast(t('error_regenerate_failed', [error.message]), { type: 'error', durationMs: 2200 });
         } finally {
             const lastMessage = chatContainer.querySelector('.ai-message:last-child');
             if (lastMessage) {
@@ -629,23 +635,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             console.error('发送消息失败:', error);
-            appendMessage({
-                text: t('error_send_failed', [error.message]),
-                sender: 'ai',
-                chatContainer,
-                skipHistory: true,
-            });
-            // 从 chatHistory 中移除最后一条记录（用户的问题）
-            const currentChat = chatManager.getCurrentChat();
-            const messages = currentChat ? [...currentChat.messages] : [];
-            if (messages.length > 0) {
-                if (messages[messages.length - 1].role === 'assistant') {
-                    chatManager.popMessage();
-                    chatManager.popMessage();
-                } else {
-                    chatManager.popMessage();
-                }
-            }
+            showToast(t('error_send_failed', [error.message]), { type: 'error', durationMs: 2200 });
         } finally {
             const lastMessage = chatContainer.querySelector('.ai-message:last-child');
             if (lastMessage) {
