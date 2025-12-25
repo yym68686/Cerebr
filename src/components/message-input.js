@@ -134,7 +134,57 @@ export function initMessageInput(config) {
     let lastEnterKeydownAt = 0;
     let lastEnterKeydownWasShift = false;
     const ENTER_SHIFT_WINDOW_MS = 400;
-    let lastInputHtml = '';
+    const LARGE_TEXT_PASTE_THRESHOLD = 10000;
+    let largePasteModeUntil = 0;
+
+    let layoutUpdateRaf = 0;
+    let postLargePasteLayoutTimer = 0;
+    const clearEditableContent = (element) => {
+        if (!element) return;
+        try {
+            element.replaceChildren();
+        } catch {
+            element.innerHTML = '';
+        }
+    };
+
+    const fastClearMessageInput = () => {
+        clearEditableContent(messageInput);
+        scheduleLayoutUpdate();
+        try {
+            messageInput.focus?.();
+        } catch {
+            // ignore
+        }
+    };
+
+    const schedulePostLargePasteLayoutUpdate = () => {
+        if (postLargePasteLayoutTimer) return;
+        const now = performance.now();
+        const delayMs = Math.max(0, Math.ceil(largePasteModeUntil - now) + 50);
+        postLargePasteLayoutTimer = setTimeout(() => {
+            postLargePasteLayoutTimer = 0;
+            scheduleLayoutUpdate();
+        }, delayMs);
+    };
+    const scheduleLayoutUpdate = () => {
+        if (layoutUpdateRaf) return;
+        layoutUpdateRaf = requestAnimationFrame(() => {
+            layoutUpdateRaf = 0;
+            if (!messageInput?.isConnected) return;
+            const inLargePasteMode = performance.now() < largePasteModeUntil;
+            if (inLargePasteMode) {
+                const maxHeight = uiConfig?.textarea?.maxHeight ?? 200;
+                messageInput.style.height = `${maxHeight}px`;
+                messageInput.style.overflowY = 'auto';
+                schedulePostLargePasteLayoutUpdate();
+                return;
+            }
+
+            adjustTextareaHeight({ textarea: messageInput, config: uiConfig.textarea });
+            syncChatBottomExtraPadding();
+        });
+    };
 
     const isEnterLikeInputEvent = (event) => {
         const inputType = event?.inputType;
@@ -239,14 +289,23 @@ export function initMessageInput(config) {
             return;
         }
 
-        const normalizedPrev = normalizeHtml(lastInputHtml);
-        const normalizedCurr = normalizeHtml(this.innerHTML);
-        const appended = normalizedCurr.startsWith(normalizedPrev) ? normalizedCurr.slice(normalizedPrev.length) : '';
+        const inLargePasteMode = performance.now() < largePasteModeUntil;
+
+        if (inLargePasteMode) {
+            scheduleLayoutUpdate();
+            if (!isHistoryNavigation) {
+                historyCursor = null;
+            }
+            return;
+        }
+
+        const currHtml = this.innerHTML;
+        const normalizedTail = normalizeHtml(currHtml.slice(-80));
         const looksLikeEnterInsert =
             isEnterLikeInputEvent(e) ||
-            appended === '<div><br></div>' ||
-            appended === '<br>' ||
-            appended === '<br/>';
+            normalizedTail.endsWith('<div><br></div>') ||
+            normalizedTail.endsWith('<br>') ||
+            normalizedTail.endsWith('<br/>');
 
         if (!isComposing && looksLikeEnterInsert && !isShiftEnter()) {
             const removed = removeTrailingLineBreakArtifacts();
@@ -255,11 +314,7 @@ export function initMessageInput(config) {
 
             requestSendMessage();
 
-            adjustTextareaHeight({
-                textarea: this,
-                config: uiConfig.textarea
-            });
-            syncChatBottomExtraPadding();
+            scheduleLayoutUpdate();
 
             // 用户主动输入会退出历史回溯模式
             if (!isHistoryNavigation) {
@@ -268,19 +323,12 @@ export function initMessageInput(config) {
 
             // 处理 placeholder 的显示
             if (this.textContent.trim() === '' && !this.querySelector('.image-tag')) {
-                while (this.firstChild) {
-                    this.removeChild(this.firstChild);
-                }
+                clearEditableContent(this);
             }
-            lastInputHtml = this.innerHTML;
             return;
         }
 
-        adjustTextareaHeight({
-            textarea: this,
-            config: uiConfig.textarea
-        });
-        syncChatBottomExtraPadding();
+        scheduleLayoutUpdate();
 
         // 用户主动输入会退出历史回溯模式
         if (!isHistoryNavigation) {
@@ -295,12 +343,9 @@ export function initMessageInput(config) {
         // 处理 placeholder 的显示
         if (this.textContent.trim() === '' && !this.querySelector('.image-tag')) {
             // 如果内容空且没有图片标签，清空内容以显示 placeholder
-            while (this.firstChild) {
-                this.removeChild(this.firstChild);
-            }
+            clearEditableContent(this);
         }
 
-        lastInputHtml = this.innerHTML;
     });
 
     // 监听输入框的焦点状态
@@ -336,6 +381,31 @@ export function initMessageInput(config) {
 
     messageInput.addEventListener('beforeinput', (e) => {
         if (isComposing) return;
+
+        if (e?.inputType && e.inputType.startsWith('delete')) {
+            try {
+                const selection = window.getSelection();
+                if (selection?.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
+                    const hasSelection = range && !range.collapsed;
+                    if (hasSelection && messageInput.contains(range.commonAncestorContainer)) {
+                        const fullRange = document.createRange();
+                        fullRange.selectNodeContents(messageInput);
+                        const isFullSelection =
+                            range.compareBoundaryPoints(Range.START_TO_START, fullRange) === 0 &&
+                            range.compareBoundaryPoints(Range.END_TO_END, fullRange) === 0;
+                        if (isFullSelection && (messageInput.textContent || '').length >= LARGE_TEXT_PASTE_THRESHOLD) {
+                            if (e.cancelable) e.preventDefault();
+                            fastClearMessageInput();
+                            messageInput.dispatchEvent(new Event('input'));
+                            return;
+                        }
+                    }
+                }
+            } catch {
+                // ignore
+            }
+        }
 
         if (!isEnterLikeInputEvent(e)) return;
         if (isShiftEnter()) return;
@@ -498,6 +568,16 @@ export function initMessageInput(config) {
             // 处理文本粘贴
             const text = e.clipboardData.getData('text/plain');
             if (text) {
+                if (text.length >= LARGE_TEXT_PASTE_THRESHOLD) {
+                    e.preventDefault();
+                    largePasteModeUntil = performance.now() + 2000;
+                    setTimeout(() => {
+                        insertPlainTextAtSelection(messageInput, text);
+                        messageInput.dispatchEvent(new Event('input'));
+                    }, 0);
+                    return;
+                }
+
                 e.preventDefault();
                 // 优先使用 execCommand 以确保进入原生撤销栈（Cmd/Ctrl+Z 能先撤销粘贴内容）
                 const ok = execCommandInsertText(messageInput, text);
