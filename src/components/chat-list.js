@@ -1,6 +1,7 @@
 import { appendMessage } from '../handlers/message-handler.js';
 import { storageAdapter, browserAdapter, isExtensionEnvironment } from '../utils/storage-adapter.js';
 import { t } from '../utils/i18n.js';
+import { setWebpageSwitchesForChat } from '../utils/webpage-switches.js';
 
 let renderToken = 0;
 let chatContentToken = 0;
@@ -334,17 +335,17 @@ export function initializeChatList({
             return;
         }
 
-        if (isExtensionEnvironment) {
-            const currentTab = await browserAdapter.getCurrentTab();
-            if (currentTab) {
-                await storageAdapter.set({ webpageSwitches: { [currentTab.id]: true } });
-            }
-        }
-
         const newChat = chatManager.createNewChat(t('chat_new_title'));
         switchToChat(newChat.id, chatManager);
         settingsMenu.classList.remove('visible');
         messageInput.focus();
+
+        if (isExtensionEnvironment) {
+            const currentTab = await browserAdapter.getCurrentTab();
+            if (currentTab?.id) {
+                await setWebpageSwitchesForChat(newChat.id, { [currentTab.id]: true });
+            }
+        }
     });
 
     // 对话列表按钮点击事件

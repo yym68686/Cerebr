@@ -1,9 +1,10 @@
-import { storageAdapter } from './storage-adapter.js';
+import { storageAdapter, browserAdapter, isExtensionEnvironment } from './storage-adapter.js';
 
 const LEGACY_CHATS_KEY = 'cerebr_chats';
 const CHATS_INDEX_V2_KEY = 'cerebr_chats_index_v2';
 const CHAT_V2_PREFIX = 'cerebr_chat_v2_';
-const CURRENT_CHAT_ID_KEY = 'cerebr_current_chat_id';
+const LEGACY_CURRENT_CHAT_ID_KEY = 'cerebr_current_chat_id';
+const CURRENT_CHAT_ID_BY_TAB_PREFIX = 'cerebr_current_chat_id_v1_tab_';
 
 const YT_TRANSCRIPT_REF_FIELD = 'youtubeTranscriptRefs';
 
@@ -15,6 +16,7 @@ export class ChatManager {
     constructor() {
         this.storage = storageAdapter;
         this.currentChatId = null;
+        this._currentChatIdStorageKey = LEGACY_CURRENT_CHAT_ID_KEY;
         this.chats = new Map();
         this._saveDirty = false;
         this._indexDirty = false;
@@ -30,7 +32,30 @@ export class ChatManager {
         this.initialize();
     }
 
+    async _resolveCurrentChatIdStorageKey() {
+        if (!isExtensionEnvironment) {
+            this._currentChatIdStorageKey = LEGACY_CURRENT_CHAT_ID_KEY;
+            return this._currentChatIdStorageKey;
+        }
+
+        try {
+            const tab = await browserAdapter.getCurrentTab();
+            const tabId = tab?.id;
+            if (typeof tabId === 'number' && Number.isFinite(tabId) && tabId >= 0) {
+                this._currentChatIdStorageKey = `${CURRENT_CHAT_ID_BY_TAB_PREFIX}${tabId}`;
+                return this._currentChatIdStorageKey;
+            }
+        } catch {
+            // ignore
+        }
+
+        this._currentChatIdStorageKey = LEGACY_CURRENT_CHAT_ID_KEY;
+        return this._currentChatIdStorageKey;
+    }
+
     async initialize() {
+        await this._resolveCurrentChatIdStorageKey();
+
         // 优先加载 v2 索引（按 chatId 分片存储，避免每次写入整个 77MB）
         const indexResult = await this.storage.get(CHATS_INDEX_V2_KEY);
         const chatIds = indexResult[CHATS_INDEX_V2_KEY];
@@ -85,15 +110,27 @@ export class ChatManager {
             }
         }
 
-        // 获取当前对话ID
-        const currentChatResult = await this.storage.get(CURRENT_CHAT_ID_KEY);
-        this.currentChatId = currentChatResult[CURRENT_CHAT_ID_KEY];
+        // 获取当前对话ID（扩展环境：按 tab 维度；Web 环境：全局）
+        const keysToRead = isExtensionEnvironment
+            ? [this._currentChatIdStorageKey, LEGACY_CURRENT_CHAT_ID_KEY]
+            : [this._currentChatIdStorageKey];
+        const currentChatResult = await this.storage.get(keysToRead);
+        this.currentChatId = currentChatResult[this._currentChatIdStorageKey];
+
+        // 迁移：tab 维度不存在时回退 legacy 全局 key；同时写入 tab 维度 key（不再写回 legacy，避免跨 tab 干扰）
+        if (isExtensionEnvironment && !this.currentChatId) {
+            const legacy = currentChatResult[LEGACY_CURRENT_CHAT_ID_KEY];
+            if (legacy) {
+                this.currentChatId = legacy;
+                await this.storage.set({ [this._currentChatIdStorageKey]: legacy });
+            }
+        }
 
         // 如果没有当前对话，创建一个默认对话
         if (!this.currentChatId || !this.chats.has(this.currentChatId)) {
             const defaultChat = this.createNewChat('默认对话');
             this.currentChatId = defaultChat.id;
-            await this.storage.set({ [CURRENT_CHAT_ID_KEY]: this.currentChatId });
+            await this.storage.set({ [this._currentChatIdStorageKey]: this.currentChatId });
         }
     }
 
@@ -117,7 +154,8 @@ export class ChatManager {
             throw new Error('对话不存在');
         }
         this.currentChatId = chatId;
-        await this.storage.set({ [CURRENT_CHAT_ID_KEY]: chatId });
+        await this._resolveCurrentChatIdStorageKey();
+        await this.storage.set({ [this._currentChatIdStorageKey]: chatId });
         return this.chats.get(chatId);
     }
 

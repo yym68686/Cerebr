@@ -20,6 +20,7 @@ import { normalizeChatCompletionsUrl } from './utils/api-url.js';
 import { ensureChatElementVisible, syncChatBottomExtraPadding } from './utils/scroll.js';
 import { createReadingProgressManager } from './utils/reading-progress.js';
 import { applyI18n, initI18n, getLanguagePreference, setLanguagePreference, reloadI18n, t } from './utils/i18n.js';
+import { setWebpageSwitchesForChat } from './utils/webpage-switches.js';
 
 // 存储用户的问题历史
 let userQuestions = [];
@@ -339,8 +340,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if ((!currentChat || currentChat.messages.length === 0) && isExtensionEnvironment) {
         const currentTab = await browserAdapter.getCurrentTab();
-        if (currentTab) {
-            await storageAdapter.set({ webpageSwitches: { [currentTab.id]: true } });
+        if (currentTab?.id && currentChat?.id) {
+            await setWebpageSwitchesForChat(currentChat.id, { [currentTab.id]: true });
         }
     }
 
@@ -1237,7 +1238,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // 监听标签页切换
-    browserAdapter.onTabActivated(async () => {
+    browserAdapter.onTabActivated(async (activeInfo) => {
+        // background 会广播给所有 sidebar 实例：只在当前可见的实例里处理，避免跨 tab 状态串扰
+        if (document.hidden) return;
+        try {
+            if (activeInfo?.tabId || activeInfo?.windowId) {
+                const currentTab = await browserAdapter.getCurrentTab();
+                if (!currentTab?.id) return;
+                if (typeof activeInfo?.tabId === 'number' && currentTab.id !== activeInfo.tabId) return;
+                if (typeof activeInfo?.windowId === 'number' && currentTab.windowId && currentTab.windowId !== activeInfo.windowId) return;
+            }
+        } catch {
+            // ignore
+        }
         // 同步API配置
         await loadAPIConfigs();
         renderAPICardsWithCallbacks();
@@ -1249,8 +1262,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const currentChat = chatManager.getCurrentChat();
         if (currentChat && currentChat.messages.length === 0) {
             const currentTab = await browserAdapter.getCurrentTab();
-            if (currentTab) {
-                await storageAdapter.set({ webpageSwitches: { [currentTab.id]: true } });
+            if (currentTab?.id) {
+                await setWebpageSwitchesForChat(currentChat.id, { [currentTab.id]: true });
             }
         }
     });

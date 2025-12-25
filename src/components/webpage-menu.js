@@ -1,6 +1,7 @@
 import { storageAdapter, browserAdapter } from '../utils/storage-adapter.js';
 import { chatManager } from '../utils/chat-manager.js';
 import { t } from '../utils/i18n.js';
+import { getWebpageSwitchesForChat, setWebpageSwitchesForChat } from '../utils/webpage-switches.js';
 
 const YT_TRANSCRIPT_KEY_PREFIX = 'cerebr_youtube_transcript_v1_';
 
@@ -62,8 +63,10 @@ async function saveYouTubeTranscript({ key, videoId, lang, text }) {
     });
 }
 
-function getTabSwitchChecked(switches, tabId) {
-    return switches && switches[tabId] !== undefined ? switches[tabId] : false;
+function getTabSwitchChecked(switches, tabId, currentTabId) {
+    if (switches && switches[tabId] !== undefined) return switches[tabId];
+    if (typeof currentTabId === 'number' && tabId === currentTabId) return true;
+    return false;
 }
 
 function isGroupedTab(tab) {
@@ -101,7 +104,7 @@ function createSwitchElements({ id, initialChecked, onToggle }) {
     return { switchLabel, switchInput };
 }
 
-function createTabMenuItem({ tab, switches, onAfterToggle, indent = false }) {
+function createTabMenuItem({ tab, switches, currentTabId, onAfterToggle, indent = false }) {
     const item = document.createElement('div');
     item.className = indent ? 'webpage-menu-item webpage-menu-item--indented' : 'webpage-menu-item';
 
@@ -119,12 +122,13 @@ function createTabMenuItem({ tab, switches, onAfterToggle, indent = false }) {
 
     const { switchLabel, switchInput } = createSwitchElements({
         id: `webpage-switch-${tab.id}`,
-        initialChecked: getTabSwitchChecked(switches, tab.id),
+        initialChecked: getTabSwitchChecked(switches, tab.id, currentTabId),
         onToggle: async (e) => {
             const isChecked = e.target.checked;
-            const { webpageSwitches: currentSwitches } = await storageAdapter.get('webpageSwitches');
+            const activeChatId = chatManager.getCurrentChat()?.id || null;
+            const currentSwitches = await getWebpageSwitchesForChat(activeChatId);
             const newSwitches = { ...currentSwitches, [tab.id]: isChecked };
-            await storageAdapter.set({ webpageSwitches: newSwitches });
+            await setWebpageSwitchesForChat(activeChatId, newSwitches);
 
             if (isChecked) {
                 const isConnected = await browserAdapter.isTabConnected(tab.id);
@@ -166,6 +170,8 @@ function getUniqueTabsByUrl(tabs) {
 async function populateWebpageContentMenu(webpageContentMenu) {
     webpageContentMenu.innerHTML = `<div class="webpage-menu-loading">${t('webpage_tabs_loading')}</div>`;
     let allTabs = await browserAdapter.getAllTabs();
+    const currentTab = await browserAdapter.getCurrentTab();
+    const activeChatId = chatManager.getCurrentChat()?.id || null;
 
     // 1. 过滤掉浏览器自身的特殊页面
     allTabs = allTabs.filter(tab => tab.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('edge://') && !tab.url.startsWith('about:'));
@@ -176,7 +182,8 @@ async function populateWebpageContentMenu(webpageContentMenu) {
     // 2. 过滤掉重复的 URL
     const finalTabs = getUniqueTabsByUrl(allTabs);
 
-    const { webpageSwitches: switches } = await storageAdapter.get('webpageSwitches');
+    const switches = await getWebpageSwitchesForChat(activeChatId);
+    const currentTabId = currentTab?.id;
 
     webpageContentMenu.innerHTML = '';
 
@@ -190,7 +197,7 @@ async function populateWebpageContentMenu(webpageContentMenu) {
     if (!hasAnyGroups) {
         for (const tab of finalTabs) {
             if (!tab.title || !tab.url) continue;
-            const { item } = createTabMenuItem({ tab, switches });
+            const { item } = createTabMenuItem({ tab, switches, currentTabId });
             webpageContentMenu.appendChild(item);
         }
         return;
@@ -301,12 +308,13 @@ async function populateWebpageContentMenu(webpageContentMenu) {
         };
 
         const setGroupSwitchChecked = async (checked) => {
-            const { webpageSwitches: currentSwitches } = await storageAdapter.get('webpageSwitches');
+            const activeChatId = chatManager.getCurrentChat()?.id || null;
+            const currentSwitches = await getWebpageSwitchesForChat(activeChatId);
             const newSwitches = { ...currentSwitches };
             for (const tab of group.tabs) {
                 newSwitches[tab.id] = checked;
             }
-            await storageAdapter.set({ webpageSwitches: newSwitches });
+            await setWebpageSwitchesForChat(activeChatId, newSwitches);
 
             tabSwitchInputs.forEach((input) => {
                 input.checked = checked;
@@ -345,6 +353,7 @@ async function populateWebpageContentMenu(webpageContentMenu) {
             const { item, switchInput } = createTabMenuItem({
                 tab,
                 switches,
+                currentTabId,
                 indent: group.id !== -1,
                 onAfterToggle: () => updateGroupSwitchState()
             });
@@ -358,10 +367,10 @@ async function populateWebpageContentMenu(webpageContentMenu) {
 }
 
 export async function getEnabledTabsContent() {
-    const { webpageSwitches: switches } = await storageAdapter.get('webpageSwitches');
     let allTabs = await browserAdapter.getAllTabs();
     const currentTab = await browserAdapter.getCurrentTab();
     const activeChatId = chatManager.getCurrentChat()?.id || null;
+    const switches = await getWebpageSwitchesForChat(activeChatId);
     let combinedContent = null;
 
     // 1. 过滤掉浏览器自身的特殊页面
