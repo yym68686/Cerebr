@@ -24,6 +24,8 @@
   "settings_preferences": { "message": "偏好设置" },
 
   "message_input_placeholder": { "message": "输入消息..." },
+  "message_input_placeholder_thinking": { "message": "正在思考..." },
+  "message_input_placeholder_replying": { "message": "正在回复..." },
   "message_input_aria": { "message": "消息输入框" },
 
   "aria_back": { "message": "返回" },

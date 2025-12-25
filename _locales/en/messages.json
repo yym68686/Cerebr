@@ -24,6 +24,8 @@
   "settings_preferences": { "message": "Preferences" },
 
   "message_input_placeholder": { "message": "Type a message..." },
+  "message_input_placeholder_thinking": { "message": "Thinking..." },
+  "message_input_placeholder_replying": { "message": "Replying..." },
   "message_input_aria": { "message": "Message input" },
 
   "aria_back": { "message": "Back" },

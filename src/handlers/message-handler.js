@@ -49,11 +49,15 @@ function ensureAutoScrollTracking(container) {
     }, { passive: true });
 }
 
-function scheduleAutoScroll(container) {
+function scheduleAutoScroll(container, { behavior = 'auto' } = {}) {
     if (container.__cerebrAutoScrollRaf) return;
     container.__cerebrAutoScrollRaf = requestAnimationFrame(() => {
         container.__cerebrIgnoreNextScroll = true;
-        container.scrollTop = container.scrollHeight;
+        if (behavior && behavior !== 'auto' && typeof container.scrollTo === 'function') {
+            container.scrollTo({ top: container.scrollHeight, behavior });
+        } else {
+            container.scrollTop = container.scrollHeight;
+        }
         container.__cerebrAutoScrollRaf = null;
     });
 }
@@ -333,16 +337,9 @@ export async function appendMessage({
         fragment.appendChild(messageDiv);
     } else {
         chatContainer.appendChild(messageDiv);
-        // 只在发送新消息时自动滚动（不是加载历史记录）
-        if (sender === 'user' && !skipHistory) {
-            requestAnimationFrame(() => {
-                chatContainer.scrollTo({
-                    top: chatContainer.scrollHeight,
-                    behavior: 'smooth'
-                });
-            });
-        } else if (shouldStickToBottom && !skipHistory) {
-            scheduleAutoScroll(chatContainer);
+        // 仅在用户处于“跟随底部”状态时才自动滚动，避免打断阅读进度
+        if (shouldStickToBottom && !skipHistory) {
+            scheduleAutoScroll(chatContainer, { behavior: sender === 'user' ? 'smooth' : 'auto' });
         }
     }
 

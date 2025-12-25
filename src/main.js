@@ -7,7 +7,7 @@ import { initChatContainer } from './components/chat-container.js';
 import { showImagePreview, hideImagePreview, showToast } from './utils/ui.js';
 import { renderAPICards, createCardCallbacks, selectCard } from './components/api-card.js';
 import { storageAdapter, syncStorageAdapter, browserAdapter, isExtensionEnvironment } from './utils/storage-adapter.js';
-import { initMessageInput, getFormattedMessageContent, buildMessageContent, clearMessageInput, handleWindowMessage, moveCaretToEnd } from './components/message-input.js';
+import { initMessageInput, getFormattedMessageContent, buildMessageContent, clearMessageInput, handleWindowMessage, moveCaretToEnd, setPlaceholder } from './components/message-input.js';
 import './utils/viewport.js';
 import {
     hideChatList,
@@ -64,6 +64,29 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error('[Cerebr] 初始化失败：缺少 #chat-container / #message-input / #context-menu');
             return;
         }
+
+        const isNearBottom = (container, thresholdPx = 120) => {
+            if (!container) return false;
+            const remaining = container.scrollHeight - container.scrollTop - container.clientHeight;
+            return remaining < thresholdPx;
+        };
+
+        const shouldStickToBottom = (container, thresholdPx = 120) => {
+            if (!container) return false;
+            return !container.__cerebrUserPausedAutoScroll && isNearBottom(container, thresholdPx);
+        };
+
+        const setThinkingPlaceholder = () => {
+            setPlaceholder({ messageInput, placeholder: t('message_input_placeholder_thinking') });
+        };
+
+        const setReplyingPlaceholder = () => {
+            setPlaceholder({ messageInput, placeholder: t('message_input_placeholder_replying') });
+        };
+
+        const restoreDefaultPlaceholder = () => {
+            setPlaceholder({ messageInput, placeholder: t('message_input_placeholder') });
+        };
 
         syncChatBottomExtraPadding();
         window.addEventListener('resize', () => syncChatBottomExtraPadding());
@@ -490,6 +513,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const currentChat = chatManager.getCurrentChat();
             if (!currentChat) return;
 
+            const stickToBottomOnStart = shouldStickToBottom(chatContainer);
+            setThinkingPlaceholder();
+
             // 清理可能残留的“首 token 前占位”消息，避免 DOM/历史对不齐导致误删用户消息
             chatContainer.querySelectorAll('.ai-message').forEach((el) => {
                 const original = el.getAttribute('data-original-text') || '';
@@ -540,11 +566,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                 sender: 'ai',
                 chatContainer,
             }).then((element) => {
+                if (!stickToBottomOnStart) return;
                 ensureChatElementVisible({ chatContainer, element, behavior: 'smooth' });
             });
 
+            let didStartReplying = false;
+            const onMessageUpdate = async (updatedChatId, message) => {
+                if (!didStartReplying) {
+                    didStartReplying = true;
+                    setReplyingPlaceholder();
+                }
+                return chatContainerManager.syncMessage(updatedChatId, message);
+            };
+
             // 调用带重试逻辑的 API
-            await callAPIWithRetry(apiParams, chatManager, currentChat.id, chatContainerManager.syncMessage);
+            await callAPIWithRetry(apiParams, chatManager, currentChat.id, onMessageUpdate);
 
         } catch (error) {
             if (error.name === 'AbortError') {
@@ -554,6 +590,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error('重新生成消息失败:', error);
             showToast(t('error_regenerate_failed', [error.message]), { type: 'error', durationMs: 2200 });
         } finally {
+            restoreDefaultPlaceholder();
             const lastMessage = chatContainer.querySelector('.ai-message:last-child');
             if (lastMessage) {
                 lastMessage.classList.remove('updating');
@@ -581,6 +618,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!message.trim() && imageTags.length === 0) return;
 
         try {
+            const stickToBottomOnSend = shouldStickToBottom(chatContainer);
             // 构建消息内容
             const content = buildMessageContent(message, imageTags);
 
@@ -600,6 +638,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 清空输入框并调整高度
             clearMessageInput(messageInput, uiConfig);
             messageInput.focus();
+            setThinkingPlaceholder();
 
             // 构建消息数组
             const currentChat = chatManager.getCurrentChat();
@@ -624,11 +663,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                 sender: 'ai',
                 chatContainer,
             }).then((element) => {
+                if (!stickToBottomOnSend) return;
                 ensureChatElementVisible({ chatContainer, element, behavior: 'smooth' });
             });
 
+            let didStartReplying = false;
+            const onMessageUpdate = async (updatedChatId, message) => {
+                if (!didStartReplying) {
+                    didStartReplying = true;
+                    setReplyingPlaceholder();
+                }
+                return chatContainerManager.syncMessage(updatedChatId, message);
+            };
+
             // 调用带重试逻辑的 API
-            await callAPIWithRetry(apiParams, chatManager, currentChat.id, chatContainerManager.syncMessage);
+            await callAPIWithRetry(apiParams, chatManager, currentChat.id, onMessageUpdate);
 
         } catch (error) {
             if (error.name === 'AbortError') {
@@ -638,6 +687,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error('发送消息失败:', error);
             showToast(t('error_send_failed', [error.message]), { type: 'error', durationMs: 2200 });
         } finally {
+            restoreDefaultPlaceholder();
             const lastMessage = chatContainer.querySelector('.ai-message:last-child');
             if (lastMessage) {
                 lastMessage.classList.remove('updating');
