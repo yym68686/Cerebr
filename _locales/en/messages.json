@@ -94,6 +94,8 @@
 
   "webpage_tabs_loading": { "message": "Loading tabs…" },
   "webpage_tabs_empty": { "message": "No available tabs" },
+  "webpage_group_default_name": { "message": "Group" },
+  "webpage_group_ungrouped": { "message": "Ungrouped" },
   "youtube_transcript_prefix": { "message": "YouTube transcript:" },
   "webpage_prefix_current": { "message": "Current webpage content" },
   "webpage_prefix_other": { "message": "Other open webpages" },

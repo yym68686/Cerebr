@@ -300,6 +300,44 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'GET_TAB_GROUPS_BY_IDS') {
+    (async () => {
+      try {
+        if (!chrome.tabGroups || typeof chrome.tabGroups.get !== 'function') {
+          sendResponse({});
+          return;
+        }
+        const groupIds = Array.isArray(message?.groupIds) ? message.groupIds : [];
+        const uniqueIds = [...new Set(groupIds)]
+          .filter((id) => typeof id === 'number' && Number.isFinite(id) && id >= 0);
+
+        if (uniqueIds.length === 0) {
+          sendResponse({});
+          return;
+        }
+
+        const results = await Promise.allSettled(uniqueIds.map((id) => chrome.tabGroups.get(id)));
+        const groupsById = {};
+        results.forEach((res) => {
+          if (res.status !== 'fulfilled' || !res.value) return;
+          const g = res.value;
+          groupsById[g.id] = {
+            id: g.id,
+            title: g.title || '',
+            color: g.color || null,
+            collapsed: !!g.collapsed,
+            windowId: g.windowId
+          };
+        });
+        sendResponse(groupsById);
+      } catch (e) {
+        console.error('Failed to get tab groups:', e);
+        sendResponse({});
+      }
+    })();
+    return true;
+  }
+
   if (message.type === 'GET_ALL_TABS') {
     (async () => {
       try {

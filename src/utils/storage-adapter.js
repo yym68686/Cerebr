@@ -406,6 +406,18 @@ export const browserAdapter = {
         });
     },
 
+    getTabGroupsByIds: (groupIds) => {
+        if (!isExtensionEnvironment) return Promise.resolve({});
+        return new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({ type: 'GET_TAB_GROUPS_BY_IDS', groupIds }, (response) => {
+                if (chrome.runtime.lastError) {
+                    return reject(chrome.runtime.lastError);
+                }
+                resolve(response || {});
+            });
+        });
+    },
+
     executeScriptInTab: (tabId, func, args = []) => {
         return new Promise((resolve, reject) => {
             if (!isExtensionEnvironment) {

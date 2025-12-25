@@ -62,6 +62,95 @@ async function saveYouTubeTranscript({ key, videoId, lang, text }) {
     });
 }
 
+function getTabSwitchChecked(switches, tabId) {
+    return switches && switches[tabId] !== undefined ? switches[tabId] : false;
+}
+
+function isGroupedTab(tab) {
+    return typeof tab?.groupId === 'number' && Number.isFinite(tab.groupId) && tab.groupId !== -1;
+}
+
+function getGroupedTabIds(tabs) {
+    return [...new Set(tabs.map(t => t?.groupId).filter((id) => typeof id === 'number' && Number.isFinite(id) && id !== -1))];
+}
+
+function createSwitchElements({ id, initialChecked, onToggle }) {
+    const switchLabel = document.createElement('label');
+    switchLabel.className = 'switch';
+    switchLabel.setAttribute('for', id);
+
+    switchLabel.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
+
+    const switchInput = document.createElement('input');
+    switchInput.type = 'checkbox';
+    switchInput.id = id;
+    switchInput.checked = !!initialChecked;
+
+    if (typeof onToggle === 'function') {
+        switchInput.addEventListener('change', onToggle);
+    }
+
+    const slider = document.createElement('span');
+    slider.className = 'slider';
+
+    switchLabel.appendChild(switchInput);
+    switchLabel.appendChild(slider);
+
+    return { switchLabel, switchInput };
+}
+
+function createTabMenuItem({ tab, switches, onAfterToggle, indent = false }) {
+    const item = document.createElement('div');
+    item.className = indent ? 'webpage-menu-item webpage-menu-item--indented' : 'webpage-menu-item';
+
+    if (tab.favIconUrl) {
+        const favicon = document.createElement('img');
+        favicon.src = tab.favIconUrl;
+        favicon.className = 'favicon';
+        item.appendChild(favicon);
+    }
+
+    const title = document.createElement('span');
+    title.className = 'title';
+    title.textContent = tab.title;
+    title.title = tab.title;
+
+    const { switchLabel, switchInput } = createSwitchElements({
+        id: `webpage-switch-${tab.id}`,
+        initialChecked: getTabSwitchChecked(switches, tab.id),
+        onToggle: async (e) => {
+            const isChecked = e.target.checked;
+            const { webpageSwitches: currentSwitches } = await storageAdapter.get('webpageSwitches');
+            const newSwitches = { ...currentSwitches, [tab.id]: isChecked };
+            await storageAdapter.set({ webpageSwitches: newSwitches });
+
+            if (isChecked) {
+                const isConnected = await browserAdapter.isTabConnected(tab.id);
+                if (!isConnected) {
+                    await browserAdapter.reloadTab(tab.id);
+                    console.log(`Webpage-menu: populateWebpageContentMenu Reloaded tab ${tab.id} ${tab.title} (${tab.url}).`);
+                }
+            }
+
+            if (typeof onAfterToggle === 'function') onAfterToggle();
+        }
+    });
+
+    item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (e.target.closest('.switch')) return;
+        switchInput.checked = !switchInput.checked;
+        switchInput.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    item.appendChild(title);
+    item.appendChild(switchLabel);
+
+    return { item, switchInput };
+}
+
 // 过滤重复的标签页，只保留每个 URL 最新访问的标签页
 function getUniqueTabsByUrl(tabs) {
     const seenUrls = new Set();
@@ -96,77 +185,175 @@ async function populateWebpageContentMenu(webpageContentMenu) {
         return;
     }
 
+    const hasAnyGroups = finalTabs.some(isGroupedTab);
+
+    if (!hasAnyGroups) {
+        for (const tab of finalTabs) {
+            if (!tab.title || !tab.url) continue;
+            const { item } = createTabMenuItem({ tab, switches });
+            webpageContentMenu.appendChild(item);
+        }
+        return;
+    }
+
+    const groupIds = getGroupedTabIds(finalTabs);
+    let groupsById = {};
+    try {
+        groupsById = await browserAdapter.getTabGroupsByIds(groupIds);
+    } catch {
+        groupsById = {};
+    }
+
+    const groups = new Map(); // groupId -> { id, tabs, maxLastAccessed }
     for (const tab of finalTabs) {
         if (!tab.title || !tab.url) continue;
+        const groupId = isGroupedTab(tab) ? tab.groupId : -1;
+        const existing = groups.get(groupId) || { id: groupId, tabs: [], maxLastAccessed: -1 };
+        existing.tabs.push(tab);
+        existing.maxLastAccessed = Math.max(existing.maxLastAccessed, tab.lastAccessed || 0);
+        groups.set(groupId, existing);
+    }
 
-        const item = document.createElement('div');
-        item.className = 'webpage-menu-item';
+    const sortedGroups = [...groups.values()].sort((a, b) => {
+        if (a.id === -1 && b.id !== -1) return 1;
+        if (b.id === -1 && a.id !== -1) return -1;
+        return (b.maxLastAccessed || 0) - (a.maxLastAccessed || 0);
+    });
 
-        // 添加 Favicon
-        if (tab.favIconUrl) {
-            const favicon = document.createElement('img');
-            favicon.src = tab.favIconUrl;
-            favicon.className = 'favicon';
-            item.appendChild(favicon);
+    const ensureTabsConnected = (tabsToEnsure) => {
+        const queue = tabsToEnsure.slice();
+        const limit = 4;
+        let active = 0;
+
+        const runNext = () => {
+            while (active < limit && queue.length > 0) {
+                const tab = queue.shift();
+                active++;
+                (async () => {
+                    try {
+                        const isConnected = await browserAdapter.isTabConnected(tab.id);
+                        if (!isConnected) {
+                            await browserAdapter.reloadTab(tab.id);
+                            console.log(`Webpage-menu: Group toggle reloaded tab ${tab.id} ${tab.title} (${tab.url}).`);
+                        }
+                    } catch {
+                        // ignore
+                    } finally {
+                        active--;
+                        runNext();
+                    }
+                })();
+            }
+        };
+        runNext();
+    };
+
+    for (const group of sortedGroups) {
+        const groupWrapper = document.createElement('div');
+        groupWrapper.className = 'webpage-menu-group';
+
+        const header = document.createElement('div');
+        header.className = 'webpage-menu-group-header';
+
+        const meta = document.createElement('div');
+        meta.className = 'webpage-menu-group-meta';
+
+        const colorDot = document.createElement('span');
+        colorDot.className = 'webpage-menu-group-color';
+        const groupInfo = group.id !== -1 ? groupsById?.[group.id] : null;
+        if (groupInfo?.color) {
+            colorDot.style.backgroundColor = groupInfo.color;
+        } else {
+            colorDot.classList.add('is-hidden');
         }
 
-        const title = document.createElement('span');
-        title.className = 'title';
-        title.textContent = tab.title;
-        title.title = tab.title; // for tooltip on long titles
+        const groupTitle = document.createElement('span');
+        groupTitle.className = 'webpage-menu-group-title';
+        if (group.id === -1) {
+            groupTitle.textContent = t('webpage_group_ungrouped');
+        } else {
+            const title = (groupInfo?.title || '').trim();
+            groupTitle.textContent = title ? title : `${t('webpage_group_default_name')} ${group.id}`;
+        }
+        groupTitle.title = groupTitle.textContent;
 
-        const switchId = `webpage-switch-${tab.id}`;
-        const switchLabel = document.createElement('label');
-        switchLabel.className = 'switch';
-        switchLabel.setAttribute('for', switchId);
+        const groupCount = document.createElement('span');
+        groupCount.className = 'webpage-menu-group-count';
+        groupCount.textContent = `(${group.tabs.length})`;
 
-        // Stop the click event from bubbling up, which would close the main menu.
-        switchLabel.addEventListener('click', (e) => {
-            e.stopPropagation();
+        meta.appendChild(colorDot);
+        meta.appendChild(groupTitle);
+        meta.appendChild(groupCount);
+
+        const tabSwitchInputs = [];
+
+        const groupSwitchId = group.id === -1 ? 'webpage-group-switch-ungrouped' : `webpage-group-switch-${group.id}`;
+        const { switchLabel: groupSwitchLabel, switchInput: groupSwitchInput } = createSwitchElements({
+            id: groupSwitchId,
+            initialChecked: false
         });
 
-        const switchInput = document.createElement('input');
-        switchInput.type = 'checkbox';
-        switchInput.id = switchId;
+        const updateGroupSwitchState = () => {
+            const total = tabSwitchInputs.length;
+            const enabledCount = tabSwitchInputs.filter(input => input.checked).length;
+            groupSwitchInput.indeterminate = enabledCount > 0 && enabledCount < total;
+            groupSwitchInput.checked = total > 0 && enabledCount === total;
+        };
 
-        // 确定开关状态
-        const isEnabled = switches && switches[tab.id] !== undefined ? switches[tab.id] : false;
-        switchInput.checked = isEnabled;
-
-        switchInput.addEventListener('change', async (e) => {
-            const isChecked = e.target.checked;
+        const setGroupSwitchChecked = async (checked) => {
             const { webpageSwitches: currentSwitches } = await storageAdapter.get('webpageSwitches');
-            const newSwitches = { ...currentSwitches, [tab.id]: isChecked };
+            const newSwitches = { ...currentSwitches };
+            for (const tab of group.tabs) {
+                newSwitches[tab.id] = checked;
+            }
             await storageAdapter.set({ webpageSwitches: newSwitches });
 
-            // 如果是开启，且标签页未连接，则刷新它
-            if (isChecked) {
-                const isConnected = await browserAdapter.isTabConnected(tab.id);
-                if (!isConnected) {
-                    await browserAdapter.reloadTab(tab.id);
-                    console.log(`Webpage-menu: populateWebpageContentMenu Reloaded tab ${tab.id} ${tab.title} (${tab.url}).`);
-                    // 可选：刷新后可以给个提示或自动重新打开菜单
-                }
+            tabSwitchInputs.forEach((input) => {
+                input.checked = checked;
+            });
+            updateGroupSwitchState();
+
+            if (checked) {
+                ensureTabsConnected(group.tabs);
             }
-        });
+        };
 
-        // 允许点击整行（除开关本身）来切换，避免误关一级菜单且提升可用性
-        item.addEventListener('click', (e) => {
+        const toggleGroup = async () => {
+            const total = tabSwitchInputs.length;
+            const enabledCount = tabSwitchInputs.filter(input => input.checked).length;
+            const shouldEnable = enabledCount !== total;
+            await setGroupSwitchChecked(shouldEnable);
+        };
+
+        groupSwitchInput.addEventListener('click', (e) => {
+            e.preventDefault();
             e.stopPropagation();
-            // 点击开关区域时交给默认行为
-            if (e.target.closest('.switch')) return;
-            switchInput.checked = !switchInput.checked;
-            switchInput.dispatchEvent(new Event('change', { bubbles: true }));
+            void toggleGroup();
         });
 
-        const slider = document.createElement('span');
-        slider.className = 'slider';
+        header.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (e.target.closest('.switch')) return;
+            void toggleGroup();
+        });
 
-        switchLabel.appendChild(switchInput);
-        switchLabel.appendChild(slider);
-        item.appendChild(title);
-        item.appendChild(switchLabel);
-        webpageContentMenu.appendChild(item);
+        header.appendChild(meta);
+        header.appendChild(groupSwitchLabel);
+        groupWrapper.appendChild(header);
+
+        for (const tab of group.tabs) {
+            const { item, switchInput } = createTabMenuItem({
+                tab,
+                switches,
+                indent: group.id !== -1,
+                onAfterToggle: () => updateGroupSwitchState()
+            });
+            tabSwitchInputs.push(switchInput);
+            groupWrapper.appendChild(item);
+        }
+
+        updateGroupSwitchState();
+        webpageContentMenu.appendChild(groupWrapper);
     }
 }
 

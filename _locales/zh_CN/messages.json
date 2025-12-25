@@ -94,6 +94,8 @@
 
   "webpage_tabs_loading": { "message": "加载标签页…" },
   "webpage_tabs_empty": { "message": "没有可用的标签页" },
+  "webpage_group_default_name": { "message": "分组" },
+  "webpage_group_ungrouped": { "message": "未分组" },
   "youtube_transcript_prefix": { "message": "YouTube 字幕：" },
   "webpage_prefix_current": { "message": "当前网页内容" },
   "webpage_prefix_other": { "message": "其他打开的网页" },
