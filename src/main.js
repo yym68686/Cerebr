@@ -453,9 +453,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 新增：带重试逻辑的API调用函数
     async function callAPIWithRetry(apiParams, chatManager, chatId, onMessageUpdate, maxRetries = 10) {
         let attempt = 0;
+        let misfiledThinkSilentlyRetries = 0;
+        const maxMisfiledThinkSilentlyRetries = maxRetries;
         while (attempt <= maxRetries) {
             const { processStream, controller } = await callAPI(apiParams, chatManager, chatId, onMessageUpdate, {
-                detectMisfiledThinkSilently: attempt === 0,
+                detectMisfiledThinkSilently: misfiledThinkSilentlyRetries < maxMisfiledThinkSilentlyRetries,
                 misfiledThinkSilentlyPrefix: 'think silently:'
             });
             currentController = controller;
@@ -476,8 +478,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             try {
                 result = await processStream();
             } catch (error) {
-                if (error?.code === 'CEREBR_MISFILED_THINK_SILENTLY' && attempt === 0 && attempt < maxRetries) {
+                if (
+                    error?.code === 'CEREBR_MISFILED_THINK_SILENTLY' &&
+                    misfiledThinkSilentlyRetries < maxMisfiledThinkSilentlyRetries &&
+                    attempt < maxRetries
+                ) {
                     console.warn(`检测到 Gemini 将思维链错误写入 content，正在自动重试... (尝试次数 ${attempt + 1})`);
+                    misfiledThinkSilentlyRetries++;
                     attempt++;
 
                     // 防御：如果已经创建了不完整的 assistant 消息，移除它（避免污染后续请求）
