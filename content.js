@@ -1,14 +1,120 @@
+const SITE_OVERRIDES_KEY = 'panelSiteOverridesV1';
+const SITE_KEY_PLUS = 2;
+
+const SIDEBAR_WIDTH_MIN_PX = 300;
+const SIDEBAR_WIDTH_MAX_PX = 800;
+
+function clampSidebarWidth(widthPx, fallbackPx = 430) {
+  if (!Number.isFinite(widthPx)) return fallbackPx;
+  return Math.min(Math.max(SIDEBAR_WIDTH_MIN_PX, widthPx), SIDEBAR_WIDTH_MAX_PX);
+}
+
+function isIPv4(hostname) {
+  if (typeof hostname !== 'string') return false;
+  const parts = hostname.split('.');
+  if (parts.length !== 4) return false;
+  return parts.every((p) => {
+    if (!/^(?:0|[1-9]\d{0,2})$/.test(p)) return false;
+    const n = Number(p);
+    return n >= 0 && n <= 255;
+  });
+}
+
+function isIPv6(hostname) {
+  if (typeof hostname !== 'string') return false;
+  return hostname.includes(':');
+}
+
+const MULTI_PART_PUBLIC_SUFFIXES = new Set([
+  // UK
+  'co.uk',
+  'org.uk',
+  'ac.uk',
+  'gov.uk',
+  'net.uk',
+  // Australia
+  'com.au',
+  'net.au',
+  'org.au',
+  'edu.au',
+  'gov.au',
+  // Japan
+  'co.jp',
+  'ne.jp',
+  'or.jp',
+  'ac.jp',
+  'go.jp',
+  // China / HK / TW (common)
+  'com.cn',
+  'net.cn',
+  'org.cn',
+  'gov.cn',
+  'com.hk',
+  'com.tw',
+  'com.sg'
+]);
+
+function getSiteKeyFromHostname(hostname, plus = SITE_KEY_PLUS) {
+  if (!hostname || typeof hostname !== 'string') return null;
+  const normalized = hostname.trim().replace(/\.$/, '').toLowerCase();
+  if (!normalized) return null;
+  if (normalized === 'localhost' || normalized.endsWith('.localhost')) return normalized;
+  if (isIPv4(normalized) || isIPv6(normalized)) return normalized;
+
+  const parts = normalized.split('.').filter(Boolean);
+  if (parts.length <= 2) return normalized;
+
+  let suffixLen = 1;
+  const last2 = parts.slice(-2).join('.');
+  const last3 = parts.slice(-3).join('.');
+  if (MULTI_PART_PUBLIC_SUFFIXES.has(last2)) suffixLen = 2;
+  else if (MULTI_PART_PUBLIC_SUFFIXES.has(last3)) suffixLen = 3;
+
+  const plusNumber = Math.max(1, Number(plus) || SITE_KEY_PLUS);
+  const requiredLen = suffixLen + plusNumber;
+  if (parts.length <= requiredLen) return normalized;
+  return parts.slice(-requiredLen).join('.');
+}
+
+function getSiteKeyFromLocation(loc) {
+  try {
+    if (!loc || typeof loc !== 'object') return null;
+    if (loc.protocol === 'file:') return 'file';
+    return getSiteKeyFromHostname(loc.hostname, SITE_KEY_PLUS);
+  } catch {
+    return null;
+  }
+}
+
+function pruneSiteOverridesInPlace(overrides) {
+  try {
+    const entries = Object.entries(overrides || {});
+    const MAX_ENTRIES = 100;
+    if (entries.length <= MAX_ENTRIES) return;
+    entries
+      .sort((a, b) => (Number(b[1]?.updatedAt) || 0) - (Number(a[1]?.updatedAt) || 0))
+      .slice(MAX_ENTRIES)
+      .forEach(([key]) => {
+        delete overrides[key];
+      });
+  } catch {
+    // ignore
+  }
+}
+
 class CerebrSidebar {
   constructor() {
     this.isVisible = false;
     this.sidebarWidth = 430;
     this.defaultSidebarWidth = 430;
     this.initialized = false;
+    this.siteKey = getSiteKeyFromLocation(window.location);
     this.pageKey = window.location.origin + window.location.pathname;
     this.lastUrl = window.location.href;
     this.sidebar = null;
     this.hideTimeout = null;
     this.saveStateDebounced = this.debounce(() => void this.saveState(), 250);
+    this.saveWidthDebounced = this.debounce(() => void this.saveWidth(), 250);
     this.handleSidebarTransitionEnd = (event) => {
       if (!this.sidebar || event.target !== this.sidebar || event.propertyName !== 'transform') {
         return;
@@ -23,6 +129,64 @@ class CerebrSidebar {
     };
     this.initializeSidebar();
     this.setupDragAndDrop(); // 添加拖放事件监听器
+  }
+
+  async loadWidth() {
+    try {
+      const { [SITE_OVERRIDES_KEY]: overridesRaw } = await chrome.storage.sync.get(SITE_OVERRIDES_KEY);
+      const overrides = overridesRaw && typeof overridesRaw === 'object' ? overridesRaw : {};
+
+      const siteOverride = this.siteKey ? overrides?.[this.siteKey] : null;
+      const overrideWidth = Number(siteOverride?.sidebarWidth);
+      if (Number.isFinite(overrideWidth)) {
+        this.sidebarWidth = clampSidebarWidth(overrideWidth, this.defaultSidebarWidth);
+        return;
+      }
+
+      // 迁移：eTLD+1 -> eTLD+2（访问新站点粒度时，继承旧粒度的值）
+      if (this.siteKey) {
+        const legacySiteKey = getSiteKeyFromHostname(window.location.hostname, 1);
+        if (legacySiteKey && legacySiteKey !== this.siteKey) {
+          const legacyWidth = Number(overrides?.[legacySiteKey]?.sidebarWidth);
+          if (Number.isFinite(legacyWidth)) {
+            const migrated = clampSidebarWidth(legacyWidth, this.defaultSidebarWidth);
+            this.sidebarWidth = migrated;
+            overrides[this.siteKey] = {
+              ...(overrides?.[this.siteKey] && typeof overrides[this.siteKey] === 'object' ? overrides[this.siteKey] : {}),
+              sidebarWidth: migrated,
+              updatedAt: Date.now()
+            };
+            pruneSiteOverridesInPlace(overrides);
+            await chrome.storage.sync.set({ [SITE_OVERRIDES_KEY]: overrides });
+            return;
+          }
+        }
+      }
+
+      // 迁移：旧版本按“页面”保存宽度，若当前页面存在旧宽度，则升级为“站点”覆盖
+      if (this.siteKey) {
+        const legacy = await chrome.storage.local.get('sidebarStates');
+        const legacyWidth = Number(legacy?.sidebarStates?.[this.pageKey]?.width);
+        if (Number.isFinite(legacyWidth)) {
+          const migrated = clampSidebarWidth(legacyWidth, this.defaultSidebarWidth);
+          this.sidebarWidth = migrated;
+          overrides[this.siteKey] = {
+            ...(overrides?.[this.siteKey] && typeof overrides[this.siteKey] === 'object' ? overrides[this.siteKey] : {}),
+            sidebarWidth: migrated,
+            updatedAt: Date.now()
+          };
+          pruneSiteOverridesInPlace(overrides);
+          await chrome.storage.sync.set({ [SITE_OVERRIDES_KEY]: overrides });
+          return;
+        }
+      }
+
+      // 默认宽度始终为“双击复位”的宽度，不应被其他站点的调整影响
+      this.sidebarWidth = this.defaultSidebarWidth;
+    } catch (error) {
+      console.error('加载侧边栏宽度失败:', error);
+      this.sidebarWidth = this.defaultSidebarWidth;
+    }
   }
 
   debounce(fn, waitMs) {
@@ -41,7 +205,6 @@ class CerebrSidebar {
       }
       states.sidebarStates[this.pageKey] = {
         isVisible: this.isVisible,
-        width: this.sidebarWidth,
         updatedAt: Date.now()
       };
 
@@ -63,23 +226,45 @@ class CerebrSidebar {
     }
   }
 
+  async saveWidth() {
+    const width = clampSidebarWidth(this.sidebarWidth, this.defaultSidebarWidth);
+    this.sidebarWidth = width;
+    try {
+      const { [SITE_OVERRIDES_KEY]: overridesRaw } = await chrome.storage.sync.get(SITE_OVERRIDES_KEY);
+      const overrides = overridesRaw && typeof overridesRaw === 'object' ? overridesRaw : {};
+
+      if (!this.siteKey) return;
+      const existing = overrides?.[this.siteKey] && typeof overrides[this.siteKey] === 'object'
+        ? overrides[this.siteKey]
+        : {};
+      overrides[this.siteKey] = {
+        ...existing,
+        sidebarWidth: width,
+        updatedAt: Date.now()
+      };
+      pruneSiteOverridesInPlace(overrides);
+      await chrome.storage.sync.set({ [SITE_OVERRIDES_KEY]: overrides });
+    } catch (error) {
+      console.error('保存侧边栏宽度失败:', error);
+    }
+  }
+
   async loadState() {
     try {
+      await this.loadWidth();
       const states = await chrome.storage.local.get('sidebarStates');
-      if (states.sidebarStates && states.sidebarStates[this.pageKey]) {
-        const state = states.sidebarStates[this.pageKey];
-        this.isVisible = state.isVisible;
-        this.sidebarWidth = Number(state.width) || this.defaultSidebarWidth;
+      const state = states?.sidebarStates?.[this.pageKey];
+      this.isVisible = !!state?.isVisible;
 
-        if (this.isVisible) {
-          this.sidebar.style.display = 'block';
-          this.sidebar.classList.add('visible');
-        } else {
-          this.sidebar.classList.remove('visible');
-          this.sidebar.style.display = 'none';
-        }
-        this.applySidebarWidth();
+      if (this.isVisible) {
+        this.sidebar.style.display = 'block';
+        this.sidebar.classList.add('visible');
+      } else {
+        this.sidebar.classList.remove('visible');
+        this.sidebar.style.display = 'none';
       }
+
+      this.applySidebarWidth();
     } catch (error) {
       console.error('加载侧边栏状态失败:', error);
     }
@@ -300,7 +485,7 @@ class CerebrSidebar {
       iframePointerEventsBeforeResize = null;
       document.documentElement.style.cursor = '';
       document.documentElement.style.userSelect = '';
-      this.saveStateDebounced();
+      this.saveWidthDebounced();
     };
 
     resizer.addEventListener('pointerdown', (e) => {
@@ -332,7 +517,7 @@ class CerebrSidebar {
     resizer.addEventListener('dblclick', () => {
       this.sidebarWidth = this.defaultSidebarWidth;
       this.applySidebarWidth();
-      this.saveStateDebounced();
+      this.saveWidthDebounced();
     });
   }
 
