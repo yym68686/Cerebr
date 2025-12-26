@@ -454,7 +454,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function callAPIWithRetry(apiParams, chatManager, chatId, onMessageUpdate, maxRetries = 10) {
         let attempt = 0;
         while (attempt <= maxRetries) {
-            const { processStream, controller } = await callAPI(apiParams, chatManager, chatId, onMessageUpdate);
+            const { processStream, controller } = await callAPI(apiParams, chatManager, chatId, onMessageUpdate, {
+                detectMisfiledThinkSilently: attempt === 0,
+                misfiledThinkSilentlyPrefix: 'think silently:'
+            });
             currentController = controller;
             abortControllerRef.current = controller;
 
@@ -469,14 +472,35 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
-            const result = await processStream();
+            let result;
+            try {
+                result = await processStream();
+            } catch (error) {
+                if (error?.code === 'CEREBR_MISFILED_THINK_SILENTLY' && attempt === 0 && attempt < maxRetries) {
+                    console.warn(`检测到 Gemini 将思维链错误写入 content，正在自动重试... (尝试次数 ${attempt + 1})`);
+                    attempt++;
+
+                    // 防御：如果已经创建了不完整的 assistant 消息，移除它（避免污染后续请求）
+                    const currentChat = chatManager.getCurrentChat?.();
+                    const lastMessage = currentChat?.messages?.[currentChat.messages.length - 1];
+                    if (lastMessage?.role === 'assistant') {
+                        chatManager.popMessage();
+                    }
+                    continue;
+                }
+                throw error;
+            }
 
             // 如果 content 为空但 reasoning_content 不为空，则可能被截断，进行重试
             if (result && !result.content && result.reasoning_content && attempt < maxRetries) {
                 console.log(`API响应可能被截断，正在重试... (尝试次数 ${attempt + 1})`);
                 attempt++;
                 // 在重试前，将不完整的 assistant 消息从历史记录中移除
-                chatManager.popMessage();
+                const currentChat = chatManager.getCurrentChat?.();
+                const lastMessage = currentChat?.messages?.[currentChat.messages.length - 1];
+                if (lastMessage?.role === 'assistant') {
+                    chatManager.popMessage();
+                }
             } else {
                 return; // 成功或达到最大重试次数
             }

@@ -39,6 +39,7 @@ import { t } from '../utils/i18n.js';
  * @param {Object} chatManager - 聊天管理器实例
  * @param {string} chatId - 当前聊天ID
  * @param {Function} onMessageUpdate - 消息更新回调函数
+ * @param {{detectMisfiledThinkSilently?: boolean, misfiledThinkSilentlyPrefix?: string}} [options] - 可选项
  * @returns {Promise<{processStream: () => Promise<{content: string, reasoning_content: string}>, controller: AbortController}>}
  */
 export async function callAPI({
@@ -46,7 +47,7 @@ export async function callAPI({
     apiConfig,
     userLanguage,
     webpageInfo = null,
-}, chatManager, chatId, onMessageUpdate) {
+}, chatManager, chatId, onMessageUpdate, options = {}) {
     const baseUrl = normalizeChatCompletionsUrl(apiConfig?.baseUrl);
     if (!baseUrl || !apiConfig?.apiKey) {
         throw new Error(t('error_api_config_incomplete'));
@@ -125,6 +126,8 @@ export async function callAPI({
             let lastUpdateTime = 0;
             let updateTimeout = null;
             const UPDATE_INTERVAL = 100; // 每100ms更新一次
+            const detectMisfiledThinkSilently = !!options?.detectMisfiledThinkSilently;
+            const misfiledThinkSilentlyPrefix = String(options?.misfiledThinkSilentlyPrefix || 'think silently:').toLowerCase();
 
             const dispatchUpdate = () => {
                 if (chatManager && chatId) {
@@ -168,6 +171,7 @@ export async function callAPI({
                         try {
                             const delta = JSON.parse(data).choices[0]?.delta;
                             let hasUpdate = false;
+
                             if (delta?.content) {
                                 currentMessage.content += delta.content;
                                 hasUpdate = true;
@@ -178,6 +182,18 @@ export async function callAPI({
                             }
 
                             if (hasUpdate) {
+                                if (
+                                    detectMisfiledThinkSilently &&
+                                    lastUpdateTime === 0 &&
+                                    currentMessage.content &&
+                                    !currentMessage.reasoning_content &&
+                                    String(currentMessage.content).trimStart().toLowerCase().startsWith(misfiledThinkSilentlyPrefix)
+                                ) {
+                                    const error = new Error('Detected misfiled reasoning content in content field');
+                                    error.code = 'CEREBR_MISFILED_THINK_SILENTLY';
+                                    throw error;
+                                }
+
                                 if (!updateTimeout) {
                                      // 如果距离上次更新超过了间隔，则立即更新
                                     if (Date.now() - lastUpdateTime > UPDATE_INTERVAL) {
@@ -189,6 +205,9 @@ export async function callAPI({
                                 }
                             }
                         } catch (e) {
+                            if (e?.code === 'CEREBR_MISFILED_THINK_SILENTLY') {
+                                throw e;
+                            }
                             console.error('解析数据时出错:', e);
                         }
                     }
