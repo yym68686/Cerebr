@@ -14,8 +14,14 @@
     min-height: 48px;
 }
 
-#message-input {
+.message-input-shell {
     flex: 1;
+    position: relative;
+    min-width: 0;
+}
+
+#message-input {
+    width: 100%;
     padding: 12px;
     border: none;
     background-color: transparent;
@@ -32,6 +38,10 @@
     word-break: break-word;
     overflow-wrap: break-word;
     overflow-y: auto;
+}
+
+.message-input-shell.fake-caret-enabled #message-input {
+    caret-color: transparent;
 }
 
 #message-input:empty::before {
@@ -52,4 +62,65 @@
 
 #message-input br:first-child {
     display: block;
+}
+
+.message-input-shell .fake-caret {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 2px;
+    height: var(--cerebr-fake-caret-h, 18px);
+    transform: translate3d(var(--cerebr-fake-caret-x, 12px), var(--cerebr-fake-caret-y, 12px), 0);
+    border-radius: 999px;
+    background: var(--cerebr-link-color);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 2;
+    will-change: transform, opacity, height;
+    transition: transform 140ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 120ms ease, height 120ms ease;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 0 10px var(--cerebr-highlight-border-color);
+}
+
+.message-input-shell.fake-caret-visible .fake-caret {
+    opacity: 1;
+    animation: cerebr-fake-caret-blink 1.05s steps(1) infinite;
+}
+
+.message-input-shell .fake-caret::after {
+    content: '';
+    position: absolute;
+    left: 1px;
+    top: 50%;
+    width: var(--cerebr-fake-caret-tail, 0px);
+    height: 2px;
+    transform-origin: 0 50%;
+    transform: translate3d(0, -50%, 0) rotate(var(--cerebr-fake-caret-angle, 0deg));
+    border-radius: 999px;
+    opacity: var(--cerebr-fake-caret-tail-opacity, 0);
+    background: linear-gradient(90deg, var(--cerebr-link-color) 0%, transparent 100%);
+    filter: blur(0.6px);
+    transition: opacity 120ms ease, width 120ms ease;
+    will-change: opacity, width, transform;
+}
+
+@keyframes cerebr-fake-caret-blink {
+    0%,
+    45% {
+        opacity: 1;
+    }
+    46%,
+    100% {
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .message-input-shell .fake-caret {
+        transition: none;
+        animation: none;
+    }
+
+    .message-input-shell .fake-caret::after {
+        display: none;
+    }
 }

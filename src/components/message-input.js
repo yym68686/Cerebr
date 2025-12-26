@@ -11,6 +11,150 @@ import { t } from '../utils/i18n.js';
 // 跟踪输入法状态
 let isComposing = false;
 
+function initAnimatedFakeCaret(messageInput) {
+    if (!messageInput?.isConnected) return;
+    if (messageInput.__cerebrFakeCaretInited) return;
+
+    const shell = messageInput.closest?.('.message-input-shell');
+    const caretEl = shell?.querySelector?.('.fake-caret');
+    if (!shell || !caretEl) return;
+
+    messageInput.__cerebrFakeCaretInited = true;
+    shell.classList.add('fake-caret-enabled');
+
+    let rafId = 0;
+    let lastX = null;
+    let lastY = null;
+    let tailTimer = 0;
+
+    const scheduleUpdate = () => {
+        if (rafId) return;
+        rafId = requestAnimationFrame(() => {
+            rafId = 0;
+            update();
+        });
+    };
+
+    const setTail = ({ dx, dy, distance }) => {
+        if (distance < 0.75) return;
+
+        const length = Math.min(36, Math.max(10, distance * 0.9));
+        const angleRad = Math.atan2(-dy, -dx);
+        const angleDeg = `${(angleRad * 180) / Math.PI}deg`;
+
+        caretEl.style.setProperty('--cerebr-fake-caret-tail', `${length}px`);
+        caretEl.style.setProperty('--cerebr-fake-caret-angle', angleDeg);
+        caretEl.style.setProperty('--cerebr-fake-caret-tail-opacity', '0.9');
+
+        clearTimeout(tailTimer);
+        tailTimer = setTimeout(() => {
+            caretEl.style.setProperty('--cerebr-fake-caret-tail-opacity', '0');
+            caretEl.style.setProperty('--cerebr-fake-caret-tail', '0px');
+        }, 120);
+    };
+
+    const update = () => {
+        if (!messageInput?.isConnected) return;
+
+        const focused = document.activeElement === messageInput;
+        const selection = window.getSelection?.();
+        if (!focused || !selection || selection.rangeCount === 0) {
+            shell.classList.remove('fake-caret-visible');
+            return;
+        }
+
+        const range = selection.getRangeAt(0);
+        if (!range?.collapsed || !messageInput.contains(range.startContainer)) {
+            shell.classList.remove('fake-caret-visible');
+            return;
+        }
+
+        const shellRect = shell.getBoundingClientRect();
+        const inputRect = messageInput.getBoundingClientRect();
+        const style = window.getComputedStyle(messageInput);
+        const paddingLeft = parseFloat(style.paddingLeft) || 0;
+        const paddingTop = parseFloat(style.paddingTop) || 0;
+        const paddingRight = parseFloat(style.paddingRight) || 0;
+        const paddingBottom = parseFloat(style.paddingBottom) || 0;
+        const lineHeight = parseFloat(style.lineHeight) || (parseFloat(style.fontSize) || 14) * 1.5;
+
+        const getRangeRect = () => {
+            try {
+                const rects = range.getClientRects?.();
+                if (rects && rects.length) return rects[rects.length - 1];
+            } catch {
+                // ignore
+            }
+
+            try {
+                return range.getBoundingClientRect?.();
+            } catch {
+                return null;
+            }
+        };
+
+        const rect = getRangeRect();
+        const isEmptyInput = (messageInput.textContent || '').trim() === '' && !messageInput.querySelector?.('.image-tag');
+
+        let viewportX;
+        let viewportY;
+        let caretH;
+
+        if (isEmptyInput || !rect || (!rect.width && !rect.height)) {
+            viewportX = inputRect.left + paddingLeft;
+            viewportY = inputRect.top + paddingTop;
+            caretH = lineHeight;
+        } else {
+            viewportX = rect.left;
+            viewportY = rect.top;
+            caretH = rect.height || lineHeight;
+        }
+
+        const minX = inputRect.left + paddingLeft;
+        const maxX = inputRect.right - paddingRight;
+        const minY = inputRect.top + paddingTop;
+        const maxY = inputRect.bottom - paddingBottom - caretH;
+
+        const clampedViewportX = Math.max(minX, Math.min(viewportX, maxX));
+        const clampedViewportY = Math.max(minY, Math.min(viewportY, maxY));
+
+        const x = clampedViewportX - shellRect.left;
+        const y = clampedViewportY - shellRect.top;
+
+        caretEl.style.setProperty('--cerebr-fake-caret-x', `${x}px`);
+        caretEl.style.setProperty('--cerebr-fake-caret-y', `${y}px`);
+        caretEl.style.setProperty('--cerebr-fake-caret-h', `${Math.max(8, caretH)}px`);
+
+        shell.classList.add('fake-caret-visible');
+
+        if (lastX != null && lastY != null) {
+            const dx = x - lastX;
+            const dy = y - lastY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            setTail({ dx, dy, distance });
+        }
+
+        lastX = x;
+        lastY = y;
+    };
+
+    document.addEventListener('selectionchange', scheduleUpdate);
+    window.addEventListener('resize', scheduleUpdate);
+
+    messageInput.addEventListener('focus', scheduleUpdate);
+    messageInput.addEventListener('blur', scheduleUpdate);
+    messageInput.addEventListener('scroll', scheduleUpdate);
+    messageInput.addEventListener('input', scheduleUpdate);
+    messageInput.addEventListener('keydown', scheduleUpdate);
+    messageInput.addEventListener('keyup', scheduleUpdate);
+    messageInput.addEventListener('mousedown', scheduleUpdate);
+    messageInput.addEventListener('mouseup', scheduleUpdate);
+    messageInput.addEventListener('compositionstart', scheduleUpdate);
+    messageInput.addEventListener('compositionend', scheduleUpdate);
+
+    scheduleUpdate();
+}
+
 function isInputEffectivelyEmpty(messageInput) {
     const hasImages = !!messageInput.querySelector?.('.image-tag');
     const text = (messageInput.textContent || '').trim();
@@ -625,6 +769,7 @@ export function initMessageInput(config) {
     });
 
     // 初始化时同步一次，避免输入栏高度变化导致底部消息被遮挡
+    initAnimatedFakeCaret(messageInput);
     syncChatBottomExtraPadding();
 }
 
