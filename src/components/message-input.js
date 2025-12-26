@@ -136,6 +136,13 @@ export function initMessageInput(config) {
     const ENTER_SHIFT_WINDOW_MS = 400;
     const LARGE_TEXT_PASTE_THRESHOLD = 10000;
     let largePasteModeUntil = 0;
+    let ignoreEnterSendUntil = 0;
+
+    const ignoreEnterSendFor = (ms) => {
+        ignoreEnterSendUntil = Math.max(ignoreEnterSendUntil, performance.now() + ms);
+    };
+
+    const shouldIgnoreEnterSend = () => performance.now() < ignoreEnterSendUntil;
 
     let layoutUpdateRaf = 0;
     let postLargePasteLayoutTimer = 0;
@@ -307,7 +314,7 @@ export function initMessageInput(config) {
             normalizedTail.endsWith('<br>') ||
             normalizedTail.endsWith('<br/>');
 
-        if (!isComposing && looksLikeEnterInsert && !isShiftEnter()) {
+        if (!isComposing && looksLikeEnterInsert && !isShiftEnter() && !shouldIgnoreEnterSend()) {
             const removed = removeTrailingLineBreakArtifacts();
             const hadUndo = removed ? false : execCommandUndo();
             if (hadUndo) suppressNextInput = true;
@@ -518,6 +525,9 @@ export function initMessageInput(config) {
 
     // 粘贴事件处理
     messageInput.addEventListener('paste', async (e) => {
+        // 粘贴文本可能以换行结尾，这不应触发“回车发送”的逻辑
+        ignoreEnterSendFor(200);
+
         const items = Array.from(e.clipboardData.items);
         const imageItem = items.find(item => item.type.startsWith('image/'));
 
