@@ -81,6 +81,7 @@
   "toast_copy_math_failed": { "message": "复制公式失败" },
   "toast_no_math_found": { "message": "没有找到可复制的公式" },
   "toast_handle_image_failed": { "message": "处理图片失败" },
+  "toast_empty_response": { "message": "模型未返回任何内容，可尝试重试" },
 
   "label_thinking": { "message": "正在思考" },
   "label_copy": { "message": "复制" },

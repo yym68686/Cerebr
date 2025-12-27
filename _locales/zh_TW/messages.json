@@ -81,6 +81,7 @@
   "toast_copy_math_failed": { "message": "複製公式失敗" },
   "toast_no_math_found": { "message": "沒有找到可複製的公式" },
   "toast_handle_image_failed": { "message": "處理圖片失敗" },
+  "toast_empty_response": { "message": "模型未回傳任何內容，可嘗試重試" },
 
   "label_thinking": { "message": "正在思考" },
   "label_copy": { "message": "複製" },

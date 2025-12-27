@@ -498,8 +498,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 throw error;
             }
 
+            if (!result) return result;
+
+            const resolvedContent = String(result.content || '').trim();
+            const resolvedReasoning = String(result.reasoning_content || '').trim();
+
             // 如果 content 为空但 reasoning_content 不为空，则可能被截断，进行重试
-            if (result && !result.content && result.reasoning_content && attempt < maxRetries) {
+            if (!resolvedContent && resolvedReasoning && attempt < maxRetries) {
                 console.log(`API响应可能被截断，正在重试... (尝试次数 ${attempt + 1})`);
                 attempt++;
                 // 在重试前，将不完整的 assistant 消息从历史记录中移除
@@ -508,8 +513,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (lastMessage?.role === 'assistant') {
                     chatManager.popMessage();
                 }
+                continue;
+            }
+
+            // 处理：模型返回空响应（例如只返回 stop/usage/[DONE]，但没有任何文本）
+            if (!resolvedContent && !resolvedReasoning) {
+                showToast(t('toast_empty_response'), { type: 'info', durationMs: 2200 });
+                return result;
             } else {
-                return; // 成功或达到最大重试次数
+                return result; // 成功或达到最大重试次数
             }
         }
     }

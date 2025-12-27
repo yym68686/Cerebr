@@ -81,6 +81,7 @@
   "toast_copy_math_failed": { "message": "Copy formula failed" },
   "toast_no_math_found": { "message": "No formula found to copy" },
   "toast_handle_image_failed": { "message": "Failed to process image" },
+  "toast_empty_response": { "message": "No response returned by the model" },
 
   "label_thinking": { "message": "Thinking" },
   "label_copy": { "message": "Copy" },
