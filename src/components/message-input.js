@@ -488,11 +488,23 @@ export function initMessageInput(config) {
 
         const currHtml = this.innerHTML;
         const normalizedTail = normalizeHtml(currHtml.slice(-80));
-        const looksLikeEnterInsert =
-            isEnterLikeInputEvent(e) ||
+        const inputType = e?.inputType || '';
+        const isDeleteInput = typeof inputType === 'string' && inputType.startsWith('delete');
+        const isPasteLikeInput =
+            inputType === 'insertFromPaste' ||
+            inputType === 'insertFromDrop' ||
+            inputType === 'insertReplacementText';
+        const hasTrailingBreakArtifact =
             normalizedTail.endsWith('<div><br></div>') ||
             normalizedTail.endsWith('<br>') ||
             normalizedTail.endsWith('<br/>');
+        const recentEnterKeydown =
+            !!lastEnterKeydownAt &&
+            !lastEnterKeydownWasShift &&
+            Date.now() - lastEnterKeydownAt < 600;
+        const looksLikeEnterInsert =
+            isEnterLikeInputEvent(e) ||
+            (!isDeleteInput && !isPasteLikeInput && recentEnterKeydown && hasTrailingBreakArtifact);
 
         if (!isComposing && looksLikeEnterInsert && !isShiftEnter() && !shouldIgnoreEnterSend()) {
             const removed = removeTrailingLineBreakArtifacts();
