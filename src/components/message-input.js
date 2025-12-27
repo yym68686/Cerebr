@@ -67,7 +67,40 @@ function initAnimatedFakeCaret(messageInput) {
             }
 
             try {
-                return range.getBoundingClientRect?.();
+                const rect = range.getBoundingClientRect?.();
+                if (rect && (rect.width || rect.height)) return rect;
+            } catch {
+                // ignore
+            }
+
+            // 某些情况下（例如 Shift+Enter 创建空行）折叠 range 可能拿不到任何 rect，
+            // 用“探针节点”临时测量 caret 的可视位置，避免假光标回到首行。
+            try {
+                if (isComposing) return null;
+
+                const marker = document.createElement('span');
+                marker.setAttribute('data-cerebr-caret-probe', '1');
+                marker.style.cssText = [
+                    'display:inline-block',
+                    'width:0',
+                    'padding:0',
+                    'margin:0',
+                    'border:0',
+                    'overflow:hidden',
+                    'pointer-events:none',
+                    'user-select:none',
+                    'vertical-align:baseline'
+                ].join(';');
+                marker.textContent = '\u200b';
+
+                const probeRange = range.cloneRange();
+                probeRange.collapse(true);
+                probeRange.insertNode(marker);
+                try {
+                    return marker.getBoundingClientRect?.() || null;
+                } finally {
+                    marker.remove();
+                }
             } catch {
                 return null;
             }
