@@ -5,6 +5,8 @@ const CHATS_INDEX_V2_KEY = 'cerebr_chats_index_v2';
 const CHAT_V2_PREFIX = 'cerebr_chat_v2_';
 const LEGACY_CURRENT_CHAT_ID_KEY = 'cerebr_current_chat_id';
 const CURRENT_CHAT_ID_BY_TAB_PREFIX = 'cerebr_current_chat_id_v1_tab_';
+// 最新活跃对话（跨 tab 的“默认回退”），避免依赖陈旧的 legacy key
+const LAST_ACTIVE_CHAT_ID_KEY = 'cerebr_last_active_chat_id_v1';
 
 const YT_TRANSCRIPT_REF_FIELD = 'youtubeTranscriptRefs';
 
@@ -30,6 +32,19 @@ export class ChatManager {
         this._savePromiseResolve = null;
         this._savePromiseReject = null;
         this.initialize();
+    }
+
+    _getChatActivityTimeMs(chat) {
+        const time = chat?.updatedAt || chat?.createdAt;
+        const ms = Date.parse(time);
+        return Number.isFinite(ms) ? ms : 0;
+    }
+
+    _getMostRecentChat() {
+        const chats = Array.from(this.chats.values());
+        if (chats.length === 0) return null;
+        chats.sort((a, b) => this._getChatActivityTimeMs(b) - this._getChatActivityTimeMs(a));
+        return chats[0] || null;
     }
 
     async _resolveCurrentChatIdStorageKey() {
@@ -112,35 +127,62 @@ export class ChatManager {
 
         // 获取当前对话ID（扩展环境：按 tab 维度；Web 环境：全局）
         const keysToRead = isExtensionEnvironment
-            ? [this._currentChatIdStorageKey, LEGACY_CURRENT_CHAT_ID_KEY]
+            ? [this._currentChatIdStorageKey, LAST_ACTIVE_CHAT_ID_KEY, LEGACY_CURRENT_CHAT_ID_KEY]
             : [this._currentChatIdStorageKey];
         const currentChatResult = await this.storage.get(keysToRead);
-        this.currentChatId = currentChatResult[this._currentChatIdStorageKey];
+        const tabScopedChatId = currentChatResult[this._currentChatIdStorageKey];
+        const lastActiveChatId = currentChatResult[LAST_ACTIVE_CHAT_ID_KEY];
+        const legacyChatId = currentChatResult[LEGACY_CURRENT_CHAT_ID_KEY];
+
+        // 默认选择逻辑：
+        // 1) tab 维度（用户在该 tab 的选择）
+        // 2) 跨 tab 最近活跃对话（新开 tab 的默认）
+        // 3) 最“新”的对话（按 updatedAt/createdAt）
+        // 4) legacy key（仅作为兼容兜底，不应长期依赖）
+        const preferredCandidates = [
+            tabScopedChatId,
+            lastActiveChatId,
+            this._getMostRecentChat()?.id,
+            legacyChatId
+        ].filter(Boolean);
+
+        this.currentChatId = preferredCandidates.find((id) => this.chats.has(id)) || null;
 
         // 迁移：tab 维度不存在时回退 legacy 全局 key；同时写入 tab 维度 key（不再写回 legacy，避免跨 tab 干扰）
-        if (isExtensionEnvironment && !this.currentChatId) {
-            const legacy = currentChatResult[LEGACY_CURRENT_CHAT_ID_KEY];
-            if (legacy) {
-                this.currentChatId = legacy;
-                await this.storage.set({ [this._currentChatIdStorageKey]: legacy });
-            }
+        if (isExtensionEnvironment && this.currentChatId) {
+            const lastActiveValid = !!lastActiveChatId && this.chats.has(lastActiveChatId);
+            await this.storage.set({
+                [this._currentChatIdStorageKey]: this.currentChatId,
+                ...(lastActiveValid ? {} : { [LAST_ACTIVE_CHAT_ID_KEY]: this.currentChatId })
+            });
         }
 
-        // 如果没有当前对话，创建一个默认对话
+        // 如果仍没有当前对话：优先使用“最新”对话，否则创建一个默认对话
         if (!this.currentChatId || !this.chats.has(this.currentChatId)) {
-            const defaultChat = this.createNewChat('默认对话');
-            this.currentChatId = defaultChat.id;
-            await this.storage.set({ [this._currentChatIdStorageKey]: this.currentChatId });
+            const fallback = this._getMostRecentChat();
+            if (fallback?.id) {
+                this.currentChatId = fallback.id;
+            } else {
+                const defaultChat = this.createNewChat('默认对话');
+                this.currentChatId = defaultChat.id;
+            }
+
+            await this.storage.set({
+                [this._currentChatIdStorageKey]: this.currentChatId,
+                ...(isExtensionEnvironment ? { [LAST_ACTIVE_CHAT_ID_KEY]: this.currentChatId } : {})
+            });
         }
     }
 
     createNewChat(title = '新对话') {
         const chatId = Date.now().toString();
+        const createdAt = new Date().toISOString();
         const chat = {
             id: chatId,
             title: title,
             messages: [],
-            createdAt: new Date().toISOString()
+            createdAt,
+            updatedAt: createdAt
         };
         this.chats.set(chatId, chat);
         this._dirtyChatIds.add(chatId);
@@ -154,8 +196,17 @@ export class ChatManager {
             throw new Error('对话不存在');
         }
         this.currentChatId = chatId;
+        const chat = this.chats.get(chatId);
+        if (chat) {
+            chat.updatedAt = new Date().toISOString();
+            this._dirtyChatIds.add(chatId);
+            this.saveChats();
+        }
         await this._resolveCurrentChatIdStorageKey();
-        await this.storage.set({ [this._currentChatIdStorageKey]: chatId });
+        await this.storage.set({
+            [this._currentChatIdStorageKey]: chatId,
+            ...(isExtensionEnvironment ? { [LAST_ACTIVE_CHAT_ID_KEY]: chatId } : {})
+        });
         return this.chats.get(chatId);
     }
 
@@ -193,7 +244,7 @@ export class ChatManager {
 
         // 如果删除的是当前对话，切换到其他对话
         if (chatId === this.currentChatId) {
-            const nextChat = Array.from(this.chats.values()).pop();
+            const nextChat = this._getMostRecentChat();
             if (nextChat) {
                 await this.switchChat(nextChat.id);
                 this.currentChatId = nextChat.id;
@@ -267,7 +318,7 @@ export class ChatManager {
 
     getAllChats() {
         return Array.from(this.chats.values()).sort((a, b) =>
-            new Date(b.createdAt) - new Date(a.createdAt)
+            this._getChatActivityTimeMs(b) - this._getChatActivityTimeMs(a)
         );
     }
 
@@ -277,7 +328,12 @@ export class ChatManager {
             throw new Error('当前没有活动的对话');
         }
         currentChat.messages.push(message);
+        currentChat.updatedAt = new Date().toISOString();
         this._dirtyChatIds.add(currentChat.id);
+        if (isExtensionEnvironment) {
+            // 避免调用方未 await 导致潜在的 Unhandled Promise Rejection
+            void this.storage.set({ [LAST_ACTIVE_CHAT_ID_KEY]: currentChat.id }).catch(() => {});
+        }
         this.saveChats();
     }
 
@@ -326,8 +382,14 @@ export class ChatManager {
         }
 
         // 兼容：部分调用方会直接 mutate currentChat.messages 后再调用 saveChats()
-        if (this.currentChatId && !this._dirtyChatIds.has(this.currentChatId)) {
-            this._dirtyChatIds.add(this.currentChatId);
+        if (this.currentChatId) {
+            const chat = this.chats.get(this.currentChatId);
+            if (chat) {
+                chat.updatedAt = new Date().toISOString();
+            }
+            if (!this._dirtyChatIds.has(this.currentChatId)) {
+                this._dirtyChatIds.add(this.currentChatId);
+            }
         }
 
         this._scheduleSave();
