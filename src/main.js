@@ -338,6 +338,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     readingProgressManager.start();
 
+    const flushSessionState = () => {
+        void readingProgressManager.saveNow().catch(() => {});
+        void chatManager.flushNow().catch(() => {});
+    };
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            flushSessionState();
+        }
+    });
+    window.addEventListener('pagehide', flushSessionState);
+
     if ((!currentChat || currentChat.messages.length === 0) && isExtensionEnvironment) {
         const currentTab = await browserAdapter.getCurrentTab();
         if (currentTab?.id && currentChat?.id) {
@@ -590,6 +602,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 从历史记录中移除要重新生成的 assistant（以及其后的所有消息）
             currentChat.messages.splice(truncateFromIndex);
             chatManager.saveChats();
+            await chatManager.flushNow().catch(() => {});
 
             // 从 DOM 中移除将被重新生成的消息及其后的所有消息（保留用户提问）
             domMessages.slice(truncateFromIndex).forEach(el => el.remove());
@@ -625,6 +638,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 调用带重试逻辑的 API
             await callAPIWithRetry(apiParams, chatManager, currentChat.id, onMessageUpdate);
+            await chatManager.flushNow().catch(() => {});
+            await readingProgressManager.saveNow().catch(() => {});
 
         } catch (error) {
             if (error.name === 'AbortError') {
@@ -634,6 +649,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error('重新生成消息失败:', error);
             showToast(t('error_regenerate_failed', [error.message]), { type: 'error', durationMs: 2200 });
         } finally {
+            // Best-effort: avoid losing the regenerated answer on refresh.
+            void chatManager.flushNow().catch(() => {});
+            void readingProgressManager.saveNow().catch(() => {});
             restoreDefaultPlaceholder();
             const lastMessage = chatContainer.querySelector('.ai-message:last-child');
             if (lastMessage) {
@@ -691,7 +709,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             const messages = currentChat ? [...currentChat.messages] : [];  // 从chatManager获取消息历史
             messages.push(userMessage);
-            chatManager.addMessageToCurrentChat(userMessage);
+            await chatManager.addMessageToCurrentChat(userMessage);
+            await chatManager.flushNow().catch(() => {});
 
             // 准备API调用参数
             const apiParams = {
@@ -722,6 +741,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 调用带重试逻辑的 API
             await callAPIWithRetry(apiParams, chatManager, currentChat.id, onMessageUpdate);
+            await chatManager.flushNow().catch(() => {});
+            await readingProgressManager.saveNow().catch(() => {});
 
         } catch (error) {
             if (error.name === 'AbortError') {
@@ -731,6 +752,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error('发送消息失败:', error);
             showToast(t('error_send_failed', [error.message]), { type: 'error', durationMs: 2200 });
         } finally {
+            // Best-effort: avoid losing the last question/answer on refresh.
+            void chatManager.flushNow().catch(() => {});
+            void readingProgressManager.saveNow().catch(() => {});
             restoreDefaultPlaceholder();
             const lastMessage = chatContainer.querySelector('.ai-message:last-child');
             if (lastMessage) {

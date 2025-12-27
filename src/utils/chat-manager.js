@@ -34,6 +34,10 @@ export class ChatManager {
         this.initialize();
     }
 
+    _nextTick() {
+        return new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
     _getChatActivityTimeMs(chat) {
         const time = chat?.updatedAt || chat?.createdAt;
         const ms = Date.parse(time);
@@ -394,6 +398,35 @@ export class ChatManager {
 
         this._scheduleSave();
         return this._savePromise;
+    }
+
+    /**
+     * Best-effort: flush pending chat/index writes ASAP (avoid relying on requestIdleCallback).
+     * Useful right after a user/assistant message is completed to reduce the chance of losing it on refresh.
+     */
+    async flushNow({ maxRounds = 64 } = {}) {
+        if (!this._saveDirty && !this._saveInProgress) return;
+
+        // Ensure a promise exists for callers that want to await persistence.
+        if (!this._savePromise && this._saveDirty) {
+            void this.saveChats();
+        }
+
+        const deadline = { timeRemaining: () => Number.POSITIVE_INFINITY, didTimeout: true };
+        for (let i = 0; i < maxRounds; i++) {
+            if (!this._saveDirty) break;
+            if (this._saveInProgress) {
+                await this._nextTick();
+                continue;
+            }
+            await this._flushSave(deadline);
+        }
+
+        if (this._saveDirty) {
+            console.warn('[Cerebr] Chat persistence flush did not finish before maxRounds; will continue in background.');
+        }
+
+        await (this._savePromise || Promise.resolve());
     }
 
     async clearCurrentChat() {
