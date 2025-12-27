@@ -23,9 +23,6 @@ function initAnimatedFakeCaret(messageInput) {
     shell.classList.add('fake-caret-enabled');
 
     let rafId = 0;
-    let lastX = null;
-    let lastY = null;
-    let tailTimer = 0;
 
     const scheduleUpdate = () => {
         if (rafId) return;
@@ -33,24 +30,6 @@ function initAnimatedFakeCaret(messageInput) {
             rafId = 0;
             update();
         });
-    };
-
-    const setTail = ({ dx, dy, distance }) => {
-        if (distance < 0.75) return;
-
-        const length = Math.min(36, Math.max(10, distance * 0.9));
-        const angleRad = Math.atan2(-dy, -dx);
-        const angleDeg = `${(angleRad * 180) / Math.PI}deg`;
-
-        caretEl.style.setProperty('--cerebr-fake-caret-tail', `${length}px`);
-        caretEl.style.setProperty('--cerebr-fake-caret-angle', angleDeg);
-        caretEl.style.setProperty('--cerebr-fake-caret-tail-opacity', '0.9');
-
-        clearTimeout(tailTimer);
-        tailTimer = setTimeout(() => {
-            caretEl.style.setProperty('--cerebr-fake-caret-tail-opacity', '0');
-            caretEl.style.setProperty('--cerebr-fake-caret-tail', '0px');
-        }, 120);
     };
 
     const update = () => {
@@ -76,7 +55,8 @@ function initAnimatedFakeCaret(messageInput) {
         const paddingTop = parseFloat(style.paddingTop) || 0;
         const paddingRight = parseFloat(style.paddingRight) || 0;
         const paddingBottom = parseFloat(style.paddingBottom) || 0;
-        const lineHeight = parseFloat(style.lineHeight) || (parseFloat(style.fontSize) || 14) * 1.5;
+        const fontSize = parseFloat(style.fontSize) || 14;
+        const lineHeight = parseFloat(style.lineHeight) || fontSize * 1.5;
 
         const getRangeRect = () => {
             try {
@@ -99,6 +79,8 @@ function initAnimatedFakeCaret(messageInput) {
         let viewportX;
         let viewportY;
         let caretH;
+        let caretVisualH;
+        let caretYOffset;
 
         if (isEmptyInput || !rect || (!rect.width && !rect.height)) {
             viewportX = inputRect.left + paddingLeft;
@@ -110,10 +92,16 @@ function initAnimatedFakeCaret(messageInput) {
             caretH = rect.height || lineHeight;
         }
 
+        // 视觉上 caret 更贴近“字形高度”（通常略小于 font-size），避免看起来比文本更高。
+        const approxGlyphHeight = Math.max(8, Math.round(fontSize * 1.12));
+        caretVisualH = Math.max(8, Math.min(caretH, approxGlyphHeight));
+        caretYOffset = Math.max(0, (caretH - caretVisualH) / 2);
+        viewportY += caretYOffset;
+
         const minX = inputRect.left + paddingLeft;
         const maxX = inputRect.right - paddingRight;
         const minY = inputRect.top + paddingTop;
-        const maxY = inputRect.bottom - paddingBottom - caretH;
+        const maxY = inputRect.bottom - paddingBottom - caretVisualH;
 
         const clampedViewportX = Math.max(minX, Math.min(viewportX, maxX));
         const clampedViewportY = Math.max(minY, Math.min(viewportY, maxY));
@@ -123,19 +111,9 @@ function initAnimatedFakeCaret(messageInput) {
 
         caretEl.style.setProperty('--cerebr-fake-caret-x', `${x}px`);
         caretEl.style.setProperty('--cerebr-fake-caret-y', `${y}px`);
-        caretEl.style.setProperty('--cerebr-fake-caret-h', `${Math.max(8, caretH)}px`);
+        caretEl.style.setProperty('--cerebr-fake-caret-h', `${caretVisualH}px`);
 
         shell.classList.add('fake-caret-visible');
-
-        if (lastX != null && lastY != null) {
-            const dx = x - lastX;
-            const dy = y - lastY;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            setTail({ dx, dy, distance });
-        }
-
-        lastX = x;
-        lastY = y;
     };
 
     document.addEventListener('selectionchange', scheduleUpdate);
