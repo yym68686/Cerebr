@@ -92,6 +92,31 @@ function initAnimatedFakeCaret(messageInput) {
             caretH = rect.height || lineHeight;
         }
 
+        // 粘贴大量文本后，浏览器不一定会自动把 caret 滚动到可视区域；
+        // 这里主动滚动到“就近可见”，避免假光标被 clamp 到输入框底部而产生错位。
+        if (!isEmptyInput && rect && messageInput.scrollHeight > messageInput.clientHeight + 1) {
+            const topLimit = inputRect.top + paddingTop;
+            const bottomLimit = inputRect.bottom - paddingBottom;
+            const rectTop = rect.top;
+            const rectBottom = rect.bottom || rect.top + caretH;
+            let delta = 0;
+
+            if (rectTop < topLimit) {
+                delta = rectTop - topLimit;
+            } else if (rectBottom > bottomLimit) {
+                delta = rectBottom - bottomLimit;
+            }
+
+            if (Math.abs(delta) >= 1) {
+                const prevScrollTop = messageInput.scrollTop;
+                messageInput.scrollTop += delta;
+                if (messageInput.scrollTop !== prevScrollTop) {
+                    scheduleUpdate();
+                    return;
+                }
+            }
+        }
+
         // 视觉上 caret 更贴近“字形高度”（通常略小于 font-size），避免看起来比文本更高。
         const approxGlyphHeight = Math.max(8, Math.round(fontSize * 1.12));
         caretVisualH = Math.max(8, Math.min(caretH, approxGlyphHeight));
