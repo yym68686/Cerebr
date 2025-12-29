@@ -127,7 +127,7 @@ export async function callAPI({
             let updateTimeout = null;
             const UPDATE_INTERVAL = 100; // 每100ms更新一次
             const detectMisfiledThinkSilently = !!options?.detectMisfiledThinkSilently;
-            const misfiledThinkSilentlyPrefix = String(options?.misfiledThinkSilentlyPrefix || 'think silently').toLowerCase();
+            const misfiledThinkSilentlyPrefix = String(options?.misfiledThinkSilentlyPrefix || 'think').toLowerCase();
             let didDispatchAnyUpdate = false;
 
             const dispatchUpdate = () => {
