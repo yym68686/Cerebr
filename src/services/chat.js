@@ -39,7 +39,7 @@ import { t } from '../utils/i18n.js';
  * @param {Object} chatManager - 聊天管理器实例
  * @param {string} chatId - 当前聊天ID
  * @param {Function} onMessageUpdate - 消息更新回调函数
- * @param {{detectMisfiledThinkSilently?: boolean, misfiledThinkSilentlyPrefix?: string}} [options] - 可选项
+ * @param {{detectMisfiledThinkSilently?: boolean, misfiledThinkSilentlyPrefix?: string, misfiledThinkSilentlyPrefixes?: string[]}} [options] - 可选项
  * @returns {Promise<{processStream: () => Promise<{content: string, reasoning_content: string}>, controller: AbortController}>}
  */
 export async function callAPI({
@@ -127,7 +127,15 @@ export async function callAPI({
             let updateTimeout = null;
             const UPDATE_INTERVAL = 100; // 每100ms更新一次
             const detectMisfiledThinkSilently = !!options?.detectMisfiledThinkSilently;
-            const misfiledThinkSilentlyPrefix = String(options?.misfiledThinkSilentlyPrefix || 'think').toLowerCase();
+            const misfiledThinkSilentlyPrefixesRaw = options?.misfiledThinkSilentlyPrefixes;
+            const misfiledThinkSilentlyPrefixes = Array.from(new Set(
+                (Array.isArray(misfiledThinkSilentlyPrefixesRaw) && misfiledThinkSilentlyPrefixesRaw.length
+                    ? misfiledThinkSilentlyPrefixesRaw
+                    : [options?.misfiledThinkSilentlyPrefix ?? 'think']
+                )
+                    .map((p) => String(p ?? '').trim().toLowerCase())
+                    .filter(Boolean)
+            ));
             let didDispatchAnyUpdate = false;
 
             const dispatchUpdate = () => {
@@ -186,14 +194,14 @@ export async function callAPI({
                             if (hasUpdate) {
                                 if (detectMisfiledThinkSilently && !didDispatchAnyUpdate && !currentMessage.reasoning_content) {
                                     const contentStart = String(currentMessage.content || '').trimStart().toLowerCase();
-                                    if (contentStart.startsWith(misfiledThinkSilentlyPrefix)) {
+                                    if (misfiledThinkSilentlyPrefixes.some((p) => contentStart.startsWith(p))) {
                                         const error = new Error('Detected misfiled reasoning content in content field');
                                         error.code = 'CEREBR_MISFILED_THINK_SILENTLY';
                                         throw error;
                                     }
 
                                     // 首次分发前：若 content 仍可能是前缀的一部分（例如只收到 "t"/"thi"），先不更新 UI/历史
-                                    if (misfiledThinkSilentlyPrefix.startsWith(contentStart)) {
+                                    if (misfiledThinkSilentlyPrefixes.some((p) => p.startsWith(contentStart))) {
                                         continue;
                                     }
                                 }
