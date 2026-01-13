@@ -8,6 +8,7 @@
 
 import { normalizeChatCompletionsUrl } from '../utils/api-url.js';
 import { t } from '../utils/i18n.js';
+import { normalizeMessageForChatCompletions } from '../utils/message-content.js';
 
 /**
  * 网页信息接口
@@ -74,9 +75,9 @@ export async function callAPI({
 
     // 确保消息数组中有系统消息
     // 删除消息列表中的reasoning_content字段
-    const processedMessages = messages.map(msg => {
+    const processedMessages = messages.map((msg) => {
         const { reasoning_content, updating, ...rest } = msg;
-        return rest;
+        return normalizeMessageForChatCompletions(rest);
     });
 
     if (systemMessage.content.trim() && (processedMessages.length === 0 || processedMessages[0].role !== "system")) {
