@@ -470,7 +470,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         while (attempt <= maxRetries) {
             const { processStream, controller } = await callAPI(apiParams, chatManager, chatId, onMessageUpdate, {
                 detectMisfiledThinkSilently: misfiledThinkSilentlyRetries < maxMisfiledThinkSilentlyRetries,
-                misfiledThinkSilentlyPrefixes: ['think', 'silently', '思考']
+                misfiledThinkSilentlyPrefixes: ['think', 'silently', '思考', 'thought']
             });
             currentController = controller;
             abortControllerRef.current = controller;
