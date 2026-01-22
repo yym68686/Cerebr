@@ -463,7 +463,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // 新增：带重试逻辑的API调用函数
-    async function callAPIWithRetry(apiParams, chatManager, chatId, onMessageUpdate, maxRetries = 10) {
+    async function callAPIWithRetry(apiParams, chatManager, chatId, onMessageUpdate, maxRetries = 20) {
         let attempt = 0;
         let misfiledThinkSilentlyRetries = 0;
         const maxMisfiledThinkSilentlyRetries = maxRetries;
