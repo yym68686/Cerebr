@@ -23,16 +23,20 @@ function initAnimatedFakeCaret(messageInput) {
     shell.classList.add('fake-caret-enabled');
 
     let rafId = 0;
+    let pendingForceScrollIntoView = false;
 
-    const scheduleUpdate = () => {
+    const scheduleUpdate = (options) => {
+        if (options?.forceScrollIntoView) pendingForceScrollIntoView = true;
         if (rafId) return;
         rafId = requestAnimationFrame(() => {
             rafId = 0;
-            update();
+            const shouldForceScrollIntoView = pendingForceScrollIntoView;
+            pendingForceScrollIntoView = false;
+            update({ forceScrollIntoView: shouldForceScrollIntoView });
         });
     };
 
-    const update = () => {
+    const update = ({ forceScrollIntoView } = {}) => {
         if (!messageInput?.isConnected) return;
 
         const focused = document.activeElement === messageInput;
@@ -115,39 +119,17 @@ function initAnimatedFakeCaret(messageInput) {
         let caretVisualH;
         let caretYOffset;
 
-        if (isEmptyInput || !rect || (!rect.width && !rect.height)) {
+        if (isEmptyInput) {
             viewportX = inputRect.left + paddingLeft;
             viewportY = inputRect.top + paddingTop;
             caretH = lineHeight;
+        } else if (!rect || (!rect.width && !rect.height)) {
+            shell.classList.remove('fake-caret-visible');
+            return;
         } else {
             viewportX = rect.left;
             viewportY = rect.top;
             caretH = rect.height || lineHeight;
-        }
-
-        // 粘贴大量文本后，浏览器不一定会自动把 caret 滚动到可视区域；
-        // 这里主动滚动到“就近可见”，避免假光标被 clamp 到输入框底部而产生错位。
-        if (!isEmptyInput && rect && messageInput.scrollHeight > messageInput.clientHeight + 1) {
-            const topLimit = inputRect.top + paddingTop;
-            const bottomLimit = inputRect.bottom - paddingBottom;
-            const rectTop = rect.top;
-            const rectBottom = rect.bottom || rect.top + caretH;
-            let delta = 0;
-
-            if (rectTop < topLimit) {
-                delta = rectTop - topLimit;
-            } else if (rectBottom > bottomLimit) {
-                delta = rectBottom - bottomLimit;
-            }
-
-            if (Math.abs(delta) >= 1) {
-                const prevScrollTop = messageInput.scrollTop;
-                messageInput.scrollTop += delta;
-                if (messageInput.scrollTop !== prevScrollTop) {
-                    scheduleUpdate();
-                    return;
-                }
-            }
         }
 
         // 视觉上 caret 更贴近“字形高度”（通常略小于 font-size），避免看起来比文本更高。
@@ -155,6 +137,39 @@ function initAnimatedFakeCaret(messageInput) {
         caretVisualH = Math.max(8, Math.min(caretH, approxGlyphHeight));
         caretYOffset = Math.max(0, (caretH - caretVisualH) / 2);
         viewportY += caretYOffset;
+
+        const viewportTop = inputRect.top + paddingTop;
+        const viewportBottom = inputRect.bottom - paddingBottom;
+        const caretTop = viewportY;
+        const caretBottom = viewportY + caretVisualH;
+
+        if (forceScrollIntoView && messageInput.scrollHeight > messageInput.clientHeight + 1) {
+            const desiredMargin = Math.min(12, Math.max(4, Math.round(fontSize * 0.4)));
+            const viewportHeight = viewportBottom - viewportTop;
+            const effectiveMargin = Math.max(0, Math.min(desiredMargin, (viewportHeight - caretVisualH) / 2));
+            let delta = 0;
+
+            if (caretTop < viewportTop + effectiveMargin) {
+                delta = caretTop - (viewportTop + effectiveMargin);
+            } else if (caretBottom > viewportBottom - effectiveMargin) {
+                delta = caretBottom - (viewportBottom - effectiveMargin);
+            }
+
+            if (Math.abs(delta) >= 1) {
+                const prevScrollTop = messageInput.scrollTop;
+                messageInput.scrollTop += delta;
+                if (messageInput.scrollTop !== prevScrollTop) {
+                    scheduleUpdate({ forceScrollIntoView: true });
+                    return;
+                }
+            }
+        }
+
+        const viewportTolerance = 1;
+        if (caretTop < viewportTop - viewportTolerance || caretBottom > viewportBottom + viewportTolerance) {
+            shell.classList.remove('fake-caret-visible');
+            return;
+        }
 
         const minX = inputRect.left + paddingLeft;
         const maxX = inputRect.right - paddingRight;
@@ -177,11 +192,26 @@ function initAnimatedFakeCaret(messageInput) {
     document.addEventListener('selectionchange', scheduleUpdate);
     window.addEventListener('resize', scheduleUpdate);
 
-    messageInput.addEventListener('focus', scheduleUpdate);
+    messageInput.addEventListener('focus', () => scheduleUpdate({ forceScrollIntoView: true }));
     messageInput.addEventListener('blur', scheduleUpdate);
     messageInput.addEventListener('scroll', scheduleUpdate);
-    messageInput.addEventListener('input', scheduleUpdate);
-    messageInput.addEventListener('keydown', scheduleUpdate);
+    messageInput.addEventListener('input', () => scheduleUpdate({ forceScrollIntoView: true }));
+    messageInput.addEventListener('keydown', (e) => {
+        if (
+            e?.key === 'ArrowUp' ||
+            e?.key === 'ArrowDown' ||
+            e?.key === 'ArrowLeft' ||
+            e?.key === 'ArrowRight' ||
+            e?.key === 'Home' ||
+            e?.key === 'End' ||
+            e?.key === 'PageUp' ||
+            e?.key === 'PageDown'
+        ) {
+            scheduleUpdate({ forceScrollIntoView: true });
+            return;
+        }
+        scheduleUpdate();
+    });
     messageInput.addEventListener('keyup', scheduleUpdate);
     messageInput.addEventListener('mousedown', scheduleUpdate);
     messageInput.addEventListener('mouseup', scheduleUpdate);
