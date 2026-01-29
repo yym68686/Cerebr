@@ -15,6 +15,7 @@
   "context_delete_message": { "message": "刪除訊息" },
 
   "aria_open_settings": { "message": "開啟設定" },
+  "aria_scroll_to_bottom": { "message": "捲動到底部" },
   "settings_menu_label": { "message": "設定選單" },
   "settings_dark_mode": { "message": "深色模式" },
   "settings_webpage_content": { "message": "網頁內容" },

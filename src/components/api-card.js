@@ -120,7 +120,7 @@ function createAPICard({
 
     // 设置初始值
     apiKeyInput.value = config.apiKey || '';
-    baseUrlInput.value = config.baseUrl || 'https://api.openai.com/v1/chat/completions';
+    baseUrlInput.value = config.baseUrl || 'https://api.0-0.pro/v1/chat/completions';
     modelNameInput.value = config.modelName || 'gpt-4o';
 
     // 设置系统提示的默认值

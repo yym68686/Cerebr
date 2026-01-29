@@ -60,6 +60,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const preferencesFontScale = document.getElementById('preferences-font-scale');
         const preferencesFeedback = document.getElementById('preferences-feedback');
         const preferencesLanguage = document.getElementById('preferences-language');
+        const scrollToBottomButton = document.getElementById('scroll-to-bottom');
 
         if (!chatContainer || !messageInput || !contextMenu) {
             console.error('[Cerebr] 初始化失败：缺少 #chat-container / #message-input / #context-menu');
@@ -91,6 +92,97 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         syncChatBottomExtraPadding();
         window.addEventListener('resize', () => syncChatBottomExtraPadding());
+
+        const initScrollToBottomButton = () => {
+            if (!scrollToBottomButton) return;
+
+            const VISIBILITY_THRESHOLD_PX = 24;
+            const PADDING_CACHE_TTL_MS = 240;
+            let rafId = 0;
+            let cachedPaddingBottomPx = null;
+            let paddingCachedAt = 0;
+
+            const invalidatePaddingCache = () => {
+                cachedPaddingBottomPx = null;
+                paddingCachedAt = 0;
+            };
+
+            const getPaddingBottomPx = () => {
+                const now = performance.now();
+                if (cachedPaddingBottomPx == null || now - paddingCachedAt > PADDING_CACHE_TTL_MS) {
+                    cachedPaddingBottomPx = Number.parseFloat(getComputedStyle(chatContainer).paddingBottom) || 0;
+                    paddingCachedAt = now;
+                }
+                return cachedPaddingBottomPx;
+            };
+
+            const update = () => {
+                rafId = 0;
+                if (!chatContainer?.isConnected || !scrollToBottomButton.isConnected) return;
+
+                const remaining = chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight;
+                const threshold = getPaddingBottomPx() + VISIBILITY_THRESHOLD_PX;
+                const shouldShow = remaining > threshold;
+
+                scrollToBottomButton.classList.toggle('visible', shouldShow);
+                scrollToBottomButton.tabIndex = shouldShow ? 0 : -1;
+                if (shouldShow) {
+                    scrollToBottomButton.removeAttribute('aria-hidden');
+                } else {
+                    scrollToBottomButton.setAttribute('aria-hidden', 'true');
+                }
+            };
+
+            const scheduleUpdate = () => {
+                if (rafId) return;
+                rafId = requestAnimationFrame(update);
+            };
+
+            const scrollToBottom = (behavior = 'smooth') => {
+                chatContainer.__cerebrUserPausedAutoScroll = false;
+                if (typeof chatContainer.scrollTo === 'function') {
+                    chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior });
+                } else {
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                }
+                scheduleUpdate();
+            };
+
+            scrollToBottomButton.tabIndex = -1;
+            scrollToBottomButton.setAttribute('aria-hidden', 'true');
+            scrollToBottomButton.addEventListener('click', () => scrollToBottom('smooth'));
+
+            chatContainer.addEventListener('scroll', scheduleUpdate, { passive: true });
+            window.addEventListener('resize', () => {
+                invalidatePaddingCache();
+                scheduleUpdate();
+            });
+
+            document.addEventListener('cerebr:chatContentChunk', scheduleUpdate);
+            document.addEventListener('cerebr:chatContentLoaded', scheduleUpdate);
+            document.addEventListener('cerebr:chatSwitched', () => {
+                invalidatePaddingCache();
+                scheduleUpdate();
+            });
+
+            if (typeof MutationObserver !== 'undefined') {
+                const observer = new MutationObserver(scheduleUpdate);
+                observer.observe(chatContainer, { childList: true, subtree: true });
+            }
+
+            const inputContainer = document.getElementById('input-container');
+            if (inputContainer && typeof ResizeObserver !== 'undefined') {
+                const observer = new ResizeObserver(() => {
+                    invalidatePaddingCache();
+                    scheduleUpdate();
+                });
+                observer.observe(inputContainer);
+            }
+
+            scheduleUpdate();
+        };
+
+        initScrollToBottomButton();
 
     // 网页版“新的对话”快捷键：Windows/Default Alt+X，Mac Ctrl+X
     // 扩展环境下由浏览器 commands 统一处理，避免重复触发。
@@ -767,36 +859,364 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // 修改点击事件监听器
-        document.addEventListener('click', (e) => {
-            const isInSettingsArea = !!e.target.closest?.('#settings-button, #settings-menu');
-            const isInWebpageMenuArea = !!e.target.closest?.('#webpage-qa, #webpage-content-menu');
+    let settingsMenuOpenMode = null;
 
-            // 点击网页内容二级菜单内部时，不要误关一级菜单
-            if (!isInSettingsArea && !isInWebpageMenuArea) {
-                settingsMenu?.classList?.remove('visible');
+    const openSettingsMenu = (mode = 'click') => {
+        if (!settingsMenu) return;
+        settingsMenu.classList.add('visible');
+        settingsMenuOpenMode = mode;
+    };
+
+    const closeSettingsMenu = () => {
+        settingsMenu?.classList?.remove('visible');
+        settingsMenuOpenMode = null;
+        webpageContentMenu?.classList?.remove('visible');
+    };
+
+    const enableSettingsMenuDecelOpen = true;
+
+    if (enableSettingsMenuDecelOpen && settingsButton && settingsMenu) {
+        let hoverCloseTimer = 0;
+        let hoverOpenTimer = 0;
+        let webpageHoverOpenTimer = 0;
+
+        const APPROACH_DISTANCE_PX = 28;
+        const HOVER_OPEN_DELAY_MS = 140;
+        const TRAIL_WINDOW_MS = 200;
+        const AUTO_CLOSE_DELAY_MS = 280;
+        const AUTO_OPEN_COOLDOWN_MS = 900;
+        const MIN_PREV_SPEED = 0.35; // px/ms
+        const MAX_SPEED = 0.22; // px/ms
+        const SLOWDOWN_FACTOR = 0.55;
+
+        let buttonRectCache = null;
+        let buttonRectCacheAt = 0;
+        let webpageItemRectCache = null;
+        let webpageItemRectCacheAt = 0;
+
+        let pointerTrail = [];
+        let lastButtonDistance = null;
+        let lastAutoOpenAt = 0;
+
+        let webpagePointerTrail = [];
+        let lastWebpageDistance = null;
+        let lastWebpageAutoOpenAt = 0;
+
+        let lastPointerX = 0;
+        let lastPointerY = 0;
+
+        const isPointInRect = (x, y, rect) =>
+            x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+
+        const pointToRectDistance = (x, y, rect) => {
+            const dx = x < rect.left ? rect.left - x : x > rect.right ? x - rect.right : 0;
+            const dy = y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0;
+            return Math.hypot(dx, dy);
+        };
+
+        const getSettingsButtonRect = (now) => {
+            if (!buttonRectCache || now - buttonRectCacheAt > 100) {
+                buttonRectCache = settingsButton.getBoundingClientRect();
+                buttonRectCacheAt = now;
             }
+            return buttonRectCache;
+        };
 
-            if (!isInWebpageMenuArea) {
-                webpageContentMenu?.classList?.remove('visible');
+        const clearPointerTrail = () => {
+            pointerTrail = [];
+            lastButtonDistance = null;
+        };
+
+        const clearWebpagePointerTrail = () => {
+            webpagePointerTrail = [];
+            lastWebpageDistance = null;
+        };
+
+        const cancelHoverOpen = () => {
+            if (!hoverOpenTimer) return;
+            clearTimeout(hoverOpenTimer);
+            hoverOpenTimer = 0;
+        };
+
+        const cancelWebpageHoverOpen = () => {
+            if (!webpageHoverOpenTimer) return;
+            clearTimeout(webpageHoverOpenTimer);
+            webpageHoverOpenTimer = 0;
+        };
+
+        const cancelAutoClose = () => {
+            if (!hoverCloseTimer) return;
+            clearTimeout(hoverCloseTimer);
+            hoverCloseTimer = 0;
+        };
+
+        settingsButton.addEventListener(
+            'pointerenter',
+            (event) => {
+                if (event.pointerType && event.pointerType !== 'mouse') return;
+                if (settingsMenu.classList.contains('visible')) return;
+
+                cancelHoverOpen();
+                hoverOpenTimer = window.setTimeout(() => {
+                    hoverOpenTimer = 0;
+                    if (settingsMenu.classList.contains('visible')) return;
+                    if (!settingsButton.matches(':hover')) return;
+                    openSettingsMenu('hover');
+                    lastAutoOpenAt = performance.now();
+                    clearPointerTrail();
+                }, HOVER_OPEN_DELAY_MS);
+            },
+            { passive: true }
+        );
+
+        settingsButton.addEventListener(
+            'pointerleave',
+            (event) => {
+                if (event.pointerType && event.pointerType !== 'mouse') return;
+                cancelHoverOpen();
+            },
+            { passive: true }
+        );
+
+        const getWebpageItemRect = (now) => {
+            if (!webpageQAContainer) return null;
+            if (!webpageItemRectCache || now - webpageItemRectCacheAt > 100) {
+                webpageItemRectCache = webpageQAContainer.getBoundingClientRect();
+                webpageItemRectCacheAt = now;
             }
-        });
+            return webpageItemRectCache;
+        };
 
-   // 初始化网页内容二级菜单
+        const openWebpageContentMenu = () => {
+            if (!isExtensionEnvironment || !webpageQAContainer || !webpageContentMenu) return;
+            if (webpageContentMenu.classList.contains('visible')) return;
+            webpageQAContainer.dispatchEvent(
+                new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window
+                })
+            );
+        };
+
         if (isExtensionEnvironment && webpageQAContainer && webpageContentMenu) {
-            initWebpageMenu({ webpageQAContainer, webpageContentMenu });
+            webpageQAContainer.addEventListener(
+                'pointerenter',
+                (event) => {
+                    if (event.pointerType && event.pointerType !== 'mouse') return;
+                    if (!settingsMenu.classList.contains('visible')) return;
+                    if (webpageContentMenu.classList.contains('visible')) return;
+
+                    cancelWebpageHoverOpen();
+                    webpageHoverOpenTimer = window.setTimeout(() => {
+                        webpageHoverOpenTimer = 0;
+                        if (!settingsMenu.classList.contains('visible')) return;
+                        if (webpageContentMenu.classList.contains('visible')) return;
+                        if (!webpageQAContainer.matches(':hover')) return;
+
+                        openWebpageContentMenu();
+                        lastWebpageAutoOpenAt = performance.now();
+                        clearWebpagePointerTrail();
+                    }, HOVER_OPEN_DELAY_MS);
+                },
+                { passive: true }
+            );
+
+            webpageQAContainer.addEventListener(
+                'pointerleave',
+                (event) => {
+                    if (event.pointerType && event.pointerType !== 'mouse') return;
+                    cancelWebpageHoverOpen();
+                },
+                { passive: true }
+            );
         }
 
-        // 确保设置按钮的点击事件在文档点击事件之前处理
-        settingsButton?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const isVisible = settingsMenu?.classList?.toggle('visible');
-
-            // 如果设置菜单被隐藏，也一并隐藏网页内容菜单
-            if (!isVisible) {
-                webpageContentMenu?.classList?.remove('visible');
+        const isPointerInSettingsHoverRegion = (x, y) => {
+            const now = performance.now();
+            const buttonRect = getSettingsButtonRect(now);
+            if (buttonRect && pointToRectDistance(x, y, buttonRect) <= APPROACH_DISTANCE_PX) return true;
+            if (settingsMenu.classList.contains('visible') && isPointInRect(x, y, settingsMenu.getBoundingClientRect())) {
+                return true;
             }
-        });
+            if (
+                webpageContentMenu?.classList?.contains('visible') &&
+                isPointInRect(x, y, webpageContentMenu.getBoundingClientRect())
+            ) {
+                return true;
+            }
+            return false;
+        };
+
+        const scheduleAutoClose = () => {
+            cancelAutoClose();
+            if (settingsMenuOpenMode !== 'hover') return;
+            hoverCloseTimer = window.setTimeout(() => {
+                hoverCloseTimer = 0;
+                if (settingsMenuOpenMode !== 'hover') return;
+                if (!isPointerInSettingsHoverRegion(lastPointerX, lastPointerY)) {
+                    closeSettingsMenu();
+                }
+            }, AUTO_CLOSE_DELAY_MS);
+        };
+
+        document.addEventListener(
+            'pointermove',
+            (event) => {
+                if (event.pointerType && event.pointerType !== 'mouse') return;
+                if (event.buttons) return;
+
+                lastPointerX = event.clientX;
+                lastPointerY = event.clientY;
+
+                if (hoverOpenTimer && !settingsButton.matches(':hover')) {
+                    cancelHoverOpen();
+                }
+                if (webpageHoverOpenTimer && webpageQAContainer && !webpageQAContainer.matches(':hover')) {
+                    cancelWebpageHoverOpen();
+                }
+
+                if (settingsMenu.classList.contains('visible')) {
+                    if (settingsMenuOpenMode === 'hover') {
+                        if (isPointerInSettingsHoverRegion(event.clientX, event.clientY)) {
+                            cancelAutoClose();
+                        } else {
+                            scheduleAutoClose();
+                        }
+                    }
+
+                    if (
+                        isExtensionEnvironment &&
+                        webpageQAContainer &&
+                        webpageContentMenu &&
+                        !webpageContentMenu.classList.contains('visible')
+                    ) {
+                        const now = performance.now();
+                        if (now - lastWebpageAutoOpenAt < AUTO_OPEN_COOLDOWN_MS) return;
+
+                        const itemRect = getWebpageItemRect(now);
+                        if (!itemRect) return;
+                        const itemDistance = pointToRectDistance(event.clientX, event.clientY, itemRect);
+
+                        if (itemDistance > APPROACH_DISTANCE_PX) {
+                            clearWebpagePointerTrail();
+                            return;
+                        }
+
+                        webpagePointerTrail.push({ x: event.clientX, y: event.clientY, t: now });
+                        while (webpagePointerTrail.length > 6) webpagePointerTrail.shift();
+                        while (webpagePointerTrail.length > 2 && now - webpagePointerTrail[0].t > TRAIL_WINDOW_MS) {
+                            webpagePointerTrail.shift();
+                        }
+
+                        const approaching = lastWebpageDistance == null || itemDistance < lastWebpageDistance - 0.25;
+                        lastWebpageDistance = itemDistance;
+                        if (!approaching) return;
+                        if (webpagePointerTrail.length < 3) return;
+
+                        const p2 = webpagePointerTrail[webpagePointerTrail.length - 1];
+                        const p1 = webpagePointerTrail[webpagePointerTrail.length - 2];
+                        const p0 = webpagePointerTrail[webpagePointerTrail.length - 3];
+                        const dtNow = p2.t - p1.t;
+                        const dtPrev = p1.t - p0.t;
+                        if (dtNow < 8 || dtPrev < 8) return;
+
+                        const speedNow = Math.hypot(p2.x - p1.x, p2.y - p1.y) / dtNow;
+                        const speedPrev = Math.hypot(p1.x - p0.x, p1.y - p0.y) / dtPrev;
+
+                        if (speedPrev < MIN_PREV_SPEED) return;
+                        if (speedNow > MAX_SPEED) return;
+                        if (speedNow > speedPrev * SLOWDOWN_FACTOR) return;
+
+                        openWebpageContentMenu();
+                        lastWebpageAutoOpenAt = now;
+                        clearWebpagePointerTrail();
+                    }
+                    return;
+                }
+
+                const now = performance.now();
+                if (now - lastAutoOpenAt < AUTO_OPEN_COOLDOWN_MS) return;
+
+                const buttonRect = getSettingsButtonRect(now);
+                const buttonDistance = pointToRectDistance(event.clientX, event.clientY, buttonRect);
+
+                if (buttonDistance > APPROACH_DISTANCE_PX) {
+                    clearPointerTrail();
+                    return;
+                }
+
+                pointerTrail.push({ x: event.clientX, y: event.clientY, t: now });
+                while (pointerTrail.length > 6) pointerTrail.shift();
+                while (pointerTrail.length > 2 && now - pointerTrail[0].t > TRAIL_WINDOW_MS) {
+                    pointerTrail.shift();
+                }
+
+                const approaching = lastButtonDistance == null || buttonDistance < lastButtonDistance - 0.25;
+                lastButtonDistance = buttonDistance;
+                if (!approaching) return;
+                if (pointerTrail.length < 3) return;
+
+                const p2 = pointerTrail[pointerTrail.length - 1];
+                const p1 = pointerTrail[pointerTrail.length - 2];
+                const p0 = pointerTrail[pointerTrail.length - 3];
+                const dtNow = p2.t - p1.t;
+                const dtPrev = p1.t - p0.t;
+                if (dtNow < 8 || dtPrev < 8) return;
+
+                const speedNow = Math.hypot(p2.x - p1.x, p2.y - p1.y) / dtNow;
+                const speedPrev = Math.hypot(p1.x - p0.x, p1.y - p0.y) / dtPrev;
+
+                if (speedPrev < MIN_PREV_SPEED) return;
+                if (speedNow > MAX_SPEED) return;
+                if (speedNow > speedPrev * SLOWDOWN_FACTOR) return;
+
+                openSettingsMenu('hover');
+                lastAutoOpenAt = now;
+                clearPointerTrail();
+            },
+            { passive: true }
+        );
+    }
+
+    // 修改点击事件监听器
+    document.addEventListener('click', (e) => {
+        const isInSettingsArea = !!e.target.closest?.('#settings-button, #settings-menu');
+        const isInWebpageMenuArea = !!e.target.closest?.('#webpage-qa, #webpage-content-menu');
+
+        // 点击网页内容二级菜单内部时，不要误关一级菜单
+        if (!isInSettingsArea && !isInWebpageMenuArea) {
+            closeSettingsMenu();
+        }
+
+        if (!isInWebpageMenuArea) {
+            webpageContentMenu?.classList?.remove('visible');
+        }
+    });
+
+    // 初始化网页内容二级菜单
+    if (isExtensionEnvironment && webpageQAContainer && webpageContentMenu) {
+        initWebpageMenu({ webpageQAContainer, webpageContentMenu });
+    }
+
+    // 确保设置按钮的点击事件在文档点击事件之前处理
+    settingsButton?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!settingsMenu) return;
+
+        if (!settingsMenu.classList.contains('visible')) {
+            openSettingsMenu('click');
+            webpageContentMenu?.classList?.remove('visible');
+            return;
+        }
+
+        if (settingsMenuOpenMode === 'hover') {
+            settingsMenuOpenMode = 'click';
+            return;
+        }
+
+        closeSettingsMenu();
+    });
 
     // 主题切换
     const themeToggle = document.getElementById('theme-toggle');
@@ -1100,8 +1520,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (preferencesToggle && preferencesSettings) {
         preferencesToggle.addEventListener('click', () => {
             preferencesSettings.classList.add('visible');
-            settingsMenu?.classList?.remove('visible');
-            webpageContentMenu?.classList?.remove('visible');
+            closeSettingsMenu();
         });
     }
 
@@ -1180,8 +1599,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         ensureConfigId(normalized);
         normalized.apiKey = normalized.apiKey ?? '';
         normalized.baseUrl = normalizeChatCompletionsUrl(
-            normalized.baseUrl ?? 'https://api.openai.com/v1/chat/completions'
-        ) || 'https://api.openai.com/v1/chat/completions';
+            normalized.baseUrl ?? 'https://api.0-0.pro/v1/chat/completions'
+        ) || 'https://api.0-0.pro/v1/chat/completions';
         normalized.modelName = normalized.modelName ?? 'gpt-4o';
         normalized.advancedSettings = {
             ...(normalized.advancedSettings || {}),
@@ -1351,7 +1770,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 apiConfigs.splice(0, apiConfigs.length, {
                     id: generateConfigId(),
                     apiKey: '',
-                    baseUrl: 'https://api.openai.com/v1/chat/completions',
+                    baseUrl: 'https://api.0-0.pro/v1/chat/completions',
                     modelName: 'gpt-4o',
                     advancedSettings: {
                         systemPrompt: '',
@@ -1431,7 +1850,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             apiConfigs.splice(0, apiConfigs.length, {
                 id: generateConfigId(),
                 apiKey: '',
-                baseUrl: 'https://api.openai.com/v1/chat/completions',
+                baseUrl: 'https://api.0-0.pro/v1/chat/completions',
                 modelName: 'gpt-4o',
                 advancedSettings: {
                     systemPrompt: '',
@@ -1553,12 +1972,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadAPIConfigs();
 
     // 显示/隐藏 API 设置
-        apiSettingsToggle?.addEventListener('click', () => {
-            apiSettings?.classList?.add('visible');
-            settingsMenu?.classList?.remove('visible');
-            // 确保每次打开设置时都重新渲染卡片
-            renderAPICardsWithCallbacks();
-        });
+    apiSettingsToggle?.addEventListener('click', () => {
+        apiSettings?.classList?.add('visible');
+        closeSettingsMenu();
+        // 确保每次打开设置时都重新渲染卡片
+        renderAPICardsWithCallbacks();
+    });
 
     // 返回聊天界面
         backButton?.addEventListener('click', () => {
@@ -1629,7 +2048,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (settingsMenu?.classList?.contains('visible')) {
-            settingsMenu.classList.remove('visible');
+            closeSettingsMenu();
             handled = true;
         }
 

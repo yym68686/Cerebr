@@ -15,6 +15,7 @@
   "context_delete_message": { "message": "Delete message" },
 
   "aria_open_settings": { "message": "Open settings" },
+  "aria_scroll_to_bottom": { "message": "Scroll to bottom" },
   "settings_menu_label": { "message": "Settings menu" },
   "settings_dark_mode": { "message": "Dark mode" },
   "settings_webpage_content": { "message": "Webpage content" },
