@@ -162,7 +162,9 @@ This project is developed using Chrome Extension Manifest V3, with main tech sta
 
 ## 🤝 Contribution Guide
 
-Welcome to submit Issues and Pull Requests to help improve the project. Before submitting, please ensure:
+Issues are welcome for discussion. To reduce maintenance cost, this project does not accept any feature PRs (new/improved features); please discuss feature requests in Issues. PRs are only accepted for bug fixes.
+
+Before submitting a bug-fix PR, please ensure:
 
 - 🔍 You have searched related issues
 - ✅ Follow existing code style

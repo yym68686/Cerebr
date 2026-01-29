@@ -162,7 +162,9 @@ https://github.com/tw93/Pake
 
 ## 🤝 贡献指南
 
-欢迎提交 Issue 和 Pull Request 来帮助改进项目。在提交之前,请确保:
+欢迎提交 Issue 进行讨论。为减少维护成本，本项目禁止任何 Feature PR（新增/改进功能）；任何功能增加/改进请移步 Issue 讨论。PR 仅接受 Bug 修复类。
+
+提交 Bug 修复 PR 之前,请确保:
 
 - 🔍 已经搜索过相关的 Issue
 - ✅ 遵循现有的代码风格
