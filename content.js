@@ -314,16 +314,17 @@ class CerebrSidebar {
           border-radius: 12px;
           overflow: hidden;
           visibility: hidden;
-          transform: translateX(calc(100% + 20px));
+          opacity: 0;
+          transform: translate3d(0, 8px, 0) scale(0.98);
+          transform-origin: 50% 50%;
           pointer-events: none;
           contain: style layout size;
           isolation: isolate;
-          will-change: transform;
+          will-change: transform, opacity;
         }
         .cerebr-sidebar.initialized {
           visibility: visible;
-          transition: transform 0.3s ease, box-shadow 0.3s ease;
-          pointer-events: auto;
+          transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.18s ease, box-shadow 0.22s ease;
         }
         @media (prefers-color-scheme: dark) {
           .cerebr-sidebar {
@@ -333,8 +334,10 @@ class CerebrSidebar {
           }
         }
         .cerebr-sidebar.visible {
-          transform: translateX(0);
+          opacity: 1;
+          transform: translate3d(0, 0, 0) scale(1);
           box-shadow: var(--cerebr-sidebar-box-shadow, -2px 0 15px rgba(0,0,0,0.1));
+          pointer-events: auto;
         }
         .cerebr-sidebar__header {
           position: absolute;

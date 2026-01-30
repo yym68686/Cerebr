@@ -2,7 +2,7 @@
 .cerebr-sidebar {
     position: fixed;
     top: 20px;
-    right: -450px;
+    right: 20px;
     width: 430px;
     height: calc(100vh - 40px);
     background: var(--cerebr-bg-color);
@@ -10,24 +10,27 @@
     box-shadow: none;
     z-index: 2147483647;
     border-radius: 12px;
-    margin-right: 20px;
     overflow: hidden;
     visibility: hidden;
-    transform: translateX(0);
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.98);
+    transform-origin: 50% 50%;
     pointer-events: none;
     contain: style layout size;
     isolation: isolate;
+    will-change: transform, opacity;
 }
 
 .cerebr-sidebar.initialized {
     visibility: visible;
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    pointer-events: auto;
+    transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.18s ease, box-shadow 0.22s ease;
 }
 
 .cerebr-sidebar.visible {
-    transform: translateX(-450px);
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
     box-shadow: var(--cerebr-sidebar-box-shadow);
+    pointer-events: auto;
 }
 
 /* 侧边栏组件样式 */
