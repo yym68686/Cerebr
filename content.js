@@ -1,5 +1,6 @@
 const SITE_OVERRIDES_KEY = 'panelSiteOverridesV1';
 const SITE_KEY_PLUS = 2;
+const SIDEBAR_POSITION_KEY = 'cerebr_sidebar_position_v1';
 
 const SIDEBAR_WIDTH_MIN_PX = 300;
 const SIDEBAR_WIDTH_MAX_PX = 800;
@@ -107,14 +108,20 @@ class CerebrSidebar {
     this.isVisible = false;
     this.sidebarWidth = 430;
     this.defaultSidebarWidth = 430;
+    this.sidebarLeft = null;
+    this.sidebarTop = null;
     this.initialized = false;
     this.siteKey = getSiteKeyFromLocation(window.location);
     this.pageKey = window.location.origin + window.location.pathname;
     this.lastUrl = window.location.href;
     this.sidebar = null;
+    this.iframe = null;
     this.hideTimeout = null;
+    this.dragging = false;
+    this.iframePointerEventsBeforeDrag = null;
     this.saveStateDebounced = this.debounce(() => void this.saveState(), 250);
     this.saveWidthDebounced = this.debounce(() => void this.saveWidth(), 250);
+    this.savePositionDebounced = this.debounce(() => void this.savePosition(), 250);
     this.handleSidebarTransitionEnd = (event) => {
       if (!this.sidebar || event.target !== this.sidebar || event.propertyName !== 'transform') {
         return;
@@ -252,6 +259,7 @@ class CerebrSidebar {
   async loadState() {
     try {
       await this.loadWidth();
+      await this.loadPosition();
       const states = await chrome.storage.local.get('sidebarStates');
       const state = states?.sidebarStates?.[this.pageKey];
       this.isVisible = !!state?.isVisible;
@@ -265,6 +273,7 @@ class CerebrSidebar {
       }
 
       this.applySidebarWidth();
+      this.applySidebarPosition();
     } catch (error) {
       console.error('加载侧边栏状态失败:', error);
     }
@@ -273,6 +282,163 @@ class CerebrSidebar {
   applySidebarWidth() {
     if (!this.sidebar) return;
     this.sidebar.style.width = `${this.sidebarWidth}px`;
+    this.applySidebarPosition();
+  }
+
+  async loadPosition() {
+    try {
+      const result = await chrome.storage.local.get(SIDEBAR_POSITION_KEY);
+      const pos = result?.[SIDEBAR_POSITION_KEY];
+      const left = Number(pos?.left);
+      const top = Number(pos?.top);
+      if (Number.isFinite(left) && Number.isFinite(top)) {
+        this.sidebarLeft = left;
+        this.sidebarTop = top;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  async savePosition() {
+    try {
+      if (!Number.isFinite(this.sidebarLeft) || !Number.isFinite(this.sidebarTop)) return;
+      await chrome.storage.local.set({
+        [SIDEBAR_POSITION_KEY]: {
+          left: this.sidebarLeft,
+          top: this.sidebarTop,
+          updatedAt: Date.now()
+        }
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  getSidebarSizeForClamp() {
+    const fallbackWidth = clampSidebarWidth(this.sidebarWidth, this.defaultSidebarWidth);
+    const fallbackHeight = Math.max(120, window.innerHeight - 40);
+    if (!this.sidebar) return { width: fallbackWidth, height: fallbackHeight };
+
+    const rect = this.sidebar.getBoundingClientRect?.();
+    const width = rect?.width ? rect.width : fallbackWidth;
+    const height = rect?.height ? rect.height : fallbackHeight;
+    return { width, height };
+  }
+
+  clampSidebarPosition(left, top) {
+    const { width, height } = this.getSidebarSizeForClamp();
+    const margin = 8;
+    const minLeft = margin;
+    const minTop = margin;
+    const maxLeft = Math.max(margin, window.innerWidth - width - margin);
+    const maxTop = Math.max(margin, window.innerHeight - height - margin);
+    return {
+      left: Math.min(Math.max(left, minLeft), maxLeft),
+      top: Math.min(Math.max(top, minTop), maxTop)
+    };
+  }
+
+  applySidebarPosition() {
+    if (!this.sidebar) return;
+
+    const fallbackLeft = window.innerWidth - clampSidebarWidth(this.sidebarWidth, this.defaultSidebarWidth) - 20;
+    const fallbackTop = 20;
+
+    const rawLeft = Number.isFinite(this.sidebarLeft) ? this.sidebarLeft : fallbackLeft;
+    const rawTop = Number.isFinite(this.sidebarTop) ? this.sidebarTop : fallbackTop;
+    const { left, top } = this.clampSidebarPosition(rawLeft, rawTop);
+
+    this.sidebarLeft = left;
+    this.sidebarTop = top;
+
+    this.sidebar.style.left = `${left}px`;
+    this.sidebar.style.top = `${top}px`;
+    this.sidebar.style.right = 'auto';
+    this.sidebar.style.bottom = 'auto';
+  }
+
+  startDragging() {
+    if (!this.sidebar || this.dragging) return;
+    this.dragging = true;
+
+    const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
+    if (iframe) {
+      this.iframePointerEventsBeforeDrag = iframe.style.pointerEvents;
+      iframe.style.pointerEvents = 'none';
+    }
+
+    document.documentElement.style.cursor = 'grabbing';
+    document.documentElement.style.userSelect = 'none';
+  }
+
+  dragBy(dx, dy) {
+    if (!this.sidebar || !this.dragging) return;
+    const nextLeft = (Number.isFinite(this.sidebarLeft) ? this.sidebarLeft : 0) + dx;
+    const nextTop = (Number.isFinite(this.sidebarTop) ? this.sidebarTop : 0) + dy;
+    const { left, top } = this.clampSidebarPosition(nextLeft, nextTop);
+    this.sidebarLeft = left;
+    this.sidebarTop = top;
+    this.sidebar.style.left = `${left}px`;
+    this.sidebar.style.top = `${top}px`;
+    this.sidebar.style.right = 'auto';
+    this.sidebar.style.bottom = 'auto';
+  }
+
+  stopDragging() {
+    if (!this.dragging) return;
+    this.dragging = false;
+
+    const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
+    if (iframe) {
+      iframe.style.pointerEvents = this.iframePointerEventsBeforeDrag ?? '';
+    }
+    this.iframePointerEventsBeforeDrag = null;
+
+    document.documentElement.style.cursor = '';
+    document.documentElement.style.userSelect = '';
+
+    this.savePositionDebounced();
+  }
+
+  setupIframeDragMessaging(iframe) {
+    if (!iframe) return;
+    if (this.__cerebrIframeDragMessagingAttached) return;
+    this.__cerebrIframeDragMessagingAttached = true;
+
+    const onMessage = (event) => {
+      if (!this.sidebar || !this.iframe) return;
+      if (event.source !== this.iframe.contentWindow) return;
+      const data = event.data;
+      if (!data || typeof data !== 'object') return;
+
+      if (data.type === 'CEREBR_SIDEBAR_DRAG_START') {
+        if (!this.isVisible) return;
+        this.startDragging();
+        return;
+      }
+
+      if (data.type === 'CEREBR_SIDEBAR_DRAG_MOVE') {
+        if (!this.isVisible) return;
+        if (!this.dragging) return;
+        const dx = Number(data.dx) || 0;
+        const dy = Number(data.dy) || 0;
+        if (!dx && !dy) return;
+        this.dragBy(dx, dy);
+        return;
+      }
+
+      if (data.type === 'CEREBR_SIDEBAR_DRAG_END') {
+        this.stopDragging();
+      }
+    };
+
+    window.addEventListener('message', onMessage);
+    window.addEventListener('blur', () => this.stopDragging());
+    window.addEventListener('resize', () => {
+      this.applySidebarPosition();
+      this.savePositionDebounced();
+    });
   }
 
   async initializeSidebar() {
@@ -407,6 +573,7 @@ class CerebrSidebar {
       iframe.className = 'cerebr-sidebar__iframe';
       iframe.src = chrome.runtime.getURL('index.html');
       iframe.allow = 'clipboard-write';
+      this.iframe = iframe;
 
       content.appendChild(iframe);
       this.sidebar.appendChild(header);
@@ -418,6 +585,7 @@ class CerebrSidebar {
 
       // 先加载状态
       await this.loadState();
+      this.setupIframeDragMessaging(iframe);
 
       // 添加到文档并保护它
       const root = document.documentElement;
