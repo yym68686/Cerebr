@@ -1,6 +1,9 @@
 const SITE_OVERRIDES_KEY = 'panelSiteOverridesV1';
 const SITE_KEY_PLUS = 2;
-const SIDEBAR_POSITION_KEY = 'cerebr_sidebar_position_v1';
+const SIDEBAR_POSITIONS_KEY = 'cerebr_sidebar_positions_v1';
+// 迁移：旧版本用单一 key 保存位置，会导致“新网页也沿用旧网页位置”。
+// 新版本按 siteKey/pageKey 保存，确保未拖动过的网页默认靠右。
+const SIDEBAR_POSITION_LEGACY_KEY = 'cerebr_sidebar_position_v1';
 
 const SIDEBAR_WIDTH_MIN_PX = 300;
 const SIDEBAR_WIDTH_MAX_PX = 800;
@@ -287,13 +290,37 @@ class CerebrSidebar {
 
   async loadPosition() {
     try {
-      const result = await chrome.storage.local.get(SIDEBAR_POSITION_KEY);
-      const pos = result?.[SIDEBAR_POSITION_KEY];
-      const left = Number(pos?.left);
-      const top = Number(pos?.top);
+      const positionKey = this.siteKey || this.pageKey;
+      if (!positionKey) return;
+
+      const result = await chrome.storage.local.get([SIDEBAR_POSITIONS_KEY, SIDEBAR_POSITION_LEGACY_KEY]);
+      const map = result?.[SIDEBAR_POSITIONS_KEY] && typeof result[SIDEBAR_POSITIONS_KEY] === 'object'
+        ? result[SIDEBAR_POSITIONS_KEY]
+        : {};
+
+      const fromMap = map?.[positionKey];
+      const left = Number(fromMap?.left);
+      const top = Number(fromMap?.top);
       if (Number.isFinite(left) && Number.isFinite(top)) {
         this.sidebarLeft = left;
         this.sidebarTop = top;
+        return;
+      }
+
+      // 仅对当前站点做一次性迁移：把 legacy 的全局位置写入本 siteKey/pageKey，然后移除 legacy。
+      const legacy = result?.[SIDEBAR_POSITION_LEGACY_KEY];
+      const legacyLeft = Number(legacy?.left);
+      const legacyTop = Number(legacy?.top);
+      if (Number.isFinite(legacyLeft) && Number.isFinite(legacyTop)) {
+        map[positionKey] = {
+          left: legacyLeft,
+          top: legacyTop,
+          updatedAt: Date.now()
+        };
+        await chrome.storage.local.set({ [SIDEBAR_POSITIONS_KEY]: map });
+        await chrome.storage.local.remove(SIDEBAR_POSITION_LEGACY_KEY);
+        this.sidebarLeft = legacyLeft;
+        this.sidebarTop = legacyTop;
       }
     } catch {
       // ignore
@@ -303,13 +330,37 @@ class CerebrSidebar {
   async savePosition() {
     try {
       if (!Number.isFinite(this.sidebarLeft) || !Number.isFinite(this.sidebarTop)) return;
-      await chrome.storage.local.set({
-        [SIDEBAR_POSITION_KEY]: {
-          left: this.sidebarLeft,
-          top: this.sidebarTop,
-          updatedAt: Date.now()
+      const positionKey = this.siteKey || this.pageKey;
+      if (!positionKey) return;
+
+      const result = await chrome.storage.local.get(SIDEBAR_POSITIONS_KEY);
+      const map = result?.[SIDEBAR_POSITIONS_KEY] && typeof result[SIDEBAR_POSITIONS_KEY] === 'object'
+        ? result[SIDEBAR_POSITIONS_KEY]
+        : {};
+
+      map[positionKey] = {
+        left: this.sidebarLeft,
+        top: this.sidebarTop,
+        updatedAt: Date.now()
+      };
+
+      // 防止无限增长：保留最近使用的 100 条
+      try {
+        const entries = Object.entries(map);
+        const MAX_ENTRIES = 100;
+        if (entries.length > MAX_ENTRIES) {
+          entries
+            .sort((a, b) => (Number(b[1]?.updatedAt) || 0) - (Number(a[1]?.updatedAt) || 0))
+            .slice(MAX_ENTRIES)
+            .forEach(([key]) => {
+              delete map[key];
+            });
         }
-      });
+      } catch {
+        // ignore
+      }
+
+      await chrome.storage.local.set({ [SIDEBAR_POSITIONS_KEY]: map });
     } catch {
       // ignore
     }
