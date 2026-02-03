@@ -2,7 +2,7 @@ const SITE_OVERRIDES_KEY = 'panelSiteOverridesV1';
 const SITE_KEY_PLUS = 2;
 const SIDEBAR_POSITIONS_KEY = 'cerebr_sidebar_positions_v1';
 // 迁移：旧版本用单一 key 保存位置，会导致“新网页也沿用旧网页位置”。
-// 新版本按 siteKey/pageKey 保存，确保未拖动过的网页默认靠右。
+// 新版本按“站点级 positionKey（eTLD+1）”保存，确保未拖动过的网页默认靠右。
 const SIDEBAR_POSITION_LEGACY_KEY = 'cerebr_sidebar_position_v1';
 
 const SIDEBAR_WIDTH_MIN_PX = 300;
@@ -90,6 +90,14 @@ function getSiteKeyFromLocation(loc) {
   }
 }
 
+function canonicalizePositionKey(key) {
+  const normalized = String(key || '').trim().toLowerCase();
+  if (!normalized) return null;
+  // Twitter/X：部分页面仍可能落在 twitter.com；位置预期应一致，避免“偶尔跳到另一侧”的错觉
+  if (normalized === 'twitter.com') return 'x.com';
+  return normalized;
+}
+
 function pruneSiteOverridesInPlace(overrides) {
   try {
     const entries = Object.entries(overrides || {});
@@ -115,6 +123,8 @@ class CerebrSidebar {
     this.sidebarTop = null;
     this.initialized = false;
     this.siteKey = getSiteKeyFromLocation(window.location);
+    // 位置保存键：按“站点(eTLD+1)”统一，避免 www/mobile 子域导致位置在同一网站间跳变
+    this.positionKey = canonicalizePositionKey(getSiteKeyFromHostname(window.location.hostname, 1) || this.siteKey);
     this.pageKey = window.location.origin + window.location.pathname;
     this.lastUrl = window.location.href;
     this.sidebar = null;
@@ -290,7 +300,7 @@ class CerebrSidebar {
 
   async loadPosition() {
     try {
-      const positionKey = this.siteKey || this.pageKey;
+      const positionKey = this.positionKey || this.pageKey;
       if (!positionKey) return;
 
       const result = await chrome.storage.local.get([SIDEBAR_POSITIONS_KEY, SIDEBAR_POSITION_LEGACY_KEY]);
@@ -298,12 +308,45 @@ class CerebrSidebar {
         ? result[SIDEBAR_POSITIONS_KEY]
         : {};
 
-      const fromMap = map?.[positionKey];
-      const left = Number(fromMap?.left);
-      const top = Number(fromMap?.top);
-      if (Number.isFinite(left) && Number.isFinite(top)) {
-        this.sidebarLeft = left;
-        this.sidebarTop = top;
+      const readFromMap = (key) => {
+        if (!key) return null;
+        const value = map?.[key];
+        const left = Number(value?.left);
+        const top = Number(value?.top);
+        if (!Number.isFinite(left) || !Number.isFinite(top)) return null;
+        const updatedAt = Number(value?.updatedAt) || 0;
+        return { left, top, key, updatedAt };
+      };
+
+      // 一旦站点级 positionKey 有值，就不要再让“旧的 pageKey”等覆盖它，否则同站点不同页面会偶尔跳位。
+      const direct = readFromMap(positionKey);
+      if (direct) {
+        this.sidebarLeft = direct.left;
+        this.sidebarTop = direct.top;
+        return;
+      }
+
+      // Twitter/X 兼容：历史上可能分别保存过 twitter.com 与 x.com
+      const twitterLegacyKey = positionKey === 'x.com' ? 'twitter.com' : null;
+
+      const candidates = [this.siteKey, this.pageKey, twitterLegacyKey]
+        .filter(Boolean)
+        .map((key) => readFromMap(key))
+        .filter(Boolean);
+
+      if (candidates.length) {
+        candidates.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        const resolved = candidates[0];
+        this.sidebarLeft = resolved.left;
+        this.sidebarTop = resolved.top;
+
+        // 若命中的是旧键，迁移到新的 positionKey，避免同站点不同子域位置不一致
+        map[positionKey] = { left: resolved.left, top: resolved.top, updatedAt: Date.now() };
+        // 清理触发迁移的旧键，避免未来再次被“误读”为更优先的来源
+        if (resolved.key && resolved.key !== positionKey) {
+          delete map[resolved.key];
+        }
+        await chrome.storage.local.set({ [SIDEBAR_POSITIONS_KEY]: map });
         return;
       }
 
@@ -330,7 +373,7 @@ class CerebrSidebar {
   async savePosition() {
     try {
       if (!Number.isFinite(this.sidebarLeft) || !Number.isFinite(this.sidebarTop)) return;
-      const positionKey = this.siteKey || this.pageKey;
+      const positionKey = this.positionKey || this.pageKey;
       if (!positionKey) return;
 
       const result = await chrome.storage.local.get(SIDEBAR_POSITIONS_KEY);
@@ -393,15 +436,19 @@ class CerebrSidebar {
   applySidebarPosition() {
     if (!this.sidebar) return;
 
-    const fallbackLeft = window.innerWidth - clampSidebarWidth(this.sidebarWidth, this.defaultSidebarWidth) - 20;
-    const fallbackTop = 20;
+    // 未拖动过：保持默认右侧，不写入 left，避免在不同站点/不同窗口宽度下产生意外位置
+    if (!Number.isFinite(this.sidebarLeft) || !Number.isFinite(this.sidebarTop)) {
+      this.sidebar.style.left = 'auto';
+      this.sidebar.style.top = '20px';
+      this.sidebar.style.right = '20px';
+      this.sidebar.style.bottom = 'auto';
+      return;
+    }
 
-    const rawLeft = Number.isFinite(this.sidebarLeft) ? this.sidebarLeft : fallbackLeft;
-    const rawTop = Number.isFinite(this.sidebarTop) ? this.sidebarTop : fallbackTop;
-    const { left, top } = this.clampSidebarPosition(rawLeft, rawTop);
-
-    this.sidebarLeft = left;
-    this.sidebarTop = top;
+    // sidebarLeft/sidebarTop 表示“用户期望的位置”；apply 时仅做视口内裁剪，避免窗口 resize 时把裁剪后的值写回。
+    const desiredLeft = this.sidebarLeft;
+    const desiredTop = this.sidebarTop;
+    const { left, top } = this.clampSidebarPosition(desiredLeft, desiredTop);
 
     this.sidebar.style.left = `${left}px`;
     this.sidebar.style.top = `${top}px`;
@@ -412,6 +459,17 @@ class CerebrSidebar {
   startDragging() {
     if (!this.sidebar || this.dragging) return;
     this.dragging = true;
+
+    // 以“当前可见位置”为起点（避免 desired 与 clamp 后位置不一致导致拖动抖动/跳动）
+    try {
+      const rect = this.sidebar.getBoundingClientRect();
+      if (Number.isFinite(rect.left) && Number.isFinite(rect.top)) {
+        this.sidebarLeft = rect.left;
+        this.sidebarTop = rect.top;
+      }
+    } catch {
+      // ignore
+    }
 
     const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
     if (iframe) {
@@ -488,7 +546,6 @@ class CerebrSidebar {
     window.addEventListener('blur', () => this.stopDragging());
     window.addEventListener('resize', () => {
       this.applySidebarPosition();
-      this.savePositionDebounced();
     });
   }
 
