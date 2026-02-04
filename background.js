@@ -454,6 +454,40 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // 处理图片获取请求（绕过 CORS 限制）
+  if (message.action === 'fetchImageAsBase64') {
+    (async () => {
+      try {
+        const response = await fetch(message.url, {
+          method: 'GET',
+          credentials: 'include',
+          mode: 'cors'
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const blob = await response.blob();
+
+        // 将 blob 转换为 base64
+        const reader = new FileReader();
+        const base64Promise = new Promise((resolve, reject) => {
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = reject;
+        });
+        reader.readAsDataURL(blob);
+
+        const base64Data = await base64Promise;
+        sendResponse({ success: true, data: base64Data });
+      } catch (error) {
+        console.error('获取图片失败:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true;
+  }
+
   // 处理PDF下载请求
   if (message.action === 'downloadPDF') {
     (async () => {
