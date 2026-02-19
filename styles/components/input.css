@@ -12,6 +12,9 @@
     padding-bottom: env(safe-area-inset-bottom);
     z-index: 100;
     min-height: 48px;
+    transform: translate3d(0, calc(-1 * var(--keyboard-offset, 0px)), 0);
+    will-change: transform;
+    transition: transform 40ms linear;
 }
 
 .message-input-shell {
@@ -118,5 +121,9 @@
 
     .message-input-shell .fake-caret::before {
         animation: none;
+    }
+
+    #input-container {
+        transition: none;
     }
 }
