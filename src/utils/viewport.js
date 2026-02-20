@@ -23,8 +23,18 @@ const isTextInputLike = (el) => {
 const isProbablyIOS = () => {
     const ua = navigator.userAgent || '';
     const platform = navigator.platform || '';
+    const vendor = navigator.vendor || '';
     const maxTouchPoints = navigator.maxTouchPoints || 0;
-    return /iPad|iPhone|iPod/i.test(ua) || (platform === 'MacIntel' && maxTouchPoints > 1);
+
+    // iOS / iPadOS:
+    // - Normal UA contains iPhone/iPad/iPod.
+    // - iPadOS (and sometimes iOS with desktop-site UA) may report `MacIntel`/`Macintosh`.
+    // - Apple vendor + touch points is a robust fallback even under "Request Desktop Website".
+    const isIOSUA = /iPad|iPhone|iPod/i.test(ua);
+    const isAppleTouch = /Apple/i.test(vendor) && maxTouchPoints > 1;
+    const isIpadOS = platform === 'MacIntel' && maxTouchPoints > 1;
+    const isMacUAWithTouch = /Macintosh/i.test(ua) && maxTouchPoints > 1;
+    return isIOSUA || isIpadOS || isMacUAWithTouch || isAppleTouch;
 };
 
 // iOS Safari has a long-standing quirk where `:hover` can "stick" after a tap and
@@ -33,7 +43,12 @@ const isProbablyIOS = () => {
 const disableMessageHoverOnIOS = () => {
     try {
         if (!isProbablyIOS()) return;
-        document.body?.classList?.add('cerebr-disable-message-hover');
+        const apply = () => document.body?.classList?.add('cerebr-disable-message-hover');
+        if (document.body) {
+            apply();
+            return;
+        }
+        document.addEventListener('DOMContentLoaded', apply, { once: true });
     } catch {
         // ignore
     }
@@ -185,16 +200,12 @@ function setViewportVars() {
 
         // iOS Safari can briefly report an overly small VisualViewport.height on subsequent
         // focus cycles, making the overlay look much larger than the real keyboard.
-        // Clamp extreme early-cycle spikes to the last stable value to avoid "jump up then fall".
+        // Clamp early-cycle spikes to the last stable value to avoid "jump up then fall".
         let overlayForOffsetPx = rawOverlayPx;
         const SPIKE_WINDOW_MS = 900;
-        const SPIKE_EXTRA_PX = 120;
-        if (
-            stableKeyboardOverlayPx > 0 &&
-            now - keyboardShowStartMs < SPIKE_WINDOW_MS &&
-            rawOverlayPx > stableKeyboardOverlayPx + SPIKE_EXTRA_PX
-        ) {
-            overlayForOffsetPx = stableKeyboardOverlayPx;
+        const EARLY_MAX_EXTRA_PX = 24;
+        if (stableKeyboardOverlayPx > 0 && now - keyboardShowStartMs < SPIKE_WINDOW_MS) {
+            overlayForOffsetPx = Math.min(rawOverlayPx, stableKeyboardOverlayPx + EARLY_MAX_EXTRA_PX);
         }
 
         // Update stable overlay height once the keyboard animation settles.
