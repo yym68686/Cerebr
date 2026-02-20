@@ -1,0 +1,121 @@
+#webpage-content-menu {
+    position: fixed;
+    min-width: 180px;
+    max-width: 200px;
+    background-color: var(--settings-bg-color);
+    border: 1px solid var(--settings-border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    padding: 8px;
+    z-index: 1001;
+    display: none;
+    backdrop-filter: var(--cerebr-surface-backdrop-filter);
+    -webkit-backdrop-filter: var(--cerebr-surface-backdrop-filter);
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+#webpage-content-menu.visible {
+    display: block;
+}
+
+.webpage-menu-loading,
+.webpage-menu-empty {
+    padding: 10px 8px;
+    color: var(--cerebr-text-color-secondary);
+    font-size: var(--cerebr-fs-13);
+}
+
+.webpage-menu-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.webpage-menu-item:hover {
+    background-color: var(--settings-hover-bg-color);
+}
+
+.webpage-menu-item .title {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right: 16px; /* 增加标题和开关之间的间距 */
+    min-width: 0; /* 确保在 flex 布局中 ellipsis 生效 */
+}
+
+.webpage-menu-item .switch {
+    flex-shrink: 0; /* 防止开关被压缩 */
+}
+
+.webpage-menu-item .favicon {
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+.webpage-menu-group {
+    margin: 4px 0;
+}
+
+.webpage-menu-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.webpage-menu-group-header:hover {
+    background-color: var(--settings-hover-bg-color);
+}
+
+.webpage-menu-group-meta {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 6px;
+    flex: 1;
+    margin-right: 10px;
+}
+
+.webpage-menu-group-color {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.webpage-menu-group-color.is-hidden {
+    display: none;
+}
+
+.webpage-menu-group-title {
+    font-size: var(--cerebr-fs-12);
+    color: var(--cerebr-text-color-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+.webpage-menu-group-count {
+    font-size: var(--cerebr-fs-12);
+    color: var(--cerebr-text-color-secondary);
+    flex-shrink: 0;
+}
+
+.webpage-menu-item--indented {
+    padding-left: 20px;
+}

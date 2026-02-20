@@ -1,0 +1,108 @@
+/* 聊天容器样式 */
+#chat-container {
+    flex: 1;
+    overflow-y: scroll;
+    padding: 15px;
+    padding-top: calc(15px + env(safe-area-inset-top));
+    padding-bottom: calc(60px + env(safe-area-inset-bottom) + var(--chat-bottom-extra-padding, 0px));
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    min-height: 100%;
+    -webkit-overflow-scrolling: touch;
+    transform: translateZ(0);
+    scroll-behavior: auto;
+    overscroll-behavior-y: contain;
+    position: relative;
+    height: 100%;
+    box-sizing: border-box;
+    margin-top: var(--chat-top-margin, 0px);
+    transition: margin-top 0.3s ease;
+}
+
+#chat-container::-webkit-scrollbar {
+    display: none;
+}
+
+.keyboard-visible #chat-container {
+    padding-bottom: calc(60px + env(safe-area-inset-bottom) + var(--keyboard-height, 0px) + var(--chat-bottom-extra-padding, 0px));
+}
+
+.chat-switch-placeholder {
+    height: 100%;
+    min-height: 160px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--cerebr-text-color-secondary);
+    user-select: none;
+}
+
+.chat-switch-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid transparent;
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: loading-spinner 0.8s linear infinite;
+}
+
+.chat-switch-text {
+    font-size: var(--cerebr-fs-13);
+}
+
+#scroll-to-bottom {
+    position: fixed;
+    right: 16px;
+    bottom: calc(72px + env(safe-area-inset-bottom) + var(--chat-bottom-extra-padding, 0px));
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    border: 1px solid var(--cerebr-surface-border);
+    background: var(--cerebr-surface-bg);
+    color: var(--cerebr-icon-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 18px var(--cerebr-popup-shadow);
+    backdrop-filter: var(--cerebr-surface-backdrop-filter);
+    -webkit-backdrop-filter: var(--cerebr-surface-backdrop-filter);
+    cursor: pointer;
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.96);
+    pointer-events: none;
+    transition: opacity 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+    z-index: 150;
+}
+
+.keyboard-visible #scroll-to-bottom {
+    bottom: calc(72px + env(safe-area-inset-bottom) + var(--keyboard-height, 0px) + var(--chat-bottom-extra-padding, 0px));
+}
+
+#scroll-to-bottom.visible {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    pointer-events: auto;
+}
+
+#scroll-to-bottom svg {
+    width: 20px;
+    height: 20px;
+}
+
+#scroll-to-bottom:hover {
+    box-shadow: 0 10px 26px var(--cerebr-popup-shadow);
+    transform: translate3d(0, -1px, 0) scale(1.02);
+}
+
+#scroll-to-bottom:active {
+    box-shadow: 0 4px 14px var(--cerebr-popup-shadow);
+    transform: translate3d(0, 0, 0) scale(0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #scroll-to-bottom {
+        transition: none;
+    }
+}

@@ -1,0 +1,192 @@
+/* 设置按钮和菜单样式 */
+#settings-button {
+    padding: 12px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--cerebr-icon-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#settings-button svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+    opacity: 0.6;
+    transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55),
+                opacity 0.2s ease;
+}
+
+#settings-button:hover svg {
+    transform: scale(1.25);
+    opacity: 1;
+}
+
+#settings-button:active svg {
+    transform: scale(0.95);
+    opacity: 0.8;
+}
+
+#settings-menu {
+    position: absolute;
+    bottom: 100%;
+    left: 8px;
+    background-color: var(--cerebr-surface-bg);
+    border: 1px solid var(--cerebr-surface-border);
+    border-radius: 8px;
+    box-shadow: 0 4px 20px var(--cerebr-popup-shadow);
+    padding: 8px;
+    display: none;
+    min-width: 180px;
+    margin-bottom: 8px;
+    transform-origin: bottom left;
+    backdrop-filter: var(--cerebr-surface-backdrop-filter);
+    -webkit-backdrop-filter: var(--cerebr-surface-backdrop-filter);
+}
+
+#settings-menu.visible {
+    display: block;
+    animation: menuAppear 0.2s ease;
+}
+
+.menu-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--cerebr-text-color);
+    border-radius: 6px;
+    margin: 2px 0;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.menu-item:hover {
+    background-color: var(--cerebr-message-user-bg);
+}
+
+.menu-item:focus-visible {
+    outline: none;
+    background-color: var(--cerebr-message-user-bg);
+    box-shadow: 0 0 0 2px var(--cerebr-focus-border-color);
+}
+
+/* 开关样式 */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 20px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--cerebr-toggle-bg-off);
+    transition: .3s;
+    border-radius: 20px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: #fff;
+    transition: .3s;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px var(--cerebr-popup-shadow);
+}
+
+input:checked + .slider {
+    background-color: var(--cerebr-toggle-bg-on);
+}
+
+input:checked + .slider:before {
+    transform: translateX(16px);
+}
+
+/* 高级设置区域样式 */
+.advanced-settings {
+    margin-top: 0;
+    padding-top: 4px;
+}
+
+.advanced-settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    padding: 8px 12px;
+    user-select: none;
+    background: var(--cerebr-message-ai-bg);
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
+}
+
+.advanced-settings-header:hover {
+    opacity: 1;
+    background: var(--cerebr-message-user-bg);
+}
+
+.toggle-icon {
+    transition: transform 0.3s ease;
+    font-size: var(--cerebr-fs-12);
+    color: var(--cerebr-text-color);
+    opacity: 0.6;
+}
+
+.advanced-settings-content {
+    overflow: hidden;
+    transition: height 0.3s ease;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.setting-item {
+    margin-top: 12px;
+}
+
+.setting-item label {
+    display: block;
+    font-size: var(--cerebr-fs-12);
+    margin-bottom: 4px;
+    color: var(--cerebr-text-color);
+    opacity: 0.8;
+}
+
+.system-prompt {
+    width: 100%;
+    min-height: 60px;
+    padding: 8px;
+    border: 1px solid var(--cerebr-input-border-color);
+    border-radius: 4px;
+    background: var(--cerebr-message-ai-bg);
+    color: var(--cerebr-text-color);
+    font-size: var(--cerebr-fs-14);
+    line-height: 1.5;
+    resize: vertical;
+    font-family: inherit;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.system-prompt:focus {
+    outline: none;
+    border-color: var(--cerebr-highlight-border-color);
+    box-shadow: 0 0 0 1px var(--cerebr-highlight-border-color);
+}

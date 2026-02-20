@@ -1,0 +1,189 @@
+/* 聊天列表页面样式 */
+#chat-list-page {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+    display: none;
+    flex-direction: column;
+    background: var(--cerebr-bg-color);
+}
+
+#chat-list-page.show {
+    display: flex;
+}
+
+#chat-list-page .settings-header {
+    justify-content: space-between;
+}
+
+#chat-list-page .settings-title {
+    flex-grow: 0;
+    margin: 0 auto;
+}
+
+.chat-cards {
+    padding: 16px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.chat-list-empty-state {
+    margin-top: 20vh;
+    padding: 16px;
+    text-align: center;
+    color: var(--cerebr-text-color-secondary);
+    font-size: var(--cerebr-fs-14);
+}
+
+.chat-card {
+    outline: none;
+    cursor: pointer;
+    border-radius: 8px;
+    position: relative;
+    margin-bottom: 12px;
+    background: var(--cerebr-message-ai-bg);
+    border: 1px solid var(--cerebr-card-border-color);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.chat-card:hover,
+.chat-card:focus {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px var(--cerebr-card-border-color);
+}
+
+.chat-card.selected {
+    border-color: var(--cerebr-highlight-border-color);
+    box-shadow: 0 0 0 1px var(--cerebr-highlight-border-color);
+}
+
+.chat-card .card-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+}
+
+.chat-card .chat-title {
+    font-size: var(--cerebr-fs-14);
+    color: var(--cerebr-text-color);
+    flex-grow: 1;
+    margin-right: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chat-card .card-actions {
+    display: flex;
+    gap: 8px;
+    z-index: 3;
+}
+
+.chat-card .card-button {
+    background: none;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+    color: var(--cerebr-text-color);
+    opacity: 0.6;
+    transition: opacity 0.2s, background-color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    position: relative;
+}
+
+.chat-card .card-button:hover {
+    opacity: 1;
+    background-color: var(--cerebr-button-hover-bg);
+}
+
+.chat-card .card-button svg {
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.5;
+}
+/* 搜索容器样式 */
+.search-container {
+    position: relative;
+    margin-left: 16px;
+    flex-grow: 1;
+}
+
+#chat-search-input {
+    padding-right: 32px; /* 为清除按钮留出空间 */
+}
+
+/* 隐藏浏览器原生的清除按钮 */
+#chat-search-input::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    display: none;
+}
+
+/* 隐藏浏览器原生的清除按钮 */
+#chat-search-input::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    display: none;
+}
+
+.clear-search-btn {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    color: var(--cerebr-text-color);
+    opacity: 0.6;
+    display: none; /* JS will control visibility */
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+}
+
+.clear-search-btn:hover {
+    opacity: 1;
+    background-color: var(--cerebr-button-hover-bg);
+}
+
+.clear-search-btn svg {
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+}
+
+#chat-search-input {
+    width: 100%;
+    padding: 10px 15px;
+    font-size: var(--cerebr-fs-14);
+    border-radius: 8px;
+    border: 1px solid var(--cerebr-card-border-color);
+    background: var(--cerebr-message-ai-bg);
+    color: var(--cerebr-text-color);
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+#chat-search-input:focus {
+    border-color: var(--cerebr-card-border-color);
+    box-shadow: none;
+}
+
+#chat-search-input::placeholder {
+    color: var(--cerebr-text-color-secondary);
+}
