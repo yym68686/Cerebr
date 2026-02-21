@@ -1,0 +1,133 @@
+/* 偏好设置页面样式 */
+#preferences-settings {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+    display: none;
+    overflow-y: auto;
+    flex-direction: column;
+    background: var(--cerebr-bg-color);
+}
+
+#preferences-settings.visible {
+    display: flex;
+}
+
+.preferences-content {
+    padding: 20px;
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 600px;
+    margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.preferences-card {
+    background: var(--cerebr-message-ai-bg);
+    border: 1px solid var(--cerebr-card-border-color);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.preference-row {
+    width: 100%;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    color: var(--cerebr-text-color);
+    background: transparent;
+    border: none;
+    text-align: left;
+    box-sizing: border-box;
+    transition: background-color 0.2s ease;
+}
+
+.preference-row + .preference-row {
+    border-top: 1px solid var(--cerebr-card-border-color);
+}
+
+.preference-action,
+.preference-link {
+    cursor: pointer;
+    text-decoration: none;
+    position: relative;
+}
+
+.preference-action:hover,
+.preference-link:hover {
+    background-color: var(--cerebr-message-user-bg);
+}
+
+.preference-action:active,
+.preference-link:active {
+    background-color: var(--cerebr-hover-bg-color);
+}
+
+.preference-action:focus-visible,
+.preference-link:focus-visible,
+.preference-select:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--cerebr-focus-border-color);
+    z-index: 1;
+}
+
+.preference-label {
+    font-weight: 500;
+    font-size: var(--cerebr-fs-14);
+    color: var(--cerebr-text-color);
+}
+
+.preference-value {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--cerebr-fs-14);
+    color: var(--cerebr-text-secondary-color);
+    opacity: 0.8;
+}
+
+.preference-value svg {
+    width: 16px;
+    height: 16px;
+    opacity: 0.6;
+}
+
+.preference-select {
+    /* Keep selects visually aligned across rows */
+    width: 120px;
+    min-width: 120px;
+    flex: 0 0 120px;
+    background: transparent;
+    border: none;
+    color: var(--cerebr-text-secondary-color);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: var(--cerebr-fs-14);
+    cursor: pointer;
+    text-align: center;
+    text-align-last: center;
+    appearance: none;
+    -webkit-appearance: none;
+    font-family: inherit;
+}
+
+.preference-select:hover {
+    color: var(--cerebr-text-color);
+    background-color: var(--cerebr-hover-bg-color);
+}
+
+.preference-select option {
+    background-color: var(--cerebr-bg-color);
+    color: var(--cerebr-text-color);
+    text-align: center;
+}
