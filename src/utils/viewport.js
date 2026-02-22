@@ -6,25 +6,16 @@ function roundPx(value) {
 
 function getViewportMetrics() {
     const vv = window.visualViewport;
-    if (!vv) {
-        return {
-            height: window.innerHeight,
-            offsetTop: 0
-        };
-    }
-
     return {
-        height: vv.height,
-        offsetTop: vv.offsetTop
+        height: vv ? vv.height : window.innerHeight
     };
 }
 
 function applyViewportCssVars() {
-    const { height, offsetTop } = getViewportMetrics();
+    const { height } = getViewportMetrics();
 
     // Used by CSS to keep the fixed app container aligned to the *visual* viewport (iOS keyboard, etc.).
     document.documentElement.style.setProperty('--vv-height', roundPx(height));
-    document.documentElement.style.setProperty('--vv-offset-top', roundPx(offsetTop));
 
     // Backward-compatible: some older rules may still reference --vh.
     document.documentElement.style.setProperty('--vh', `${(Number(height) || 0) * 0.01}px`);
@@ -105,8 +96,6 @@ window.addEventListener('resize', () => scheduleViewportUpdate({ preserveScroll:
 
 if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', () => scheduleViewportUpdate({ preserveScroll: true }));
-    // iOS may change visualViewport.offsetTop without firing a window resize.
-    window.visualViewport.addEventListener('scroll', () => scheduleViewportUpdate({ preserveScroll: false }));
 }
 
 document.addEventListener('DOMContentLoaded', () => {

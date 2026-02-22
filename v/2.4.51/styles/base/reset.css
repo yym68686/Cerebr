@@ -1,7 +1,8 @@
 /* 基础样式 */
 body {
     margin: 0;
-    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) 0;
+    padding: env(safe-area-inset-top) 0 0 0;
+    box-sizing: border-box;
     height: 100vh;
     height: 100dvh;
     height: -webkit-fill-available;
@@ -15,7 +16,7 @@ body {
     backdrop-filter: blur(var(--cerebr-blur-radius));
     -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
     position: fixed;
-    top: var(--vv-offset-top, 0px);
+    top: 0;
     left: 0;
     right: 0;
 }
