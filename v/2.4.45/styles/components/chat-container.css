@@ -15,8 +15,6 @@
     position: relative;
     height: 100%;
     box-sizing: border-box;
-    margin-top: var(--chat-top-margin, 0px);
-    transition: margin-top 0.3s ease;
 }
 
 #chat-container::-webkit-scrollbar {
