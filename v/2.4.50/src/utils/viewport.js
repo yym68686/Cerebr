@@ -4,6 +4,11 @@ function roundPx(value) {
     return `${Math.round(n)}px`;
 }
 
+function toNumberOr(value, fallback) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+}
+
 function getViewportMetrics() {
     const vv = window.visualViewport;
     if (!vv) {
@@ -13,9 +18,16 @@ function getViewportMetrics() {
         };
     }
 
+    const height = toNumberOr(vv.height, window.innerHeight);
+    let offsetTop = toNumberOr(vv.offsetTop, 0);
+
+    // iOS Safari (esp. after scrolling inner containers) can report a transient negative offsetTop.
+    // Applying it directly makes the fixed layout "jump" upward before settling.
+    if (offsetTop < 0) offsetTop = 0;
+
     return {
-        height: vv.height,
-        offsetTop: vv.offsetTop
+        height,
+        offsetTop
     };
 }
 
@@ -55,6 +67,41 @@ function getEffectiveChatVisibleHeight(chatContainer) {
 let lastEffectiveChatHeight = null;
 let scheduleRafId = 0;
 let pendingPreserveScroll = false;
+
+let settleToken = 0;
+
+function settleViewport({ preserveScroll = false, maxMs = 1400 } = {}) {
+    const token = ++settleToken;
+    const startAt = performance.now();
+    let last = getViewportMetrics();
+    let stableFrames = 0;
+
+    scheduleViewportUpdate({ preserveScroll });
+
+    const tick = () => {
+        if (token !== settleToken) return;
+
+        const now = performance.now();
+        const current = getViewportMetrics();
+        const heightDelta = Math.abs(current.height - last.height);
+        const topDelta = Math.abs(current.offsetTop - last.offsetTop);
+        const changed = heightDelta > 0.5 || topDelta > 0.5;
+
+        if (changed) {
+            stableFrames = 0;
+            last = current;
+            scheduleViewportUpdate({ preserveScroll });
+        } else {
+            stableFrames += 1;
+        }
+
+        if (stableFrames >= 6) return;
+        if (now - startAt >= maxMs) return;
+        requestAnimationFrame(tick);
+    };
+
+    requestAnimationFrame(tick);
+}
 
 function applyViewportUpdate({ preserveScroll } = {}) {
     const chatContainer = document.getElementById('chat-container');
@@ -116,19 +163,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById('message-input');
     if (!input) return;
 
-    const settle = (delayMs) => {
-        setTimeout(() => scheduleViewportUpdate({ preserveScroll: true }), delayMs);
-    };
-
     input.addEventListener('focus', () => {
-        scheduleViewportUpdate({ preserveScroll: true });
-        settle(320);
-        settle(700);
+        settleViewport({ preserveScroll: true, maxMs: 1600 });
     });
 
     input.addEventListener('blur', () => {
-        scheduleViewportUpdate({ preserveScroll: true });
-        settle(180);
-        settle(480);
+        settleViewport({ preserveScroll: true, maxMs: 1800 });
     });
 });
