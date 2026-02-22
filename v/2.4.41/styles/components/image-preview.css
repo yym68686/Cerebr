@@ -1,0 +1,66 @@
+/* 图片预览模态框样式 */
+.image-preview-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--cerebr-modal-overlay-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+}
+
+.image-preview-modal.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.image-preview-content {
+    max-width: 90%;
+    max-height: 90%;
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px var(--cerebr-popup-shadow);
+}
+
+.image-preview-content img {
+    max-width: 100%;
+    max-height: 90vh;
+    display: block;
+}
+
+.image-preview-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 32px;
+    height: 32px;
+    background: var(--cerebr-close-button-bg);
+    border: none;
+    border-radius: 50%;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s ease;
+}
+
+.image-preview-close:hover {
+    background: var(--cerebr-modal-overlay-bg);
+}
+
+.image-preview-close svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    stroke-width: 2;
+}
