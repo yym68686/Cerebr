@@ -1,0 +1,171 @@
+/* API设置页面样式 */
+#api-settings {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+    display: none;
+    overflow-y: auto;
+    flex-direction: column;
+    background: var(--cerebr-bg-color);
+}
+
+#api-settings.visible {
+    display: flex;
+}
+
+.api-cards {
+    padding: 16px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* API卡片基础样式 */
+.api-card {
+    outline: none;
+    cursor: pointer;
+    border-radius: 8px;
+    position: relative;
+    margin-bottom: 12px;
+    background: var(--cerebr-message-ai-bg);
+    border: 1px solid var(--cerebr-card-border-color);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    padding: 15px;
+}
+
+.settings-header {
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--cerebr-bg-color);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.back-button {
+    background: none;
+    border: none;
+    padding: 8px;
+    margin-right: 12px;
+    cursor: pointer;
+    color: var(--cerebr-text-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
+}
+
+.back-button:hover {
+    background-color: var(--cerebr-message-user-bg);
+}
+
+.settings-title {
+    font-size: var(--cerebr-fs-16);
+    font-weight: 500;
+    color: var(--cerebr-text-color);
+}
+
+.api-card:hover,
+.api-card:focus {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px var(--cerebr-card-border-color);
+}
+
+.api-card.selected {
+    border-color: var(--cerebr-highlight-border-color);
+    box-shadow: 0 0 0 1px var(--cerebr-highlight-border-color);
+}
+
+.api-card:focus:not(.selected) {
+    border-color: var(--cerebr-focus-border-color);
+    box-shadow: 0 0 0 1px var(--cerebr-focus-border-color);
+}
+
+.card-actions {
+    display: flex;
+    gap: 8px;
+    z-index: 3;
+}
+
+.card-button {
+    background: none;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+    color: var(--cerebr-text-color);
+    opacity: 0.6;
+    transition: opacity 0.2s, background-color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    position: relative;
+}
+
+.card-button:hover {
+    opacity: 1;
+    background-color: var(--cerebr-button-hover-bg);
+}
+
+.card-button svg {
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.5;
+}
+
+.api-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+}
+
+.form-group input,
+.system-prompt {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.form-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.form-group label {
+    font-size: var(--cerebr-fs-12);
+    opacity: 0.8;
+}
+
+.form-group input {
+    background: var(--cerebr-message-ai-bg);
+    border: 1px solid var(--cerebr-card-border-color);
+    padding: 8px;
+    border-radius: 4px;
+    color: var(--cerebr-text-color);
+    font-size: var(--cerebr-fs-14);
+    transition: border-color 0.2s ease;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--cerebr-highlight-border-color);
+    box-shadow: 0 0 0 1px var(--cerebr-highlight-border-color);
+}

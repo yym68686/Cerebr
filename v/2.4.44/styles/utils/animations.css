@@ -1,0 +1,87 @@
+/* 动画 */
+@keyframes messageAppear {
+    0% {
+        opacity: 0;
+        transform: translateY(16px) scale(0.98);
+    }
+    40% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes menuAppear {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 加载状态样式 */
+.loading-content #webpage-switch:checked {
+    opacity: 0;
+}
+
+.loading-content #webpage-switch:checked + .slider {
+    background-color: var(--cerebr-toggle-bg-off);
+}
+
+.loading-content #webpage-switch:checked + .slider:before {
+    display: none;
+}
+
+.loading-content #webpage-switch:checked + .slider:after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border: 2px solid transparent;
+    border-top-color: var(--cerebr-text-color);
+    border-radius: 50%;
+    animation: loading-spinner 0.8s linear infinite;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+}
+
+@keyframes loading-spinner {
+    0% { transform: translate(-50%, -50%) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* 确保加载状态下的UI响应性 */
+.loading-content {
+    pointer-events: auto !important;
+}
+
+.loading-content #webpage-switch {
+    pointer-events: none;
+}
+
+.loading-content #chat-container,
+.loading-content #input-container,
+.loading-content #settings-button,
+.loading-content #settings-menu,
+.loading-content .menu-item:not(#webpage-qa) {
+    pointer-events: auto !important;
+}
+
+/* 加载状态下的菜单项样式 */
+.loading-content #webpage-qa {
+    opacity: 0.7;
+    cursor: wait;
+}
+
+/* 深色模式适配加载动画 */
+@media (prefers-color-scheme: dark) {
+    .loading-content #webpage-switch:checked + .slider:after {
+        border-top-color: var(--cerebr-text-color);
+    }
+}
