@@ -14,6 +14,10 @@
     min-height: 48px;
 }
 
+.keyboard-visible #input-container {
+    bottom: var(--keyboard-height, 0px);
+}
+
 .message-input-shell {
     flex: 1;
     position: relative;
