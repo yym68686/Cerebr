@@ -293,9 +293,17 @@ const onDomReady = async () => {
 
     // 侧边栏（iframe）拖动：在“空白聊天背景”按住左键可拖动外层窗口
     const initSidebarBackgroundDrag = () => {
+        // 仅扩展环境支持侧边栏 iframe 拖动（Web 版即使被嵌入也不启用）
+        if (!isExtensionEnvironment) return;
         // 仅在被嵌入（扩展侧边栏 iframe）时启用
         if (window.top === window) return;
         if (!chatContainer) return;
+
+        try {
+            document.documentElement?.classList?.add('cerebr-extension-sidebar-iframe');
+        } catch {
+            // ignore
+        }
 
         const DRAG_THRESHOLD_PX = 4;
         let activePointerId = null;

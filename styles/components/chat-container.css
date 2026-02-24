@@ -17,6 +17,18 @@
     box-sizing: border-box;
 }
 
+@media (any-hover: hover) and (any-pointer: fine) {
+    /* 扩展侧边栏 iframe：提示“空白聊天背景可拖动” */
+    .cerebr-extension-sidebar-iframe #chat-container {
+        cursor: grab;
+    }
+
+    /* 消息本身仍保持默认光标（避免误导“消息也能拖动”） */
+    .cerebr-extension-sidebar-iframe #chat-container .message {
+        cursor: auto;
+    }
+}
+
 #chat-container::-webkit-scrollbar {
     display: none;
 }
