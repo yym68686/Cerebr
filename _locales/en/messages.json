@@ -98,6 +98,8 @@
 
   "webpage_tabs_loading": { "message": "Loading tabs…" },
   "webpage_tabs_empty": { "message": "No available tabs" },
+  "webpage_tabs_search_placeholder": { "message": "Search groups or page titles" },
+  "webpage_tabs_no_match": { "message": "No matching webpages" },
   "webpage_group_default_name": { "message": "Group" },
   "webpage_group_ungrouped": { "message": "Ungrouped" },
   "youtube_transcript_prefix": { "message": "YouTube transcript:" },

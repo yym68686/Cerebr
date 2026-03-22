@@ -13,10 +13,72 @@
     -webkit-backdrop-filter: var(--cerebr-surface-backdrop-filter);
     max-height: 300px;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    overflow-anchor: none;
 }
 
 #webpage-content-menu.visible {
     display: block;
+}
+
+.webpage-menu-search {
+    position: sticky;
+    top: -8px;
+    margin: -8px -8px 4px;
+    padding: 8px 8px 4px;
+    background-color: var(--settings-bg-color);
+    z-index: 1;
+    opacity: 1;
+    transform: translateY(0);
+    transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease-out;
+    will-change: transform, opacity;
+}
+
+#webpage-content-menu.is-search-booting .webpage-menu-search,
+#webpage-content-menu.is-search-booting .webpage-menu-results {
+    transition: none;
+}
+
+#webpage-content-menu.search-visibility-ready:not(.is-search-visible):not(.has-active-search):not(.is-search-focused) .webpage-menu-search {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(calc(-1 * var(--webpage-menu-search-height, 0px)));
+}
+
+.webpage-menu-search-input {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: 1px solid var(--cerebr-input-border-color);
+    border-radius: 6px;
+    background-color: var(--cerebr-message-ai-bg);
+    color: var(--cerebr-text-color);
+    font-size: var(--cerebr-fs-13);
+    line-height: 1.2;
+}
+
+.webpage-menu-search-input::placeholder {
+    color: var(--cerebr-text-color-secondary);
+    opacity: 0.48;
+}
+
+.webpage-menu-search-input:focus {
+    outline: none;
+    border-color: var(--cerebr-input-border-color);
+    box-shadow: none;
+}
+
+.webpage-menu-results {
+    min-width: 0;
+    margin-top: 0;
+}
+
+#webpage-content-menu.search-visibility-ready:not(.is-search-visible):not(.has-active-search):not(.is-search-focused) .webpage-menu-results {
+    margin-top: calc(4px - var(--webpage-menu-search-height, 0px));
 }
 
 .webpage-menu-loading,
@@ -24,6 +86,10 @@
     padding: 10px 8px;
     color: var(--cerebr-text-color-secondary);
     font-size: var(--cerebr-fs-13);
+}
+
+.webpage-menu-empty--search {
+    padding-top: 2px;
 }
 
 .webpage-menu-item {

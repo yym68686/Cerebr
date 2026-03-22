@@ -5,6 +5,7 @@ import { getWebpageSwitchesForChat, setWebpageSwitchesForChat } from '../utils/w
 
 const YT_TRANSCRIPT_KEY_PREFIX = 'cerebr_youtube_transcript_v1_';
 const collapsedGroupStates = new Map();
+const DEFAULT_WEBPAGE_MENU_SEARCH_HEIGHT = 46;
 
 function isYouTubeHost(hostname) {
     if (!hostname) return false;
@@ -82,6 +83,236 @@ function getGroupStateKey(group, groupInfo) {
     if (!group || group.id === -1) return 'ungrouped';
     const windowId = groupInfo?.windowId ?? group.tabs?.[0]?.windowId ?? 'unknown';
     return `${windowId}:${group.id}`;
+}
+
+function normalizeWebpageMenuSearchText(value) {
+    return String(value || '').trim().toLocaleLowerCase();
+}
+
+function createWebpageMenuSearchElements() {
+    const searchWrapper = document.createElement('div');
+    searchWrapper.className = 'webpage-menu-search';
+
+    const searchInput = document.createElement('input');
+    searchInput.type = 'search';
+    searchInput.className = 'webpage-menu-search-input';
+    searchInput.autocomplete = 'off';
+    searchInput.spellcheck = false;
+    searchInput.placeholder = t('webpage_tabs_search_placeholder');
+    searchInput.setAttribute('aria-label', t('webpage_tabs_search_placeholder'));
+
+    searchInput.addEventListener('click', (e) => e.stopPropagation());
+    searchInput.addEventListener('keydown', (e) => e.stopPropagation());
+
+    const emptyState = document.createElement('div');
+    emptyState.className = 'webpage-menu-empty webpage-menu-empty--search';
+    emptyState.textContent = t('webpage_tabs_no_match');
+    emptyState.hidden = true;
+
+    searchWrapper.appendChild(searchInput);
+    return { searchWrapper, searchInput, emptyState };
+}
+
+function cleanupWebpageMenuSearchVisibility(webpageContentMenu) {
+    if (!webpageContentMenu) return;
+
+    if (typeof webpageContentMenu.__searchVisibilityCleanup === 'function') {
+        webpageContentMenu.__searchVisibilityCleanup();
+    }
+    if (webpageContentMenu.__searchTransitionRaf) {
+        cancelAnimationFrame(webpageContentMenu.__searchTransitionRaf);
+    }
+    if (webpageContentMenu.__searchTransitionRaf2) {
+        cancelAnimationFrame(webpageContentMenu.__searchTransitionRaf2);
+    }
+
+    webpageContentMenu.__searchVisibilityCleanup = null;
+    webpageContentMenu.__searchTransitionRaf = 0;
+    webpageContentMenu.__searchTransitionRaf2 = 0;
+    webpageContentMenu.__searchLastScrollTop = 0;
+    webpageContentMenu.__searchIgnoreScrollUntil = 0;
+    webpageContentMenu.__searchTouchY = null;
+    webpageContentMenu.classList.remove('search-visibility-ready', 'is-search-booting', 'is-search-visible', 'has-active-search', 'is-search-focused');
+    webpageContentMenu.style.removeProperty('--webpage-menu-search-height');
+}
+
+function prepareWebpageMenuSearchVisibility(webpageContentMenu, searchHeight = DEFAULT_WEBPAGE_MENU_SEARCH_HEIGHT) {
+    if (!webpageContentMenu) return;
+
+    if (webpageContentMenu.__searchTransitionRaf) {
+        cancelAnimationFrame(webpageContentMenu.__searchTransitionRaf);
+        webpageContentMenu.__searchTransitionRaf = 0;
+    }
+    if (webpageContentMenu.__searchTransitionRaf2) {
+        cancelAnimationFrame(webpageContentMenu.__searchTransitionRaf2);
+        webpageContentMenu.__searchTransitionRaf2 = 0;
+    }
+
+    webpageContentMenu.__searchLastScrollTop = webpageContentMenu.scrollTop;
+    webpageContentMenu.__searchIgnoreScrollUntil = 0;
+    webpageContentMenu.__searchTouchY = null;
+    webpageContentMenu.style.setProperty('--webpage-menu-search-height', `${searchHeight}px`);
+    webpageContentMenu.classList.add('search-visibility-ready', 'is-search-booting');
+    webpageContentMenu.classList.remove('is-search-visible', 'has-active-search', 'is-search-focused');
+}
+
+function armWebpageMenuSearchVisibilityTransitions(webpageContentMenu) {
+    if (!webpageContentMenu) return;
+
+    if (webpageContentMenu.__searchTransitionRaf) {
+        cancelAnimationFrame(webpageContentMenu.__searchTransitionRaf);
+    }
+    if (webpageContentMenu.__searchTransitionRaf2) {
+        cancelAnimationFrame(webpageContentMenu.__searchTransitionRaf2);
+    }
+
+    webpageContentMenu.__searchTransitionRaf = requestAnimationFrame(() => {
+        webpageContentMenu.__searchTransitionRaf = 0;
+        webpageContentMenu.__searchTransitionRaf2 = requestAnimationFrame(() => {
+            webpageContentMenu.__searchTransitionRaf2 = 0;
+            if (!webpageContentMenu.classList.contains('visible')) return;
+            webpageContentMenu.classList.remove('is-search-booting');
+        });
+    });
+}
+
+function getWebpageMenuSearchHeight(webpageContentMenu) {
+    const value = webpageContentMenu?.style?.getPropertyValue('--webpage-menu-search-height') || '';
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function setWebpageMenuSearchVisibility({ webpageContentMenu, visible, onLayoutChange } = {}) {
+    if (!webpageContentMenu?.classList.contains('search-visibility-ready')) return;
+
+    const prevVisible = webpageContentMenu.classList.contains('is-search-visible');
+    const nextVisible = !!visible;
+    if (prevVisible === nextVisible) return;
+
+    const prevScrollTop = webpageContentMenu.scrollTop;
+    const searchHeight = getWebpageMenuSearchHeight(webpageContentMenu);
+
+    webpageContentMenu.classList.toggle('is-search-visible', nextVisible);
+
+    if (searchHeight > 0 && prevScrollTop > 0) {
+        const offset = nextVisible ? searchHeight : -searchHeight;
+        webpageContentMenu.scrollTop = Math.max(0, prevScrollTop + offset);
+    }
+    webpageContentMenu.__searchIgnoreScrollUntil = Date.now() + 120;
+    webpageContentMenu.__searchLastScrollTop = webpageContentMenu.scrollTop;
+
+    if (typeof onLayoutChange === 'function') {
+        onLayoutChange();
+    }
+}
+
+function setupWebpageMenuSearchVisibility({ webpageContentMenu, searchWrapper, searchInput, onLayoutChange } = {}) {
+    if (!webpageContentMenu || !searchWrapper || !searchInput) return;
+
+    const searchInputHeight = Math.ceil(searchInput.getBoundingClientRect().height || 0);
+    const searchWrapperHeight = Math.ceil(searchWrapper.getBoundingClientRect().height || 0);
+    const measuredHeight = Math.max(searchWrapperHeight, searchInputHeight + 12, 40);
+    webpageContentMenu.style.setProperty('--webpage-menu-search-height', `${measuredHeight}px`);
+    webpageContentMenu.classList.add('search-visibility-ready');
+    webpageContentMenu.__searchLastScrollTop = webpageContentMenu.scrollTop;
+    webpageContentMenu.__searchIgnoreScrollUntil = 0;
+
+    const isSearchPinned = () => (
+        webpageContentMenu.classList.contains('has-active-search') ||
+        webpageContentMenu.classList.contains('is-search-focused')
+    );
+
+    const updateSearchVisibilityByDelta = (delta) => {
+        if (Math.abs(delta) < 6) return;
+        if (delta > 0) {
+            if (!isSearchPinned()) {
+                setWebpageMenuSearchVisibility({ webpageContentMenu, visible: false, onLayoutChange });
+            }
+            return;
+        }
+        setWebpageMenuSearchVisibility({ webpageContentMenu, visible: true, onLayoutChange });
+    };
+
+    const syncActiveSearchState = () => {
+        const hasActiveQuery = !!normalizeWebpageMenuSearchText(searchInput.value);
+        webpageContentMenu.classList.toggle('has-active-search', hasActiveQuery);
+        if (hasActiveQuery) {
+            setWebpageMenuSearchVisibility({ webpageContentMenu, visible: true, onLayoutChange });
+        }
+    };
+
+    const handleWheel = (event) => {
+        updateSearchVisibilityByDelta(event.deltaY);
+    };
+
+    const handleScroll = () => {
+        const currentScrollTop = webpageContentMenu.scrollTop;
+        if ((webpageContentMenu.__searchIgnoreScrollUntil || 0) > Date.now()) {
+            webpageContentMenu.__searchLastScrollTop = currentScrollTop;
+            return;
+        }
+        const delta = currentScrollTop - (webpageContentMenu.__searchLastScrollTop || 0);
+        webpageContentMenu.__searchLastScrollTop = currentScrollTop;
+        updateSearchVisibilityByDelta(delta);
+    };
+
+    const handleTouchStart = (event) => {
+        webpageContentMenu.__searchTouchY = event.touches?.[0]?.clientY ?? null;
+    };
+
+    const handleTouchMove = (event) => {
+        const currentTouchY = event.touches?.[0]?.clientY;
+        if (typeof currentTouchY !== 'number') return;
+
+        const prevTouchY = webpageContentMenu.__searchTouchY;
+        webpageContentMenu.__searchTouchY = currentTouchY;
+        if (typeof prevTouchY !== 'number') return;
+
+        updateSearchVisibilityByDelta(prevTouchY - currentTouchY);
+    };
+
+    const handleTouchEnd = () => {
+        webpageContentMenu.__searchTouchY = null;
+    };
+
+    const handleFocus = () => {
+        webpageContentMenu.classList.add('is-search-focused');
+        setWebpageMenuSearchVisibility({ webpageContentMenu, visible: true, onLayoutChange });
+    };
+
+    const handleBlur = () => {
+        webpageContentMenu.classList.remove('is-search-focused');
+        syncActiveSearchState();
+    };
+
+    const handleInput = () => {
+        syncActiveSearchState();
+    };
+
+    webpageContentMenu.addEventListener('wheel', handleWheel, { passive: true });
+    webpageContentMenu.addEventListener('scroll', handleScroll, { passive: true });
+    webpageContentMenu.addEventListener('touchstart', handleTouchStart, { passive: true });
+    webpageContentMenu.addEventListener('touchmove', handleTouchMove, { passive: true });
+    webpageContentMenu.addEventListener('touchend', handleTouchEnd, { passive: true });
+    searchInput.addEventListener('focus', handleFocus);
+    searchInput.addEventListener('blur', handleBlur);
+    searchInput.addEventListener('input', handleInput);
+
+    webpageContentMenu.__searchVisibilityCleanup = () => {
+        webpageContentMenu.removeEventListener('wheel', handleWheel);
+        webpageContentMenu.removeEventListener('scroll', handleScroll);
+        webpageContentMenu.removeEventListener('touchstart', handleTouchStart);
+        webpageContentMenu.removeEventListener('touchmove', handleTouchMove);
+        webpageContentMenu.removeEventListener('touchend', handleTouchEnd);
+        searchInput.removeEventListener('focus', handleFocus);
+        searchInput.removeEventListener('blur', handleBlur);
+        searchInput.removeEventListener('input', handleInput);
+        webpageContentMenu.__searchLastScrollTop = 0;
+        webpageContentMenu.__searchIgnoreScrollUntil = 0;
+        webpageContentMenu.__searchTouchY = null;
+        webpageContentMenu.classList.remove('search-visibility-ready', 'is-search-booting', 'is-search-visible', 'has-active-search', 'is-search-focused');
+        webpageContentMenu.style.removeProperty('--webpage-menu-search-height');
+    };
 }
 
 function getWebpageMenuViewportBounds() {
@@ -240,6 +471,8 @@ function getUniqueTabsByUrl(tabs) {
 
 async function populateWebpageContentMenu(webpageContentMenu, { onLayoutChange } = {}) {
     webpageContentMenu.innerHTML = `<div class="webpage-menu-loading">${t('webpage_tabs_loading')}</div>`;
+    webpageContentMenu.__searchQueryNormalized = '';
+    cleanupWebpageMenuSearchVisibility(webpageContentMenu);
     let allTabs = await browserAdapter.getAllTabs();
     const currentTab = await browserAdapter.getCurrentTab();
     const activeChatId = chatManager.getCurrentChat()?.id || null;
@@ -263,14 +496,50 @@ async function populateWebpageContentMenu(webpageContentMenu, { onLayoutChange }
         return;
     }
 
+    const { searchWrapper, searchInput, emptyState } = createWebpageMenuSearchElements();
+    const resultsContainer = document.createElement('div');
+    resultsContainer.className = 'webpage-menu-results';
+
+    prepareWebpageMenuSearchVisibility(webpageContentMenu);
+    webpageContentMenu.appendChild(searchWrapper);
+    webpageContentMenu.appendChild(resultsContainer);
+    webpageContentMenu.appendChild(emptyState);
+    setupWebpageMenuSearchVisibility({ webpageContentMenu, searchWrapper, searchInput, onLayoutChange });
+
     const hasAnyGroups = finalTabs.some(isGroupedTab);
 
     if (!hasAnyGroups) {
+        const searchEntries = [];
         for (const tab of finalTabs) {
             if (!tab.title || !tab.url) continue;
             const { item } = createTabMenuItem({ tab, switches, currentTabId });
-            webpageContentMenu.appendChild(item);
+            searchEntries.push({
+                item,
+                searchText: normalizeWebpageMenuSearchText(tab.title)
+            });
+            resultsContainer.appendChild(item);
         }
+
+        const applySearchFilter = (rawQuery) => {
+            const queryNormalized = normalizeWebpageMenuSearchText(rawQuery);
+            webpageContentMenu.__searchQueryNormalized = queryNormalized;
+
+            let visibleCount = 0;
+            searchEntries.forEach(({ item, searchText }) => {
+                const isVisible = !queryNormalized || searchText.includes(queryNormalized);
+                item.hidden = !isVisible;
+                if (isVisible) visibleCount++;
+            });
+
+            emptyState.hidden = visibleCount > 0;
+        };
+
+        searchInput.addEventListener('input', () => {
+            applySearchFilter(searchInput.value);
+            if (typeof onLayoutChange === 'function') onLayoutChange();
+        });
+
+        applySearchFilter('');
         return;
     }
 
@@ -326,6 +595,8 @@ async function populateWebpageContentMenu(webpageContentMenu, { onLayoutChange }
         runNext();
     };
 
+    const groupFilterEntries = [];
+
     for (const group of sortedGroups) {
         const groupWrapper = document.createElement('div');
         groupWrapper.className = 'webpage-menu-group';
@@ -367,6 +638,7 @@ async function populateWebpageContentMenu(webpageContentMenu, { onLayoutChange }
             const title = (groupInfo?.title || '').trim();
             groupTitle.textContent = title ? title : `${t('webpage_group_default_name')} ${group.id}`;
         }
+        const normalizedGroupSearchText = normalizeWebpageMenuSearchText(groupTitle.textContent);
         groupTitle.title = groupTitle.textContent;
 
         const groupCount = document.createElement('span');
@@ -393,12 +665,17 @@ async function populateWebpageContentMenu(webpageContentMenu, { onLayoutChange }
             groupSwitchInput.checked = total > 0 && enabledCount === total;
         };
 
-        const applyGroupCollapsedState = (collapsed, { notifyLayout = true } = {}) => {
-            const isCollapsed = !!collapsed;
+        const syncGroupCollapsedState = () => {
+            const isSearchActive = !!webpageContentMenu.__searchQueryNormalized;
+            const isCollapsed = !!collapsedGroupStates.get(groupStateKey) && !isSearchActive;
             groupWrapper.classList.toggle('is-collapsed', isCollapsed);
             groupTrigger.setAttribute('aria-expanded', String(!isCollapsed));
             itemsContainer.setAttribute('aria-hidden', String(isCollapsed));
-            collapsedGroupStates.set(groupStateKey, isCollapsed);
+        };
+
+        const applyGroupCollapsedState = (collapsed, { notifyLayout = true } = {}) => {
+            collapsedGroupStates.set(groupStateKey, !!collapsed);
+            syncGroupCollapsedState();
             if (notifyLayout && typeof onLayoutChange === 'function') {
                 onLayoutChange();
             }
@@ -438,6 +715,7 @@ async function populateWebpageContentMenu(webpageContentMenu, { onLayoutChange }
 
         groupTrigger.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (webpageContentMenu.__searchQueryNormalized) return;
             applyGroupCollapsedState(!groupWrapper.classList.contains('is-collapsed'));
         });
 
@@ -445,6 +723,7 @@ async function populateWebpageContentMenu(webpageContentMenu, { onLayoutChange }
             if (e.target.closest('.switch')) return;
             if (e.target.closest('.webpage-menu-group-trigger')) return;
             e.stopPropagation();
+            if (webpageContentMenu.__searchQueryNormalized) return;
             applyGroupCollapsedState(!groupWrapper.classList.contains('is-collapsed'));
         });
 
@@ -454,6 +733,7 @@ async function populateWebpageContentMenu(webpageContentMenu, { onLayoutChange }
         groupWrapper.appendChild(header);
         groupWrapper.appendChild(itemsContainer);
 
+        const tabSearchEntries = [];
         for (const tab of group.tabs) {
             const { item, switchInput } = createTabMenuItem({
                 tab,
@@ -463,13 +743,65 @@ async function populateWebpageContentMenu(webpageContentMenu, { onLayoutChange }
                 onAfterToggle: () => updateGroupSwitchState()
             });
             tabSwitchInputs.push(switchInput);
+            tabSearchEntries.push({
+                item,
+                searchText: normalizeWebpageMenuSearchText(tab.title)
+            });
             itemsContainer.appendChild(item);
         }
 
         updateGroupSwitchState();
         applyGroupCollapsedState(initialCollapsed, { notifyLayout: false });
-        webpageContentMenu.appendChild(groupWrapper);
+        groupFilterEntries.push({
+            groupWrapper,
+            groupCount,
+            totalCount: group.tabs.length,
+            groupSearchText: normalizedGroupSearchText,
+            tabEntries: tabSearchEntries,
+            syncGroupCollapsedState
+        });
+        resultsContainer.appendChild(groupWrapper);
     }
+
+    const applySearchFilter = (rawQuery) => {
+        const queryNormalized = normalizeWebpageMenuSearchText(rawQuery);
+        webpageContentMenu.__searchQueryNormalized = queryNormalized;
+
+        let visibleGroupCount = 0;
+
+        groupFilterEntries.forEach((entry) => {
+            const isGroupMatched = !!queryNormalized && entry.groupSearchText.includes(queryNormalized);
+            let visibleTabCount = 0;
+
+            entry.tabEntries.forEach(({ item, searchText }) => {
+                const isVisible = !queryNormalized || isGroupMatched || searchText.includes(queryNormalized);
+                item.hidden = !isVisible;
+                if (isVisible) visibleTabCount++;
+            });
+
+            const isGroupVisible = !queryNormalized || isGroupMatched || visibleTabCount > 0;
+            entry.groupWrapper.hidden = !isGroupVisible;
+
+            if (isGroupVisible) {
+                entry.groupCount.textContent = !queryNormalized || isGroupMatched || visibleTabCount === entry.totalCount
+                    ? `(${entry.totalCount})`
+                    : `(${visibleTabCount}/${entry.totalCount})`;
+                entry.syncGroupCollapsedState();
+                visibleGroupCount++;
+            } else {
+                entry.groupCount.textContent = `(${entry.totalCount})`;
+            }
+        });
+
+        emptyState.hidden = visibleGroupCount > 0;
+    };
+
+    searchInput.addEventListener('input', () => {
+        applySearchFilter(searchInput.value);
+        if (typeof onLayoutChange === 'function') onLayoutChange();
+    });
+
+    applySearchFilter('');
 }
 
 export async function getEnabledTabsContent() {
@@ -574,6 +906,15 @@ export function initWebpageMenu({ webpageQAContainer, webpageContentMenu }) {
         scheduleWebpageContentMenuPosition({ webpageQAContainer, webpageContentMenu });
     };
 
+    const stopMenuEventPropagation = (event) => {
+        event.stopPropagation();
+    };
+
+    webpageContentMenu.addEventListener('wheel', stopMenuEventPropagation, { passive: true });
+    webpageContentMenu.addEventListener('touchstart', stopMenuEventPropagation, { passive: true });
+    webpageContentMenu.addEventListener('touchmove', stopMenuEventPropagation, { passive: true });
+    webpageContentMenu.addEventListener('pointerdown', stopMenuEventPropagation, { passive: true });
+
     window.addEventListener('resize', repositionMenu);
     window.visualViewport?.addEventListener('resize', repositionMenu);
     window.visualViewport?.addEventListener('scroll', repositionMenu);
@@ -598,5 +939,6 @@ export function initWebpageMenu({ webpageQAContainer, webpageContentMenu }) {
 
         // 在正确的位置上使其可见
         webpageContentMenu.style.visibility = 'visible';
+        armWebpageMenuSearchVisibilityTransitions(webpageContentMenu);
     });
 }
