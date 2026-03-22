@@ -856,7 +856,7 @@ class CerebrSidebar {
   setupDragAndDrop() {
     // console.log('初始化拖放功能');
 
-    // 存储最后一次拖动的图片信息（仅在确实拖入侧边栏后再取数据）
+    // 存储最后一次拖动的图片信息
     let lastDraggedImage = null;
 
     // 检查是否在侧边栏范围内的函数
@@ -871,74 +871,86 @@ class CerebrSidebar {
       );
     };
 
-    const getImageDataFromElement = async (imgEl) => {
-      const src = imgEl?.currentSrc || imgEl?.src;
-      if (!src) return null;
-
+    // Canvas 回退方法（仅对同源或已设置 crossorigin 的图片有效）
+    const tryCanvasFallback = (img, imageName) => {
       try {
-        const response = await fetch(src);
-        const blob = await response.blob();
-        const base64Data = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result);
-          reader.onerror = () => reject(new Error('读取图片失败'));
-          reader.readAsDataURL(blob);
-        });
-        return {
+        console.log('尝试使用 Canvas 方法获取图片数据');
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || img.width;
+        canvas.height = img.naturalHeight || img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const base64Data = canvas.toDataURL(img.src.match(/\.png$/i) ? 'image/png' : 'image/jpeg');
+        const imageData = {
           type: 'image',
           data: base64Data,
-          name: imgEl?.alt || imgEl?.title || '拖放图片'
+          name: imageName
         };
-      } catch (error) {
-        // fetch 失败时尝试 canvas（跨域图片可能会失败）
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = imgEl.naturalWidth || imgEl.width;
-          canvas.height = imgEl.naturalHeight || imgEl.height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(imgEl, 0, 0);
-          const base64Data = canvas.toDataURL('image/png');
-          return {
-            type: 'image',
-            data: base64Data,
-            name: imgEl?.alt || imgEl?.title || '拖放图片'
-          };
-        } catch (canvasError) {
-          console.error('拖放图片读取失败:', error, canvasError);
-          return null;
-        }
+        return imageData;
+      } catch (canvasError) {
+        return null;
       }
     };
 
-    // 监听页面上的所有图片（仅记录引用；真正取数延后到拖入侧边栏后）
+    // 监听页面上的所有图片拖动开始
     document.addEventListener('dragstart', (e) => {
       const img = e.target?.closest?.('img');
       if (!img) return;
       lastDraggedImage = img;
-      try {
-        e.dataTransfer?.setData?.('text/uri-list', img.currentSrc || img.src || '');
-        e.dataTransfer.effectAllowed = 'copy';
-      } catch {
-        // ignore
-      }
+      e.dataTransfer.effectAllowed = 'copy';
     }, { capture: true });
 
     // 监听拖动结束事件
-    document.addEventListener('dragend', (e) => {
+    document.addEventListener('dragend', async (e) => {
       const inSidebar = !!lastDraggedImage && isInSidebarBounds(e.clientX, e.clientY);
       const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
-      if (iframe && inSidebar && this.isVisible) {  // 确保侧边栏可见
-        const draggedImg = lastDraggedImage;
-        // 异步获取图片数据并发送到 iframe
-        void (async () => {
-          const imageData = await getImageDataFromElement(draggedImg);
-          if (!imageData) return;
-          iframe.contentWindow.postMessage({
-            type: 'DROP_IMAGE',
-            imageData
-          }, '*');
-        })();
+
+      if (iframe && inSidebar && this.isVisible && lastDraggedImage) {
+        const img = lastDraggedImage;
+        const pendingImageUrl = img.currentSrc || img.src;
+        const pendingImageName = img.alt || img.title || '拖放图片';
+
+        // 通过 background script 获取图片数据（绕过 CORS 限制）
+        try {
+          const response = await chrome.runtime.sendMessage({
+            action: 'fetchImageAsBase64',
+            url: pendingImageUrl
+          });
+
+          if (response && response.success && response.data) {
+            const imageData = {
+              type: 'image',
+              data: response.data,
+              name: pendingImageName
+            };
+            iframe.contentWindow.postMessage({
+              type: 'DROP_IMAGE',
+              imageData
+            }, '*');
+          } else {
+            console.error('通过 background 获取图片失败:', response?.error);
+            // 回退：尝试使用 Canvas 方法（对于同源图片可能有效）
+            const imageData = tryCanvasFallback(img, pendingImageName);
+            if (imageData) {
+              iframe.contentWindow.postMessage({
+                type: 'DROP_IMAGE',
+                imageData
+              }, '*');
+            }
+          }
+        } catch (error) {
+          console.error('发送消息到 background 失败:', error);
+          // 回退：尝试使用 Canvas 方法
+          const imageData = tryCanvasFallback(img, pendingImageName);
+          if (imageData) {
+            iframe.contentWindow.postMessage({
+              type: 'DROP_IMAGE',
+              imageData
+            }, '*');
+          }
+        }
       }
+
       // 重置状态
       lastDraggedImage = null;
     });
