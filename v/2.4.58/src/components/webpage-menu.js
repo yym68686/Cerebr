@@ -4,6 +4,7 @@ import { t } from '../utils/i18n.js';
 import { getWebpageSwitchesForChat, setWebpageSwitchesForChat } from '../utils/webpage-switches.js';
 
 const YT_TRANSCRIPT_KEY_PREFIX = 'cerebr_youtube_transcript_v1_';
+const collapsedGroupStates = new Map();
 
 function isYouTubeHost(hostname) {
     if (!hostname) return false;
@@ -75,6 +76,76 @@ function isGroupedTab(tab) {
 
 function getGroupedTabIds(tabs) {
     return [...new Set(tabs.map(t => t?.groupId).filter((id) => typeof id === 'number' && Number.isFinite(id) && id !== -1))];
+}
+
+function getGroupStateKey(group, groupInfo) {
+    if (!group || group.id === -1) return 'ungrouped';
+    const windowId = groupInfo?.windowId ?? group.tabs?.[0]?.windowId ?? 'unknown';
+    return `${windowId}:${group.id}`;
+}
+
+function getWebpageMenuViewportBounds() {
+    const vv = window.visualViewport;
+    const top = vv?.offsetTop ?? 0;
+    const left = vv?.offsetLeft ?? 0;
+    const width = vv?.width ?? window.innerWidth;
+    const height = vv?.height ?? window.innerHeight;
+
+    return {
+        top,
+        left,
+        right: left + width,
+        bottom: top + height
+    };
+}
+
+function positionWebpageContentMenu({ webpageQAContainer, webpageContentMenu }) {
+    if (!webpageQAContainer?.isConnected || !webpageContentMenu?.isConnected) return;
+    if (!webpageContentMenu.classList.contains('visible')) return;
+
+    const rect = webpageQAContainer.getBoundingClientRect();
+    const viewport = getWebpageMenuViewportBounds();
+    const inputRect = document.getElementById('input-container')?.getBoundingClientRect() || null;
+    const margin = 8;
+    const horizontalGap = 8;
+    const maxMenuHeight = 300;
+
+    const bottomLimit = Math.min(
+        viewport.bottom - margin,
+        (inputRect?.top ?? viewport.bottom) - margin
+    );
+    const availableHeight = Math.max(96, Math.floor(bottomLimit - viewport.top - margin));
+    webpageContentMenu.style.maxHeight = `${Math.min(maxMenuHeight, availableHeight)}px`;
+
+    const menuWidth = webpageContentMenu.offsetWidth;
+    const menuHeight = webpageContentMenu.offsetHeight;
+    webpageContentMenu.style.width = `${menuWidth}px`;
+
+    let top = rect.top;
+    if (top + menuHeight > bottomLimit) {
+        top = bottomLimit - menuHeight;
+    }
+    top = Math.max(viewport.top + margin, top);
+
+    let left = rect.right + horizontalGap;
+    if (left + menuWidth > viewport.right - margin) {
+        left = Math.max(viewport.left + margin, viewport.right - margin - menuWidth);
+    }
+
+    webpageContentMenu.style.top = `${Math.round(top)}px`;
+    webpageContentMenu.style.left = `${Math.round(left)}px`;
+}
+
+function scheduleWebpageContentMenuPosition({ webpageQAContainer, webpageContentMenu }) {
+    if (!webpageContentMenu) return;
+    if (webpageContentMenu.__cerebrPositionRaf) {
+        cancelAnimationFrame(webpageContentMenu.__cerebrPositionRaf);
+    }
+
+    webpageContentMenu.__cerebrPositionRaf = requestAnimationFrame(() => {
+        webpageContentMenu.__cerebrPositionRaf = 0;
+        positionWebpageContentMenu({ webpageQAContainer, webpageContentMenu });
+    });
 }
 
 function createSwitchElements({ id, initialChecked, onToggle }) {
@@ -167,7 +238,7 @@ function getUniqueTabsByUrl(tabs) {
     });
 }
 
-async function populateWebpageContentMenu(webpageContentMenu) {
+async function populateWebpageContentMenu(webpageContentMenu, { onLayoutChange } = {}) {
     webpageContentMenu.innerHTML = `<div class="webpage-menu-loading">${t('webpage_tabs_loading')}</div>`;
     let allTabs = await browserAdapter.getAllTabs();
     const currentTab = await browserAdapter.getCurrentTab();
@@ -262,12 +333,26 @@ async function populateWebpageContentMenu(webpageContentMenu) {
         const header = document.createElement('div');
         header.className = 'webpage-menu-group-header';
 
+        const groupInfo = group.id !== -1 ? groupsById?.[group.id] : null;
+        const groupStateKey = getGroupStateKey(group, groupInfo);
+        const initialCollapsed = collapsedGroupStates.has(groupStateKey)
+            ? !!collapsedGroupStates.get(groupStateKey)
+            : (group.id !== -1 ? !!groupInfo?.collapsed : false);
+
+        const itemsContainer = document.createElement('div');
+        itemsContainer.className = 'webpage-menu-group-items';
+        itemsContainer.id = group.id === -1 ? 'webpage-group-items-ungrouped' : `webpage-group-items-${group.id}`;
+
+        const groupTrigger = document.createElement('button');
+        groupTrigger.type = 'button';
+        groupTrigger.className = 'webpage-menu-group-trigger';
+        groupTrigger.setAttribute('aria-controls', itemsContainer.id);
+
         const meta = document.createElement('div');
         meta.className = 'webpage-menu-group-meta';
 
         const colorDot = document.createElement('span');
         colorDot.className = 'webpage-menu-group-color';
-        const groupInfo = group.id !== -1 ? groupsById?.[group.id] : null;
         if (groupInfo?.color) {
             colorDot.style.backgroundColor = groupInfo.color;
         } else {
@@ -299,12 +384,24 @@ async function populateWebpageContentMenu(webpageContentMenu) {
             id: groupSwitchId,
             initialChecked: false
         });
+        groupSwitchLabel.classList.add('webpage-menu-group-switch');
 
         const updateGroupSwitchState = () => {
             const total = tabSwitchInputs.length;
             const enabledCount = tabSwitchInputs.filter(input => input.checked).length;
             groupSwitchInput.indeterminate = enabledCount > 0 && enabledCount < total;
             groupSwitchInput.checked = total > 0 && enabledCount === total;
+        };
+
+        const applyGroupCollapsedState = (collapsed, { notifyLayout = true } = {}) => {
+            const isCollapsed = !!collapsed;
+            groupWrapper.classList.toggle('is-collapsed', isCollapsed);
+            groupTrigger.setAttribute('aria-expanded', String(!isCollapsed));
+            itemsContainer.setAttribute('aria-hidden', String(isCollapsed));
+            collapsedGroupStates.set(groupStateKey, isCollapsed);
+            if (notifyLayout && typeof onLayoutChange === 'function') {
+                onLayoutChange();
+            }
         };
 
         const setGroupSwitchChecked = async (checked) => {
@@ -339,15 +436,23 @@ async function populateWebpageContentMenu(webpageContentMenu) {
             void toggleGroup();
         });
 
-        header.addEventListener('click', (e) => {
+        groupTrigger.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (e.target.closest('.switch')) return;
-            void toggleGroup();
+            applyGroupCollapsedState(!groupWrapper.classList.contains('is-collapsed'));
         });
 
-        header.appendChild(meta);
+        header.addEventListener('click', (e) => {
+            if (e.target.closest('.switch')) return;
+            if (e.target.closest('.webpage-menu-group-trigger')) return;
+            e.stopPropagation();
+            applyGroupCollapsedState(!groupWrapper.classList.contains('is-collapsed'));
+        });
+
+        groupTrigger.appendChild(meta);
+        header.appendChild(groupTrigger);
         header.appendChild(groupSwitchLabel);
         groupWrapper.appendChild(header);
+        groupWrapper.appendChild(itemsContainer);
 
         for (const tab of group.tabs) {
             const { item, switchInput } = createTabMenuItem({
@@ -358,10 +463,11 @@ async function populateWebpageContentMenu(webpageContentMenu) {
                 onAfterToggle: () => updateGroupSwitchState()
             });
             tabSwitchInputs.push(switchInput);
-            groupWrapper.appendChild(item);
+            itemsContainer.appendChild(item);
         }
 
         updateGroupSwitchState();
+        applyGroupCollapsedState(initialCollapsed, { notifyLayout: false });
         webpageContentMenu.appendChild(groupWrapper);
     }
 }
@@ -464,6 +570,14 @@ export async function getEnabledTabsContent() {
 }
 
 export function initWebpageMenu({ webpageQAContainer, webpageContentMenu }) {
+    const repositionMenu = () => {
+        scheduleWebpageContentMenuPosition({ webpageQAContainer, webpageContentMenu });
+    };
+
+    window.addEventListener('resize', repositionMenu);
+    window.visualViewport?.addEventListener('resize', repositionMenu);
+    window.visualViewport?.addEventListener('scroll', repositionMenu);
+
     webpageQAContainer.addEventListener('click', async (e) => {
         e.stopPropagation();
 
@@ -475,20 +589,12 @@ export function initWebpageMenu({ webpageQAContainer, webpageContentMenu }) {
 
         // 核心修复：先隐藏，计算完位置再显示，防止闪烁
         webpageContentMenu.style.visibility = 'hidden';
+        webpageContentMenu.style.width = '';
+        webpageContentMenu.style.maxHeight = '';
         webpageContentMenu.classList.add('visible');
 
-        await populateWebpageContentMenu(webpageContentMenu);
-        const rect = webpageQAContainer.getBoundingClientRect();
-        const menuHeight = webpageContentMenu.offsetHeight;
-        const windowHeight = window.innerHeight;
-
-        let top = rect.top;
-        if (top + menuHeight > windowHeight) {
-            top = windowHeight - menuHeight - 150; // 向上调整
-        }
-
-        webpageContentMenu.style.top = `${Math.max(8, top)}px`;
-        webpageContentMenu.style.left = `${rect.right + 8}px`;
+        await populateWebpageContentMenu(webpageContentMenu, { onLayoutChange: repositionMenu });
+        positionWebpageContentMenu({ webpageQAContainer, webpageContentMenu });
 
         // 在正确的位置上使其可见
         webpageContentMenu.style.visibility = 'visible';

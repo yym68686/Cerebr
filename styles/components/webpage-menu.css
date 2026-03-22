@@ -68,17 +68,67 @@
 
 .webpage-menu-group-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 6px 8px;
+    gap: 8px;
+    padding: 8px;
     border-radius: 6px;
     cursor: pointer;
-    -webkit-user-select: none;
-    user-select: none;
+    transition: background-color 0.2s;
 }
 
 .webpage-menu-group-header:hover {
     background-color: var(--settings-hover-bg-color);
+}
+
+.webpage-menu-group-header:focus-within {
+    background-color: var(--settings-hover-bg-color);
+}
+
+.webpage-menu-group-trigger {
+    -webkit-appearance: none;
+    appearance: none;
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.webpage-menu-group-trigger:hover {
+    background-color: transparent;
+}
+
+.webpage-menu-group-trigger:focus-visible {
+    outline: none;
+    background-color: transparent;
+    box-shadow: none;
+}
+
+.webpage-menu-group-trigger::before {
+    content: '';
+    display: block;
+    width: 0;
+    height: 0;
+    margin-right: 6px;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    border-left: 5px solid currentColor;
+    transform: rotate(90deg);
+    transform-origin: 35% 50%;
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+}
+
+.webpage-menu-group.is-collapsed .webpage-menu-group-trigger::before {
+    transform: rotate(0deg);
 }
 
 .webpage-menu-group-meta {
@@ -116,6 +166,20 @@
     flex-shrink: 0;
 }
 
+.webpage-menu-group-switch {
+    flex-shrink: 0;
+}
+
+.webpage-menu-group-items {
+    overflow: hidden;
+}
+
+.webpage-menu-group.is-collapsed .webpage-menu-group-items {
+    max-height: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
 .webpage-menu-item--indented {
-    padding-left: 20px;
+    padding-left: 8px;
 }
