@@ -88,13 +88,6 @@
             </svg>
         </button>
         <div id="settings-menu" role="menu" aria-label="设置菜单" data-i18n-attr="aria-label:settings_menu_label">
-            <div class="menu-item" id="theme-toggle" role="menuitem" tabindex="0">
-                <span data-i18n="settings_dark_mode">深色模式</span>
-                <label class="switch">
-                    <input type="checkbox" id="theme-switch">
-                    <span class="slider"></span>
-                </label>
-            </div>
             <div class="menu-item" id="webpage-qa" role="menuitem" tabindex="0">
                 <span data-i18n="settings_webpage_content">网页内容</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -209,6 +202,14 @@
                         <option value="en" data-i18n="language_en">English</option>
                         <option value="zh_CN" data-i18n="language_zh_cn">简体中文</option>
                         <option value="zh_TW" data-i18n="language_zh_tw">繁體中文</option>
+                    </select>
+                </div>
+                <div class="preference-row">
+                    <label class="preference-label" for="preferences-theme" data-i18n="preferences_theme_label">主题</label>
+                    <select class="preference-select" id="preferences-theme" aria-label="主题设置" data-i18n-attr="aria-label:preferences_theme_aria">
+                        <option value="system" data-i18n="theme_system">跟随系统</option>
+                        <option value="light" data-i18n="theme_light">浅色</option>
+                        <option value="dark" data-i18n="theme_dark">深色</option>
                     </select>
                 </div>
                 <div class="preference-row">

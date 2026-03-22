@@ -1,4 +1,9 @@
-import { setTheme } from './utils/theme.js';
+import {
+    applyThemePreference,
+    normalizeThemePreference,
+    THEME_STORAGE_KEY,
+    THEME_SYSTEM
+} from './utils/theme.js';
 import { callAPI } from './services/chat.js';
 import { chatManager } from './utils/chat-manager.js';
 import { appendMessage } from './handlers/message-handler.js';
@@ -60,6 +65,7 @@ const onDomReady = async () => {
         const preferencesFontScale = document.getElementById('preferences-font-scale');
         const preferencesFeedback = document.getElementById('preferences-feedback');
         const preferencesLanguage = document.getElementById('preferences-language');
+        const preferencesTheme = document.getElementById('preferences-theme');
         const scrollToBottomButton = document.getElementById('scroll-to-bottom');
 
         if (!chatContainer || !messageInput || !contextMenu) {
@@ -1333,61 +1339,56 @@ const onDomReady = async () => {
         closeSettingsMenu();
     });
 
-    // 主题切换
-    const themeToggle = document.getElementById('theme-toggle');
-    const themeSwitch = document.getElementById('theme-switch');
-
-    // 创建主题配置对象
     const themeConfig = {
         root: document.documentElement,
-        themeSwitch,
-        saveTheme: async (theme) => await syncStorageAdapter.set({ theme })
+        themeSelect: preferencesTheme
     };
 
-    // 初始化主题
+    async function readThemePreference() {
+        const result = await syncStorageAdapter.get(THEME_STORAGE_KEY);
+        return normalizeThemePreference(result?.[THEME_STORAGE_KEY]);
+    }
+
     async function initTheme() {
         try {
-            const result = await syncStorageAdapter.get('theme');
-            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            const isDark = result.theme === 'dark' || (!result.theme && prefersDark);
-            setTheme(isDark, themeConfig);
+            const themePreference = await readThemePreference();
+            applyThemePreference(themePreference, themeConfig);
         } catch (error) {
             console.error('初始化主题失败:', error);
-            // 如果出错，使用系统主题
-            setTheme(window.matchMedia('(prefers-color-scheme: dark)').matches, themeConfig);
+            applyThemePreference(THEME_SYSTEM, themeConfig);
         }
     }
 
-    // 监听主题切换
-        if (themeSwitch) {
-            themeSwitch.addEventListener('change', () => {
-                setTheme(themeSwitch.checked, themeConfig);
-            });
-        }
-
-    if (themeToggle && themeSwitch) {
-        themeToggle.addEventListener('click', (e) => {
-            // 点击开关本身时，让浏览器默认行为处理（避免 toggle 两次导致“没反应”）
-            if (e.target.closest('.switch')) return;
-            themeSwitch.click();
+    if (preferencesTheme) {
+        preferencesTheme.addEventListener('change', async () => {
+            const themePreference = normalizeThemePreference(preferencesTheme.value);
+            applyThemePreference(themePreference, themeConfig);
+            try {
+                await syncStorageAdapter.set({ [THEME_STORAGE_KEY]: themePreference });
+            } catch (error) {
+                console.error('保存主题设置失败:', error);
+            }
         });
     }
 
-    // 监听系统主题变化
-        const prefersDarkQuery = window.matchMedia('(prefers-color-scheme: dark)');
-        const handleSystemThemeChange = async (e) => {
-            const data = await syncStorageAdapter.get('theme');
-            if (!data.theme) {  // 只有在用户没有手动设置主题时才跟随系统
-                setTheme(e.matches, themeConfig);
+    const prefersDarkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleSystemThemeChange = async () => {
+        try {
+            const themePreference = await readThemePreference();
+            if (themePreference === THEME_SYSTEM) {
+                applyThemePreference(THEME_SYSTEM, themeConfig);
             }
-        };
-        if (typeof prefersDarkQuery.addEventListener === 'function') {
-            prefersDarkQuery.addEventListener('change', handleSystemThemeChange);
-        } else if (typeof prefersDarkQuery.addListener === 'function') {
-            prefersDarkQuery.addListener(handleSystemThemeChange);
+        } catch (error) {
+            console.error('响应系统主题变化失败:', error);
+            applyThemePreference(THEME_SYSTEM, themeConfig);
         }
+    };
+    if (typeof prefersDarkQuery.addEventListener === 'function') {
+        prefersDarkQuery.addEventListener('change', handleSystemThemeChange);
+    } else if (typeof prefersDarkQuery.addListener === 'function') {
+        prefersDarkQuery.addListener(handleSystemThemeChange);
+    }
 
-    // 初始化主题
     await initTheme();
 
     // 字体大小设置（通过 CSS 变量控制）

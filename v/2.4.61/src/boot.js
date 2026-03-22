@@ -9,6 +9,41 @@ const toSafePathSegment = (value) => {
     return /^[0-9A-Za-z._-]+$/.test(raw) ? raw : null;
 };
 
+const normalizeThemePreference = (value) => (
+    value === 'dark' || value === 'light' || value === 'system' ? value : 'system'
+);
+
+const resolveStoredThemePreference = () => {
+    try {
+        const raw = localStorage.getItem('sync_theme');
+        if (!raw) return 'system';
+        return normalizeThemePreference(JSON.parse(raw));
+    } catch {
+        return 'system';
+    }
+};
+
+const applyInitialThemePreference = () => {
+    const root = document.documentElement;
+    if (!root) return;
+
+    const themePreference = resolveStoredThemePreference();
+    root.classList.remove('dark-theme', 'light-theme');
+
+    if (themePreference === 'dark') {
+        root.classList.add('dark-theme');
+    } else if (themePreference === 'light') {
+        root.classList.add('light-theme');
+    }
+
+    const prefersDark = themePreference === 'dark'
+        || (themePreference === 'system' && window.matchMedia?.('(prefers-color-scheme: dark)')?.matches);
+    const themeColorMeta = document.getElementById('theme-color-meta');
+    if (themeColorMeta) {
+        themeColorMeta.content = prefersDark ? '#262B33' : '#ffffff';
+    }
+};
+
 const applyVersionedStylesheet = (version) => {
     const safeVersion = toSafePathSegment(version);
     if (!safeVersion) return;
@@ -67,6 +102,8 @@ const boot = async () => {
         await tryImport('./main.js');
         return;
     }
+
+    applyInitialThemePreference();
 
     // Web: try versioned module graph first to avoid Safari ESM cache sticking to old code.
     const version = await fetchManifestVersion();
