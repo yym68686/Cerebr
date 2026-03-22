@@ -129,6 +129,11 @@ class CerebrSidebar {
     this.lastUrl = window.location.href;
     this.sidebar = null;
     this.iframe = null;
+    this.iframeReady = false;
+    this.pendingIframeCommands = [];
+    this.inputFocusRetryToken = 0;
+    this.inputFocusRetryTimeoutIds = [];
+    this.inputFocusLoadListener = null;
     this.hideTimeout = null;
     this.dragging = false;
     this.iframePointerEventsBeforeDrag = null;
@@ -280,6 +285,7 @@ class CerebrSidebar {
       if (this.isVisible) {
         this.sidebar.style.display = 'block';
         this.sidebar.classList.add('visible');
+        this.requestInputFocus({ ensurePageLoadRetry: true });
       } else {
         this.sidebar.classList.remove('visible');
         this.sidebar.style.display = 'none';
@@ -510,6 +516,113 @@ class CerebrSidebar {
     this.savePositionDebounced();
   }
 
+  resetIframeReadyState({ clearPendingCommands = false } = {}) {
+    this.iframeReady = false;
+    if (clearPendingCommands) {
+      this.pendingIframeCommands = [];
+    }
+  }
+
+  clearPendingIframeCommands() {
+    this.pendingIframeCommands = [];
+  }
+
+  postMessageToIframe(message) {
+    if (!message || typeof message !== 'object') return false;
+    const targetWindow = this.iframe?.contentWindow;
+    if (!targetWindow) return false;
+    try {
+      targetWindow.postMessage(message, '*');
+      return true;
+    } catch (error) {
+      console.error('发送 iframe 消息失败:', error);
+      return false;
+    }
+  }
+
+  sendReadyAwareMessage(message) {
+    if (!message || typeof message !== 'object') return false;
+    if (this.iframeReady) {
+      return this.postMessageToIframe(message);
+    }
+    this.pendingIframeCommands.push({ ...message });
+    return true;
+  }
+
+  clearInputFocusRetries() {
+    this.inputFocusRetryToken += 1;
+
+    if (this.inputFocusLoadListener) {
+      window.removeEventListener('load', this.inputFocusLoadListener);
+      this.inputFocusLoadListener = null;
+    }
+
+    if (this.inputFocusRetryTimeoutIds.length > 0) {
+      for (const timeoutId of this.inputFocusRetryTimeoutIds) {
+        clearTimeout(timeoutId);
+      }
+      this.inputFocusRetryTimeoutIds = [];
+    }
+
+    return this.inputFocusRetryToken;
+  }
+
+  scheduleInputFocusRetries(delaysMs, requestToken, focusInput) {
+    for (const delayMs of delaysMs) {
+      const timeoutId = window.setTimeout(() => {
+        this.inputFocusRetryTimeoutIds = this.inputFocusRetryTimeoutIds.filter((id) => id !== timeoutId);
+        if (requestToken !== this.inputFocusRetryToken || !this.isVisible) return;
+        focusInput();
+      }, delayMs);
+
+      this.inputFocusRetryTimeoutIds.push(timeoutId);
+    }
+  }
+
+  requestInputFocus({ ensurePageLoadRetry = false } = {}) {
+    if (!this.isVisible) return false;
+
+    const focusInput = () => {
+      if (!this.isVisible) return;
+      this.sendReadyAwareMessage({ type: 'FOCUS_INPUT' });
+    };
+
+    const requestToken = this.clearInputFocusRetries();
+    focusInput();
+
+    if (!ensurePageLoadRetry) {
+      return true;
+    }
+
+    if (document.readyState === 'complete') {
+      this.scheduleInputFocusRetries([300, 1200], requestToken, focusInput);
+    } else {
+      this.inputFocusLoadListener = () => {
+        this.inputFocusLoadListener = null;
+        if (requestToken !== this.inputFocusRetryToken || !this.isVisible) return;
+        focusInput();
+        this.scheduleInputFocusRetries([300, 1200], requestToken, focusInput);
+      };
+      window.addEventListener('load', this.inputFocusLoadListener, { once: true });
+    }
+
+    return true;
+  }
+
+  flushPendingIframeCommands() {
+    if (!this.iframeReady || !this.iframe?.contentWindow || this.pendingIframeCommands.length === 0) {
+      return;
+    }
+
+    const pending = this.pendingIframeCommands.splice(0);
+    for (const message of pending) {
+      if (!this.postMessageToIframe(message)) {
+        this.pendingIframeCommands.unshift(message);
+        break;
+      }
+    }
+  }
+
   setupIframeDragMessaging(iframe) {
     if (!iframe) return;
     if (this.__cerebrIframeDragMessagingAttached) return;
@@ -520,6 +633,12 @@ class CerebrSidebar {
       if (event.source !== this.iframe.contentWindow) return;
       const data = event.data;
       if (!data || typeof data !== 'object') return;
+
+      if (data.type === 'CEREBR_IFRAME_READY') {
+        this.iframeReady = true;
+        this.flushPendingIframeCommands();
+        return;
+      }
 
       if (data.type === 'CEREBR_SIDEBAR_DRAG_START') {
         if (!this.isVisible) return;
@@ -682,6 +801,11 @@ class CerebrSidebar {
       iframe.src = chrome.runtime.getURL('index.html');
       iframe.allow = 'clipboard-write';
       this.iframe = iframe;
+      this.resetIframeReadyState({ clearPendingCommands: true });
+      iframe.addEventListener('load', () => {
+        if (iframe !== this.iframe) return;
+        this.resetIframeReadyState();
+      });
 
       content.appendChild(iframe);
       this.sidebar.appendChild(header);
@@ -691,9 +815,10 @@ class CerebrSidebar {
       shadow.appendChild(style);
       shadow.appendChild(this.sidebar);
 
+      this.setupIframeDragMessaging(iframe);
+
       // 先加载状态
       await this.loadState();
-      this.setupIframeDragMessaging(iframe);
 
       // 添加到文档并保护它
       const root = document.documentElement;
@@ -818,6 +943,8 @@ class CerebrSidebar {
         void this.sidebar.offsetWidth; // 强制重排以使过渡动画运行
         this.sidebar.classList.add('visible');
       } else {
+        this.clearInputFocusRetries();
+        this.clearPendingIframeCommands();
         this.sidebar.classList.remove('visible');
 
         if (this.hideTimeout) {
@@ -843,10 +970,7 @@ class CerebrSidebar {
 
       // 如果从不可见变为可见，通知iframe并聚焦输入框
       if (!wasVisible && this.isVisible) {
-        const iframe = this.sidebar.querySelector('.cerebr-sidebar__iframe');
-        if (iframe) {
-          iframe.contentWindow.postMessage({ type: 'FOCUS_INPUT' }, '*');
-        }
+        this.requestInputFocus({ ensurePageLoadRetry: true });
       }
     } catch (error) {
       console.error('切换侧边栏失败:', error);
@@ -1032,10 +1156,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 	            }
 	        }
 
-	        const iframe = sidebar?.sidebar?.querySelector('.cerebr-sidebar__iframe');
-	        if (iframe?.contentWindow) {
-	            iframe.contentWindow.postMessage({ type: 'NEW_CHAT' }, '*');
-	            sendResponse({ success: true });
+	        if (sidebar?.sendReadyAwareMessage({ type: 'NEW_CHAT' })) {
+	            sendResponse({ success: true, deferred: !sidebar.iframeReady });
 	        } else {
 	            sendResponse({ success: false, error: 'Sidebar iframe not found' });
 	        }
