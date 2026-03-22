@@ -664,6 +664,15 @@ const onDomReady = async () => {
         void tryRestoreReadingProgress(chatId);
     });
 
+    const notifyParentIframeReady = () => {
+        if (!isExtensionEnvironment) return;
+        if (window.top === window) return;
+        try {
+            window.parent?.postMessage?.({ type: 'CEREBR_IFRAME_READY' }, '*');
+        } catch {
+            // ignore
+        }
+    };
 
     // 监听来自 content script 的消息
     window.addEventListener('message', (event) => {
@@ -674,6 +683,7 @@ const onDomReady = async () => {
             uiConfig
         });
     });
+    notifyParentIframeReady();
 
     // 新增：带重试逻辑的API调用函数
     async function callAPIWithRetry(apiParams, chatManager, chatId, onMessageUpdate, maxRetries = 20) {

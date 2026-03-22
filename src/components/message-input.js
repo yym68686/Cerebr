@@ -1121,7 +1121,7 @@ export function handleWindowMessage(event, config) {
             messageInput.dispatchEvent(new Event('input'));
         }
     } else if (event.data.type === 'FOCUS_INPUT') {
-        messageInput.focus();
+        messageInput.focus({ preventScroll: true });
         moveCaretToEnd(messageInput);
     } else if (event.data.type === 'UPDATE_PLACEHOLDER') {
         setPlaceholder({
