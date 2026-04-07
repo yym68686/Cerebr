@@ -84,11 +84,15 @@ Cerebr 是一款强大的浏览器 AI 助手扩展，现已支持 Chrome、Firef
 
 ## 🚀 网页版部署
 
-1. 你可以一键将 Cerebr 的 Web 版本部署到 Vercel：
+1. 你可以一键将 Cerebr 的 Web 版本部署到 Fugue：
+
+[![Deploy to Fugue](https://api.fugue.pro/button.svg?v=a37d3d9)](https://fugue.pro/new/repository?repository-url=https%3A%2F%2Fgithub.com%2Fyym68686%2Fcerebr)
+
+2. 你可以一键将 Cerebr 的 Web 版本部署到 Vercel：
 
 [![使用 Vercel 部署](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyym68686%2Fcerebr)
 
-2. 你可以部署到 Cloudflare Pages：
+3. 你可以部署到 Cloudflare Pages：
 
 2.1 注册好 CF 账号后，申请 Workers API TOKEN。
 
@@ -109,7 +113,7 @@ Cerebr 是一款强大的浏览器 AI 助手扩展，现已支持 Chrome、Firef
 
 （由于直接构建部署会导致 API 和 accountID 会以明文形式保存，若想更改成密文，可以选择部署完成后点击`继续处理项目` -> 设置 -> 变量和机密 -> 编辑 -> 把`文本`形式更改成`密文` -> 保存）
 
-3. 你也可以部署到 GitHub Pages：
+4. 你也可以部署到 GitHub Pages：
 
 ```bash
 # Fork 这个仓库

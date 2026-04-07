@@ -84,11 +84,15 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
 
 ## 🚀 Web Version Deploy
 
-1. You can quickly deploy the web version of Cerebr to Vercel with one click:
+1. You can quickly deploy the web version of Cerebr to Fugue with one click:
+
+[![Deploy to Fugue](https://api.fugue.pro/button.svg?v=a37d3d9)](https://fugue.pro/new/repository?repository-url=https%3A%2F%2Fgithub.com%2Fyym68686%2Fcerebr)
+
+2. You can quickly deploy the web version of Cerebr to Vercel with one click:
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyym68686%2Fcerebr)
 
-2. You can deploy to Cloudflare Pages:
+3. You can deploy to Cloudflare Pages:
 
 2.1 After registering a Cloudflare account, apply for a Workers API TOKEN.
 
@@ -109,7 +113,7 @@ After entering the Cloudflare homepage, select "Profile" in the upper right corn
 
 (Since direct build and deployment will cause the API and accountID to be saved in plain text, if you want to change them to ciphertext, you can choose to click "Continue to project" after deployment is completed -> "Settings" -> "Variables and Secrets" -> "Edit" -> Change the "Text" form to "Secret" -> Save)
 
-3. You can also deploy to GitHub Pages:
+4. You can also deploy to GitHub Pages:
 
 ```bash
 # Fork this repository
