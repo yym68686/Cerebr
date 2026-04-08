@@ -41,6 +41,7 @@
   "api_delete_config_aria": { "message": "Delete this config" },
   "api_advanced_settings": { "message": "Advanced settings" },
   "api_system_prompt_label": { "message": "System prompt" },
+  "api_reasoning_effort_label": { "message": "Reasoning effort" },
 
   "title_preferences": { "message": "Preferences" },
   "preferences_version": { "message": "Version" },
@@ -71,7 +72,10 @@
   "title_chat_list": { "message": "Chats" },
   "chat_search_placeholder": { "message": "Search chats..." },
   "chat_clear_search_aria": { "message": "Clear search" },
+  "chat_edit_title_aria": { "message": "Edit chat title" },
+  "chat_edit_title_prompt": { "message": "Enter a new chat title" },
   "chat_delete_chat_aria": { "message": "Delete chat" },
+  "chat_title_empty": { "message": "Chat title cannot be empty" },
 
   "image_preview_label": { "message": "Image preview" },
   "image_preview_alt": { "message": "Preview image" },

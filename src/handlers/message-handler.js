@@ -240,9 +240,17 @@ export async function appendMessage({
     }
 
     const reasoningContent = typeof text === 'string' ? null : text.reasoning_content;
+    const seedId = typeof text === 'string' ? null : text.seedId;
+    const isSeedManaged = typeof text === 'string' ? false : !!text.seedLocaleBound;
 
     // 存储原始文本用于复制
     messageDiv.setAttribute('data-original-text', plainTextContent);
+    if (seedId) {
+        messageDiv.dataset.seedId = seedId;
+    }
+    if (isSeedManaged) {
+        messageDiv.dataset.seedManaged = '1';
+    }
 
     // 如果有思考内容，添加思考模块
     if (reasoningContent) {

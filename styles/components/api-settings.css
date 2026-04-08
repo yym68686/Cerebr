@@ -138,7 +138,8 @@
 }
 
 .form-group input,
-.system-prompt {
+.system-prompt,
+.reasoning-effort {
     width: 100%;
     box-sizing: border-box;
 }
@@ -154,17 +155,26 @@
     opacity: 0.8;
 }
 
-.form-group input {
+.form-group input,
+.reasoning-effort {
     background: var(--cerebr-message-ai-bg);
     border: 1px solid var(--cerebr-card-border-color);
     padding: 8px;
     border-radius: 4px;
     color: var(--cerebr-text-color);
     font-size: var(--cerebr-fs-14);
+    font-family: inherit;
     transition: border-color 0.2s ease;
 }
 
-.form-group input:focus {
+.reasoning-effort {
+    min-height: 36px;
+    appearance: auto;
+    cursor: pointer;
+}
+
+.form-group input:focus,
+.reasoning-effort:focus {
     outline: none;
     border-color: var(--cerebr-highlight-border-color);
     box-shadow: 0 0 0 1px var(--cerebr-highlight-border-color);

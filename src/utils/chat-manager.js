@@ -1,4 +1,10 @@
 import { storageAdapter, browserAdapter, isExtensionEnvironment } from './storage-adapter.js';
+import {
+    DEFAULT_CHAT_KIND,
+    buildDefaultChatSeedMessages,
+    getDefaultChatTitle,
+    resolveDefaultChatLocale
+} from './default-chat.js';
 
 const LEGACY_CHATS_KEY = 'cerebr_chats';
 const CHATS_INDEX_V2_KEY = 'cerebr_chats_index_v2';
@@ -31,6 +37,7 @@ export class ChatManager {
         this._savePromise = null;
         this._savePromiseResolve = null;
         this._savePromiseReject = null;
+        this._initializePromise = null;
         this.initialize();
     }
 
@@ -73,6 +80,19 @@ export class ChatManager {
     }
 
     async initialize() {
+        if (this._initializePromise) {
+            return this._initializePromise;
+        }
+
+        this._initializePromise = this._initializeImpl();
+        try {
+            return await this._initializePromise;
+        } finally {
+            this._initializePromise = null;
+        }
+    }
+
+    async _initializeImpl() {
         await this._resolveCurrentChatIdStorageKey();
 
         // 优先加载 v2 索引（按 chatId 分片存储，避免每次写入整个 77MB）
@@ -167,7 +187,7 @@ export class ChatManager {
             if (fallback?.id) {
                 this.currentChatId = fallback.id;
             } else {
-                const defaultChat = this.createNewChat('默认对话');
+                const defaultChat = await this.createDefaultChat();
                 this.currentChatId = defaultChat.id;
             }
 
@@ -179,19 +199,74 @@ export class ChatManager {
     }
 
     createNewChat(title = '新对话') {
+        return this.createChat({
+            title
+        });
+    }
+
+    createChat({
+        title = '新对话',
+        messages = [],
+        kind = null,
+        titleLocaleBound = undefined
+    } = {}) {
         const chatId = Date.now().toString();
         const createdAt = new Date().toISOString();
         const chat = {
             id: chatId,
-            title: title,
-            messages: [],
+            title,
+            messages: Array.isArray(messages) ? messages.map((message) => ({ ...message })) : [],
             createdAt,
             updatedAt: createdAt
         };
+        if (kind) {
+            chat.kind = kind;
+        }
+        if (typeof titleLocaleBound === 'boolean') {
+            chat.titleLocaleBound = titleLocaleBound;
+        }
         this.chats.set(chatId, chat);
         this._dirtyChatIds.add(chatId);
         this._indexDirty = true;
         this.saveChats();
+        return chat;
+    }
+
+    async createDefaultChat() {
+        const locale = await resolveDefaultChatLocale();
+        return this.createChat({
+            title: getDefaultChatTitle(locale),
+            kind: DEFAULT_CHAT_KIND,
+            titleLocaleBound: true,
+            messages: buildDefaultChatSeedMessages(locale)
+        });
+    }
+
+    renameChat(chatId, title) {
+        if (!this.chats.has(chatId)) {
+            throw new Error('对话不存在');
+        }
+
+        const normalizedTitle = String(title || '').trim();
+        if (!normalizedTitle) {
+            throw new Error('对话标题不能为空');
+        }
+
+        const chat = this.chats.get(chatId);
+        if (!chat) {
+            throw new Error('对话不存在');
+        }
+
+        if (chat.title === normalizedTitle) {
+            return chat;
+        }
+
+        chat.title = normalizedTitle;
+        if (chat.kind === DEFAULT_CHAT_KIND) {
+            chat.titleLocaleBound = false;
+        }
+        this.markChatDirty(chatId, { touchUpdatedAt: false });
+        this.saveChats({ touchCurrentChat: false });
         return chat;
     }
 
@@ -253,11 +328,23 @@ export class ChatManager {
                 await this.switchChat(nextChat.id);
                 this.currentChatId = nextChat.id;
             } else {
-                const newChat = this.createNewChat('默认对话');
+                const newChat = await this.createDefaultChat();
                 await this.switchChat(newChat.id);
                 this.currentChatId = newChat.id;
             }
         }
+    }
+
+    markChatDirty(chatId, { touchUpdatedAt = true } = {}) {
+        if (!chatId) return false;
+        const chat = this.chats.get(chatId);
+        if (!chat) return false;
+
+        if (touchUpdatedAt) {
+            chat.updatedAt = new Date().toISOString();
+        }
+        this._dirtyChatIds.add(chatId);
+        return true;
     }
 
     /**
@@ -373,7 +460,7 @@ export class ChatManager {
         this.saveChats();
     }
 
-    async saveChats() {
+    async saveChats({ touchCurrentChat = true } = {}) {
         this._saveDirty = true;
 
         if (!this._savePromise) {
@@ -386,7 +473,7 @@ export class ChatManager {
         }
 
         // 兼容：部分调用方会直接 mutate currentChat.messages 后再调用 saveChats()
-        if (this.currentChatId) {
+        if (touchCurrentChat && this.currentChatId) {
             const chat = this.chats.get(this.currentChatId);
             if (chat) {
                 chat.updatedAt = new Date().toISOString();

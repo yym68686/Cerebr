@@ -28,11 +28,13 @@ export function initChatContainer({
     let currentMessageElement = null;
     let currentCodeElement = null;
 
+    const isSeedManagedMessageElement = (messageElement) => messageElement?.dataset?.seedManaged === '1';
+
     // 初始化 MutationObserver 来监视添加到聊天容器的新用户消息
     const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
             mutation.addedNodes.forEach((node) => {
-                if (node.classList && node.classList.contains('user-message')) {
+                if (node.classList && node.classList.contains('user-message') && !isSeedManagedMessageElement(node)) {
                     const question = node.textContent.trim();
                     // 只有当问题不在历史记录中时才添加
                     if (question && !userQuestions.includes(question)) {
@@ -68,9 +70,10 @@ export function initChatContainer({
             const copyMessageButton = document.getElementById('copy-message');
             const deleteMessageButton = document.getElementById('delete-message');
             const regenerateMessageButton = document.getElementById('regenerate-message');
+            const isSeedManaged = isSeedManagedMessageElement(messageElement);
 
             // 根据右键点击的元素类型显示/隐藏相应的菜单项
-            regenerateMessageButton.style.display = 'flex';
+            regenerateMessageButton.style.display = isSeedManaged ? 'none' : 'flex';
             copyMessageButton.style.display = 'flex';
             deleteMessageButton.style.display = 'flex';
             copyCodeButton.style.display = codeElement ? 'flex' : 'none';
@@ -158,9 +161,10 @@ export function initChatContainer({
             const stopUpdateButton = document.getElementById('stop-update');
             const deleteMessageButton = document.getElementById('delete-message');
             const regenerateMessageButton = document.getElementById('regenerate-message');
+            const isSeedManaged = isSeedManagedMessageElement(messageElement);
 
              // 根据长按元素类型显示/隐藏相应的菜单项
-            regenerateMessageButton.style.display = 'flex';
+            regenerateMessageButton.style.display = isSeedManaged ? 'none' : 'flex';
             copyMessageButton.style.display = 'flex';
             deleteMessageButton.style.display = 'flex';
             copyCodeButton.style.display = !mathContainer && codeElement ? 'flex' : 'none';
@@ -477,18 +481,19 @@ export function initChatContainer({
             const deleteMessageButton = document.getElementById('delete-message');
             const regenerateMessageButton = document.getElementById('regenerate-message');
 
-            // 设置菜单项的显示状态
-            mathContextMenu.style.display = 'flex';
-            copyMessageButton.style.display = 'flex';
-            deleteMessageButton.style.display = 'flex';
-            regenerateMessageButton.style.display = 'flex';
-            copyCodeButton.style.display = 'none';
-            copyImageButton.style.display = 'none';
-
             // 获取包含公式的消息元素（AI 或用户）
             const messageElement = container.closest('.ai-message, .user-message');
             if (!messageElement) return;
             currentMessageElement = messageElement;
+            const isSeedManaged = isSeedManagedMessageElement(messageElement);
+
+            // 设置菜单项的显示状态
+            mathContextMenu.style.display = 'flex';
+            copyMessageButton.style.display = 'flex';
+            deleteMessageButton.style.display = 'flex';
+            regenerateMessageButton.style.display = isSeedManaged ? 'none' : 'flex';
+            copyCodeButton.style.display = 'none';
+            copyImageButton.style.display = 'none';
 
             showContextMenu({
                 event,
@@ -530,12 +535,15 @@ export function initChatContainer({
 
     // 初始化用户问题历史
     function initializeUserQuestions() {
-        const userMessages = document.querySelectorAll('.user-message');
+        const userMessages = chatContainer.querySelectorAll('.user-message');
         const questions = Array.from(userMessages).map(msg => msg.textContent.trim());
 
         // 清空并添加新问题
         userQuestions.length = 0;
-        userQuestions.push(...questions);
+        userQuestions.push(...questions.filter((question, index) => {
+            const element = userMessages[index];
+            return !isSeedManagedMessageElement(element) && !!question;
+        }));
     }
 
     // 设置全局点击和触摸事件，用于隐藏上下文菜单

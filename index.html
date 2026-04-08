@@ -177,6 +177,17 @@
                                     <label for="system-prompt" data-i18n="api_system_prompt_label">系统提示</label>
                                     <textarea id="system-prompt" class="system-prompt" rows="3"></textarea>
                                 </div>
+                                <div class="setting-item reasoning-effort-setting" hidden>
+                                    <label data-i18n="api_reasoning_effort_label">思考等级</label>
+                                    <select class="reasoning-effort">
+                                        <option value="off">off</option>
+                                        <option value="minimal">minimal</option>
+                                        <option value="low">low</option>
+                                        <option value="medium">medium</option>
+                                        <option value="high">high</option>
+                                        <option value="xhigh">xhigh</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -280,6 +291,12 @@
                 <div class="card-content">
                     <div class="chat-title" data-i18n="chat_new_title">新对话</div>
                     <div class="card-actions">
+                        <button class="card-button edit-title-btn" aria-label="修改该对话标题" data-i18n-attr="aria-label:chat_edit_title_aria">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                <path d="M3 11.5L11.5 3L13 4.5L4.5 13H3V11.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                                <path d="M10.5 4L12 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                            </svg>
+                        </button>
                         <button class="card-button delete-btn" aria-label="删除该对话" data-i18n-attr="aria-label:chat_delete_chat_aria">
                             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                                 <path d="M3 4H13" stroke="currentColor" stroke-width="1.5"/>

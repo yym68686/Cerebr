@@ -1,6 +1,7 @@
 import { appendMessage } from '../handlers/message-handler.js';
 import { storageAdapter, browserAdapter, isExtensionEnvironment } from '../utils/storage-adapter.js';
 import { t } from '../utils/i18n.js';
+import { showToast } from '../utils/ui.js';
 import { setWebpageSwitchesForChat } from '../utils/webpage-switches.js';
 
 let renderToken = 0;
@@ -81,6 +82,7 @@ export function renderChatListIncremental(chatManager, chatCards, searchTerm = '
 
             const titleElement = card.querySelector('.chat-title');
             titleElement.textContent = chat.title;
+            titleElement.title = chat.title;
 
             if (chat.id === currentChatId) {
                 card.classList.add('selected');
@@ -271,13 +273,39 @@ export function initChatListEvents({
         const card = e.target.closest('.chat-card');
         if (!card || card.classList.contains('template')) return;
 
-        if (!e.target.closest('.delete-btn')) {
+        if (!e.target.closest('.card-button')) {
             // 先准备聊天界面，再关闭列表页，避免“旧对话被清空”的闪动露出。
             switchToChat(card.dataset.chatId, chatManager);
             requestAnimationFrame(() => {
                 if (onHide) onHide();
             });
         }
+    });
+
+    chatCards.addEventListener('click', (e) => {
+        const editBtn = e.target.closest('.edit-title-btn');
+        if (!editBtn) return;
+
+        const card = editBtn.closest('.chat-card');
+        if (!card || card.classList.contains('template')) return;
+
+        e.stopPropagation();
+
+        const currentTitle = card.querySelector('.chat-title')?.textContent?.trim() || '';
+        const nextTitle = window.prompt(t('chat_edit_title_prompt'), currentTitle);
+        if (nextTitle === null) return;
+
+        const trimmedTitle = nextTitle.trim();
+        if (!trimmedTitle) {
+            showToast(t('chat_title_empty'), { type: 'error' });
+            return;
+        }
+        if (trimmedTitle === currentTitle) return;
+
+        chatManager.renameChat(card.dataset.chatId, trimmedTitle);
+
+        const searchInput = document.getElementById('chat-search-input');
+        scheduleWork(() => renderChatListIncremental(chatManager, chatCards, searchInput?.value || ''));
     });
 
     // 为删除按钮添加点击事件

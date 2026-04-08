@@ -22,10 +22,19 @@ import {
 } from './components/chat-list.js';
 import { initWebpageMenu, getEnabledTabsContent } from './components/webpage-menu.js';
 import { normalizeChatCompletionsUrl } from './utils/api-url.js';
+import { DEFAULT_REASONING_EFFORT, normalizeReasoningEffort } from './utils/reasoning-effort.js';
 import { ensureChatElementVisible, syncChatBottomExtraPadding } from './utils/scroll.js';
 import { createReadingProgressManager } from './utils/reading-progress.js';
 import { applyI18n, initI18n, getLanguagePreference, setLanguagePreference, reloadI18n, t } from './utils/i18n.js';
 import { setWebpageSwitchesForChat } from './utils/webpage-switches.js';
+import {
+    DEFAULT_CHAT_KIND,
+    isDefaultChat,
+    isDefaultChatSeedOnly,
+    isLegacyDefaultChatTitle,
+    resolveDefaultChatLocale,
+    syncDefaultChatForLocale
+} from './utils/default-chat.js';
 
 // 存储用户的问题历史
 let userQuestions = [];
@@ -82,6 +91,67 @@ const onDomReady = async () => {
         const shouldStickToBottom = (container, thresholdPx = 120) => {
             if (!container) return false;
             return !container.__cerebrUserPausedAutoScroll && isNearBottom(container, thresholdPx);
+        };
+
+        let readingProgressManager = null;
+
+        const syncLocalizedChats = async ({ rerenderCurrent = false } = {}) => {
+            const locale = await resolveDefaultChatLocale();
+            const newTitle = t('chat_new_title');
+            const legacyNewTitles = new Set(['新对话', '新對話', 'New chat']);
+            const changedChatIds = new Set();
+            const activeChatId = chatManager.getCurrentChat()?.id || null;
+
+            for (const chat of chatManager.getAllChats?.() || []) {
+                if (!chat?.id || !Array.isArray(chat.messages)) continue;
+
+                let changed = false;
+                const shouldPromoteLegacyDefault = !isDefaultChat(chat) &&
+                    chat.messages.length === 0 &&
+                    isLegacyDefaultChatTitle(chat.title);
+
+                if (shouldPromoteLegacyDefault) {
+                    chat.kind = DEFAULT_CHAT_KIND;
+                    chat.titleLocaleBound = true;
+                    changed = true;
+                }
+
+                if (isDefaultChat(chat)) {
+                    if (syncDefaultChatForLocale(chat, locale, {
+                        insertSeedsWhenEmpty: chat.messages.length === 0
+                    })) {
+                        changed = true;
+                    }
+                } else if (chat.messages.length === 0 && legacyNewTitles.has(chat.title) && chat.title !== newTitle) {
+                    chat.title = newTitle;
+                    changed = true;
+                }
+
+                if (changed) {
+                    changedChatIds.add(chat.id);
+                    chatManager.markChatDirty?.(chat.id, { touchUpdatedAt: false });
+                }
+            }
+
+            if (changedChatIds.size === 0) return;
+
+            await chatManager.saveChats?.({ touchCurrentChat: false });
+            await chatManager.flushNow?.().catch(() => {});
+
+            if (!rerenderCurrent || !activeChatId || !changedChatIds.has(activeChatId)) return;
+
+            if (readingProgressManager) {
+                await readingProgressManager.saveNow().catch(() => {});
+            }
+
+            const currentChat = chatManager.getCurrentChat();
+            if (!currentChat) return;
+
+            await loadChatContent(currentChat, chatContainer);
+            chatContainerManager.initializeUserQuestions();
+            if (readingProgressManager) {
+                await readingProgressManager.restore(currentChat.id);
+            }
         };
 
         const setThinkingPlaceholder = () => {
@@ -486,33 +556,9 @@ const onDomReady = async () => {
 
     // 初始化ChatManager
     await chatManager.initialize();
+    await syncLocalizedChats({ rerenderCurrent: false });
 
-    // 将“默认/新对话”这类未改名且无消息的对话标题同步为当前语言
-    try {
-        const newTitle = t('chat_new_title');
-        const defaultTitle = t('chat_default_title');
-        const legacyNewTitles = new Set(['新对话', '新對話', 'New chat']);
-        const legacyDefaultTitles = new Set(['默认对话', '預設對話', 'Default chat', 'Default Chat']);
-        let changed = false;
-        for (const chat of chatManager.getAllChats()) {
-            if (!chat || !Array.isArray(chat.messages) || chat.messages.length !== 0) continue;
-            if (legacyNewTitles.has(chat.title) && chat.title !== newTitle) {
-                chat.title = newTitle;
-                changed = true;
-            }
-            if (legacyDefaultTitles.has(chat.title) && chat.title !== defaultTitle) {
-                chat.title = defaultTitle;
-                changed = true;
-            }
-        }
-        if (changed) {
-            chatManager.saveChats();
-        }
-    } catch {
-        // ignore
-    }
-
-    const readingProgressManager = createReadingProgressManager({
+    readingProgressManager = createReadingProgressManager({
         chatContainer,
         getActiveChatId: () => chatManager.getCurrentChat()?.id,
         storage: storageAdapter
@@ -563,7 +609,7 @@ const onDomReady = async () => {
     });
     window.addEventListener('pagehide', flushSessionState);
 
-    if ((!currentChat || currentChat.messages.length === 0) && isExtensionEnvironment) {
+    if ((!currentChat || currentChat.messages.length === 0 || isDefaultChatSeedOnly(currentChat)) && isExtensionEnvironment) {
         const currentTab = await browserAdapter.getCurrentTab();
         if (currentTab?.id && currentChat?.id) {
             await setWebpageSwitchesForChat(currentChat.id, { [currentTab.id]: true });
@@ -664,6 +710,15 @@ const onDomReady = async () => {
         void tryRestoreReadingProgress(chatId);
     });
 
+    const notifyParentIframeReady = () => {
+        if (!isExtensionEnvironment) return;
+        if (window.top === window) return;
+        try {
+            window.parent?.postMessage?.({ type: 'CEREBR_IFRAME_READY' }, '*');
+        } catch {
+            // ignore
+        }
+    };
 
     // 监听来自 content script 的消息
     window.addEventListener('message', (event) => {
@@ -674,6 +729,7 @@ const onDomReady = async () => {
             uiConfig
         });
     });
+    notifyParentIframeReady();
 
     // 新增：带重试逻辑的API调用函数
     async function callAPIWithRetry(apiParams, chatManager, chatId, onMessageUpdate, maxRetries = 20) {
@@ -1359,17 +1415,7 @@ const onDomReady = async () => {
         }
     }
 
-    if (preferencesTheme) {
-        preferencesTheme.addEventListener('change', async () => {
-            const themePreference = normalizeThemePreference(preferencesTheme.value);
-            applyThemePreference(themePreference, themeConfig);
-            try {
-                await syncStorageAdapter.set({ [THEME_STORAGE_KEY]: themePreference });
-            } catch (error) {
-                console.error('保存主题设置失败:', error);
-            }
-        });
-    }
+    let lastAppliedThemePreference = THEME_SYSTEM;
 
     const prefersDarkQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleSystemThemeChange = async () => {
@@ -1390,6 +1436,26 @@ const onDomReady = async () => {
     }
 
     await initTheme();
+    lastAppliedThemePreference = normalizeThemePreference(preferencesTheme?.value);
+
+    const persistThemePreference = async (value) => {
+        const themePreference = normalizeThemePreference(value);
+        if (themePreference === lastAppliedThemePreference) return;
+
+        applyThemePreference(themePreference, themeConfig);
+        try {
+            await syncStorageAdapter.set({ [THEME_STORAGE_KEY]: themePreference });
+            lastAppliedThemePreference = themePreference;
+        } catch (error) {
+            console.error('保存主题设置失败:', error);
+        }
+    };
+
+    if (preferencesTheme) {
+        preferencesTheme.addEventListener('change', async () => {
+            await persistThemePreference(preferencesTheme.value);
+        });
+    }
 
     // 字体大小设置（通过 CSS 变量控制）
     const FONT_SCALE_KEY = 'fontScale';
@@ -1516,6 +1582,35 @@ const onDomReady = async () => {
         root.style.setProperty('--cerebr-fs-16', scaledPx(16));
     };
 
+    let lastAppliedFontScale = 1;
+
+    const persistFontScalePreference = async (value) => {
+        const selected = toPreset(value);
+        if (selected === lastAppliedFontScale) return;
+
+        applyFontScale(selected);
+        try {
+            if (!currentSiteKey) {
+                await syncStorageAdapter.set({ [FONT_SCALE_KEY]: selected });
+                lastAppliedFontScale = selected;
+                return;
+            }
+            const overrides = await readSiteOverrides();
+            const existing = overrides?.[currentSiteKey] && typeof overrides[currentSiteKey] === 'object'
+                ? overrides[currentSiteKey]
+                : {};
+            overrides[currentSiteKey] = {
+                ...existing,
+                fontScale: selected,
+                updatedAt: Date.now()
+            };
+            await writeSiteOverrides(overrides);
+            lastAppliedFontScale = selected;
+        } catch (error) {
+            console.error('保存字体大小失败:', error);
+        }
+    };
+
     try {
         const result = await syncStorageAdapter.get([FONT_SCALE_KEY, SITE_OVERRIDES_KEY]);
         const overrides = result?.[SITE_OVERRIDES_KEY] && typeof result[SITE_OVERRIDES_KEY] === 'object'
@@ -1536,6 +1631,7 @@ const onDomReady = async () => {
                 };
                 await writeSiteOverrides(overrides);
                 applyFontScale(migrated);
+                lastAppliedFontScale = migrated;
                 if (preferencesFontScale) preferencesFontScale.value = String(migrated);
                 return;
             }
@@ -1543,12 +1639,14 @@ const onDomReady = async () => {
 
         const initialScale = Number.isFinite(siteScale) ? toPreset(siteScale) : globalScale;
         applyFontScale(initialScale);
+        lastAppliedFontScale = initialScale;
         if (preferencesFontScale) {
             preferencesFontScale.value = String(initialScale);
         }
     } catch (error) {
         console.error('初始化字体大小失败:', error);
         applyFontScale(1);
+        lastAppliedFontScale = 1;
     }
 
     // API 设置功能
@@ -1593,45 +1691,51 @@ const onDomReady = async () => {
         preferencesVersion.textContent = await getAppVersion();
     }
 
+    let lastAppliedLanguagePreference = 'auto';
+
+    const persistLanguagePreference = async (value) => {
+        const nextPreference = value === 'auto' ? 'auto' : value;
+        if (nextPreference === lastAppliedLanguagePreference) return;
+
+        try {
+            await setLanguagePreference(nextPreference);
+            await reloadI18n();
+            applyI18n(document);
+            await syncLocalizedChats({ rerenderCurrent: true });
+            lastAppliedLanguagePreference = nextPreference;
+        } catch (error) {
+            console.error('保存语言设置失败:', error);
+        }
+    };
+
     if (preferencesLanguage) {
         try {
             preferencesLanguage.value = await getLanguagePreference();
         } catch {
             preferencesLanguage.value = 'auto';
         }
+        lastAppliedLanguagePreference = preferencesLanguage.value;
         preferencesLanguage.addEventListener('change', async () => {
-            try {
-                await setLanguagePreference(preferencesLanguage.value);
-                await reloadI18n();
-                applyI18n(document);
-
-                // 同步更新空对话的默认标题
-                try {
-                    const newTitle = t('chat_new_title');
-                    const defaultTitle = t('chat_default_title');
-                    const legacyNewTitles = new Set(['新对话', '新對話', 'New chat']);
-                    const legacyDefaultTitles = new Set(['默认对话', '預設對話', 'Default chat', 'Default Chat']);
-                    let changed = false;
-                    for (const chat of chatManager.getAllChats?.() || []) {
-                        if (!chat || !Array.isArray(chat.messages) || chat.messages.length !== 0) continue;
-                        if (legacyNewTitles.has(chat.title) && chat.title !== newTitle) {
-                            chat.title = newTitle;
-                            changed = true;
-                        }
-                        if (legacyDefaultTitles.has(chat.title) && chat.title !== defaultTitle) {
-                            chat.title = defaultTitle;
-                            changed = true;
-                        }
-                    }
-                    if (changed) chatManager.saveChats?.();
-                } catch {
-                    // ignore
-                }
-            } catch (error) {
-                console.error('保存语言设置失败:', error);
-            }
+            await persistLanguagePreference(preferencesLanguage.value);
         });
     }
+
+    const commitPendingPreferences = async () => {
+        const activeElement = document.activeElement;
+        if (preferencesSettings?.contains(activeElement) && typeof activeElement?.blur === 'function') {
+            activeElement.blur();
+        }
+
+        if (preferencesTheme) {
+            await persistThemePreference(preferencesTheme.value);
+        }
+        if (preferencesFontScale) {
+            await persistFontScalePreference(preferencesFontScale.value);
+        }
+        if (preferencesLanguage) {
+            await persistLanguagePreference(preferencesLanguage.value);
+        }
+    };
 
     if (preferencesToggle && preferencesSettings) {
         preferencesToggle.addEventListener('click', () => {
@@ -1641,13 +1745,15 @@ const onDomReady = async () => {
     }
 
     if (preferencesBackButton && preferencesSettings) {
-        preferencesBackButton.addEventListener('click', () => {
+        preferencesBackButton.addEventListener('click', async () => {
+            await commitPendingPreferences();
             preferencesSettings.classList.remove('visible');
         });
     }
 
     if (preferencesFeedback) {
-        preferencesFeedback.addEventListener('click', () => {
+        preferencesFeedback.addEventListener('click', async () => {
+            await commitPendingPreferences();
             openExternal(FEEDBACK_URL);
             preferencesSettings?.classList.remove('visible');
         });
@@ -1655,26 +1761,7 @@ const onDomReady = async () => {
 
     if (preferencesFontScale) {
         preferencesFontScale.addEventListener('change', async () => {
-            const selected = toPreset(preferencesFontScale.value);
-            applyFontScale(selected);
-            try {
-                if (!currentSiteKey) {
-                    await syncStorageAdapter.set({ [FONT_SCALE_KEY]: selected });
-                    return;
-                }
-                const overrides = await readSiteOverrides();
-                const existing = overrides?.[currentSiteKey] && typeof overrides[currentSiteKey] === 'object'
-                    ? overrides[currentSiteKey]
-                    : {};
-                overrides[currentSiteKey] = {
-                    ...existing,
-                    fontScale: selected,
-                    updatedAt: Date.now()
-                };
-                await writeSiteOverrides(overrides);
-            } catch (error) {
-                console.error('保存字体大小失败:', error);
-            }
+            await persistFontScalePreference(preferencesFontScale.value);
         });
     }
 
@@ -1721,6 +1808,7 @@ const onDomReady = async () => {
         normalized.advancedSettings = {
             ...(normalized.advancedSettings || {}),
             systemPrompt: normalized.advancedSettings?.systemPrompt ?? '',
+            reasoningEffort: normalizeReasoningEffort(normalized.advancedSettings?.reasoningEffort),
             isExpanded: normalized.advancedSettings?.isExpanded ?? false,
         };
         return normalized;
@@ -1890,6 +1978,7 @@ const onDomReady = async () => {
                     modelName: 'gpt-4o',
                     advancedSettings: {
                         systemPrompt: '',
+                        reasoningEffort: DEFAULT_REASONING_EFFORT,
                         isExpanded: false,
                     },
                 });
@@ -1970,6 +2059,7 @@ const onDomReady = async () => {
                 modelName: 'gpt-4o',
                 advancedSettings: {
                     systemPrompt: '',
+                    reasoningEffort: DEFAULT_REASONING_EFFORT,
                     isExpanded: false,
                 },
             });
@@ -2001,7 +2091,7 @@ const onDomReady = async () => {
 
         // 如果当前对话为空，则重置网页内容开关
         const currentChat = chatManager.getCurrentChat();
-        if (currentChat && currentChat.messages.length === 0) {
+        if (currentChat && (currentChat.messages.length === 0 || isDefaultChatSeedOnly(currentChat))) {
             const currentTab = await browserAdapter.getCurrentTab();
             if (currentTab?.id) {
                 await setWebpageSwitchesForChat(currentChat.id, { [currentTab.id]: true });

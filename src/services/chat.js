@@ -4,11 +4,13 @@
  * @property {string} baseUrl - API的基础URL
  * @property {string} apiKey - API密钥
  * @property {string} [modelName] - 模型名称，默认为 "gpt-4o"
+ * @property {{systemPrompt?: string, reasoningEffort?: string}} [advancedSettings] - 高级设置
  */
 
 import { normalizeChatCompletionsUrl } from '../utils/api-url.js';
 import { t } from '../utils/i18n.js';
 import { normalizeMessageForChatCompletions } from '../utils/message-content.js';
+import { modelSupportsReasoningEffort, normalizeReasoningEffort } from '../utils/reasoning-effort.js';
 
 /**
  * 网页信息接口
@@ -75,10 +77,12 @@ export async function callAPI({
 
     // 确保消息数组中有系统消息
     // 删除消息列表中的reasoning_content字段
-    const processedMessages = messages.map((msg) => {
-        const { reasoning_content, updating, ...rest } = msg;
-        return normalizeMessageForChatCompletions(rest);
-    });
+    const processedMessages = messages
+        .map((msg) => normalizeMessageForChatCompletions({
+            role: msg?.role,
+            content: msg?.content
+        }))
+        .filter((msg) => msg?.role && typeof msg?.content !== 'undefined');
 
     if (systemMessage.content.trim() && (processedMessages.length === 0 || processedMessages[0].role !== "system")) {
         processedMessages.unshift(systemMessage);
@@ -89,17 +93,27 @@ export async function callAPI({
     const controller = new AbortController();
     const signal = controller.signal;
 
+    const modelName = apiConfig.modelName || 'gpt-4o';
+    const requestBody = {
+        model: modelName,
+        messages: processedMessages,
+        stream: true,
+    };
+    const reasoningEffort = normalizeReasoningEffort(apiConfig.advancedSettings?.reasoningEffort);
+    if (modelSupportsReasoningEffort(modelName) && reasoningEffort !== 'off') {
+        requestBody.reasoning = {
+            effort: reasoningEffort,
+            summary: 'auto',
+        };
+    }
+
     const requestInit = {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${apiConfig.apiKey}`
         },
-        body: JSON.stringify({
-            model: apiConfig.modelName || "gpt-4o",
-            messages: processedMessages,
-            stream: true,
-        }),
+        body: JSON.stringify(requestBody),
         signal
     };
 

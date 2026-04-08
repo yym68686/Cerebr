@@ -41,6 +41,7 @@
   "api_delete_config_aria": { "message": "刪除此設定" },
   "api_advanced_settings": { "message": "進階設定" },
   "api_system_prompt_label": { "message": "系統提示" },
+  "api_reasoning_effort_label": { "message": "思考等級" },
 
   "title_preferences": { "message": "偏好設定" },
   "preferences_version": { "message": "程式版本" },
@@ -71,7 +72,10 @@
   "title_chat_list": { "message": "對話列表" },
   "chat_search_placeholder": { "message": "搜尋對話..." },
   "chat_clear_search_aria": { "message": "清除搜尋" },
+  "chat_edit_title_aria": { "message": "修改該對話標題" },
+  "chat_edit_title_prompt": { "message": "輸入新的對話標題" },
   "chat_delete_chat_aria": { "message": "刪除該對話" },
+  "chat_title_empty": { "message": "對話標題不能為空" },
 
   "image_preview_label": { "message": "圖片預覽" },
   "image_preview_alt": { "message": "預覽圖片" },

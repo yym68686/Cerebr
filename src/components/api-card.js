@@ -6,6 +6,7 @@
  * @property {string} modelName - 模型名称
  * @property {Object} advancedSettings - 高级设置
  * @property {string} advancedSettings.systemPrompt - 系统提示
+ * @property {string} advancedSettings.reasoningEffort - 思考等级
  * @property {boolean} advancedSettings.isExpanded - 高级设置是否展开
  */
 
@@ -86,6 +87,7 @@ export function renderAPICards({
  */
 
 import { normalizeChatCompletionsUrl } from '../utils/api-url.js';
+import { modelSupportsReasoningEffort, normalizeReasoningEffort } from '../utils/reasoning-effort.js';
 
 function createAPICard({
     config,
@@ -114,6 +116,8 @@ function createAPICard({
     const baseUrlInput = template.querySelector('.base-url');
     const modelNameInput = template.querySelector('.model-name');
     const systemPromptInput = template.querySelector('.system-prompt');
+    const reasoningEffortSetting = template.querySelector('.reasoning-effort-setting');
+    const reasoningEffortSelect = template.querySelector('.reasoning-effort');
     const advancedSettingsHeader = template.querySelector('.advanced-settings-header');
     const advancedSettingsContent = template.querySelector('.advanced-settings-content');
     const toggleIcon = template.querySelector('.toggle-icon');
@@ -125,17 +129,27 @@ function createAPICard({
 
     // 设置系统提示的默认值
     systemPromptInput.value = config.advancedSettings?.systemPrompt || '';
+    reasoningEffortSelect.value = normalizeReasoningEffort(config.advancedSettings?.reasoningEffort);
 
     // 设置高级设置的展开/折叠状态
     const isExpanded = config.advancedSettings?.isExpanded || false;
     advancedSettingsContent.style.display = isExpanded ? 'block' : 'none';
     toggleIcon.style.transform = isExpanded ? 'rotate(180deg)' : '';
 
+    const updateReasoningEffortVisibility = () => {
+        const isSupported = modelSupportsReasoningEffort(modelNameInput.value || 'gpt-4o');
+        reasoningEffortSetting.hidden = !isSupported;
+        reasoningEffortSelect.disabled = !isSupported;
+    };
+
+    updateReasoningEffortVisibility();
+
     const buildNextConfig = ({ advancedSettingsOverride } = {}) => {
         const advancedSettings = {
             ...(config.advancedSettings || {}),
             isExpanded: advancedSettingsContent.style.display === 'block',
             systemPrompt: systemPromptInput.value,
+            reasoningEffort: normalizeReasoningEffort(reasoningEffortSelect.value),
             ...(advancedSettingsOverride || {}),
         };
 
@@ -176,8 +190,15 @@ function createAPICard({
     // 其他字段：实时更新并自动保存（由外层实现节流/同步策略）
     [apiKeyInput, baseUrlInput, modelNameInput].forEach((input) => {
         input.addEventListener('input', () => {
+            if (input === modelNameInput) {
+                updateReasoningEffortVisibility();
+            }
             onChange(index, buildNextConfig(), { kind: 'apiFields' });
         });
+    });
+
+    reasoningEffortSelect.addEventListener('change', () => {
+        onChange(index, buildNextConfig(), { kind: 'apiFields' });
     });
 
     // 阻止输入框和按钮点击事件冒泡
@@ -186,11 +207,17 @@ function createAPICard({
         e.preventDefault();
     };
 
+    const stopPropagationOnly = (e) => {
+        e.stopPropagation();
+    };
+
     // 为输入框添加点击事件阻止冒泡
-    [apiKeyInput, baseUrlInput, modelNameInput, systemPromptInput].forEach(input => {
-        input.addEventListener('click', stopPropagation);
-        input.addEventListener('focus', stopPropagation);
+    [apiKeyInput, baseUrlInput, modelNameInput, systemPromptInput].forEach(control => {
+        control.addEventListener('click', stopPropagation);
+        control.addEventListener('focus', stopPropagation);
     });
+    reasoningEffortSelect.addEventListener('click', stopPropagationOnly);
+    reasoningEffortSelect.addEventListener('focus', stopPropagationOnly);
 
     // 添加输入法状态跟踪
     let isComposing = false;
@@ -235,6 +262,12 @@ function createAPICard({
         });
     });
 
+    reasoningEffortSelect.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.stopPropagation();
+        }
+    });
+
     // 修改键盘事件处理（系统提示 textarea：回车先 flush 再返回）
     systemPromptInput.addEventListener('keydown', async (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -273,6 +306,9 @@ function createAPICard({
             if (input === baseUrlInput) {
                 baseUrlInput.value = normalizeChatCompletionsUrl(baseUrlInput.value) || baseUrlInput.value.trim();
             }
+            if (input === modelNameInput) {
+                updateReasoningEffortVisibility();
+            }
             onChange(index, buildNextConfig(), { kind: 'apiFields', flush: true });
         });
     });
@@ -294,7 +330,7 @@ function createAPICard({
     // 选择配置
     template.addEventListener('click', (e) => {
         // 如果点击的是输入框或按钮，不触发选择
-        if (e.target.matches('input') || e.target.matches('.card-button') || e.target.closest('.card-button')) {
+        if (e.target.matches('input, textarea, select') || e.target.matches('.card-button') || e.target.closest('.card-button')) {
             return;
         }
         onSelect(template, index);

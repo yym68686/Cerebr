@@ -41,6 +41,7 @@
   "api_delete_config_aria": { "message": "删除该配置" },
   "api_advanced_settings": { "message": "高级设置" },
   "api_system_prompt_label": { "message": "系统提示" },
+  "api_reasoning_effort_label": { "message": "思考等级" },
 
   "title_preferences": { "message": "偏好设置" },
   "preferences_version": { "message": "版本号" },
@@ -71,7 +72,10 @@
   "title_chat_list": { "message": "对话列表" },
   "chat_search_placeholder": { "message": "搜索对话..." },
   "chat_clear_search_aria": { "message": "清除搜索" },
+  "chat_edit_title_aria": { "message": "修改该对话标题" },
+  "chat_edit_title_prompt": { "message": "输入新的对话标题" },
   "chat_delete_chat_aria": { "message": "删除该对话" },
+  "chat_title_empty": { "message": "对话标题不能为空" },
 
   "image_preview_label": { "message": "图片预览" },
   "image_preview_alt": { "message": "预览图片" },
