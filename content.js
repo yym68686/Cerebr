@@ -1,12 +1,33 @@
 const SITE_OVERRIDES_KEY = 'panelSiteOverridesV1';
 const SITE_KEY_PLUS = 2;
 const SIDEBAR_POSITIONS_KEY = 'cerebr_sidebar_positions_v1';
+const SIDEBAR_STYLESHEET_PATH = 'styles/components/sidebar.css';
 // 迁移：旧版本用单一 key 保存位置，会导致“新网页也沿用旧网页位置”。
 // 新版本按“站点级 positionKey（eTLD+1）”保存，确保未拖动过的网页默认靠右。
 const SIDEBAR_POSITION_LEGACY_KEY = 'cerebr_sidebar_position_v1';
 
 const SIDEBAR_WIDTH_MIN_PX = 300;
 const SIDEBAR_WIDTH_MAX_PX = 800;
+let sidebarStylesheetTextPromise = null;
+
+function getSidebarStylesheetText() {
+  if (!sidebarStylesheetTextPromise) {
+    const stylesheetUrl = chrome.runtime.getURL(SIDEBAR_STYLESHEET_PATH);
+    sidebarStylesheetTextPromise = fetch(stylesheetUrl, { cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return response.text();
+      })
+      .catch((error) => {
+        sidebarStylesheetTextPromise = null;
+        throw new Error(`加载侧边栏样式失败: ${error?.message || String(error)}`);
+      });
+  }
+
+  return sidebarStylesheetTextPromise;
+}
 
 function clampSidebarWidth(widthPx, fallbackPx = 430) {
   if (!Number.isFinite(widthPx)) return fallbackPx;
@@ -688,89 +709,7 @@ class CerebrSidebar {
       const shadow = container.attachShadow({ mode: 'closed' });
 
       const style = document.createElement('style');
-      style.textContent = `
-        :host {
-          all: initial;
-          contain: style layout size;
-        }
-        .cerebr-sidebar {
-          position: fixed;
-          top: 20px;
-          right: 20px;
-          width: 430px;
-          height: calc(100vh - 40px);
-          background: var(--cerebr-bg-color, #ffffff);
-          color: var(--cerebr-text-color, #000000);
-          --cerebr-sidebar-box-shadow: -2px 0 15px rgba(0,0,0,0.1);
-          box-shadow: none;
-          z-index: 2147483647;
-          border-radius: 12px;
-          overflow: hidden;
-          visibility: hidden;
-          opacity: 0;
-          transform: translate3d(0, 8px, 0) scale(0.98);
-          transform-origin: 50% 50%;
-          pointer-events: none;
-          contain: style layout size;
-          isolation: isolate;
-          will-change: transform, opacity;
-        }
-        .cerebr-sidebar.initialized {
-          visibility: visible;
-          transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.18s ease, box-shadow 0.22s ease;
-        }
-        @media (prefers-color-scheme: dark) {
-          .cerebr-sidebar {
-            --cerebr-bg-color: #282c34;
-            --cerebr-text-color: #abb2bf;
-            --cerebr-sidebar-box-shadow: -2px 0 20px rgba(0,0,0,0.3);
-          }
-        }
-        .cerebr-sidebar.visible {
-          opacity: 1;
-          transform: translate3d(0, 0, 0) scale(1);
-          box-shadow: var(--cerebr-sidebar-box-shadow, -2px 0 15px rgba(0,0,0,0.1));
-          pointer-events: auto;
-        }
-        .cerebr-sidebar__header {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 12px;
-          z-index: 2;
-          background: transparent;
-        }
-        .cerebr-sidebar__resizer {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 10px;
-          height: 100%;
-          cursor: ew-resize;
-          z-index: 3;
-          touch-action: none;
-          background: transparent;
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .cerebr-sidebar.initialized {
-            transition: none;
-          }
-        }
-        .cerebr-sidebar__content {
-          height: 100%;
-          overflow: hidden;
-          border-radius: 12px;
-          contain: style layout size;
-        }
-        .cerebr-sidebar__iframe {
-          width: 100%;
-          height: 100%;
-          border: none;
-          background: var(--cerebr-bg-color, #ffffff);
-          contain: strict;
-        }
-      `;
+      style.textContent = await getSidebarStylesheetText();
 
       this.sidebar = document.createElement('div');
       this.sidebar.className = 'cerebr-sidebar';

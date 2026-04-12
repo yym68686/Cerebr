@@ -15,6 +15,7 @@ const CURRENT_CHAT_ID_BY_TAB_PREFIX = 'cerebr_current_chat_id_v1_tab_';
 const LAST_ACTIVE_CHAT_ID_KEY = 'cerebr_last_active_chat_id_v1';
 
 const YT_TRANSCRIPT_REF_FIELD = 'youtubeTranscriptRefs';
+const STREAM_PARTIAL_SAVE_THROTTLE_MS = 750;
 
 function chatKeyV2(chatId) {
     return `${CHAT_V2_PREFIX}${chatId}`;
@@ -34,6 +35,8 @@ export class ChatManager {
         this._legacyCleanupDone = false;
         this._saveScheduled = false;
         this._saveInProgress = false;
+        this._throttledSaveTimer = null;
+        this._pendingSaveThrottleMs = null;
         this._savePromise = null;
         this._savePromiseResolve = null;
         this._savePromiseReject = null;
@@ -428,7 +431,7 @@ export class ChatManager {
         this.saveChats();
     }
 
-    async updateLastMessage(chatId, message) {
+    async updateLastMessage(chatId, message, { throttleMs = STREAM_PARTIAL_SAVE_THROTTLE_MS } = {}) {
         const currentChat = this.chats.get(chatId);
         if (!currentChat || currentChat.messages.length === 0) {
             // throw new Error('当前没有消息可以更新');
@@ -446,8 +449,8 @@ export class ChatManager {
         if (message.reasoning_content) {
             currentChat.messages[currentChat.messages.length - 1].reasoning_content = message.reasoning_content;
         }
-        this._dirtyChatIds.add(chatId);
-        this.saveChats();
+        this.markChatDirty(chatId);
+        this.saveChats({ touchCurrentChat: false, throttleMs });
     }
 
     async popMessage() {
@@ -460,17 +463,27 @@ export class ChatManager {
         this.saveChats();
     }
 
-    async saveChats({ touchCurrentChat = true } = {}) {
-        this._saveDirty = true;
+    _ensureSavePromise() {
+        if (this._savePromise) return this._savePromise;
 
-        if (!this._savePromise) {
-            this._savePromise = new Promise((resolve, reject) => {
-                this._savePromiseResolve = resolve;
-                this._savePromiseReject = reject;
-            });
-            // 防止未 await 的调用产生 Unhandled Promise Rejection
-            this._savePromise.catch(() => {});
-        }
+        this._savePromise = new Promise((resolve, reject) => {
+            this._savePromiseResolve = resolve;
+            this._savePromiseReject = reject;
+        });
+        // 防止未 await 的调用产生 Unhandled Promise Rejection
+        this._savePromise.catch(() => {});
+        return this._savePromise;
+    }
+
+    _clearThrottledSaveTimer() {
+        if (!this._throttledSaveTimer) return;
+        clearTimeout(this._throttledSaveTimer);
+        this._throttledSaveTimer = null;
+    }
+
+    async saveChats({ touchCurrentChat = true, throttleMs = 0 } = {}) {
+        this._saveDirty = true;
+        this._ensureSavePromise();
 
         // 兼容：部分调用方会直接 mutate currentChat.messages 后再调用 saveChats()
         if (touchCurrentChat && this.currentChatId) {
@@ -483,7 +496,7 @@ export class ChatManager {
             }
         }
 
-        this._scheduleSave();
+        this._requestSave({ throttleMs });
         return this._savePromise;
     }
 
@@ -492,11 +505,14 @@ export class ChatManager {
      * Useful right after a user/assistant message is completed to reduce the chance of losing it on refresh.
      */
     async flushNow({ maxRounds = 64 } = {}) {
+        this._clearThrottledSaveTimer();
+        this._pendingSaveThrottleMs = 0;
+
         if (!this._saveDirty && !this._saveInProgress) return;
 
         // Ensure a promise exists for callers that want to await persistence.
         if (!this._savePromise && this._saveDirty) {
-            void this.saveChats();
+            this._ensureSavePromise();
         }
 
         const deadline = { timeRemaining: () => Number.POSITIVE_INFINITY, didTimeout: true };
@@ -525,7 +541,8 @@ export class ChatManager {
         }
     }
 
-    _scheduleSave() {
+    _scheduleImmediateSave() {
+        this._clearThrottledSaveTimer();
         if (this._saveScheduled) return;
         this._saveScheduled = true;
 
@@ -539,6 +556,34 @@ export class ChatManager {
         } else {
             setTimeout(run, 0);
         }
+    }
+
+    _requestSave({ throttleMs = 0 } = {}) {
+        const normalizedThrottleMs = Math.max(0, Number(throttleMs) || 0);
+
+        if (normalizedThrottleMs <= 0) {
+            this._pendingSaveThrottleMs = 0;
+            if (this._saveInProgress) {
+                this._clearThrottledSaveTimer();
+                return;
+            }
+            this._scheduleImmediateSave();
+            return;
+        }
+
+        if (this._pendingSaveThrottleMs !== 0) {
+            this._pendingSaveThrottleMs = normalizedThrottleMs;
+        }
+
+        if (this._saveInProgress || this._saveScheduled || this._throttledSaveTimer) {
+            return;
+        }
+
+        this._throttledSaveTimer = setTimeout(() => {
+            this._throttledSaveTimer = null;
+            this._pendingSaveThrottleMs = null;
+            this._scheduleImmediateSave();
+        }, normalizedThrottleMs);
     }
 
     async _flushSave(deadline) {
@@ -602,11 +647,16 @@ export class ChatManager {
                 this._savePromise = null;
                 this._savePromiseResolve = null;
                 this._savePromiseReject = null;
+                this._pendingSaveThrottleMs = null;
             } else {
-                this._scheduleSave();
+                const nextThrottleMs = this._pendingSaveThrottleMs;
+                this._pendingSaveThrottleMs = null;
+                this._requestSave({ throttleMs: nextThrottleMs });
             }
         } catch (err) {
             console.error('保存对话失败:', err);
+            this._clearThrottledSaveTimer();
+            this._pendingSaveThrottleMs = null;
             this._savePromiseReject?.(err);
             this._savePromise = null;
             this._savePromiseResolve = null;

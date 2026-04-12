@@ -157,7 +157,7 @@ export async function callAPI({
                 if (chatManager && chatId) {
                     // 创建一个副本以避免回调函数意外修改
                     const messageCopy = { ...currentMessage };
-                    chatManager.updateLastMessage(chatId, messageCopy);
+                    chatManager.updateLastMessage(chatId, messageCopy, { throttleMs: 750 });
                     onMessageUpdate(chatId, messageCopy);
                     lastUpdateTime = Date.now();
                     didDispatchAnyUpdate = true;

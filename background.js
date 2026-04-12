@@ -505,14 +505,6 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     }
 });
 
-// 简化Service Worker活跃保持
-const HEARTBEAT_INTERVAL = 20000;
-const keepAliveInterval = setInterval(() => {
-    // console.log('Service Worker 心跳:', new Date().toISOString());
-}, HEARTBEAT_INTERVAL);
-
-self.addEventListener('beforeunload', () => clearInterval(keepAliveInterval));
-
 // 简化初始化检查
 chrome.runtime.onInstalled.addListener(() => {
     console.log('扩展已安装/更新:', new Date().toISOString());

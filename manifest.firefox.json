@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "default_locale": "en",
   "name": "__MSG_extension_name__",
-  "version": "2.4.64",
+  "version": "2.4.65",
   "description": "__MSG_extension_description__",
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
@@ -67,6 +67,7 @@
         "src/boot.js",
         "src/main.js",
         "styles/main.css",
+        "styles/components/sidebar.css",
         "htmd/marked.min.js",
         "htmd/highlight.min.js",
         "htmd/mathjax-config.js",
