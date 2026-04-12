@@ -1,10 +1,10 @@
-import { storageAdapter, browserAdapter, isExtensionEnvironment } from './storage-adapter.js';
+import { storageAdapter, browserAdapter, isExtensionEnvironment } from '../../utils/storage-adapter.js';
 import {
     DEFAULT_CHAT_KIND,
     buildDefaultChatSeedMessages,
     getDefaultChatTitle,
     resolveDefaultChatLocale
-} from './default-chat.js';
+} from '../../utils/default-chat.js';
 
 const LEGACY_CHATS_KEY = 'cerebr_chats';
 const CHATS_INDEX_V2_KEY = 'cerebr_chats_index_v2';

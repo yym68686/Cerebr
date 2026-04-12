@@ -1,7 +1,7 @@
-import { chatManager } from '../utils/chat-manager.js';
-import { showImagePreview, createImageTag, showToast } from '../utils/ui.js';
-import { processMathAndMarkdown, renderMathInElement, textMayContainMath } from '../../../../htmd/latex.js';
-import { t } from '../utils/i18n.js';
+import { chatManager } from '../../domain/chat/chat-store.js';
+import { showImagePreview, createImageTag, showToast } from '../../utils/ui.js';
+import { processMathAndMarkdown, renderMathInElement, textMayContainMath } from '../../../htmd/latex.js';
+import { t } from '../../utils/i18n.js';
 
 function isNearBottom(container, thresholdPx = 120) {
     const remaining = container.scrollHeight - container.scrollTop - container.clientHeight;

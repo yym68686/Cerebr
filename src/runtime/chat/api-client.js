@@ -7,10 +7,10 @@
  * @property {{systemPrompt?: string, reasoningEffort?: string}} [advancedSettings] - 高级设置
  */
 
-import { normalizeChatCompletionsUrl } from '../utils/api-url.js';
-import { t } from '../utils/i18n.js';
-import { normalizeMessageForChatCompletions } from '../utils/message-content.js';
-import { modelSupportsReasoningEffort, normalizeReasoningEffort } from '../utils/reasoning-effort.js';
+import { normalizeChatCompletionsUrl } from '../../utils/api-url.js';
+import { t } from '../../utils/i18n.js';
+import { normalizeMessageForChatCompletions } from '../../utils/message-content.js';
+import { modelSupportsReasoningEffort, normalizeReasoningEffort } from '../../utils/reasoning-effort.js';
 
 /**
  * 网页信息接口

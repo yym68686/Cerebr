@@ -1,5 +1,5 @@
 import { storageAdapter, browserAdapter } from '../utils/storage-adapter.js';
-import { chatManager } from '../utils/chat-manager.js';
+import { chatManager } from '../domain/chat/chat-store.js';
 import { t } from '../utils/i18n.js';
 import { getWebpageSwitchesForChat, setWebpageSwitchesForChat } from '../utils/webpage-switches.js';
 

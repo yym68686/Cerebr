@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "default_locale": "en",
   "name": "__MSG_extension_name__",
-  "version": "2.4.65",
+  "version": "2.4.66",
   "description": "__MSG_extension_description__",
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
@@ -66,6 +66,8 @@
         "index.html",
         "src/boot.js",
         "src/main.js",
+        "src/host/content/content-script.js",
+        "src/platform/site-key.js",
         "styles/main.css",
         "styles/components/sidebar.css",
         "htmd/marked.min.js",

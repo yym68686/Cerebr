@@ -1,4 +1,4 @@
-import { appendMessage } from '../handlers/message-handler.js';
+import { appendMessage } from '../render/message/message-renderer.js';
 import { storageAdapter, browserAdapter, isExtensionEnvironment } from '../utils/storage-adapter.js';
 import { t } from '../utils/i18n.js';
 import { showToast } from '../utils/ui.js';

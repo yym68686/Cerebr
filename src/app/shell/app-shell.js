@@ -3,30 +3,31 @@ import {
     normalizeThemePreference,
     THEME_STORAGE_KEY,
     THEME_SYSTEM
-} from './utils/theme.js';
-import { callAPI } from './services/chat.js';
-import { chatManager } from './utils/chat-manager.js';
-import { appendMessage } from './handlers/message-handler.js';
-import { hideContextMenu } from './components/context-menu.js';
-import { initChatContainer } from './components/chat-container.js';
-import { showImagePreview, hideImagePreview, showToast } from './utils/ui.js';
-import { renderAPICards, createCardCallbacks, selectCard } from './components/api-card.js';
-import { storageAdapter, syncStorageAdapter, browserAdapter, isExtensionEnvironment } from './utils/storage-adapter.js';
-import { initMessageInput, getFormattedMessageContent, buildMessageContent, clearMessageInput, handleWindowMessage, moveCaretToEnd, setPlaceholder } from './components/message-input.js';
-import './utils/viewport.js';
+} from '../../utils/theme.js';
+import { chatManager } from '../../domain/chat/chat-store.js';
+import { createChatController } from '../../runtime/chat/chat-controller.js';
+import { createDraftController } from '../../runtime/draft/draft-controller.js';
+import { hideContextMenu } from '../../components/context-menu.js';
+import { initChatContainer } from '../../components/chat-container.js';
+import { showImagePreview, hideImagePreview, showToast } from '../../utils/ui.js';
+import { renderAPICards, createCardCallbacks, selectCard } from '../../components/api-card.js';
+import { storageAdapter, syncStorageAdapter, browserAdapter, isExtensionEnvironment } from '../../utils/storage-adapter.js';
+import { initMessageInput, handleWindowMessage, moveCaretToEnd, setPlaceholder } from '../../components/message-input.js';
+import '../../utils/viewport.js';
 import {
     hideChatList,
     initChatListEvents,
     loadChatContent,
     initializeChatList
-} from './components/chat-list.js';
-import { initWebpageMenu, getEnabledTabsContent } from './components/webpage-menu.js';
-import { normalizeChatCompletionsUrl } from './utils/api-url.js';
-import { DEFAULT_REASONING_EFFORT, normalizeReasoningEffort } from './utils/reasoning-effort.js';
-import { ensureChatElementVisible, syncChatBottomExtraPadding } from './utils/scroll.js';
-import { createReadingProgressManager } from './utils/reading-progress.js';
-import { applyI18n, initI18n, getLanguagePreference, setLanguagePreference, reloadI18n, t } from './utils/i18n.js';
-import { setWebpageSwitchesForChat } from './utils/webpage-switches.js';
+} from '../../components/chat-list.js';
+import { initWebpageMenu, getEnabledTabsContent } from '../../components/webpage-menu.js';
+import { normalizeChatCompletionsUrl } from '../../utils/api-url.js';
+import { DEFAULT_REASONING_EFFORT, normalizeReasoningEffort } from '../../utils/reasoning-effort.js';
+import { syncChatBottomExtraPadding } from '../../utils/scroll.js';
+import { createReadingProgressManager } from '../../utils/reading-progress.js';
+import { applyI18n, initI18n, getLanguagePreference, setLanguagePreference, reloadI18n, t } from '../../utils/i18n.js';
+import { setWebpageSwitchesForChat } from '../../utils/webpage-switches.js';
+import { SITE_KEY_PLUS, getSiteKeyFromHostname, pruneSiteOverridesInPlace } from '../../platform/site-key.js';
 import {
     DEFAULT_CHAT_KIND,
     isDefaultChat,
@@ -34,7 +35,7 @@ import {
     isLegacyDefaultChatTitle,
     resolveDefaultChatLocale,
     syncDefaultChatForLocale
-} from './utils/default-chat.js';
+} from '../../utils/default-chat.js';
 
 // 存储用户的问题历史
 let userQuestions = [];
@@ -44,7 +45,7 @@ let userQuestions = [];
 let apiConfigs = [];
 let selectedConfigIndex = 0;
 
-const onDomReady = async () => {
+async function onDomReady() {
     try {
         await initI18n();
         applyI18n(document);
@@ -481,11 +482,6 @@ const onDomReady = async () => {
 
     initSidebarBackgroundDrag();
 
-    // 修改: 创建一个对象引用来保存当前控制器
-    // pendingAbort 用于处理“首 token 前”用户立刻点停止的情况
-    const abortControllerRef = { current: null, pendingAbort: false };
-    let currentController = null;
-
     // 创建UI工具配置
     const uiConfig = {
         textarea: {
@@ -512,6 +508,8 @@ const onDomReady = async () => {
 
     const OSS_URL = 'https://github.com/yym68686/Cerebr';
     const FEEDBACK_URL = `${OSS_URL}/issues/new`;
+    const DRAFT_KEY_PREFIX = 'cerebr_draft_v1_';
+    const draftKeyForChatId = (chatId) => `${DRAFT_KEY_PREFIX}${chatId}`;
 
     const openExternal = (url) => {
         window.open(url, '_blank', 'noopener,noreferrer');
@@ -526,6 +524,24 @@ const onDomReady = async () => {
         chatManager
     });
 
+    const chatController = createChatController({
+        chatContainer,
+        messageInput,
+        uiConfig,
+        chatContainerManager,
+        chatManager,
+        getReadingProgressManager: () => readingProgressManager,
+        getSelectedApiConfig: () => apiConfigs[selectedConfigIndex],
+        getWebpageInfo: async () => (isExtensionEnvironment ? await getEnabledTabsContent() : null),
+        getUserLanguage: () => navigator.language,
+        getDraftKeyForChatId: draftKeyForChatId,
+        storageAdapter,
+        shouldStickToBottom,
+        setThinkingPlaceholder,
+        setReplyingPlaceholder,
+        restoreDefaultPlaceholder,
+    });
+
     // 设置按钮事件处理
     chatContainerManager.setupButtonHandlers({
         copyMessageButton,
@@ -534,14 +550,14 @@ const onDomReady = async () => {
         stopUpdateButton,
         deleteMessageButton,
         regenerateMessageButton,
-        abortController: abortControllerRef,
-        regenerateMessage: regenerateMessage,
+        abortController: chatController.abortControllerRef,
+        regenerateMessage: chatController.regenerateMessage,
     });
 
     // 初始化消息输入组件
     initMessageInput({
         messageInput,
-        sendMessage,
+        sendMessage: chatController.sendMessage,
         userQuestions,
         contextMenu,
         hideContextMenu: hideContextMenu.bind(null, {
@@ -597,7 +613,18 @@ const onDomReady = async () => {
     }
     readingProgressManager.start();
 
+    const draftController = createDraftController({
+        messageInput,
+        uiConfig,
+        storageAdapter,
+        chatManager,
+        getReadingProgressManager: () => readingProgressManager,
+        draftKeyForChatId,
+    });
+    draftController.attach();
+
     const flushSessionState = () => {
+        void draftController.saveDraftNow().catch(() => {});
         void readingProgressManager.saveNow().catch(() => {});
         void chatManager.flushNow().catch(() => {});
     };
@@ -621,95 +648,6 @@ const onDomReady = async () => {
         webpageQAContainer.style.display = 'none';
     }
 
-    // 草稿：按对话保存输入框文字（不保存图片，避免存储膨胀）
-    const DRAFT_KEY_PREFIX = 'cerebr_draft_v1_';
-    const draftKeyForChatId = (chatId) => `${DRAFT_KEY_PREFIX}${chatId}`;
-    let draftChatId = currentChat?.id || null;
-    let draftSaveTimer = null;
-
-    const saveDraftNow = async (chatId) => {
-        if (!chatId) return;
-        const { message, imageTags } = getFormattedMessageContent(messageInput);
-        const draftText = (message || '').trimEnd();
-
-        if (!draftText) {
-            await storageAdapter.remove(draftKeyForChatId(chatId));
-            return;
-        }
-        await storageAdapter.set({ [draftKeyForChatId(chatId)]: draftText });
-    };
-
-    const queueDraftSave = (chatId) => {
-        clearTimeout(draftSaveTimer);
-        draftSaveTimer = setTimeout(() => void saveDraftNow(chatId), 400);
-    };
-
-    const restoreDraft = async (chatId) => {
-        if (!chatId) return;
-        const key = draftKeyForChatId(chatId);
-        const result = await storageAdapter.get(key);
-        const draftText = result[key];
-        const { message, imageTags } = getFormattedMessageContent(messageInput);
-        const isInputEmpty = !message.trim() && imageTags.length === 0;
-        if (!isInputEmpty) return;
-        if (!draftText) return;
-
-        messageInput.textContent = draftText;
-        messageInput.dispatchEvent(new Event('input'));
-    };
-
-    messageInput.addEventListener('input', () => {
-        queueDraftSave(draftChatId);
-    });
-
-    // 恢复当前对话草稿（如果有）
-    void restoreDraft(draftChatId);
-
-    // 监听对话切换，切换草稿与未读计数
-    let pendingReadingProgressChatId = null;
-    let readingProgressRestoring = false;
-    let readingProgressRestoredForChatId = null;
-
-    const tryRestoreReadingProgress = async (chatId) => {
-        if (!chatId) return;
-        if (chatId !== chatManager.getCurrentChat()?.id) return;
-        if (readingProgressRestoredForChatId === chatId) return;
-        if (readingProgressRestoring) return;
-
-        readingProgressRestoring = true;
-        try {
-            const ok = await readingProgressManager.restore(chatId);
-            if (ok) {
-                readingProgressRestoredForChatId = chatId;
-                if (pendingReadingProgressChatId === chatId) pendingReadingProgressChatId = null;
-            }
-        } finally {
-            readingProgressRestoring = false;
-        }
-    };
-
-    document.addEventListener('cerebr:chatSwitched', (event) => {
-        const nextChatId = event?.detail?.chatId;
-        void (async () => {
-            if (draftChatId && draftChatId !== nextChatId) {
-                await saveDraftNow(draftChatId);
-            }
-            draftChatId = nextChatId || null;
-            clearMessageInput(messageInput, uiConfig);
-            await restoreDraft(draftChatId);
-            pendingReadingProgressChatId = draftChatId;
-            readingProgressRestoredForChatId = null;
-        })();
-    });
-
-    // 对话内容分批渲染时，尽早恢复阅读进度（等锚点消息出现后会自动成功）
-    document.addEventListener('cerebr:chatContentChunk', (event) => {
-        const chatId = event?.detail?.chatId;
-        if (!chatId) return;
-        if (pendingReadingProgressChatId !== chatId) return;
-        void tryRestoreReadingProgress(chatId);
-    });
-
     const notifyParentIframeReady = () => {
         if (!isExtensionEnvironment) return;
         if (window.top === window) return;
@@ -730,311 +668,6 @@ const onDomReady = async () => {
         });
     });
     notifyParentIframeReady();
-
-    // 新增：带重试逻辑的API调用函数
-    async function callAPIWithRetry(apiParams, chatManager, chatId, onMessageUpdate, maxRetries = 20) {
-        let attempt = 0;
-        let misfiledThinkSilentlyRetries = 0;
-        const maxMisfiledThinkSilentlyRetries = maxRetries;
-        while (attempt <= maxRetries) {
-            const { processStream, controller } = await callAPI(apiParams, chatManager, chatId, onMessageUpdate, {
-                detectMisfiledThinkSilently: misfiledThinkSilentlyRetries < maxMisfiledThinkSilentlyRetries,
-                misfiledThinkSilentlyPrefixes: ['think', 'silently', '思考', 'thought']
-            });
-            currentController = controller;
-            abortControllerRef.current = controller;
-
-            if (abortControllerRef.pendingAbort) {
-                abortControllerRef.pendingAbort = false;
-                try {
-                    controller.abort();
-                } finally {
-                    abortControllerRef.current = null;
-                    currentController = null;
-                }
-                return;
-            }
-
-            let result;
-            try {
-                result = await processStream();
-            } catch (error) {
-                if (
-                    error?.code === 'CEREBR_MISFILED_THINK_SILENTLY' &&
-                    misfiledThinkSilentlyRetries < maxMisfiledThinkSilentlyRetries &&
-                    attempt < maxRetries
-                ) {
-                    console.warn(`检测到 Gemini 将思维链错误写入 content，正在自动重试... (尝试次数 ${attempt + 1})`);
-                    misfiledThinkSilentlyRetries++;
-                    attempt++;
-
-                    // 防御：如果已经创建了不完整的 assistant 消息，移除它（避免污染后续请求）
-                    const currentChat = chatManager.getCurrentChat?.();
-                    const lastMessage = currentChat?.messages?.[currentChat.messages.length - 1];
-                    if (lastMessage?.role === 'assistant') {
-                        chatManager.popMessage();
-                    }
-                    continue;
-                }
-                throw error;
-            }
-
-            if (!result) return result;
-
-            const resolvedContent = String(result.content || '').trim();
-            const resolvedReasoning = String(result.reasoning_content || '').trim();
-
-            // 如果 content 为空但 reasoning_content 不为空，则可能被截断，进行重试
-            if (!resolvedContent && resolvedReasoning && attempt < maxRetries) {
-                console.log(`API响应可能被截断，正在重试... (尝试次数 ${attempt + 1})`);
-                attempt++;
-                // 在重试前，将不完整的 assistant 消息从历史记录中移除
-                const currentChat = chatManager.getCurrentChat?.();
-                const lastMessage = currentChat?.messages?.[currentChat.messages.length - 1];
-                if (lastMessage?.role === 'assistant') {
-                    chatManager.popMessage();
-                }
-                continue;
-            }
-
-            // 处理：模型返回空响应（例如只返回 stop/usage/[DONE]，但没有任何文本）
-            if (!resolvedContent && !resolvedReasoning) {
-                showToast(t('toast_empty_response'), { type: 'info', durationMs: 2200 });
-                return result;
-            } else {
-                return result; // 成功或达到最大重试次数
-            }
-        }
-    }
-
-    async function regenerateMessage(messageElement) {
-        if (!messageElement) return;
-
-        // 如果有正在更新的AI消息，停止它
-        const updatingMessage = chatContainer.querySelector('.ai-message.updating');
-        if (updatingMessage && currentController) {
-            currentController.abort();
-            currentController = null;
-            abortControllerRef.current = null;
-            updatingMessage.classList.remove('updating');
-        }
-
-        let userMessageElement = null;
-        let aiMessageElement = null;
-        if (messageElement.classList.contains('user-message')) {
-            userMessageElement = messageElement;
-            aiMessageElement = messageElement.nextElementSibling;
-        } else {
-            userMessageElement = messageElement.previousElementSibling;
-            aiMessageElement = messageElement;
-        }
-
-        if (!userMessageElement || !userMessageElement.classList.contains('user-message')) {
-            console.error('无法找到对应的用户消息');
-            return;
-        }
-
-        try {
-            const currentChat = chatManager.getCurrentChat();
-            if (!currentChat) return;
-
-            const stickToBottomOnStart = shouldStickToBottom(chatContainer);
-            setThinkingPlaceholder();
-
-            // 清理可能残留的“首 token 前占位”消息，避免 DOM/历史对不齐导致误删用户消息
-            chatContainer.querySelectorAll('.ai-message').forEach((el) => {
-                const original = el.getAttribute('data-original-text') || '';
-                if (!original.trim() && el.querySelector('.typing-indicator')) {
-                    el.remove();
-                }
-            });
-
-            const domMessages = Array.from(chatContainer.querySelectorAll('.user-message, .ai-message'));
-            const userMessageDomIndex = domMessages.indexOf(userMessageElement);
-            const aiMessageDomIndex = aiMessageElement ? domMessages.indexOf(aiMessageElement) : -1;
-
-            const truncateFromIndex = aiMessageDomIndex !== -1
-                ? aiMessageDomIndex
-                : (userMessageDomIndex !== -1 ? userMessageDomIndex + 1 : currentChat.messages.length);
-
-            // 如果历史记录少于 DOM（例如此前异常清空），尝试从 DOM 补齐到可重试的最小集合
-            if (currentChat.messages.length < truncateFromIndex) {
-                for (let i = currentChat.messages.length; i < truncateFromIndex && i < domMessages.length; i++) {
-                    const el = domMessages[i];
-                    const original = el.getAttribute('data-original-text');
-                    const content = (original && original.trim()) ? original : (el.textContent || '');
-                    const role = el.classList.contains('user-message') ? 'user' : 'assistant';
-                    currentChat.messages.push({ role, content });
-                }
-            }
-
-            // 从历史记录中移除要重新生成的 assistant（以及其后的所有消息）
-            currentChat.messages.splice(truncateFromIndex);
-            chatManager.saveChats();
-            await chatManager.flushNow().catch(() => {});
-
-            // 从 DOM 中移除将被重新生成的消息及其后的所有消息（保留用户提问）
-            domMessages.slice(truncateFromIndex).forEach(el => el.remove());
-
-            const messagesToResend = currentChat.messages;
-
-            // 准备API调用参数
-            const apiParams = {
-                messages: messagesToResend,
-                apiConfig: apiConfigs[selectedConfigIndex],
-                userLanguage: navigator.language,
-                webpageInfo: isExtensionEnvironment ? await getEnabledTabsContent() : null
-            };
-
-            // 首 token 前占位：减少“没反应”的体感
-            void appendMessage({
-                text: '',
-                sender: 'ai',
-                chatContainer,
-            }).then((element) => {
-                if (!stickToBottomOnStart) return;
-                ensureChatElementVisible({ chatContainer, element, behavior: 'smooth' });
-            });
-
-            let didStartReplying = false;
-            const onMessageUpdate = async (updatedChatId, message) => {
-                if (!didStartReplying) {
-                    didStartReplying = true;
-                    setReplyingPlaceholder();
-                }
-                return chatContainerManager.syncMessage(updatedChatId, message);
-            };
-
-            // 调用带重试逻辑的 API
-            await callAPIWithRetry(apiParams, chatManager, currentChat.id, onMessageUpdate);
-            await chatManager.flushNow().catch(() => {});
-            await readingProgressManager.saveNow().catch(() => {});
-
-        } catch (error) {
-            if (error.name === 'AbortError') {
-                console.log('用户手动停止更新');
-                return;
-            }
-            console.error('重新生成消息失败:', error);
-            showToast(t('error_regenerate_failed', [error.message]), { type: 'error', durationMs: 2200 });
-        } finally {
-            // Best-effort: avoid losing the regenerated answer on refresh.
-            void chatManager.flushNow().catch(() => {});
-            void readingProgressManager.saveNow().catch(() => {});
-            restoreDefaultPlaceholder();
-            const lastMessage = chatContainer.querySelector('.ai-message:last-child');
-            if (lastMessage) {
-                lastMessage.classList.remove('updating');
-                const original = lastMessage.getAttribute('data-original-text') || '';
-                if (!original.trim()) {
-                    lastMessage.remove();
-                }
-            }
-        }
-    }
-
-    async function sendMessage() {
-        // 如果有正在更新的AI消息，停止它
-        const updatingMessage = chatContainer.querySelector('.ai-message.updating');
-        if (updatingMessage && currentController) {
-            currentController.abort();
-            currentController = null;
-            abortControllerRef.current = null; // 同步更新引用对象
-            updatingMessage.classList.remove('updating');
-        }
-
-        // 获取格式化后的消息内容
-        const { message, imageTags } = getFormattedMessageContent(messageInput);
-
-        if (!message.trim() && imageTags.length === 0) return;
-
-        try {
-            const stickToBottomOnSend = shouldStickToBottom(chatContainer);
-            // 构建消息内容
-            const content = buildMessageContent(message, imageTags);
-
-            // 构建用户消息
-            const userMessage = {
-                role: "user",
-                content: content
-            };
-
-            // 先添加用户消息到界面和历史记录
-            appendMessage({
-                text: userMessage,
-                sender: 'user',
-                chatContainer,
-            });
-
-            // 清空输入框并调整高度
-            clearMessageInput(messageInput, uiConfig);
-            messageInput.focus();
-            setThinkingPlaceholder();
-
-            // 构建消息数组
-            const currentChat = chatManager.getCurrentChat();
-            if (currentChat?.id) {
-                await storageAdapter.remove(draftKeyForChatId(currentChat.id));
-            }
-            const messages = currentChat ? [...currentChat.messages] : [];  // 从chatManager获取消息历史
-            messages.push(userMessage);
-            await chatManager.addMessageToCurrentChat(userMessage);
-            await chatManager.flushNow().catch(() => {});
-
-            // 准备API调用参数
-            const apiParams = {
-                messages,
-                apiConfig: apiConfigs[selectedConfigIndex],
-                userLanguage: navigator.language,
-                webpageInfo: isExtensionEnvironment ? await getEnabledTabsContent() : null
-            };
-
-            // 首 token 前占位：减少“没反应”的体感
-            void appendMessage({
-                text: '',
-                sender: 'ai',
-                chatContainer,
-            }).then((element) => {
-                if (!stickToBottomOnSend) return;
-                ensureChatElementVisible({ chatContainer, element, behavior: 'smooth' });
-            });
-
-            let didStartReplying = false;
-            const onMessageUpdate = async (updatedChatId, message) => {
-                if (!didStartReplying) {
-                    didStartReplying = true;
-                    setReplyingPlaceholder();
-                }
-                return chatContainerManager.syncMessage(updatedChatId, message);
-            };
-
-            // 调用带重试逻辑的 API
-            await callAPIWithRetry(apiParams, chatManager, currentChat.id, onMessageUpdate);
-            await chatManager.flushNow().catch(() => {});
-            await readingProgressManager.saveNow().catch(() => {});
-
-        } catch (error) {
-            if (error.name === 'AbortError') {
-                console.log('用户手动停止更新');
-                return;
-            }
-            console.error('发送消息失败:', error);
-            showToast(t('error_send_failed', [error.message]), { type: 'error', durationMs: 2200 });
-        } finally {
-            // Best-effort: avoid losing the last question/answer on refresh.
-            void chatManager.flushNow().catch(() => {});
-            void readingProgressManager.saveNow().catch(() => {});
-            restoreDefaultPlaceholder();
-            const lastMessage = chatContainer.querySelector('.ai-message:last-child');
-            if (lastMessage) {
-                lastMessage.classList.remove('updating');
-                const original = lastMessage.getAttribute('data-original-text') || '';
-                if (!original.trim()) {
-                    lastMessage.remove();
-                }
-            }
-        }
-    }
 
     let settingsMenuOpenMode = null;
 
@@ -1461,82 +1094,6 @@ const onDomReady = async () => {
     const FONT_SCALE_KEY = 'fontScale';
     const FONT_SCALE_PRESETS = [0.9, 1, 1.1, 1.2];
     const SITE_OVERRIDES_KEY = 'panelSiteOverridesV1';
-    const SITE_KEY_PLUS = 2;
-
-    const isIPv4 = (hostname) => {
-        if (typeof hostname !== 'string') return false;
-        const parts = hostname.split('.');
-        if (parts.length !== 4) return false;
-        return parts.every((p) => {
-            if (!/^(?:0|[1-9]\d{0,2})$/.test(p)) return false;
-            const n = Number(p);
-            return n >= 0 && n <= 255;
-        });
-    };
-
-    const isIPv6 = (hostname) => {
-        if (typeof hostname !== 'string') return false;
-        return hostname.includes(':');
-    };
-
-    const MULTI_PART_PUBLIC_SUFFIXES = new Set([
-        'co.uk',
-        'org.uk',
-        'ac.uk',
-        'gov.uk',
-        'net.uk',
-        'com.au',
-        'net.au',
-        'org.au',
-        'edu.au',
-        'gov.au',
-        'co.jp',
-        'ne.jp',
-        'or.jp',
-        'ac.jp',
-        'go.jp',
-        'com.cn',
-        'net.cn',
-        'org.cn',
-        'gov.cn',
-        'com.hk',
-        'com.tw',
-        'com.sg'
-    ]);
-
-    const getSiteKeyFromHostname = (hostname, plus = SITE_KEY_PLUS) => {
-        if (!hostname || typeof hostname !== 'string') return null;
-        const normalized = hostname.trim().replace(/\.$/, '').toLowerCase();
-        if (!normalized) return null;
-        if (normalized === 'localhost' || normalized.endsWith('.localhost')) return normalized;
-        if (isIPv4(normalized) || isIPv6(normalized)) return normalized;
-
-        const parts = normalized.split('.').filter(Boolean);
-        if (parts.length <= 2) return normalized;
-
-        let suffixLen = 1;
-        const last2 = parts.slice(-2).join('.');
-        const last3 = parts.slice(-3).join('.');
-        if (MULTI_PART_PUBLIC_SUFFIXES.has(last2)) suffixLen = 2;
-        else if (MULTI_PART_PUBLIC_SUFFIXES.has(last3)) suffixLen = 3;
-
-        const plusNumber = Math.max(1, Number(plus) || SITE_KEY_PLUS);
-        const requiredLen = suffixLen + plusNumber;
-        if (parts.length <= requiredLen) return normalized;
-        return parts.slice(-requiredLen).join('.');
-    };
-
-    const pruneSiteOverridesInPlace = (overrides) => {
-        const entries = Object.entries(overrides || {});
-        const MAX_ENTRIES = 100;
-        if (entries.length <= MAX_ENTRIES) return;
-        entries
-            .sort((a, b) => (Number(b[1]?.updatedAt) || 0) - (Number(a[1]?.updatedAt) || 0))
-            .slice(MAX_ENTRIES)
-            .forEach(([key]) => {
-                delete overrides[key];
-            });
-    };
 
     const readSiteOverrides = async () => {
         try {
@@ -2275,10 +1832,12 @@ const onDomReady = async () => {
     } catch (error) {
         console.error('[Cerebr] 初始化失败:', error);
     }
-};
+}
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', onDomReady);
-} else {
-    onDomReady();
+export function bootAppShell() {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', onDomReady, { once: true });
+    } else {
+        void onDomReady();
+    }
 }

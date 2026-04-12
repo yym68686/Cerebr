@@ -1,7 +1,7 @@
 import { createImageTag, showToast } from '../utils/ui.js';
 import { showContextMenu, hideContextMenu, copyMessageContent } from './context-menu.js';
 import { handleImageDrop } from '../utils/image.js';
-import { updateAIMessage } from '../handlers/message-handler.js';
+import { updateAIMessage } from '../render/message/message-renderer.js';
 import { t } from '../utils/i18n.js';
 
 /**
