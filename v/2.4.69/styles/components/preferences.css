@@ -18,9 +18,12 @@
 }
 
 .preferences-content {
-    padding: 8px 20px 20px;
-    flex: 1;
+    padding: 8px 20px calc(20px + env(safe-area-inset-bottom));
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     display: flex;
     flex-direction: column;
     gap: 14px;
@@ -28,6 +31,10 @@
     margin: 0 auto;
     width: 100%;
     box-sizing: border-box;
+}
+
+.preferences-content > * {
+    flex-shrink: 0;
 }
 
 .preferences-card {
@@ -266,7 +273,7 @@
 
 @media (max-width: 640px) {
     .preferences-content {
-        padding: 6px 14px 18px;
+        padding: 6px 14px calc(18px + env(safe-area-inset-bottom));
         gap: 12px;
     }
 

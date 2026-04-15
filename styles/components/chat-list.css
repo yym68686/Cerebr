@@ -26,9 +26,12 @@
 }
 
 .chat-cards {
-    padding: 8px 20px 20px;
-    flex: 1;
+    padding: 8px 20px calc(20px + env(safe-area-inset-bottom));
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -36,6 +39,10 @@
     width: 100%;
     margin: 0 auto;
     box-sizing: border-box;
+}
+
+.chat-cards > * {
+    flex-shrink: 0;
 }
 
 .chat-list-empty-state {
