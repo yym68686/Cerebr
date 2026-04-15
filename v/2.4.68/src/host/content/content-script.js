@@ -15,8 +15,11 @@ const SIDEBAR_STYLESHEET_PATH = 'styles/components/sidebar.css';
 // 新版本按“站点级 positionKey（eTLD+1）”保存，确保未拖动过的网页默认靠右。
 const SIDEBAR_POSITION_LEGACY_KEY = 'cerebr_sidebar_position_v1';
 
+const SIDEBAR_MARGIN_PX = 8;
+const SIDEBAR_DEFAULT_OFFSET_PX = 20;
 const SIDEBAR_WIDTH_MIN_PX = 300;
 const SIDEBAR_WIDTH_MAX_PX = 800;
+const SIDEBAR_HEIGHT_MIN_PX = 240;
 let sidebarStylesheetTextPromise = null;
 
 function getSidebarStylesheetText() {
@@ -38,9 +41,34 @@ function getSidebarStylesheetText() {
   return sidebarStylesheetTextPromise;
 }
 
-function clampSidebarWidth(widthPx, fallbackPx = 430) {
-  if (!Number.isFinite(widthPx)) return fallbackPx;
-  return Math.min(Math.max(SIDEBAR_WIDTH_MIN_PX, widthPx), SIDEBAR_WIDTH_MAX_PX);
+function clampSidebarWidth(widthPx, fallbackPx = 430, maxWidthPx = window.innerWidth - SIDEBAR_MARGIN_PX * 2) {
+  return clampDimension(widthPx, {
+    fallbackPx,
+    minPx: SIDEBAR_WIDTH_MIN_PX,
+    maxPx: Math.min(SIDEBAR_WIDTH_MAX_PX, maxWidthPx)
+  });
+}
+
+function clampSidebarHeight(
+  heightPx,
+  fallbackPx = window.innerHeight - SIDEBAR_DEFAULT_OFFSET_PX * 2,
+  maxHeightPx = window.innerHeight - SIDEBAR_MARGIN_PX * 2
+) {
+  return clampDimension(heightPx, {
+    fallbackPx,
+    minPx: SIDEBAR_HEIGHT_MIN_PX,
+    maxPx: maxHeightPx
+  });
+}
+
+function clampDimension(valuePx, { fallbackPx, minPx, maxPx }) {
+  const resolvedMax = Math.max(120, Number.isFinite(maxPx) ? maxPx : minPx);
+  const resolvedMin = Math.min(minPx, resolvedMax);
+  const resolvedFallback = Number.isFinite(fallbackPx) ? fallbackPx : resolvedMax;
+  if (!Number.isFinite(valuePx)) {
+    return Math.min(Math.max(resolvedFallback, resolvedMin), resolvedMax);
+  }
+  return Math.min(Math.max(valuePx, resolvedMin), resolvedMax);
 }
 
 
@@ -48,6 +76,7 @@ class CerebrSidebar {
   constructor() {
     this.isVisible = false;
     this.sidebarWidth = 430;
+    this.sidebarHeight = null;
     this.defaultSidebarWidth = 430;
     this.sidebarLeft = null;
     this.sidebarTop = null;
@@ -70,7 +99,7 @@ class CerebrSidebar {
     this.dragging = false;
     this.iframePointerEventsBeforeDrag = null;
     this.saveStateDebounced = this.debounce(() => void this.saveState(), 250);
-    this.saveWidthDebounced = this.debounce(() => void this.saveWidth(), 250);
+    this.saveDimensionsDebounced = this.debounce((options) => void this.saveDimensions(options), 250);
     this.savePositionDebounced = this.debounce(() => void this.savePosition(), 250);
     this.handleSidebarTransitionEnd = (event) => {
       if (!this.sidebar || event.target !== this.sidebar || event.propertyName !== 'transform') {
@@ -146,6 +175,44 @@ class CerebrSidebar {
     }
   }
 
+  async loadHeight() {
+    try {
+      const { [SITE_OVERRIDES_KEY]: overridesRaw } = await chrome.storage.sync.get(SITE_OVERRIDES_KEY);
+      const overrides = overridesRaw && typeof overridesRaw === 'object' ? overridesRaw : {};
+
+      const siteOverride = this.siteKey ? overrides?.[this.siteKey] : null;
+      const overrideHeight = Number(siteOverride?.sidebarHeight);
+      if (Number.isFinite(overrideHeight)) {
+        this.sidebarHeight = clampSidebarHeight(overrideHeight, this.getDefaultSidebarHeight());
+        return;
+      }
+
+      if (this.siteKey) {
+        const legacySiteKey = getSiteKeyFromHostname(window.location.hostname, 1);
+        if (legacySiteKey && legacySiteKey !== this.siteKey) {
+          const legacyHeight = Number(overrides?.[legacySiteKey]?.sidebarHeight);
+          if (Number.isFinite(legacyHeight)) {
+            const migrated = clampSidebarHeight(legacyHeight, this.getDefaultSidebarHeight());
+            this.sidebarHeight = migrated;
+            overrides[this.siteKey] = {
+              ...(overrides?.[this.siteKey] && typeof overrides[this.siteKey] === 'object' ? overrides[this.siteKey] : {}),
+              sidebarHeight: migrated,
+              updatedAt: Date.now()
+            };
+            pruneSiteOverridesInPlace(overrides);
+            await chrome.storage.sync.set({ [SITE_OVERRIDES_KEY]: overrides });
+            return;
+          }
+        }
+      }
+
+      this.sidebarHeight = null;
+    } catch (error) {
+      console.error('加载侧边栏高度失败:', error);
+      this.sidebarHeight = null;
+    }
+  }
+
   debounce(fn, waitMs) {
     let timeoutId = null;
     return (...args) => {
@@ -183,9 +250,33 @@ class CerebrSidebar {
     }
   }
 
-  async saveWidth() {
-    const width = clampSidebarWidth(this.sidebarWidth, this.defaultSidebarWidth);
-    this.sidebarWidth = width;
+  getDefaultSidebarHeight() {
+    return clampSidebarHeight(window.innerHeight - SIDEBAR_DEFAULT_OFFSET_PX * 2, window.innerHeight - SIDEBAR_DEFAULT_OFFSET_PX * 2);
+  }
+
+  getMaxSidebarWidthForCurrentAnchor() {
+    if (Number.isFinite(this.sidebarLeft)) {
+      return window.innerWidth - SIDEBAR_MARGIN_PX * 2;
+    }
+    return window.innerWidth - SIDEBAR_DEFAULT_OFFSET_PX - SIDEBAR_MARGIN_PX;
+  }
+
+  getMaxSidebarHeightForCurrentAnchor() {
+    if (Number.isFinite(this.sidebarTop)) {
+      return window.innerHeight - SIDEBAR_MARGIN_PX * 2;
+    }
+    return window.innerHeight - SIDEBAR_DEFAULT_OFFSET_PX - SIDEBAR_MARGIN_PX;
+  }
+
+  getAppliedSidebarWidth(maxWidthPx = this.getMaxSidebarWidthForCurrentAnchor()) {
+    return clampSidebarWidth(this.sidebarWidth, this.defaultSidebarWidth, maxWidthPx);
+  }
+
+  getAppliedSidebarHeight(maxHeightPx = this.getMaxSidebarHeightForCurrentAnchor()) {
+    return clampSidebarHeight(this.sidebarHeight, this.getDefaultSidebarHeight(), maxHeightPx);
+  }
+
+  async saveDimensions({ persistWidth = true, persistHeight = true } = {}) {
     try {
       const { [SITE_OVERRIDES_KEY]: overridesRaw } = await chrome.storage.sync.get(SITE_OVERRIDES_KEY);
       const overrides = overridesRaw && typeof overridesRaw === 'object' ? overridesRaw : {};
@@ -194,21 +285,43 @@ class CerebrSidebar {
       const existing = overrides?.[this.siteKey] && typeof overrides[this.siteKey] === 'object'
         ? overrides[this.siteKey]
         : {};
-      overrides[this.siteKey] = {
+      const nextOverride = {
         ...existing,
-        sidebarWidth: width,
         updatedAt: Date.now()
       };
+
+      if (persistWidth) {
+        const width = this.getAppliedSidebarWidth();
+        this.sidebarWidth = width;
+        nextOverride.sidebarWidth = width;
+      }
+
+      if (persistHeight) {
+        const height = Number.isFinite(this.sidebarHeight) ? this.getAppliedSidebarHeight() : null;
+        this.sidebarHeight = height;
+        if (height === null) {
+          delete nextOverride.sidebarHeight;
+        } else {
+          nextOverride.sidebarHeight = height;
+        }
+      }
+
+      if (!persistHeight && !('sidebarHeight' in existing)) {
+        delete nextOverride.sidebarHeight;
+      }
+
+      overrides[this.siteKey] = nextOverride;
       pruneSiteOverridesInPlace(overrides);
       await chrome.storage.sync.set({ [SITE_OVERRIDES_KEY]: overrides });
     } catch (error) {
-      console.error('保存侧边栏宽度失败:', error);
+      console.error('保存侧边栏尺寸失败:', error);
     }
   }
 
   async loadState() {
     try {
       await this.loadWidth();
+      await this.loadHeight();
       await this.loadPosition();
       const states = await chrome.storage.local.get('sidebarStates');
       const state = states?.sidebarStates?.[this.pageKey];
@@ -223,16 +336,16 @@ class CerebrSidebar {
         this.sidebar.style.display = 'none';
       }
 
-      this.applySidebarWidth();
-      this.applySidebarPosition();
+      this.applySidebarDimensions();
     } catch (error) {
       console.error('加载侧边栏状态失败:', error);
     }
   }
 
-  applySidebarWidth() {
+  applySidebarDimensions() {
     if (!this.sidebar) return;
-    this.sidebar.style.width = `${this.sidebarWidth}px`;
+    this.sidebar.style.width = `${this.getAppliedSidebarWidth()}px`;
+    this.sidebar.style.height = `${this.getAppliedSidebarHeight()}px`;
     this.applySidebarPosition();
   }
 
@@ -348,8 +461,8 @@ class CerebrSidebar {
   }
 
   getSidebarSizeForClamp() {
-    const fallbackWidth = clampSidebarWidth(this.sidebarWidth, this.defaultSidebarWidth);
-    const fallbackHeight = Math.max(120, window.innerHeight - 40);
+    const fallbackWidth = this.getAppliedSidebarWidth();
+    const fallbackHeight = this.getAppliedSidebarHeight();
     if (!this.sidebar) return { width: fallbackWidth, height: fallbackHeight };
 
     const rect = this.sidebar.getBoundingClientRect?.();
@@ -360,7 +473,7 @@ class CerebrSidebar {
 
   clampSidebarPosition(left, top) {
     const { width, height } = this.getSidebarSizeForClamp();
-    const margin = 8;
+    const margin = SIDEBAR_MARGIN_PX;
     const minLeft = margin;
     const minTop = margin;
     const maxLeft = Math.max(margin, window.innerWidth - width - margin);
@@ -489,6 +602,13 @@ class CerebrSidebar {
     this.content.appendChild(iframe);
     this.setupIframeDragMessaging(iframe);
     return iframe;
+  }
+
+  createResizeHandle(direction) {
+    const handle = document.createElement('div');
+    handle.className = `cerebr-sidebar__resize-handle cerebr-sidebar__resize-handle--${direction}`;
+    handle.dataset.direction = direction;
+    return handle;
   }
 
   ensureIframeLoaded() {
@@ -636,7 +756,7 @@ class CerebrSidebar {
     window.addEventListener('message', onMessage);
     window.addEventListener('blur', () => this.stopDragging());
     window.addEventListener('resize', () => {
-      this.applySidebarPosition();
+      this.applySidebarDimensions();
     });
   }
 
@@ -680,8 +800,14 @@ class CerebrSidebar {
       const header = document.createElement('div');
       header.className = 'cerebr-sidebar__header';
 
-      const resizer = document.createElement('div');
-      resizer.className = 'cerebr-sidebar__resizer';
+      const resizeHandles = [
+        this.createResizeHandle('top'),
+        this.createResizeHandle('left'),
+        this.createResizeHandle('top-left'),
+        this.createResizeHandle('top-right'),
+        this.createResizeHandle('bottom-left'),
+        this.createResizeHandle('bottom-right')
+      ];
 
       const pluginLayer = document.createElement('div');
       pluginLayer.className = 'cerebr-plugin-layer';
@@ -691,7 +817,9 @@ class CerebrSidebar {
       content.className = 'cerebr-sidebar__content';
       this.content = content;
       this.sidebar.appendChild(header);
-      this.sidebar.appendChild(resizer);
+      for (const resizeHandle of resizeHandles) {
+        this.sidebar.appendChild(resizeHandle);
+      }
       this.sidebar.appendChild(content);
 
       shadow.appendChild(style);
@@ -728,7 +856,7 @@ class CerebrSidebar {
         this.ensureIframeLoaded();
       }
 
-      this.setupEventListeners(resizer);
+      this.setupEventListeners(resizeHandles);
 
       // 使用 requestAnimationFrame 确保状态已经应用
       await new Promise((resolve) => {
@@ -744,32 +872,82 @@ class CerebrSidebar {
     }
   }
 
-  setupEventListeners(resizer) {
-    let startX = 0;
-    let startWidth = 0;
-    let resizing = false;
+  setupEventListeners(resizeHandles) {
+    let resizeState = null;
+    let activeHandle = null;
     let activePointerId = null;
     let iframePointerEventsBeforeResize = null;
 
     const handlePointerMove = (e) => {
-      if (!resizing) return;
-      const diff = startX - e.clientX;
-      this.sidebarWidth = Math.min(Math.max(300, startWidth + diff), 800);
-      this.applySidebarWidth();
+      if (!resizeState) return;
+
+      const { direction, startRect, startX, startY } = resizeState;
+      const diffX = e.clientX - startX;
+      const diffY = e.clientY - startY;
+      const resizingFromLeft = direction.includes('left');
+      const resizingFromRight = direction.includes('right');
+      const resizingFromTop = direction.includes('top');
+      const resizingFromBottom = direction.includes('bottom');
+
+      const nextWidthRaw = resizingFromLeft
+        ? startRect.width - diffX
+        : resizingFromRight
+          ? startRect.width + diffX
+          : startRect.width;
+      const nextHeightRaw = resizingFromTop
+        ? startRect.height - diffY
+        : resizingFromBottom
+          ? startRect.height + diffY
+          : startRect.height;
+
+      const maxWidth = resizingFromLeft
+        ? startRect.right - SIDEBAR_MARGIN_PX
+        : resizingFromRight
+          ? window.innerWidth - startRect.left - SIDEBAR_MARGIN_PX
+          : this.getMaxSidebarWidthForCurrentAnchor();
+      const maxHeight = resizingFromTop
+        ? startRect.bottom - SIDEBAR_MARGIN_PX
+        : resizingFromBottom
+          ? window.innerHeight - startRect.top - SIDEBAR_MARGIN_PX
+          : this.getMaxSidebarHeightForCurrentAnchor();
+
+      const nextWidth = clampSidebarWidth(nextWidthRaw, startRect.width, maxWidth);
+      const nextHeight = clampSidebarHeight(nextHeightRaw, startRect.height, maxHeight);
+      const nextLeft = resizingFromLeft ? startRect.right - nextWidth : startRect.left;
+      const nextTop = resizingFromTop ? startRect.bottom - nextHeight : startRect.top;
+
+      resizeState.didChange =
+        Math.abs(nextWidth - startRect.width) > 0.5 ||
+        Math.abs(nextHeight - startRect.height) > 0.5 ||
+        Math.abs(nextLeft - startRect.left) > 0.5 ||
+        Math.abs(nextTop - startRect.top) > 0.5;
+
+      if (resizingFromLeft || resizingFromRight) {
+        this.sidebarWidth = nextWidth;
+      }
+      if (resizingFromTop || resizingFromBottom) {
+        this.sidebarHeight = nextHeight;
+      }
+      this.sidebarLeft = nextLeft;
+      this.sidebarTop = nextTop;
+      this.applySidebarDimensions();
     };
 
     const stopResizing = () => {
-      if (!resizing) return;
-      resizing = false;
+      if (!resizeState) return;
+      const direction = resizeState.direction || '';
+      const didChange = !!resizeState.didChange;
+      resizeState = null;
       window.removeEventListener('pointermove', handlePointerMove, true);
       if (activePointerId !== null) {
         try {
-          resizer.releasePointerCapture(activePointerId);
+          activeHandle?.releasePointerCapture(activePointerId);
         } catch {
           // ignore
         }
         activePointerId = null;
       }
+      activeHandle = null;
       const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
       if (iframe) {
         iframe.style.pointerEvents = iframePointerEventsBeforeResize ?? '';
@@ -777,40 +955,77 @@ class CerebrSidebar {
       iframePointerEventsBeforeResize = null;
       document.documentElement.style.cursor = '';
       document.documentElement.style.userSelect = '';
-      this.saveWidthDebounced();
+      if (didChange) {
+        this.saveDimensionsDebounced({
+          persistWidth: direction.includes('left') || direction.includes('right'),
+          persistHeight: direction.includes('top') || direction.includes('bottom')
+        });
+        this.savePositionDebounced();
+      }
     };
 
-    resizer.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0) return;
-      e.preventDefault();
-      resizing = true;
-      startX = e.clientX;
-      startWidth = this.sidebarWidth;
-      activePointerId = e.pointerId;
-      try {
-        resizer.setPointerCapture(activePointerId);
-      } catch {
-        // ignore
-      }
+    const bindResizeHandle = (resizeHandle) => {
+      resizeHandle.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0 || !this.sidebar) return;
+        e.preventDefault();
 
-      // 防止指针进入 iframe 后事件丢失（iframe 是独立文档，会“吃掉” move/up）
-      const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
-      if (iframe) {
-        iframePointerEventsBeforeResize = iframe.style.pointerEvents;
-        iframe.style.pointerEvents = 'none';
-      }
-      document.documentElement.style.cursor = 'ew-resize';
-      document.documentElement.style.userSelect = 'none';
-      window.addEventListener('pointermove', handlePointerMove, true);
-      window.addEventListener('pointerup', stopResizing, { once: true, capture: true });
-      window.addEventListener('pointercancel', stopResizing, { once: true, capture: true });
-    }, { passive: false });
+        const rect = this.sidebar.getBoundingClientRect();
+        resizeState = {
+          direction: resizeHandle.dataset.direction || '',
+          didChange: false,
+          startX: e.clientX,
+          startY: e.clientY,
+          startRect: {
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+            width: rect.width,
+            height: rect.height
+          }
+        };
+        activeHandle = resizeHandle;
+        activePointerId = e.pointerId;
+        try {
+          resizeHandle.setPointerCapture(activePointerId);
+        } catch {
+          // ignore
+        }
 
-    resizer.addEventListener('dblclick', () => {
-      this.sidebarWidth = this.defaultSidebarWidth;
-      this.applySidebarWidth();
-      this.saveWidthDebounced();
-    });
+        // 防止指针进入 iframe 后事件丢失（iframe 是独立文档，会“吃掉” move/up）
+        const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
+        if (iframe) {
+          iframePointerEventsBeforeResize = iframe.style.pointerEvents;
+          iframe.style.pointerEvents = 'none';
+        }
+        document.documentElement.style.cursor = window.getComputedStyle(resizeHandle).cursor || '';
+        document.documentElement.style.userSelect = 'none';
+        window.addEventListener('pointermove', handlePointerMove, true);
+        window.addEventListener('pointerup', stopResizing, { once: true, capture: true });
+        window.addEventListener('pointercancel', stopResizing, { once: true, capture: true });
+      }, { passive: false });
+
+      resizeHandle.addEventListener('dblclick', () => {
+        const direction = resizeHandle.dataset.direction || '';
+        if (direction.includes('left') || direction.includes('right')) {
+          this.sidebarWidth = this.defaultSidebarWidth;
+        }
+        if (direction.includes('top') || direction.includes('bottom')) {
+          this.sidebarHeight = null;
+        }
+        this.applySidebarDimensions();
+        this.saveDimensionsDebounced({
+          persistWidth: direction.includes('left') || direction.includes('right'),
+          persistHeight: direction.includes('top') || direction.includes('bottom')
+        });
+      });
+    };
+
+    for (const resizeHandle of resizeHandles) {
+      bindResizeHandle(resizeHandle);
+    }
+
+    window.addEventListener('blur', stopResizing);
   }
 
   toggle() {

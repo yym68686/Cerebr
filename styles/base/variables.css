@@ -18,8 +18,8 @@
     --cerebr-surface-bg: rgba(255, 250, 245, 0.84);
     --cerebr-surface-border: rgba(90, 105, 126, 0.14);
     --cerebr-surface-backdrop-filter: blur(var(--cerebr-blur-radius)) saturate(1.15);
-    --settings-bg-color: var(--cerebr-surface-bg);
-    --settings-border-color: var(--cerebr-surface-border);
+    --settings-bg-color: rgba(255, 255, 255, 0.96);
+    --settings-border-color: rgba(0, 0, 0, 0.08);
     --settings-hover-bg-color: var(--cerebr-message-user-bg);
     --cerebr-message-user-bg: #e6edf7;
     --cerebr-message-user-border: rgba(91, 115, 151, 0.18);
@@ -75,6 +75,12 @@
     --cerebr-settings-card-hover-shadow: 0 18px 42px rgba(32, 42, 57, 0.11);
     --cerebr-settings-pill-bg: rgba(242, 236, 229, 0.84);
     --cerebr-settings-pill-border: rgba(105, 119, 141, 0.14);
+    --cerebr-settings-section-bg: rgba(243, 237, 229, 0.82);
+    --cerebr-settings-section-header-bg: rgba(247, 242, 235, 0.9);
+    --cerebr-settings-section-border: rgba(102, 118, 140, 0.18);
+    --cerebr-settings-section-divider: rgba(102, 118, 140, 0.14);
+    --cerebr-settings-accent-bg: rgba(55, 98, 172, 0.1);
+    --cerebr-settings-accent-text: #31588f;
 }
 
 /* 深色主题变量 */
@@ -93,8 +99,8 @@
     --cerebr-surface-bg: rgba(38, 43, 51, 0.78);
     --cerebr-surface-border: rgba(255, 255, 255, 0.14);
     --cerebr-surface-backdrop-filter: blur(var(--cerebr-blur-radius)) saturate(1.15);
-    --settings-bg-color: var(--cerebr-surface-bg);
-    --settings-border-color: var(--cerebr-surface-border);
+    --settings-bg-color: rgba(38, 43, 51, 0.96);
+    --settings-border-color: rgba(255, 255, 255, 0.08);
     --settings-hover-bg-color: var(--cerebr-message-user-bg);
     --cerebr-message-user-bg: #3E4451;
     --cerebr-message-user-border: rgba(255, 255, 255, 0.08);
@@ -149,6 +155,12 @@
     --cerebr-settings-card-hover-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
     --cerebr-settings-pill-bg: rgba(255, 255, 255, 0.06);
     --cerebr-settings-pill-border: rgba(255, 255, 255, 0.1);
+    --cerebr-settings-section-bg: rgba(40, 46, 56, 0.92);
+    --cerebr-settings-section-header-bg: rgba(255, 255, 255, 0.04);
+    --cerebr-settings-section-border: rgba(255, 255, 255, 0.1);
+    --cerebr-settings-section-divider: rgba(255, 255, 255, 0.08);
+    --cerebr-settings-accent-bg: rgba(88, 166, 255, 0.12);
+    --cerebr-settings-accent-text: #9ecaff;
 }
 
 /* 强制浅色主题时的原生控件配色 */
@@ -173,8 +185,8 @@
         --cerebr-surface-bg: rgba(38, 43, 51, 0.78);
         --cerebr-surface-border: rgba(255, 255, 255, 0.14);
         --cerebr-surface-backdrop-filter: blur(var(--cerebr-blur-radius)) saturate(1.15);
-        --settings-bg-color: var(--cerebr-surface-bg);
-        --settings-border-color: var(--cerebr-surface-border);
+        --settings-bg-color: rgba(38, 43, 51, 0.96);
+        --settings-border-color: rgba(255, 255, 255, 0.08);
         --settings-hover-bg-color: var(--cerebr-message-user-bg);
         --cerebr-message-user-bg: #3E4451;
         --cerebr-message-user-border: rgba(255, 255, 255, 0.08);
@@ -229,5 +241,11 @@
         --cerebr-settings-card-hover-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
         --cerebr-settings-pill-bg: rgba(255, 255, 255, 0.06);
         --cerebr-settings-pill-border: rgba(255, 255, 255, 0.1);
+        --cerebr-settings-section-bg: rgba(40, 46, 56, 0.92);
+        --cerebr-settings-section-header-bg: rgba(255, 255, 255, 0.04);
+        --cerebr-settings-section-border: rgba(255, 255, 255, 0.1);
+        --cerebr-settings-section-divider: rgba(255, 255, 255, 0.08);
+        --cerebr-settings-accent-bg: rgba(88, 166, 255, 0.12);
+        --cerebr-settings-accent-text: #9ecaff;
     }
 }

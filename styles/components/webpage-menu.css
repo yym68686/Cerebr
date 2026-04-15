@@ -9,8 +9,8 @@
     padding: 8px;
     z-index: 1001;
     display: none;
-    backdrop-filter: var(--cerebr-surface-backdrop-filter);
-    -webkit-backdrop-filter: var(--cerebr-surface-backdrop-filter);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     max-height: 300px;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;

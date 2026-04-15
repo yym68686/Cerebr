@@ -115,12 +115,74 @@ function createAPICard({
     const apiKeyInput = template.querySelector('.api-key');
     const baseUrlInput = template.querySelector('.base-url');
     const modelNameInput = template.querySelector('.model-name');
+    const advancedSettingsContainer = template.querySelector('.advanced-settings');
     const systemPromptInput = template.querySelector('.system-prompt');
+    const systemPromptLabel = template.querySelector('.system-prompt-label');
+    const systemPromptHint = template.querySelector('.system-prompt-hint');
     const reasoningEffortSetting = template.querySelector('.reasoning-effort-setting');
     const reasoningEffortSelect = template.querySelector('.reasoning-effort');
+    const reasoningEffortLabel = template.querySelector('.reasoning-effort-label');
+    const reasoningEffortHint = template.querySelector('.reasoning-effort-hint');
     const advancedSettingsHeader = template.querySelector('.advanced-settings-header');
     const advancedSettingsContent = template.querySelector('.advanced-settings-content');
-    const toggleIcon = template.querySelector('.toggle-icon');
+
+    const controlIds = {
+        advancedSettingsHeader: `advanced-settings-header-${index}`,
+        advancedSettingsContent: `advanced-settings-content-${index}`,
+        systemPrompt: `system-prompt-${index}`,
+        systemPromptHint: `system-prompt-hint-${index}`,
+        reasoningEffort: `reasoning-effort-${index}`,
+        reasoningEffortHint: `reasoning-effort-hint-${index}`,
+    };
+
+    advancedSettingsHeader.id = controlIds.advancedSettingsHeader;
+    advancedSettingsHeader.setAttribute('aria-controls', controlIds.advancedSettingsContent);
+    advancedSettingsContent.id = controlIds.advancedSettingsContent;
+    advancedSettingsContent.setAttribute('role', 'region');
+    advancedSettingsContent.setAttribute('aria-labelledby', controlIds.advancedSettingsHeader);
+    systemPromptInput.id = controlIds.systemPrompt;
+    systemPromptLabel?.setAttribute('for', controlIds.systemPrompt);
+    systemPromptHint.id = controlIds.systemPromptHint;
+    systemPromptInput.setAttribute('aria-describedby', controlIds.systemPromptHint);
+    reasoningEffortSelect.id = controlIds.reasoningEffort;
+    reasoningEffortLabel?.setAttribute('for', controlIds.reasoningEffort);
+    reasoningEffortHint.id = controlIds.reasoningEffortHint;
+    reasoningEffortSelect.setAttribute('aria-describedby', controlIds.reasoningEffortHint);
+
+    const stopPropagation = (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+    };
+
+    const stopPropagationOnly = (e) => {
+        e.stopPropagation();
+    };
+
+    const setControlTabIndex = (control, enabled) => {
+        if (!control) return;
+
+        if (enabled) {
+            control.removeAttribute('tabindex');
+            return;
+        }
+
+        control.setAttribute('tabindex', '-1');
+    };
+
+    const syncAdvancedControlInteractivity = (expanded) => {
+        setControlTabIndex(systemPromptInput, expanded);
+        setControlTabIndex(
+            reasoningEffortSelect,
+            expanded && !reasoningEffortSelect.disabled && !reasoningEffortSetting.hidden
+        );
+    };
+
+    const setAdvancedExpanded = (expanded) => {
+        advancedSettingsContainer.dataset.expanded = String(expanded);
+        advancedSettingsHeader.setAttribute('aria-expanded', String(expanded));
+        advancedSettingsContent.setAttribute('aria-hidden', String(!expanded));
+        syncAdvancedControlInteractivity(expanded);
+    };
 
     // 设置初始值
     apiKeyInput.value = config.apiKey || '';
@@ -131,23 +193,22 @@ function createAPICard({
     systemPromptInput.value = config.advancedSettings?.systemPrompt || '';
     reasoningEffortSelect.value = normalizeReasoningEffort(config.advancedSettings?.reasoningEffort);
 
-    // 设置高级设置的展开/折叠状态
-    const isExpanded = config.advancedSettings?.isExpanded || false;
-    advancedSettingsContent.style.display = isExpanded ? 'block' : 'none';
-    toggleIcon.style.transform = isExpanded ? 'rotate(180deg)' : '';
-
     const updateReasoningEffortVisibility = () => {
         const isSupported = modelSupportsReasoningEffort(modelNameInput.value || 'gpt-4o');
         reasoningEffortSetting.hidden = !isSupported;
         reasoningEffortSelect.disabled = !isSupported;
+        syncAdvancedControlInteractivity(advancedSettingsContainer.dataset.expanded === 'true');
     };
 
+    const isExpanded = config.advancedSettings?.isExpanded || false;
+
     updateReasoningEffortVisibility();
+    setAdvancedExpanded(isExpanded);
 
     const buildNextConfig = ({ advancedSettingsOverride } = {}) => {
-        const advancedSettings = {
+        const nextAdvancedSettings = {
             ...(config.advancedSettings || {}),
-            isExpanded: advancedSettingsContent.style.display === 'block',
+            isExpanded: advancedSettingsContainer.dataset.expanded === 'true',
             systemPrompt: systemPromptInput.value,
             reasoningEffort: normalizeReasoningEffort(reasoningEffortSelect.value),
             ...(advancedSettingsOverride || {}),
@@ -158,16 +219,15 @@ function createAPICard({
             apiKey: apiKeyInput.value,
             baseUrl: baseUrlInput.value,
             modelName: modelNameInput.value,
-            advancedSettings,
+            advancedSettings: nextAdvancedSettings,
         };
     };
 
     // 添加高级设置的展开/折叠功能
     advancedSettingsHeader.addEventListener('click', (e) => {
         e.stopPropagation();
-        const isCurrentlyExpanded = advancedSettingsContent.style.display === 'block';
-        advancedSettingsContent.style.display = isCurrentlyExpanded ? 'none' : 'block';
-        toggleIcon.style.transform = isCurrentlyExpanded ? '' : 'rotate(180deg)';
+        const isCurrentlyExpanded = advancedSettingsContainer.dataset.expanded === 'true';
+        setAdvancedExpanded(!isCurrentlyExpanded);
 
         // 更新配置
         onChange(index, buildNextConfig({
@@ -176,6 +236,8 @@ function createAPICard({
             }
         }));
     });
+    advancedSettingsHeader.addEventListener('keydown', stopPropagationOnly);
+    advancedSettingsContent.addEventListener('click', stopPropagationOnly);
 
     // 系统提示：实时更新并自动保存（由外层实现节流/同步策略）
     systemPromptInput.addEventListener('input', () => {
@@ -200,16 +262,6 @@ function createAPICard({
     reasoningEffortSelect.addEventListener('change', () => {
         onChange(index, buildNextConfig(), { kind: 'apiFields' });
     });
-
-    // 阻止输入框和按钮点击事件冒泡
-    const stopPropagation = (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-    };
-
-    const stopPropagationOnly = (e) => {
-        e.stopPropagation();
-    };
 
     // 为输入框添加点击事件阻止冒泡
     [apiKeyInput, baseUrlInput, modelNameInput, systemPromptInput].forEach(control => {
@@ -273,6 +325,7 @@ function createAPICard({
         if (e.key === 'Enter' && !e.shiftKey) {
             if (isComposing) return;
             e.preventDefault();
+            e.stopPropagation();
 
             const maybePromise = onChange(index, buildNextConfig(), { kind: 'systemPrompt', flush: true });
             if (maybePromise && typeof maybePromise.then === 'function') {
@@ -290,6 +343,7 @@ function createAPICard({
     // 为按钮添加点击事件阻止冒泡
     template.querySelectorAll('.card-button').forEach(button => {
         button.addEventListener('click', stopPropagation);
+        button.addEventListener('keydown', stopPropagationOnly);
     });
 
     // 添加回车键选择功能
@@ -330,7 +384,12 @@ function createAPICard({
     // 选择配置
     template.addEventListener('click', (e) => {
         // 如果点击的是输入框或按钮，不触发选择
-        if (e.target.matches('input, textarea, select') || e.target.matches('.card-button') || e.target.closest('.card-button')) {
+        if (
+            e.target.matches('input, textarea, select') ||
+            e.target.matches('.card-button') ||
+            e.target.closest('.card-button') ||
+            e.target.closest('.advanced-settings')
+        ) {
             return;
         }
         onSelect(template, index);

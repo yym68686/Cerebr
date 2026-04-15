@@ -28,6 +28,13 @@ import { syncChatBottomExtraPadding } from '../../utils/scroll.js';
 import { createReadingProgressManager } from '../../utils/reading-progress.js';
 import { applyI18n, initI18n, getLanguagePreference, setLanguagePreference, reloadI18n, t } from '../../utils/i18n.js';
 import { getAppVersion } from '../../utils/app-version.js';
+import {
+    buildDataBackupFilename,
+    createDataBackupSnapshot,
+    downloadDataBackup,
+    parseDataBackupFile,
+    restoreDataBackup,
+} from '../../utils/data-transfer.js';
 import { setWebpageSwitchesForChat } from '../../utils/webpage-switches.js';
 import { SITE_KEY_PLUS, getSiteKeyFromHostname, pruneSiteOverridesInPlace } from '../../platform/site-key.js';
 import { readDeveloperModePreference, writeDeveloperModePreference } from '../../plugin/dev/developer-mode.js';
@@ -83,6 +90,9 @@ async function onDomReady() {
         const preferencesLanguage = document.getElementById('preferences-language');
         const preferencesTheme = document.getElementById('preferences-theme');
         const preferencesDeveloperMode = document.getElementById('preferences-developer-mode');
+        const preferencesDataExport = document.getElementById('preferences-export-data');
+        const preferencesDataImport = document.getElementById('preferences-import-data');
+        const preferencesImportFile = document.getElementById('preferences-import-file');
         const scrollToBottomButton = document.getElementById('scroll-to-bottom');
 
         if (!chatContainer || !messageInput || !contextMenu) {
@@ -1227,8 +1237,9 @@ async function onDomReady() {
     const preferencesBackButton = preferencesSettings?.querySelector('.back-button');
     const pluginSettingsBackButton = pluginSettings?.querySelector('.back-button') || null;
 
+    const appVersion = await getAppVersion();
     if (preferencesVersion) {
-        preferencesVersion.textContent = await getAppVersion();
+        preferencesVersion.textContent = appVersion;
     }
 
     let pluginSettingsController = null;
@@ -1795,6 +1806,70 @@ async function onDomReady() {
 
     // 等待 DOM 加载完成后再初始化
     await loadAPIConfigs();
+
+    const flushAllPersistedStateForTransfer = async () => {
+        await commitPendingPreferences();
+        await Promise.all([
+            flushApiConfigsPersist(),
+            draftController.saveDraftNow(),
+            readingProgressManager?.saveNow?.() || Promise.resolve(),
+            chatManager.flushNow(),
+        ]);
+    };
+
+    if (preferencesDataExport) {
+        preferencesDataExport.addEventListener('click', async () => {
+            try {
+                await flushAllPersistedStateForTransfer();
+                const snapshot = await createDataBackupSnapshot({ appVersion });
+                const exportedAt = new Date(snapshot.exportedAt);
+                downloadDataBackup(snapshot, {
+                    filename: buildDataBackupFilename(Number.isNaN(exportedAt.getTime()) ? new Date() : exportedAt)
+                });
+                showToast(t('toast_data_exported'), { type: 'success' });
+            } catch (error) {
+                console.error('导出数据失败:', error);
+                showToast(t('error_data_export_failed'), { type: 'error', durationMs: 2400 });
+            }
+        });
+    }
+
+    if (preferencesDataImport && preferencesImportFile) {
+        preferencesDataImport.addEventListener('click', () => {
+            preferencesImportFile.value = '';
+            preferencesImportFile.click();
+        });
+
+        preferencesImportFile.addEventListener('change', async () => {
+            const file = preferencesImportFile.files?.[0] || null;
+            preferencesImportFile.value = '';
+            if (!file) return;
+
+            let snapshot;
+            try {
+                snapshot = await parseDataBackupFile(file);
+            } catch (error) {
+                console.error('读取备份文件失败:', error);
+                showToast(t('error_data_import_invalid'), { type: 'error', durationMs: 2800 });
+                return;
+            }
+
+            if (!window.confirm(t('preferences_data_import_confirm'))) {
+                return;
+            }
+
+            try {
+                await restoreDataBackup(snapshot);
+                showToast(t('toast_data_imported'), { type: 'success', durationMs: 1400 });
+                window.setTimeout(() => {
+                    window.location.reload();
+                }, 900);
+            } catch (error) {
+                console.error('导入数据失败:', error);
+                showToast(t('error_data_import_failed'), { type: 'error', durationMs: 2800 });
+            }
+        });
+    }
 
     // 显示/隐藏 API 设置
     apiSettingsToggle?.addEventListener('click', () => {

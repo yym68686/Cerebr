@@ -38,6 +38,74 @@
     box-shadow: var(--cerebr-settings-card-shadow);
 }
 
+.preferences-section {
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.preferences-section-title {
+    font-weight: 600;
+    font-size: var(--cerebr-fs-14);
+    color: var(--cerebr-text-color);
+    letter-spacing: -0.01em;
+}
+
+.preferences-section-description {
+    margin: 0;
+    font-size: var(--cerebr-fs-13);
+    line-height: 1.5;
+    color: var(--cerebr-text-secondary-color);
+}
+
+.preferences-action-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.preference-button {
+    min-height: 44px;
+    padding: 10px 16px;
+    border-radius: 14px;
+    border: 1px solid var(--cerebr-settings-pill-border);
+    background: var(--cerebr-settings-pill-bg);
+    color: var(--cerebr-text-color);
+    font: inherit;
+    font-size: var(--cerebr-fs-14);
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.preference-button:hover {
+    background-color: var(--cerebr-message-user-bg);
+    border-color: var(--cerebr-focus-border-color);
+}
+
+.preference-button:active {
+    transform: translateY(1px);
+}
+
+.preference-button:focus-visible {
+    outline: none;
+    border-color: var(--cerebr-focus-border-color);
+    box-shadow: 0 0 0 2px var(--cerebr-focus-border-color);
+}
+
+.preference-button--primary {
+    background: var(--cerebr-settings-accent-bg);
+    border-color: var(--cerebr-highlight-border-color);
+    color: var(--cerebr-settings-accent-text);
+}
+
+.preference-button--primary:hover {
+    background: var(--cerebr-settings-accent-bg);
+    border-color: var(--cerebr-focus-border-color);
+}
+
 .preference-row {
     width: 100%;
     padding: 16px 18px;
@@ -215,6 +283,18 @@
     .preference-control {
         max-width: none;
         justify-self: stretch;
+    }
+
+    .preferences-section {
+        padding: 16px;
+    }
+
+    .preferences-action-group {
+        flex-direction: column;
+    }
+
+    .preference-button {
+        width: 100%;
     }
 
     .preference-select {

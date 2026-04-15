@@ -167,36 +167,47 @@
                                     </button>
                                 </div>
                             </div>
-                            <input type="text" class="api-key" placeholder="输入 API Key" data-i18n-attr="placeholder:api_key_placeholder">
+                            <input type="text" class="api-key" name="apiKey" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="输入 API Key" data-i18n-attr="placeholder:api_key_placeholder">
                         </div>
                         <div class="form-group">
                             <label data-i18n="base_url_label">Base URL</label>
-                            <input type="text" class="base-url" placeholder="输入 Base URL" data-i18n-attr="placeholder:base_url_placeholder">
+                            <input type="text" class="base-url" name="baseUrl" autocomplete="off" spellcheck="false" autocapitalize="off" inputmode="url" placeholder="输入 Base URL" data-i18n-attr="placeholder:base_url_placeholder">
                         </div>
                         <div class="form-group">
                             <label data-i18n="model_name_label">Model Name</label>
-                            <input type="text" class="model-name" placeholder="输入模型名称" data-i18n-attr="placeholder:model_name_placeholder">
+                            <input type="text" class="model-name" name="modelName" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="输入模型名称" data-i18n-attr="placeholder:model_name_placeholder">
                         </div>
-                        <div class="advanced-settings">
-                            <div class="advanced-settings-header" tabindex="0">
-                                <span data-i18n="api_advanced_settings">高级设置</span>
-                                <span class="toggle-icon">▼</span>
-                            </div>
-                            <div class="advanced-settings-content" style="display: none;">
-                                <div class="setting-item">
-                                    <label for="system-prompt" data-i18n="api_system_prompt_label">系统提示</label>
-                                    <textarea id="system-prompt" class="system-prompt" rows="3"></textarea>
-                                </div>
-                                <div class="setting-item reasoning-effort-setting" hidden>
-                                    <label data-i18n="api_reasoning_effort_label">思考等级</label>
-                                    <select class="reasoning-effort">
-                                        <option value="off">off</option>
-                                        <option value="minimal">minimal</option>
-                                        <option value="low">low</option>
-                                        <option value="medium">medium</option>
-                                        <option value="high">high</option>
-                                        <option value="xhigh">xhigh</option>
-                                    </select>
+                        <div class="advanced-settings" data-expanded="false">
+                            <button class="advanced-settings-header" type="button" aria-expanded="false">
+                                <span class="advanced-settings-copy">
+                                    <span class="advanced-settings-title" data-i18n="api_advanced_settings">高级设置</span>
+                                    <span class="advanced-settings-inline-summary" data-i18n="api_advanced_settings_summary">系统提示与推理控制</span>
+                                </span>
+                                <span class="advanced-settings-indicator" aria-hidden="true">
+                                    <svg class="toggle-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                        <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                </span>
+                            </button>
+                            <div class="advanced-settings-content" aria-hidden="true">
+                                <div class="advanced-settings-body">
+                                    <div class="setting-item">
+                                        <label class="setting-label system-prompt-label" data-i18n="api_system_prompt_label">系统提示</label>
+                                        <p class="setting-description system-prompt-hint" data-i18n="api_system_prompt_hint">为此配置的每次请求追加统一指令。</p>
+                                        <textarea class="system-prompt" name="systemPrompt" rows="4"></textarea>
+                                    </div>
+                                    <div class="setting-item reasoning-effort-setting" hidden>
+                                        <label class="setting-label reasoning-effort-label" data-i18n="api_reasoning_effort_label">思考等级</label>
+                                        <p class="setting-description reasoning-effort-hint" data-i18n="api_reasoning_effort_hint">仅在当前模型支持时显示。</p>
+                                        <select class="reasoning-effort" name="reasoningEffort">
+                                            <option value="off">off</option>
+                                            <option value="minimal">minimal</option>
+                                            <option value="low">low</option>
+                                            <option value="medium">medium</option>
+                                            <option value="high">high</option>
+                                            <option value="xhigh">xhigh</option>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
                         </div>

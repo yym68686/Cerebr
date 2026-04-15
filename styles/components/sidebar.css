@@ -57,16 +57,59 @@
     background: transparent;
 }
 
-.cerebr-sidebar__resizer {
+.cerebr-sidebar__resize-handle {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 10px;
-    height: 100%;
-    cursor: ew-resize;
-    z-index: 3;
+    z-index: 4;
     touch-action: none;
     background: transparent;
+}
+
+.cerebr-sidebar__resize-handle--top {
+    top: 0;
+    left: 12px;
+    right: 12px;
+    height: 10px;
+    cursor: ns-resize;
+}
+
+.cerebr-sidebar__resize-handle--left {
+    top: 12px;
+    left: 0;
+    bottom: 12px;
+    width: 10px;
+    cursor: ew-resize;
+}
+
+.cerebr-sidebar__resize-handle--top-left {
+    top: 0;
+    left: 0;
+    width: 18px;
+    height: 18px;
+    cursor: nwse-resize;
+}
+
+.cerebr-sidebar__resize-handle--top-right {
+    top: 0;
+    right: 0;
+    width: 18px;
+    height: 18px;
+    cursor: nesw-resize;
+}
+
+.cerebr-sidebar__resize-handle--bottom-left {
+    left: 0;
+    bottom: 0;
+    width: 18px;
+    height: 18px;
+    cursor: nesw-resize;
+}
+
+.cerebr-sidebar__resize-handle--bottom-right {
+    right: 0;
+    bottom: 0;
+    width: 18px;
+    height: 18px;
+    cursor: nwse-resize;
 }
 
 @media (prefers-reduced-motion: reduce) {
