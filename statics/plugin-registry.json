@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "registryId": "official",
+  "displayName": "Cerebr Official Registry",
+  "generatedAt": "2026-04-14T00:00:00Z",
+  "plugins": [
+    {
+      "id": "official.prompt.concise-reply",
+      "kind": "declarative",
+      "scope": "prompt",
+      "displayName": "Concise Reply",
+      "description": "Append a short-answer instruction to the system prompt for users who prefer tighter responses.",
+      "latestVersion": "1.0.0",
+      "publisher": "Cerebr Team",
+      "homepage": "https://github.com/yym68686/Cerebr",
+      "permissions": [
+        "prompt:extend"
+      ],
+      "compatibility": {
+        "versionRange": ">=2.4.66 <3.0.0"
+      },
+      "availability": {
+        "status": "active",
+        "reason": ""
+      },
+      "install": {
+        "mode": "package",
+        "packageUrl": "plugins/official.prompt.concise-reply/1.0.0/plugin.json"
+      }
+    },
+    {
+      "id": "official.prompt.translation-tone",
+      "kind": "declarative",
+      "scope": "prompt",
+      "displayName": "Translation Tone Guard",
+      "description": "Preserve names, formatting, code spans, and source tone during translation-style prompts.",
+      "latestVersion": "1.2.0",
+      "publisher": "Cerebr Team",
+      "homepage": "https://github.com/yym68686/Cerebr",
+      "permissions": [
+        "prompt:extend"
+      ],
+      "compatibility": {
+        "versionRange": ">=2.4.66 <3.0.0"
+      },
+      "availability": {
+        "status": "disabled",
+        "reason": "Temporarily withdrawn after reviewer feedback."
+      },
+      "install": {
+        "mode": "package",
+        "packageUrl": "plugins/official.prompt.translation-tone/1.2.0/plugin.json"
+      }
+    },
+    {
+      "id": "official.script.site-automation",
+      "kind": "script",
+      "scope": "page",
+      "displayName": "Site Automation Connector",
+      "description": "Developer-mode script plugin example for advanced site automation and chat assistant experiments.",
+      "latestVersion": "0.1.0",
+      "publisher": "Cerebr Team",
+      "homepage": "https://github.com/yym68686/Cerebr",
+      "permissions": [
+        "page:read",
+        "page:write",
+        "chat:read",
+        "chat:write"
+      ],
+      "compatibility": {
+        "versionRange": ">=2.4.66 <3.0.0"
+      },
+      "availability": {
+        "status": "active",
+        "reason": ""
+      },
+      "install": {
+        "mode": "script"
+      }
+    }
+  ]
+}

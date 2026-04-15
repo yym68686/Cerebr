@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cerebr.dev/schemas/registry.schema.json",
+  "title": "Cerebr Plugin Registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "registryId",
+    "displayName",
+    "generatedAt",
+    "plugins"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "registryId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generatedAt": {
+      "type": "string",
+      "minLength": 1
+    },
+    "plugins": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "scope",
+          "displayName",
+          "description",
+          "latestVersion"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["builtin", "declarative", "script"]
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["page", "shell", "prompt"]
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "latestVersion": {
+            "type": "string",
+            "minLength": 1
+          },
+          "publisher": {
+            "type": "string"
+          },
+          "homepage": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requiresExtension": {
+            "type": "boolean"
+          },
+          "compatibility": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "versionRange": {
+                "type": "string"
+              }
+            }
+          },
+          "availability": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["active", "disabled"]
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          },
+          "install": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": ["builtin", "package", "script"]
+              },
+              "packageUrl": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "properties": {
+        "plugins": {
+          "items": {
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "kind": {
+                      "const": "declarative"
+                    }
+                  }
+                },
+                "then": {
+                  "required": ["install"],
+                  "properties": {
+                    "install": {
+                      "required": ["mode", "packageUrl"],
+                      "properties": {
+                        "mode": {
+                          "const": "package"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <title>Cerebr</title>
-    <meta id="theme-color-meta" name="theme-color" content="#ffffff">
+    <meta id="theme-color-meta" name="theme-color" content="#f5f1ea">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="application-name" content="Cerebr">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -104,6 +104,16 @@
                 <span data-i18n="settings_chat_list">对话列表</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <div class="menu-item" id="plugins-toggle" role="menuitem" tabindex="0" hidden>
+                <span data-i18n="settings_plugins">插件</span>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path d="M5.5 2.5V5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    <path d="M10.5 2.5V5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    <path d="M4.25 5.5H11.75V7C11.75 9.07 10.07 10.75 8 10.75C5.93 10.75 4.25 9.07 4.25 7V5.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                    <path d="M8 10.75V13.25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    <path d="M6.5 13.25H9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                 </svg>
             </div>
             <div class="menu-item" id="api-settings-toggle" role="menuitem" tabindex="0">
@@ -206,31 +216,59 @@
         </div>
         <div class="preferences-content">
             <div class="preferences-card">
-                <div class="preference-row">
+                <div class="preference-row preference-row--select">
                     <label class="preference-label" for="preferences-language" data-i18n="preferences_language_label">语言</label>
-                    <select class="preference-select" id="preferences-language" aria-label="语言设置" data-i18n-attr="aria-label:preferences_language_aria">
-                        <option value="auto" data-i18n="language_auto">自动</option>
-                        <option value="en" data-i18n="language_en">English</option>
-                        <option value="zh_CN" data-i18n="language_zh_cn">简体中文</option>
-                        <option value="zh_TW" data-i18n="language_zh_tw">繁體中文</option>
-                    </select>
+                    <div class="preference-control">
+                        <select class="preference-select" id="preferences-language" aria-label="语言设置" data-i18n-attr="aria-label:preferences_language_aria">
+                            <option value="auto" data-i18n="language_auto">自动</option>
+                            <option value="en" data-i18n="language_en">English</option>
+                            <option value="zh_CN" data-i18n="language_zh_cn">简体中文</option>
+                            <option value="zh_TW" data-i18n="language_zh_tw">繁體中文</option>
+                        </select>
+                        <span class="preference-select-icon" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </span>
+                    </div>
                 </div>
-                <div class="preference-row">
+                <div class="preference-row preference-row--select">
                     <label class="preference-label" for="preferences-theme" data-i18n="preferences_theme_label">主题</label>
-                    <select class="preference-select" id="preferences-theme" aria-label="主题设置" data-i18n-attr="aria-label:preferences_theme_aria">
-                        <option value="system" data-i18n="theme_system">跟随系统</option>
-                        <option value="light" data-i18n="theme_light">浅色</option>
-                        <option value="dark" data-i18n="theme_dark">深色</option>
-                    </select>
+                    <div class="preference-control">
+                        <select class="preference-select" id="preferences-theme" aria-label="主题设置" data-i18n-attr="aria-label:preferences_theme_aria">
+                            <option value="system" data-i18n="theme_system">跟随系统</option>
+                            <option value="light" data-i18n="theme_light">浅色</option>
+                            <option value="dark" data-i18n="theme_dark">深色</option>
+                        </select>
+                        <span class="preference-select-icon" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </span>
+                    </div>
                 </div>
-                <div class="preference-row">
+                <div class="preference-row preference-row--select">
                     <label class="preference-label" for="preferences-font-scale" data-i18n="preferences_font_size">字体大小</label>
-                    <select class="preference-select" id="preferences-font-scale" aria-label="字体大小设置" data-i18n-attr="aria-label:preferences_font_size_aria">
-                        <option value="0.9" data-i18n="font_size_small">小</option>
-                        <option value="1" selected data-i18n="font_size_standard">标准</option>
-                        <option value="1.1" data-i18n="font_size_large">大</option>
-                        <option value="1.2" data-i18n="font_size_xlarge">特大</option>
-                    </select>
+                    <div class="preference-control">
+                        <select class="preference-select" id="preferences-font-scale" aria-label="字体大小设置" data-i18n-attr="aria-label:preferences_font_size_aria">
+                            <option value="0.9" data-i18n="font_size_small">小</option>
+                            <option value="1" selected data-i18n="font_size_standard">标准</option>
+                            <option value="1.1" data-i18n="font_size_large">大</option>
+                            <option value="1.2" data-i18n="font_size_xlarge">特大</option>
+                        </select>
+                        <span class="preference-select-icon" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </span>
+                    </div>
+                </div>
+                <div class="preference-row preference-row--toggle">
+                    <label class="preference-label" for="preferences-developer-mode" data-i18n="preferences_developer_mode_label">开发者模式</label>
+                    <label class="switch preference-switch" for="preferences-developer-mode">
+                        <input type="checkbox" id="preferences-developer-mode" aria-label="开发者模式开关" data-i18n-attr="aria-label:preferences_developer_mode_aria">
+                        <span class="slider" aria-hidden="true"></span>
+                    </label>
                 </div>
             </div>
             <div class="preferences-card">
@@ -266,6 +304,58 @@
                     </span>
                 </button>
             </div>
+        </div>
+    </div>
+    <div id="plugin-settings" hidden>
+        <div class="settings-header">
+            <button class="back-button" aria-label="返回" data-i18n-attr="aria-label:aria_back">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M12 4L6 10L12 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <span class="settings-title" data-i18n="title_plugins">插件</span>
+        </div>
+        <div class="plugin-settings-content">
+            <p class="plugin-settings-intro" data-i18n="plugins_manage_caption">管理已安装插件，浏览经过审核的声明式插件，并侧载本地脚本插件。</p>
+            <div class="plugin-settings-toolbar">
+                <div class="plugin-settings-tabs" role="tablist" aria-label="插件视图" data-i18n-attr="aria-label:plugin_tablist_aria">
+                    <button class="plugin-settings-tab is-active" type="button" role="tab" aria-selected="true" data-plugin-tab="installed" data-i18n="plugin_tab_installed">已安装</button>
+                    <button class="plugin-settings-tab" type="button" role="tab" aria-selected="false" data-plugin-tab="marketplace" data-i18n="plugin_tab_marketplace">市场</button>
+                    <button class="plugin-settings-tab" type="button" role="tab" aria-selected="false" data-plugin-tab="developer" data-i18n="plugin_tab_developer">开发者</button>
+                </div>
+                <div class="plugin-settings-status" id="plugin-settings-status"></div>
+            </div>
+            <section class="plugin-settings-panel visible" data-plugin-panel="installed">
+                <div class="plugin-list" id="installed-plugin-list"></div>
+                <div class="plugin-settings-empty" id="installed-plugin-empty" hidden data-i18n="plugins_installed_empty">还没有安装任何插件</div>
+            </section>
+            <section class="plugin-settings-panel" data-plugin-panel="marketplace" hidden>
+                <div class="plugin-list" id="marketplace-plugin-list"></div>
+                <div class="plugin-settings-empty" id="marketplace-plugin-empty" hidden data-i18n="plugins_marketplace_empty">市场里暂时没有可安装的插件</div>
+            </section>
+            <section class="plugin-settings-panel" data-plugin-panel="developer" hidden>
+                <div class="plugin-dev-import">
+                    <div class="plugin-dev-import__copy">
+                        <div class="plugin-dev-import__label" data-i18n="plugin_dev_source_label">本地 plugin.json 路径</div>
+                        <p class="plugin-dev-import__hint" data-i18n="plugin_dev_source_hint">把开发中的插件目录放到 Cerebr 可访问的同源路径下，例如 `statics/dev-plugins/`，再把 plugin.json 路径填到这里。</p>
+                        <code class="plugin-dev-import__sample" id="developer-plugin-sample-path">/statics/dev-plugins/explain-selection/plugin.json</code>
+                    </div>
+                    <div class="plugin-dev-import__row">
+                        <input
+                            type="text"
+                            id="developer-plugin-source"
+                            class="plugin-dev-import__input"
+                            spellcheck="false"
+                            autocomplete="off"
+                            placeholder="/statics/dev-plugins/explain-selection/plugin.json"
+                            data-i18n-attr="placeholder:plugin_dev_source_placeholder"
+                        >
+                        <button type="button" class="plugin-action-button plugin-action-button--primary" data-plugin-dev-action="install" id="developer-plugin-install" data-i18n="plugin_dev_action_import">导入本地插件</button>
+                    </div>
+                </div>
+                <div class="plugin-list" id="developer-plugin-list"></div>
+                <div class="plugin-settings-empty" id="developer-plugin-empty" hidden data-i18n="plugins_developer_empty">还没有侧载任何本地脚本插件</div>
+            </section>
         </div>
     </div>
     <div id="chat-list-page">

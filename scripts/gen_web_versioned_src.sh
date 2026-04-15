@@ -36,6 +36,11 @@ if [[ -f "${msg_handler}" ]]; then
   perl -pi -e "s#'\\.\\./\\.\\./htmd/latex\\.js'#'\\.\\./\\.\\./\\.\\./\\.\\./htmd/latex.js'#g" "${msg_handler}"
 fi
 
+message_renderer="${target_dir}/src/render/message/message-renderer.js"
+if [[ -f "${message_renderer}" ]]; then
+  perl -pi -e "s#'\\.\\./\\.\\./\\.\\./htmd/latex\\.js'#'\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./htmd/latex.js'#g" "${message_renderer}"
+fi
+
 # Fix cross-root imports for the versioned styles copy (styles -> v/<version>/styles)
 styles_main="${target_dir}/styles/main.css"
 if [[ -f "${styles_main}" ]]; then
