@@ -102,16 +102,15 @@ After entering the Cloudflare homepage, select "Profile" in the upper right corn
 
 2.3 Enter a name you like for the project, and in the "Build command" field, input:
 
-`npm install -g wrangler && wrangler pages deploy . --project-name cerebr --branch main`
+`bash scripts/prepare_pages_site.sh _site`
 
-2.4 In the "Environment variables (advanced)" section below -> Add variable:
+2.4 In the "Build output directory" field, input:
 
-`CLOUDFLARE_API_TOKEN`: Fill in the API just applied for
-`CLOUDFLARE_ACCOUNT_ID`: Obtained from the URL of the Cloudflare dashboard homepage, in the format like https://dash.cloudflare.com/<ACCOUNT_ID>
+`_site`
 
-2.5 Save and deploy.
+2.5 No additional environment variables are required for the standard Git-connected Pages deployment flow.
 
-(Since direct build and deployment will cause the API and accountID to be saved in plain text, if you want to change them to ciphertext, you can choose to click "Continue to project" after deployment is completed -> "Settings" -> "Variables and Secrets" -> "Edit" -> Change the "Text" form to "Secret" -> Save)
+2.6 Save and deploy.
 
 4. You can also deploy to GitHub Pages:
 

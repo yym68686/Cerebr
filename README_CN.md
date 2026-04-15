@@ -102,16 +102,15 @@ Cerebr 是一款强大的浏览器 AI 助手扩展，现已支持 Chrome、Firef
 
 2.3 项目名称写上自己喜欢的名字，在`构建命令`项输入：
 
-`npm install -g wrangler && wrangler pages deploy . --project-name cerebr --branch main`
+`bash scripts/prepare_pages_site.sh _site`
 
-2.4 下方`环境变量（高级）` -> 添加变量：
+2.4 在`构建输出目录`项输入：
 
-`CLOUDFLARE_API_TOKEN`：填上刚申请到的API
-`CLOUDFLARE_ACCOUNT_ID`：Cloudflare 控制台首页的 URL 中获取，格式如 https://dash.cloudflare.com/<ACCOUNT_ID>
+`_site`
 
-2.5 保存并部署。
+2.5 使用 Git 直连的 Pages 部署时，不需要额外配置环境变量。
 
-（由于直接构建部署会导致 API 和 accountID 会以明文形式保存，若想更改成密文，可以选择部署完成后点击`继续处理项目` -> 设置 -> 变量和机密 -> 编辑 -> 把`文本`形式更改成`密文` -> 保存）
+2.6 保存并部署。
 
 4. 你也可以部署到 GitHub Pages：
 
