@@ -13,7 +13,7 @@ This document defines the first stable marketplace format for Cerebr plugins, pl
 
 - `builtin`: shipped inside the main Cerebr app.
 - `declarative`: reviewed package with data-only behavior. The current supported type is `prompt_fragment`.
-- `script`: reserved for developer mode. Marketplace UI may display them, but the standard install flow must not execute them.
+- `script`: reserved for developer mode. The standard marketplace UI does not surface them, and the standard install flow must not execute them.
 
 ## `registry.json`
 
@@ -46,7 +46,7 @@ Registry entry fields:
 
 Behavior rules:
 
-- `availability.status = disabled` keeps the plugin visible but blocks install and enable.
+- `availability.status = disabled` keeps installed copies manageable via the Installed tab, but hides the plugin from the Marketplace tab until the registry re-enables it.
 - Missing installed registry entries are treated as removed from the registry after a successful full registry sync.
 - `latestVersion` is compared against the locally installed version to surface updates.
 
@@ -87,14 +87,14 @@ Current declarative runtime behavior:
 ## Install Flow
 
 1. Cerebr fetches `registry.json` with `cache: no-store`.
-2. The marketplace UI shows merged built-in entries and registry entries.
+2. The Installed tab shows built-in entries plus installed registry entries. The Marketplace tab only shows active, compatible, non-script registry entries supported by the current runtime.
 3. Install confirmation lists the plugin permissions.
 4. Declarative packages download `plugin.json`, validate it, then persist it locally.
 5. Local plugin state stores installed version, latest version, permissions, availability, compatibility, and source metadata.
 
 ## Script Plugin Policy
 
-- Script plugins are listed for discovery only.
+- Script plugins are not shown in the standard Marketplace tab.
 - Standard marketplace install must reject `kind = script`.
 - Script plugin execution is reserved for developer mode or self-hosted builds with an explicit future sandbox policy.
 
@@ -122,5 +122,5 @@ statics/dev-plugins/<plugin-id>/
 ## Compatibility
 
 - Compatibility is evaluated against the running Cerebr app version.
-- Incompatible plugins remain visible but cannot be enabled or installed.
+- Incompatible plugins remain manageable if already installed, but they are hidden from the Marketplace tab until they become compatible again.
 - Registry updates may change compatibility or availability without changing the package payload.

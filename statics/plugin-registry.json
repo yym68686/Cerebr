@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "registryId": "official",
   "displayName": "Cerebr Official Registry",
-  "generatedAt": "2026-04-14T00:00:00Z",
+  "generatedAt": "2026-04-16T00:00:00Z",
   "plugins": [
     {
       "id": "official.prompt.concise-reply",
@@ -50,32 +50,6 @@
       "install": {
         "mode": "package",
         "packageUrl": "plugins/official.prompt.translation-tone/1.2.0/plugin.json"
-      }
-    },
-    {
-      "id": "official.script.site-automation",
-      "kind": "script",
-      "scope": "page",
-      "displayName": "Site Automation Connector",
-      "description": "Developer-mode script plugin example for advanced site automation and chat assistant experiments.",
-      "latestVersion": "0.1.0",
-      "publisher": "Cerebr Team",
-      "homepage": "https://github.com/yym68686/Cerebr",
-      "permissions": [
-        "page:read",
-        "page:write",
-        "chat:read",
-        "chat:write"
-      ],
-      "compatibility": {
-        "versionRange": ">=2.4.66 <3.0.0"
-      },
-      "availability": {
-        "status": "active",
-        "reason": ""
-      },
-      "install": {
-        "mode": "script"
       }
     }
   ]

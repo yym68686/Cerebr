@@ -130,6 +130,15 @@ function toMarketplaceViewModel(entry, state, appVersion) {
     };
 }
 
+function shouldShowMarketplaceItem(item) {
+    if (!item) return false;
+    if (item.kind === 'builtin' || item.kind === 'script') return false;
+    if (item.availabilityStatus === 'disabled') return false;
+    if (!item.compatible) return false;
+    if (!item.runtimeSupported) return false;
+    return true;
+}
+
 async function fetchAllRegistryEntries() {
     const sources = [];
     const entries = [];
@@ -246,7 +255,7 @@ export async function getPluginMarketplaceModel() {
             .filter(Boolean),
         marketplaceItems: mergedEntries
             .map((entry) => toMarketplaceViewModel(entry, effectiveState, appVersion))
-            .filter(Boolean),
+            .filter(shouldShowMarketplaceItem),
     };
 }
 

@@ -29,12 +29,12 @@ jobs:
         uses: actions/configure-pages@v6
 
       - name: Prepare static site
-        run: bash scripts/prepare_pages_site.sh _site
+        run: bash scripts/prepare_pages_site.sh pages-site
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: _site
+          path: pages-site
 
   deploy:
     needs: build

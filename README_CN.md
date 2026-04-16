@@ -102,11 +102,11 @@ Cerebr 是一款强大的浏览器 AI 助手扩展，现已支持 Chrome、Firef
 
 2.3 项目名称写上自己喜欢的名字，在`构建命令`项输入：
 
-`bash scripts/prepare_pages_site.sh _site`
+`bash scripts/prepare_pages_site.sh pages-site`
 
 2.4 在`构建输出目录`项输入：
 
-`_site`
+`pages-site`
 
 2.5 使用 Git 直连的 Pages 部署时，不需要额外配置环境变量。
 

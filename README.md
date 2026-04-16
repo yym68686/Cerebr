@@ -102,11 +102,11 @@ After entering the Cloudflare homepage, select "Profile" in the upper right corn
 
 2.3 Enter a name you like for the project, and in the "Build command" field, input:
 
-`bash scripts/prepare_pages_site.sh _site`
+`bash scripts/prepare_pages_site.sh pages-site`
 
 2.4 In the "Build output directory" field, input:
 
-`_site`
+`pages-site`
 
 2.5 No additional environment variables are required for the standard Git-connected Pages deployment flow.
 
