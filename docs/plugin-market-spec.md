@@ -5,15 +5,15 @@ This document defines the first stable marketplace format for Cerebr plugins, pl
 ## Goals
 
 - Keep marketplace installs reviewable and predictable.
-- Support built-in plugins plus reviewed declarative packages.
+- Support built-in plugins plus reviewed declarative and script packages.
 - Allow registry-driven compatibility checks, updates, and remote disable.
-- Reserve script plugins for developer mode until a stronger sandbox exists.
+- Keep unreviewed local script sideloading behind developer mode until a stronger sandbox exists.
 
 ## Package Types
 
 - `builtin`: shipped inside the main Cerebr app.
 - `declarative`: reviewed package with data-only behavior. The current supported type is `prompt_fragment`.
-- `script`: reserved for developer mode. The standard marketplace UI does not surface them, and the standard install flow must not execute them.
+- `script`: reviewed code package for `page` or `shell` runtime behavior.
 
 ## `registry.json`
 
@@ -40,8 +40,8 @@ Registry entry fields:
 - `compatibility.versionRange`: semver comparator string, for example `>=2.4.66 <3.0.0`
 - `availability.status`: `active` | `disabled`
 - `availability.reason`: optional human-readable disable reason
-- `install.mode`: `builtin` | `package` | `script`
-- `install.packageUrl`: required for installable declarative packages
+- `install.mode`: `builtin` | `package`
+- `install.packageUrl`: required for installable declarative and script packages
 - `publisher`, `homepage`: optional metadata
 
 Behavior rules:
@@ -87,16 +87,17 @@ Current declarative runtime behavior:
 ## Install Flow
 
 1. Cerebr fetches `registry.json` with `cache: no-store`.
-2. The Installed tab shows built-in entries plus installed registry entries. The Marketplace tab only shows active, compatible, non-script registry entries supported by the current runtime.
+2. The Installed tab shows built-in entries plus installed registry entries. The Marketplace tab only shows active, compatible registry entries supported by the current runtime.
 3. Install confirmation lists the plugin permissions.
-4. Declarative packages download `plugin.json`, validate it, then persist it locally.
+4. Declarative and script packages download `plugin.json`, validate it, then persist it locally.
 5. Local plugin state stores installed version, latest version, permissions, availability, compatibility, and source metadata.
 
 ## Script Plugin Policy
 
-- Script plugins are not shown in the standard Marketplace tab.
-- Standard marketplace install must reject `kind = script`.
-- Script plugin execution is reserved for developer mode or self-hosted builds with an explicit future sandbox policy.
+- Reviewed script plugins can be listed and installed from the Marketplace tab.
+- Script manifests must include `install.packageUrl` in the registry and `script.entry` in `plugin.json`.
+- Script packages are still limited to `scope = page` or `scope = shell`.
+- Unreviewed local script plugins remain in the developer-mode sideload flow.
 
 ## Developer-Mode Local Script Sideload
 
@@ -106,10 +107,11 @@ Rules:
 
 - Developer mode must be explicitly enabled before script plugins can be side-loaded or executed.
 - The plugin page accepts a local `plugin.json` path, for example `/statics/dev-plugins/explain-selection/plugin.json`.
+- The developer tab also supports dragging a local plugin folder directly into Cerebr for installation. Dragging the whole folder is recommended so relative `script.entry` files are available.
 - `plugin.json` and `script.entry` must resolve to the current Cerebr origin only. Cross-origin script URLs are rejected.
 - Script manifests must include `script.entry`; optional `script.exportName` defaults to `default`.
 - Script plugins currently support `scope = page` or `scope = shell` only.
-- Sideloaded script plugins store both manifest metadata and source URL locally so they can be refreshed in place.
+- Sideloaded script plugins store manifest metadata plus either the source URL or a dropped local file bundle, so they can be reloaded on the next launch.
 
 Recommended folder layout:
 

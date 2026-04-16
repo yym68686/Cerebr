@@ -1,7 +1,7 @@
 import { isPluginBridgeMessage } from '../bridge/plugin-bridge.js';
 import { createPluginManager } from '../shared/plugin-manager.js';
 import { isPluginEnabled, readPluginSettings, subscribePluginSettings } from '../shared/plugin-store.js';
-import { getInstalledLocalScriptPlugins } from '../dev/local-plugin-service.js';
+import { getInstalledScriptPlugins } from '../dev/local-plugin-service.js';
 import { readDeveloperModePreference, subscribeDeveloperModePreference } from '../dev/developer-mode.js';
 import { createScriptPluginCacheKey, loadScriptPluginModule } from '../dev/script-plugin-loader.js';
 import {
@@ -95,14 +95,15 @@ export function createShellPluginRuntime({
     };
 
     const applyPluginSettings = async (settings) => {
-        const localScriptPlugins = developerModeEnabled
-            ? await getInstalledLocalScriptPlugins({ scope: 'shell' })
-            : [];
-        const desiredPluginIds = new Set(localScriptPlugins.map((descriptor) => descriptor.id));
+        const installedScriptPlugins = await getInstalledScriptPlugins({ scope: 'shell' });
+        const activeScriptPlugins = installedScriptPlugins.filter((descriptor) => {
+            return developerModeEnabled || descriptor.sourceType !== 'developer';
+        });
+        const desiredPluginIds = new Set(activeScriptPlugins.map((descriptor) => descriptor.id));
         const activePluginIds = new Set(pluginManager.getActivePluginIds());
         const registeredPluginIds = getRegisteredPluginIds();
 
-        for (const descriptor of localScriptPlugins) {
+        for (const descriptor of activeScriptPlugins) {
             const shouldEnable = descriptor.compatible &&
                 descriptor.runtimeSupported &&
                 isPluginEnabled(settings, descriptor.id, descriptor.manifest?.defaultEnabled !== false);

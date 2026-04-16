@@ -32,6 +32,14 @@ function assertAllowedOrigin(urlString) {
     return url.toString();
 }
 
+export function getLocalPluginExpectedOrigin() {
+    return isExtensionEnvironment ? getExtensionOrigin() : window.location.origin;
+}
+
+export function assertLocalPluginUrl(urlString) {
+    return assertAllowedOrigin(urlString);
+}
+
 export function normalizeLocalPluginSourceLabel(value) {
     return normalizeString(value);
 }

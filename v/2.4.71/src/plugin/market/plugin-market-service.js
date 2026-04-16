@@ -99,8 +99,6 @@ function toMarketplaceViewModel(entry, state, appVersion) {
     const compatibilityOk = satisfiesVersionRange(appVersion, compatibilityRange);
     const availabilityStatus = normalizeString(record.availability?.status || entry.availability?.status, 'active');
     const availabilityReason = normalizeString(record.availability?.reason || entry.availability?.reason);
-    const devModeOnly = entry.kind === 'script';
-
     return {
         id: entry.id,
         kind: entry.kind,
@@ -126,13 +124,13 @@ function toMarketplaceViewModel(entry, state, appVersion) {
         runtimeSupported: isRuntimeSupported(entry),
         homepage: normalizeString(entry.homepage),
         packageUrl: normalizeString(entry.install?.packageUrl),
-        devModeOnly,
+        devModeOnly: false,
     };
 }
 
 function shouldShowMarketplaceItem(item) {
     if (!item) return false;
-    if (item.kind === 'builtin' || item.kind === 'script') return false;
+    if (item.kind === 'builtin') return false;
     if (item.availabilityStatus === 'disabled') return false;
     if (!item.compatible) return false;
     if (!item.runtimeSupported) return false;
@@ -262,9 +260,6 @@ export async function getPluginMarketplaceModel() {
 export async function installMarketplaceItem(item) {
     if (!item?.id) {
         throw new Error('installMarketplaceItem requires a plugin item');
-    }
-    if (item.kind === 'script') {
-        throw new Error('Script plugins are only available in developer mode');
     }
     if (item.availabilityStatus === 'disabled') {
         throw new Error(item.availabilityReason || 'This plugin has been disabled by the registry');

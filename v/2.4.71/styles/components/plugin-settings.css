@@ -339,6 +339,46 @@
     white-space: pre-wrap;
 }
 
+.plugin-dev-dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 120px;
+    padding: 18px;
+    border-radius: 14px;
+    border: 1.5px dashed var(--cerebr-highlight-border-color);
+    background:
+        radial-gradient(circle at top, rgba(48, 119, 255, 0.08), transparent 60%),
+        var(--cerebr-hover-bg-color);
+    text-align: center;
+    transition: border-color 0.16s ease, background-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.plugin-dev-dropzone.is-dragover {
+    border-color: var(--cerebr-highlight-border-color);
+    background:
+        radial-gradient(circle at top, rgba(48, 119, 255, 0.18), transparent 62%),
+        rgba(48, 119, 255, 0.08);
+    box-shadow: 0 10px 24px rgba(48, 119, 255, 0.14);
+    transform: translateY(-1px);
+}
+
+.plugin-dev-dropzone__title {
+    font-size: var(--cerebr-fs-15);
+    font-weight: 700;
+    color: var(--cerebr-text-color);
+}
+
+.plugin-dev-dropzone__hint {
+    margin: 0;
+    max-width: 460px;
+    font-size: var(--cerebr-fs-13);
+    line-height: 1.6;
+    color: var(--cerebr-text-secondary-color);
+}
+
 .plugin-dev-import__row {
     display: flex;
     gap: 10px;

@@ -16,6 +16,7 @@ import {
     writeInstalledPluginPackage,
 } from '../shared/plugin-package-store.js';
 import { readDeveloperModePreference } from './developer-mode.js';
+import { readLocalPluginBundleFromDataTransfer } from './local-plugin-bundle.js';
 import {
     normalizeLocalPluginSourceLabel,
     resolveLocalPluginSourceUrl,
@@ -43,11 +44,22 @@ function getCompatibilityRange(record = {}, manifest = {}) {
 }
 
 function buildLocalPluginPackage(manifest, sourceMeta = {}) {
+    const bundle = sourceMeta.bundle && typeof sourceMeta.bundle === 'object'
+        ? {
+            manifestPath: normalizeString(sourceMeta.bundle.manifestPath, 'plugin.json'),
+            files: sourceMeta.bundle.files && typeof sourceMeta.bundle.files === 'object'
+                ? { ...sourceMeta.bundle.files }
+                : {},
+        }
+        : null;
+
     return {
         ...manifest,
         source: {
             manifestUrl: normalizeString(sourceMeta.manifestUrl),
             sourceLabel: normalizeString(sourceMeta.sourceLabel),
+            mode: bundle ? 'bundle' : 'url',
+            ...(bundle ? { bundle } : {}),
         },
     };
 }
@@ -93,7 +105,28 @@ async function ensureScriptPluginInstallable(manifest) {
     }
 }
 
+async function installLocalScriptPluginPackage(manifest, sourceMeta = {}) {
+    await ensureScriptPluginInstallable(manifest);
+
+    const pluginPackage = buildLocalPluginPackage(manifest, sourceMeta);
+    await writeInstalledPluginPackage(manifest.id, pluginPackage);
+    await installLocalScriptPlugin(manifest, {
+        manifestUrl: normalizeString(sourceMeta.manifestUrl),
+        sourceLabel: normalizeString(sourceMeta.sourceLabel),
+        entryUrl: manifest.script?.entry,
+        exportName: manifest.script?.exportName,
+    });
+
+    return pluginPackage;
+}
+
 async function readLocalScriptPluginItemsInternal() {
+    return readInstalledScriptPluginItemsInternal({
+        sourceType: 'developer',
+    });
+}
+
+async function readInstalledScriptPluginItemsInternal({ sourceType = '' } = {}) {
     const [state, appVersion] = await Promise.all([
         readPluginState(),
         getAppVersion(),
@@ -102,7 +135,10 @@ async function readLocalScriptPluginItemsInternal() {
     const items = [];
 
     for (const [pluginId, record] of Object.entries(state.plugins || {})) {
-        if (!record?.installed || record.kind !== 'script' || record.sourceType !== 'developer') {
+        if (!record?.installed || record.kind !== 'script') {
+            continue;
+        }
+        if (sourceType && record.sourceType !== sourceType) {
             continue;
         }
 
@@ -116,7 +152,7 @@ async function readLocalScriptPluginItemsInternal() {
             id: pluginId,
             kind: 'script',
             scope: normalizeString(record.scope || pluginPackage.scope),
-            sourceType: 'developer',
+            sourceType: normalizeString(record.sourceType, 'developer'),
             displayName: normalizeString(record.displayName || pluginPackage.displayName || pluginId),
             description: normalizeString(record.description || pluginPackage.description),
             permissions: normalizeStringArray(record.permissions?.length ? record.permissions : pluginPackage.permissions),
@@ -149,22 +185,20 @@ export async function installLocalScriptPluginFromSource(sourceInput) {
     const manifestUrl = resolveLocalPluginSourceUrl(sourceInput);
     const manifest = await fetchPluginManifestFromUrl(manifestUrl);
 
-    await ensureScriptPluginInstallable(manifest);
-
-    const pluginPackage = buildLocalPluginPackage(manifest, {
+    return installLocalScriptPluginPackage(manifest, {
         manifestUrl,
         sourceLabel,
     });
+}
 
-    await writeInstalledPluginPackage(manifest.id, pluginPackage);
-    await installLocalScriptPlugin(manifest, {
-        manifestUrl,
-        sourceLabel,
-        entryUrl: manifest.script?.entry,
-        exportName: manifest.script?.exportName,
+export async function installLocalScriptPluginFromDataTransfer(dataTransfer) {
+    const droppedBundle = await readLocalPluginBundleFromDataTransfer(dataTransfer);
+    await ensureDeveloperModeEnabled();
+
+    return installLocalScriptPluginPackage(droppedBundle.manifest, {
+        sourceLabel: droppedBundle.sourceLabel,
+        bundle: droppedBundle.bundle,
     });
-
-    return pluginPackage;
 }
 
 export async function refreshLocalScriptPlugin(pluginId) {
@@ -175,6 +209,9 @@ export async function refreshLocalScriptPlugin(pluginId) {
     const sourceLabel = normalizeString(installedPackage?.source?.sourceLabel, manifestUrl);
 
     if (!manifestUrl) {
+        if (installedPackage?.source?.bundle) {
+            throw new Error(`Local script plugin "${pluginId}" was installed from dropped files. Drag the updated plugin into Cerebr again to refresh it`);
+        }
         throw new Error(`Local script plugin "${pluginId}" is missing its manifest source`);
     }
 
@@ -219,7 +256,15 @@ export async function getDeveloperPluginModel() {
 }
 
 export async function getInstalledLocalScriptPlugins({ scope = '' } = {}) {
-    const items = await readLocalScriptPluginItemsInternal();
+    const items = await readInstalledScriptPluginItemsInternal({ sourceType: 'developer' });
+    return items.filter((item) => {
+        if (!scope) return true;
+        return item.scope === scope;
+    });
+}
+
+export async function getInstalledScriptPlugins({ scope = '' } = {}) {
+    const items = await readInstalledScriptPluginItemsInternal();
     return items.filter((item) => {
         if (!scope) return true;
         return item.scope === scope;

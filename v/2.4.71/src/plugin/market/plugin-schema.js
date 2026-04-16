@@ -159,12 +159,12 @@ function normalizeRegistryPluginEntry(entry, registryId, baseUrl) {
     const installMode = normalizeString(install.mode, kind === 'builtin' ? 'builtin' : '');
     const packageUrl = normalizeString(install.packageUrl);
 
-    if (kind === 'declarative') {
+    if (kind === 'declarative' || kind === 'script') {
         if (installMode !== 'package') {
-            throw new Error(`Registry entry "${id}" declarative plugins must use install.mode "package"`);
+            throw new Error(`Registry entry "${id}" ${kind} plugins must use install.mode "package"`);
         }
         if (!packageUrl) {
-            throw new Error(`Registry entry "${id}" declarative plugins require install.packageUrl`);
+            throw new Error(`Registry entry "${id}" ${kind} plugins require install.packageUrl`);
         }
     }
 

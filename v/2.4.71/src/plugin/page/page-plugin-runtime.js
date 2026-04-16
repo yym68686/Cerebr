@@ -1,6 +1,6 @@
 import { createPluginManager } from '../shared/plugin-manager.js';
 import { isPluginEnabled, readPluginSettings, subscribePluginSettings } from '../shared/plugin-store.js';
-import { getInstalledLocalScriptPlugins } from '../dev/local-plugin-service.js';
+import { getInstalledScriptPlugins } from '../dev/local-plugin-service.js';
 import { readDeveloperModePreference, subscribeDeveloperModePreference } from '../dev/developer-mode.js';
 import { createScriptPluginCacheKey, loadScriptPluginModule } from '../dev/script-plugin-loader.js';
 import { getBuiltinPagePluginEntries } from './page-plugin-registry.js';
@@ -372,14 +372,15 @@ export function createPagePluginRuntime({
             }
         }
 
-        const localScriptPlugins = developerModeEnabled
-            ? await getInstalledLocalScriptPlugins({ scope: 'page' })
-            : [];
+        const installedScriptPlugins = await getInstalledScriptPlugins({ scope: 'page' });
+        const activeScriptPlugins = installedScriptPlugins.filter((descriptor) => {
+            return developerModeEnabled || descriptor.sourceType !== 'developer';
+        });
         const desiredLocalPluginIds = new Set(
-            localScriptPlugins.map((descriptor) => descriptor.id)
+            activeScriptPlugins.map((descriptor) => descriptor.id)
         );
 
-        for (const descriptor of localScriptPlugins) {
+        for (const descriptor of activeScriptPlugins) {
             const shouldEnable = descriptor.compatible &&
                 descriptor.runtimeSupported &&
                 isPluginEnabled(settings, descriptor.id, descriptor.manifest?.defaultEnabled !== false);

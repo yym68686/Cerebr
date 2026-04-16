@@ -8,11 +8,13 @@ import {
 } from '../plugin/market/plugin-market-service.js';
 import {
     getDeveloperPluginModel,
+    installLocalScriptPluginFromDataTransfer,
     installLocalScriptPluginFromSource,
     refreshLocalScriptPlugin,
     uninstallLocalScriptPlugin,
 } from '../plugin/dev/local-plugin-service.js';
 import { subscribePluginState } from '../plugin/shared/plugin-store.js';
+import { showToast } from '../utils/ui.js';
 
 function resolvePluginName(item) {
     if (item?.nameKey) return t(item.nameKey);
@@ -470,10 +472,12 @@ export async function initPluginSettings({ page } = {}) {
     const developerList = page.querySelector('#developer-plugin-list');
     const developerEmpty = page.querySelector('#developer-plugin-empty');
     const developerSourceInput = page.querySelector('#developer-plugin-source');
+    const developerDropzone = page.querySelector('#developer-plugin-dropzone');
     const developerSamplePath = page.querySelector('#developer-plugin-sample-path');
     const statusNode = page.querySelector('#plugin-settings-status');
 
     let activeTab = 'installed';
+    let developerDragDepth = 0;
     let currentModel = {
         installedItems: [],
         marketplaceItems: [],
@@ -518,6 +522,44 @@ export async function initPluginSettings({ page } = {}) {
 
         statusNode.textContent = '';
         statusNode.dataset.state = 'normal';
+    };
+
+    const hasDroppedFiles = (dataTransfer) => {
+        const types = Array.from(dataTransfer?.types || []);
+        return types.includes('Files');
+    };
+
+    const setDeveloperDropActive = (active) => {
+        developerDropzone?.classList.toggle('is-dragover', !!active);
+    };
+
+    const runDeveloperInstall = async (installer, { triggerButton = null, resetInput = false } = {}) => {
+        if (triggerButton) {
+            triggerButton.disabled = true;
+        }
+
+        try {
+            const pluginPackage = await installer();
+            await refresh();
+            setActiveTab('developer');
+            if (resetInput && developerSourceInput) {
+                developerSourceInput.value = '';
+            }
+
+            showToast(
+                t('plugin_dev_install_success', [resolvePluginName(pluginPackage)]),
+                { type: 'success', durationMs: 1800 }
+            );
+        } catch (error) {
+            console.error('[Cerebr] Failed to sideload local plugin', error);
+            window.alert(error?.message || t('plugin_market_sync_failed'));
+        } finally {
+            if (triggerButton) {
+                triggerButton.disabled = false;
+            }
+            developerDragDepth = 0;
+            setDeveloperDropActive(false);
+        }
     };
 
     const renderInstalled = () => {
@@ -617,17 +659,13 @@ export async function initPluginSettings({ page } = {}) {
                     return;
                 }
 
-                devActionButton.disabled = true;
-                try {
-                    await installLocalScriptPluginFromSource(source);
-                    await refresh();
-                    setActiveTab('developer');
-                } catch (error) {
-                    console.error('[Cerebr] Failed to sideload local plugin', error);
-                    window.alert(error?.message || t('plugin_market_sync_failed'));
-                } finally {
-                    devActionButton.disabled = false;
-                }
+                await runDeveloperInstall(
+                    () => installLocalScriptPluginFromSource(source),
+                    {
+                        triggerButton: devActionButton,
+                        resetInput: true,
+                    }
+                );
                 return;
             }
         }
@@ -752,9 +790,45 @@ export async function initPluginSettings({ page } = {}) {
         setActiveTab(tab.dataset.pluginTab || 'installed');
     };
 
+    const handleDeveloperDragEnter = (event) => {
+        if (!hasDroppedFiles(event.dataTransfer)) return;
+        event.preventDefault();
+        developerDragDepth += 1;
+        setDeveloperDropActive(true);
+    };
+
+    const handleDeveloperDragOver = (event) => {
+        if (!hasDroppedFiles(event.dataTransfer)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+        setDeveloperDropActive(true);
+    };
+
+    const handleDeveloperDragLeave = (event) => {
+        if (!hasDroppedFiles(event.dataTransfer)) return;
+        event.preventDefault();
+        developerDragDepth = Math.max(0, developerDragDepth - 1);
+        if (developerDragDepth === 0) {
+            setDeveloperDropActive(false);
+        }
+    };
+
+    const handleDeveloperDrop = async (event) => {
+        if (!hasDroppedFiles(event.dataTransfer)) return;
+        event.preventDefault();
+        await runDeveloperInstall(
+            () => installLocalScriptPluginFromDataTransfer(event.dataTransfer),
+            { resetInput: false }
+        );
+    };
+
     page.addEventListener('click', handlePageClick);
     page.addEventListener('change', handlePageChange);
     page.addEventListener('click', handleTabClick);
+    developerDropzone?.addEventListener('dragenter', handleDeveloperDragEnter);
+    developerDropzone?.addEventListener('dragover', handleDeveloperDragOver);
+    developerDropzone?.addEventListener('dragleave', handleDeveloperDragLeave);
+    developerDropzone?.addEventListener('drop', handleDeveloperDrop);
 
     const unsubscribe = subscribePluginState(() => {
         void refresh();
@@ -770,6 +844,10 @@ export async function initPluginSettings({ page } = {}) {
             page.removeEventListener('click', handlePageClick);
             page.removeEventListener('change', handlePageChange);
             page.removeEventListener('click', handleTabClick);
+            developerDropzone?.removeEventListener('dragenter', handleDeveloperDragEnter);
+            developerDropzone?.removeEventListener('dragover', handleDeveloperDragOver);
+            developerDropzone?.removeEventListener('dragleave', handleDeveloperDragLeave);
+            developerDropzone?.removeEventListener('drop', handleDeveloperDrop);
             unsubscribe?.();
         },
     };

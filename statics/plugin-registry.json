@@ -51,6 +51,32 @@
         "mode": "package",
         "packageUrl": "plugins/official.prompt.translation-tone/1.2.0/plugin.json"
       }
+    },
+    {
+      "id": "official.page.explain-selection",
+      "kind": "script",
+      "scope": "page",
+      "displayName": "Explain Selection",
+      "description": "Adds a selection action that sends the highlighted text into Cerebr with an explanation prompt.",
+      "latestVersion": "1.0.0",
+      "publisher": "Cerebr Team",
+      "homepage": "https://github.com/yym68686/Cerebr",
+      "permissions": [
+        "page:selection",
+        "shell:input"
+      ],
+      "requiresExtension": true,
+      "compatibility": {
+        "versionRange": ">=2.4.66 <3.0.0"
+      },
+      "availability": {
+        "status": "active",
+        "reason": ""
+      },
+      "install": {
+        "mode": "package",
+        "packageUrl": "plugins/official.page.explain-selection/1.0.0/plugin.json"
+      }
     }
   ]
 }

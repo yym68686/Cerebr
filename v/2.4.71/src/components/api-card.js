@@ -419,6 +419,7 @@ export function createCardCallbacks({
     flushSystemPromptPersist,
     renderAPICardsWithCallbacks,
     onBeforeCardDelete,
+    onConfigChange,
 }) {
     return {
         onCardSelect: selectCard,
@@ -449,6 +450,9 @@ export function createCardCallbacks({
         },
         onCardChange: (index, newConfig, options = {}) => {
             apiConfigs[index] = newConfig;
+            if (typeof onConfigChange === 'function') {
+                onConfigChange(index, newConfig, options);
+            }
 
             if (options.kind === 'systemPrompt') {
                 if (options.flush && typeof flushSystemPromptPersist === 'function') {

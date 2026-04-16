@@ -4,9 +4,9 @@ This guide documents the first developer-mode sideload flow for Cerebr script pl
 
 ## Scope
 
-- Script plugins only run when developer mode is enabled.
+- Local sideloaded script plugins only run when developer mode is enabled.
 - `scope = page` and `scope = shell` are supported.
-- Marketplace install still rejects `kind = script`.
+- Reviewed marketplace script plugins can be installed normally; this guide is only about local sideloaded script plugins.
 - `plugin.json` and `script.entry` must stay on the current Cerebr origin.
 
 ## Recommended Layout
@@ -73,15 +73,17 @@ export default definePlugin({
 
 1. Enable `偏好设置 -> 开发者模式`.
 2. Open `设置 -> 插件 -> 开发者`.
-3. Enter a manifest path such as `/statics/dev-plugins/explain-selection/plugin.json`.
-4. Click `导入本地插件`.
-5. Toggle, refresh, or uninstall the plugin from the same page.
+3. Choose one import mode:
+   - Enter a same-origin manifest path such as `/statics/dev-plugins/explain-selection/plugin.json`, then click `导入本地插件`.
+   - Drag a local plugin folder into the drop area in the same panel. Dragging the whole folder works best. If you only drag `plugin.json`, include the referenced script files too.
+4. Toggle, refresh, or uninstall the plugin from the same page.
 
 ## Runtime Behavior
 
 - Page and shell runtimes subscribe to developer-mode changes.
 - Turning developer mode off unloads all local script plugins.
 - Refreshing a local plugin re-fetches `plugin.json` and reloads `script.entry` with a cache-busting revision token.
+- Plugins installed from dropped local files are persisted in local storage. To update them, drag the updated plugin folder into Cerebr again.
 
 ## Example
 

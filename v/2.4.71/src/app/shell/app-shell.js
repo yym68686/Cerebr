@@ -13,7 +13,13 @@ import { showImagePreview, hideImagePreview, showToast } from '../../utils/ui.js
 import { renderAPICards, createCardCallbacks, selectCard } from '../../components/api-card.js';
 import { initPluginSettings } from '../../components/plugin-settings.js';
 import { storageAdapter, syncStorageAdapter, browserAdapter, isExtensionEnvironment } from '../../utils/storage-adapter.js';
-import { initMessageInput, handleWindowMessage, moveCaretToEnd, setPlaceholder } from '../../components/message-input.js';
+import {
+    initMessageInput,
+    handleWindowMessage,
+    moveCaretToEnd,
+    setPlaceholder,
+    setPlaceholderRestoreResolver,
+} from '../../components/message-input.js';
 import '../../utils/viewport.js';
 import {
     hideChatList,
@@ -172,16 +178,50 @@ async function onDomReady() {
             }
         };
 
+        let managedPlaceholderState = 'default';
+
+        const getSelectedModelName = () => {
+            const configuredModelName = apiConfigs[selectedConfigIndex]?.modelName;
+            const normalizedModelName = typeof configuredModelName === 'string'
+                ? configuredModelName.trim()
+                : '';
+            return normalizedModelName || 'gpt-4o';
+        };
+
+        const getManagedPlaceholderText = (state = managedPlaceholderState) => {
+            const modelName = getSelectedModelName();
+
+            switch (state) {
+            case 'thinking':
+                return t('message_input_placeholder_thinking');
+            case 'replying':
+                return t('message_input_placeholder_replying');
+            default:
+                return t('message_input_placeholder_with_model', [modelName]);
+            }
+        };
+
+        const applyManagedPlaceholder = (state) => {
+            managedPlaceholderState = state;
+            setPlaceholder({ messageInput, placeholder: getManagedPlaceholderText(state) });
+        };
+
+        const refreshManagedPlaceholder = () => {
+            setPlaceholder({ messageInput, placeholder: getManagedPlaceholderText() });
+        };
+
+        setPlaceholderRestoreResolver(() => getManagedPlaceholderText());
+
         const setThinkingPlaceholder = () => {
-            setPlaceholder({ messageInput, placeholder: t('message_input_placeholder_thinking') });
+            applyManagedPlaceholder('thinking');
         };
 
         const setReplyingPlaceholder = () => {
-            setPlaceholder({ messageInput, placeholder: t('message_input_placeholder_replying') });
+            applyManagedPlaceholder('replying');
         };
 
         const restoreDefaultPlaceholder = () => {
-            setPlaceholder({ messageInput, placeholder: t('message_input_placeholder') });
+            applyManagedPlaceholder('default');
         };
 
         syncChatBottomExtraPadding();
@@ -1296,6 +1336,7 @@ async function onDomReady() {
             await setLanguagePreference(nextPreference);
             await reloadI18n();
             applyI18n(document);
+            refreshManagedPlaceholder();
             if (lastAppliedDeveloperModeEnabled) {
                 await pluginSettingsController?.refresh?.();
             }
@@ -1551,6 +1592,7 @@ async function onDomReady() {
             onSelect: () => {
                 // 关闭API设置面板
                 apiSettings?.classList?.remove('visible');
+                refreshManagedPlaceholder();
             }
         });
     };
@@ -1571,6 +1613,11 @@ async function onDomReady() {
                 queueSystemPromptPersist,
                 flushSystemPromptPersist,
                 renderAPICardsWithCallbacks,
+                onConfigChange: (index, _newConfig, options = {}) => {
+                    if (index === selectedConfigIndex && options.kind === 'apiFields') {
+                        refreshManagedPlaceholder();
+                    }
+                },
                 onBeforeCardDelete: (configToDelete) => {
                     const configId = configToDelete?.id;
                     if (!configId) return;
@@ -1802,10 +1849,12 @@ async function onDomReady() {
                 }
             }
         }
+        refreshManagedPlaceholder();
     }
 
     // 等待 DOM 加载完成后再初始化
     await loadAPIConfigs();
+    refreshManagedPlaceholder();
 
     const flushAllPersistedStateForTransfer = async () => {
         await commitPendingPreferences();

@@ -20,6 +20,10 @@ function getResourceUrl(path) {
     return new URL(path, window.location.href).toString();
 }
 
+function isAbsoluteUrl(url) {
+    return /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(url || '');
+}
+
 async function fetchJson(url) {
     const response = await fetch(url, { cache: 'no-store' });
     if (!response.ok) {
@@ -29,7 +33,7 @@ async function fetchJson(url) {
 }
 
 export async function fetchPluginRegistrySource(source) {
-    const resolvedUrl = /^https?:\/\//i.test(source?.url || '')
+    const resolvedUrl = isAbsoluteUrl(source?.url || '')
         ? source.url
         : getResourceUrl(source?.url || '');
 
@@ -38,9 +42,9 @@ export async function fetchPluginRegistrySource(source) {
 }
 
 export async function fetchPluginManifestFromUrl(url) {
-    const resolvedUrl = /^https?:\/\//i.test(url || '')
+    const resolvedUrl = isAbsoluteUrl(url || '')
         ? url
         : getResourceUrl(url || '');
     const payload = await fetchJson(resolvedUrl);
-    return validatePluginManifest(payload);
+    return validatePluginManifest(payload, resolvedUrl);
 }

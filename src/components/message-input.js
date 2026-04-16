@@ -10,6 +10,24 @@ import { t } from '../utils/i18n.js';
 
 // 跟踪输入法状态
 let isComposing = false;
+let placeholderRestoreResolver = () => t('message_input_placeholder');
+
+export function setPlaceholderRestoreResolver(resolver) {
+    placeholderRestoreResolver = typeof resolver === 'function'
+        ? resolver
+        : (() => t('message_input_placeholder'));
+}
+
+function getRestorePlaceholderText() {
+    try {
+        const placeholder = placeholderRestoreResolver();
+        return typeof placeholder === 'string' && placeholder.trim()
+            ? placeholder
+            : t('message_input_placeholder');
+    } catch {
+        return t('message_input_placeholder');
+    }
+}
 
 function initAnimatedFakeCaret(messageInput) {
     if (!messageInput?.isConnected) return;
@@ -1014,7 +1032,7 @@ export function setPlaceholder({ messageInput, placeholder, timeout }) {
         messageInput.setAttribute('placeholder', placeholder);
         if (timeout) {
             setTimeout(() => {
-                messageInput.setAttribute('placeholder', t('message_input_placeholder'));
+                messageInput.setAttribute('placeholder', getRestorePlaceholderText());
             }, timeout);
         }
     }

@@ -348,8 +348,12 @@
                 <div class="plugin-dev-import">
                     <div class="plugin-dev-import__copy">
                         <div class="plugin-dev-import__label" data-i18n="plugin_dev_source_label">本地 plugin.json 路径</div>
-                        <p class="plugin-dev-import__hint" data-i18n="plugin_dev_source_hint">把开发中的插件目录放到 Cerebr 可访问的同源路径下，例如 `statics/dev-plugins/`，再把 plugin.json 路径填到这里。</p>
+                        <p class="plugin-dev-import__hint" data-i18n="plugin_dev_source_hint">可以继续填同源 plugin.json 路径导入，也可以直接把本地插件目录拖到下面的区域里安装。</p>
                         <code class="plugin-dev-import__sample" id="developer-plugin-sample-path">/statics/dev-plugins/explain-selection/plugin.json</code>
+                    </div>
+                    <div class="plugin-dev-dropzone" id="developer-plugin-dropzone">
+                        <div class="plugin-dev-dropzone__title" data-i18n="plugin_dev_drop_title">拖入本地插件目录或 plugin.json</div>
+                        <p class="plugin-dev-dropzone__hint" data-i18n="plugin_dev_drop_hint">推荐直接拖入整个插件文件夹；如果只拖入 plugin.json，请同时拖入它依赖的脚本文件。</p>
                     </div>
                     <div class="plugin-dev-import__row">
                         <input

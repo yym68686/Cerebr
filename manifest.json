@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "default_locale": "en",
   "name": "__MSG_extension_name__",
-  "version": "2.4.70",
+  "version": "2.4.71",
   "description": "__MSG_extension_description__",
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
@@ -73,6 +73,7 @@
         "src/plugin/page/page-plugin-registry.js",
         "src/plugin/builtins/page/selection-action-plugin.js",
         "src/plugin/dev/developer-mode.js",
+        "src/plugin/dev/local-plugin-bundle.js",
         "src/plugin/dev/local-plugin-service.js",
         "src/plugin/dev/local-plugin-source.js",
         "src/plugin/dev/script-plugin-loader.js",
@@ -86,6 +87,7 @@
         "src/utils/app-version.js",
         "src/utils/storage-adapter.js",
         "statics/dev-plugins/*/*",
+        "statics/plugins/*/*/*",
         "styles/main.css",
         "styles/components/sidebar.css",
         "htmd/marked.min.js",
