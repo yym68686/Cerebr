@@ -49,3 +49,27 @@
   - `bash scripts/gen_web_versioned_src.sh`
 
 注意：只保留一个版本的代价是——如果用户端极端情况下缓存了旧的 `boot.js` 或旧 `version`，可能会请求到不存在的 `v/<old>/...` 导致 404。此策略是“体积/维护成本优先”的取舍。
+
+## 插件模板同步
+
+- 独立插件模板仓库路径：`/Users/yanyuming/Downloads/GitHub/cerebr-plugin-template`
+- 这个模板仓库的目标是：**让第三方开发者不需要阅读 Cerebr 主仓库源码，也能开发插件**。
+- 因此，只要本仓库的插件系统发生变更，必须评估并同步更新 `cerebr-plugin-template`。不要只改主仓库而放着模板不管。
+
+以下变更都默认需要同步检查模板：
+
+- `plugin.json` / `registry` schema 变化
+- 插件 runtime API 变化（`page` / `shell` / `background`）
+- 权限模型变化
+- hook 生命周期变化
+- 插槽（slot）变化
+- 本地侧载、开发者模式、市场安装流程变化
+- 插件示例或推荐目录结构变化
+
+同步时至少检查这些内容：
+
+- 模板根目录示例插件是否还能正常工作
+- `docs/` 里的 API、权限、发布文档是否仍然准确
+- `examples/` 下的脚本式 / 声明式示例是否需要更新
+- `schemas/` 下的 schema 副本是否需要同步
+- `scripts/check-manifests.mjs` 的校验规则是否仍匹配当前宿主实现
