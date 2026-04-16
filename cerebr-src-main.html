@@ -22,7 +22,9 @@
     <link rel="stylesheet" href="styles/main.css">
 </head>
 <body>
+    <div class="cerebr-plugin-slot cerebr-plugin-slot--shell-chat-before" data-plugin-slot="shell.chat.before"></div>
     <div id="chat-container"></div>
+    <div class="cerebr-plugin-slot cerebr-plugin-slot--shell-chat-after" data-plugin-slot="shell.chat.after"></div>
     <button id="scroll-to-bottom" type="button" tabindex="-1" aria-hidden="true" aria-label="滚动到底部" data-i18n-attr="aria-label:aria_scroll_to_bottom">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M12 5v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -80,6 +82,7 @@
         </div>
     </div>
     <div id="input-container">
+        <div class="cerebr-plugin-slot cerebr-plugin-slot--shell-input-before" data-plugin-slot="shell.input.before"></div>
         <button id="settings-button" aria-label="打开设置" data-i18n-attr="aria-label:aria_open_settings">
             <svg viewBox="0 0 24 24">
                 <circle cx="12" cy="6" r="2"/>
@@ -134,6 +137,7 @@
             <div id="message-input" contenteditable="true" placeholder="输入消息..." enterkeyhint="send" role="textbox" aria-label="消息输入框" aria-multiline="true" spellcheck="true" data-i18n-attr="placeholder:message_input_placeholder;aria-label:message_input_aria"></div>
             <div class="fake-caret" aria-hidden="true"></div>
         </div>
+        <div class="cerebr-plugin-slot cerebr-plugin-slot--shell-input-after" data-plugin-slot="shell.input.after"></div>
     </div>
     <div id="api-settings">
         <div class="settings-header">
@@ -327,7 +331,8 @@
             <span class="settings-title" data-i18n="title_plugins">插件</span>
         </div>
         <div class="plugin-settings-content">
-            <p class="plugin-settings-intro" data-i18n="plugins_manage_caption">管理已安装插件，浏览经过审核的声明式插件，并侧载本地脚本插件。</p>
+            <p class="plugin-settings-intro" data-i18n="plugins_manage_caption">管理已安装插件，浏览经过审核的声明式和脚本式插件，并侧载本地脚本插件。</p>
+            <div class="cerebr-plugin-slot cerebr-plugin-slot--shell-settings-section" data-plugin-slot="shell.settings.section"></div>
             <div class="plugin-settings-toolbar">
                 <div class="plugin-settings-tabs" role="tablist" aria-label="插件视图" data-i18n-attr="aria-label:plugin_tablist_aria">
                     <button class="plugin-settings-tab is-active" type="button" role="tab" aria-selected="true" data-plugin-tab="installed" data-i18n="plugin_tab_installed">已安装</button>

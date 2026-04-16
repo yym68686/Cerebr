@@ -1,0 +1,57 @@
+.cerebr-plugin-slot {
+    width: 100%;
+    max-width: 100%;
+    pointer-events: none;
+}
+
+.cerebr-plugin-slot:empty {
+    display: none;
+}
+
+.cerebr-plugin-slot--shell-chat-before,
+.cerebr-plugin-slot--shell-chat-after {
+    padding: 0 12px;
+}
+
+.cerebr-plugin-slot--shell-input-before,
+.cerebr-plugin-slot--shell-input-after {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: auto;
+    flex: 0 0 auto;
+    pointer-events: auto;
+}
+
+.cerebr-plugin-slot--shell-input-before {
+    margin-right: 8px;
+}
+
+.cerebr-plugin-slot--shell-input-after {
+    margin-left: 8px;
+}
+
+.cerebr-plugin-slot--shell-settings-section {
+    margin-bottom: 16px;
+    pointer-events: auto;
+}
+
+.cerebr-plugin-slot-item {
+    pointer-events: auto;
+}
+
+.cerebr-plugin-slot-item:empty {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .cerebr-plugin-slot--shell-chat-before,
+    .cerebr-plugin-slot--shell-chat-after {
+        padding: 0 10px;
+    }
+
+    .cerebr-plugin-slot--shell-input-before,
+    .cerebr-plugin-slot--shell-input-after {
+        margin: 0;
+    }
+}

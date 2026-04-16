@@ -7,7 +7,8 @@ This guide documents the first developer-mode sideload flow for Cerebr script pl
 - Local sideloaded script plugins only run when developer mode is enabled.
 - `scope = page` and `scope = shell` are supported.
 - Reviewed marketplace script plugins can be installed normally; this guide is only about local sideloaded script plugins.
-- `plugin.json` and `script.entry` must stay on the current Cerebr origin.
+- Same-origin manifest imports must keep `plugin.json` and `script.entry` on the current Cerebr origin.
+- Dragged local plugin bundles are persisted locally and loaded through Cerebr's bundle loader instead of direct same-origin fetches.
 
 ## Recommended Layout
 
@@ -38,7 +39,7 @@ statics/dev-plugins/explain-selection/
   "description": "Show a local developer action next to selected text and send an explanation prompt into Cerebr.",
   "defaultEnabled": true,
   "requiresExtension": true,
-  "permissions": ["page:selection", "shell:input"],
+  "permissions": ["page:selection", "shell:input", "ui:mount"],
   "compatibility": {
     "versionRange": ">=2.4.66 <3.0.0"
   },
@@ -51,6 +52,7 @@ statics/dev-plugins/explain-selection/
 Notes:
 
 - `script.entry` is resolved relative to `plugin.json`.
+- The same-origin restriction only applies when you import by manifest path. Dragged local bundles are loaded from persisted local files.
 - `script.exportName` is optional and defaults to `default`.
 - The exported plugin object must match `definePlugin({ id, setup(api) })`.
 
@@ -68,6 +70,21 @@ export default definePlugin({
   }
 });
 ```
+
+## Capability APIs
+
+- `page` plugins can use `page.getSnapshot()`, `page.watchSelection()`, `page.watchSelectors()`, `page.query()` and `page.queryAll()`.
+- `page` plugins can use `site.query()`, `site.fill()`, `site.click()` and `site.observe()` for site automation style workflows.
+- `page` plugins can use `ui.showAnchoredAction()` and `ui.mountSlot()`, which require `ui:mount`.
+- `page` plugins can bridge into Cerebr with `shell.focusInput()`, `shell.setDraft()`, `shell.insertText()` and `shell.importText()`.
+- `shell` plugins can use `editor`, `chat`, `prompt` and `ui` APIs. `chat` hooks now run through the official request pipeline instead of intercepting `window.fetch`.
+
+## Hook Lifecycle
+
+- `shell` plugins can implement `onBeforeSend`, `onBuildPrompt`, `onRequest`, `onResponse`, `onRequestError`, `onStreamChunk`, `onResponseError` and `onAfterResponse`.
+- Hook contexts are isolated per plugin and still enforce manifest permissions.
+- `ctx.chat.retry()` / `ctx.chat.cancel()` only work for plugins that requested `chat:write`.
+- `ctx.prompt.addFragment()` only works for plugins that requested `prompt:extend` or `prompt:write`.
 
 ## Install Flow
 

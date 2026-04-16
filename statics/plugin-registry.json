@@ -63,7 +63,8 @@
       "homepage": "https://github.com/yym68686/Cerebr",
       "permissions": [
         "page:selection",
-        "shell:input"
+        "shell:input",
+        "ui:mount"
       ],
       "requiresExtension": true,
       "compatibility": {

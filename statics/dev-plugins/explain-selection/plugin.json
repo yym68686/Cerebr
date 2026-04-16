@@ -8,7 +8,7 @@
   "description": "Show a local developer action next to selected text and send an explanation prompt into Cerebr.",
   "defaultEnabled": true,
   "requiresExtension": true,
-  "permissions": ["page:selection", "shell:input"],
+  "permissions": ["page:selection", "shell:input", "ui:mount"],
   "compatibility": {
     "versionRange": ">=2.4.66 <3.0.0"
   },
