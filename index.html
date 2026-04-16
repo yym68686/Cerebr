@@ -334,7 +334,8 @@
             <span class="settings-title" data-i18n="title_plugins">插件</span>
         </div>
         <div class="plugin-settings-content">
-            <p class="plugin-settings-intro" data-i18n="plugins_manage_caption">管理已安装插件，浏览经过审核的声明式插件，并侧载本地脚本插件。</p>
+            <p class="plugin-settings-intro" data-i18n="plugins_manage_caption">管理已安装插件，浏览经过审核的声明式和脚本式插件，并侧载本地脚本插件。</p>
+            <div class="cerebr-plugin-slot cerebr-plugin-slot--shell-settings-section" data-plugin-slot="shell.settings.section"></div>
             <div class="plugin-settings-toolbar">
                 <div class="plugin-settings-tabs" role="tablist" aria-label="插件视图" data-i18n-attr="aria-label:plugin_tablist_aria">
                     <button class="plugin-settings-tab is-active" type="button" role="tab" aria-selected="true" data-plugin-tab="installed" data-i18n="plugin_tab_installed">已安装</button>
@@ -353,23 +354,14 @@
             </section>
             <section class="plugin-settings-panel" data-plugin-panel="developer" hidden>
                 <div class="plugin-dev-import">
-                    <div class="plugin-dev-import__copy">
-                        <div class="plugin-dev-import__label" data-i18n="plugin_dev_source_label">本地 plugin.json 路径</div>
-                        <p class="plugin-dev-import__hint" data-i18n="plugin_dev_source_hint">把开发中的插件目录放到 Cerebr 可访问的同源路径下，例如 `statics/dev-plugins/`，再把 plugin.json 路径填到这里。</p>
-                        <code class="plugin-dev-import__sample" id="developer-plugin-sample-path">/statics/dev-plugins/explain-selection/plugin.json</code>
+                    <div class="plugin-dev-dropzone" id="developer-plugin-dropzone" tabindex="0">
+                        <div class="plugin-dev-dropzone__title" data-i18n="plugin_dev_drop_title">拖入包含 plugin.json 的插件文件夹</div>
+                        <p class="plugin-dev-dropzone__hint" data-i18n="plugin_dev_drop_hint">把包含 plugin.json 的插件文件夹拖到这里即可；如果当前浏览器不支持目录拖放，可以点击下方按钮选择插件目录。</p>
+                        <div class="plugin-dev-dropzone__actions">
+                            <button type="button" class="plugin-action-button" data-plugin-dev-action="pick-folder" data-i18n="plugin_dev_action_pick_folder">选择插件目录</button>
+                        </div>
                     </div>
-                    <div class="plugin-dev-import__row">
-                        <input
-                            type="text"
-                            id="developer-plugin-source"
-                            class="plugin-dev-import__input"
-                            spellcheck="false"
-                            autocomplete="off"
-                            placeholder="/statics/dev-plugins/explain-selection/plugin.json"
-                            data-i18n-attr="placeholder:plugin_dev_source_placeholder"
-                        >
-                        <button type="button" class="plugin-action-button plugin-action-button--primary" data-plugin-dev-action="install" id="developer-plugin-install" data-i18n="plugin_dev_action_import">导入本地插件</button>
-                    </div>
+                    <input type="file" id="developer-plugin-folder-input" class="plugin-dev-file-input" webkitdirectory directory multiple hidden>
                 </div>
                 <div class="plugin-list" id="developer-plugin-list"></div>
                 <div class="plugin-settings-empty" id="developer-plugin-empty" hidden data-i18n="plugins_developer_empty">还没有侧载任何本地脚本插件</div>
