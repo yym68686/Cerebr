@@ -1284,6 +1284,7 @@ async function onDomReady() {
     // 偏好设置页面
     const preferencesBackButton = preferencesSettings?.querySelector('.back-button');
     const pluginSettingsBackButton = pluginSettings?.querySelector('.back-button') || null;
+    const pluginSettingsStatus = pluginSettings?.querySelector('#plugin-settings-status') || null;
 
     const appVersion = await getAppVersion();
     if (preferencesVersion) {
@@ -1291,6 +1292,7 @@ async function onDomReady() {
     }
 
     let pluginSettingsController = null;
+    let pluginSettingsControllerPromise = null;
     let lastAppliedLanguagePreference = 'auto';
     let lastAppliedDeveloperModeEnabled = false;
 
@@ -1327,13 +1329,53 @@ async function onDomReady() {
         }
     };
 
-    const ensurePluginSettingsController = async () => {
-        if (!pluginSettingsController) {
-            pluginSettingsController = await initPluginSettings({
-                page: pluginSettings,
-            });
+    const ensurePluginSettingsController = () => {
+        if (pluginSettingsController) {
+            return Promise.resolve(pluginSettingsController);
         }
-        return pluginSettingsController;
+
+        if (!pluginSettingsControllerPromise) {
+            pluginSettingsControllerPromise = initPluginSettings({
+                page: pluginSettings,
+            })
+                .then((controller) => {
+                    pluginSettingsController = controller;
+                    return controller;
+                })
+                .catch((error) => {
+                    pluginSettingsControllerPromise = null;
+                    throw error;
+                });
+        }
+
+        return pluginSettingsControllerPromise;
+    };
+
+    const handlePluginSettingsInitError = (error) => {
+        console.error('[Cerebr] 初始化插件页面失败:', error);
+        if (!pluginSettingsStatus) return;
+        pluginSettingsStatus.textContent = `${t('plugin_market_sync_failed')}: ${error?.message || String(error)}`;
+        pluginSettingsStatus.dataset.state = 'error';
+    };
+
+    const openPluginSettingsPage = () => {
+        if (!lastAppliedDeveloperModeEnabled || !pluginSettings) return;
+
+        const shouldRefreshAfterEnsure = !!pluginSettingsController;
+        if (!shouldRefreshAfterEnsure && !pluginSettingsControllerPromise && pluginSettingsStatus) {
+            pluginSettingsStatus.textContent = t('plugin_market_loading');
+            pluginSettingsStatus.dataset.state = 'loading';
+        }
+
+        pluginSettings.classList.add('visible');
+        closeSettingsMenu();
+
+        void ensurePluginSettingsController()
+            .then((controller) => {
+                if (!shouldRefreshAfterEnsure) return controller;
+                return controller?.refresh?.();
+            })
+            .catch(handlePluginSettingsInitError);
     };
 
     const persistLanguagePreference = async (value) => {
@@ -1429,12 +1471,8 @@ async function onDomReady() {
     }
 
     if (pluginsToggle && pluginSettings) {
-        pluginsToggle.addEventListener('click', async () => {
-            if (!lastAppliedDeveloperModeEnabled) return;
-            await ensurePluginSettingsController();
-            await pluginSettingsController?.refresh?.();
-            pluginSettings.classList.add('visible');
-            closeSettingsMenu();
+        pluginsToggle.addEventListener('click', () => {
+            openPluginSettingsPage();
         });
     }
 
