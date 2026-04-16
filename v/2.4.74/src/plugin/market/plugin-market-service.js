@@ -85,7 +85,7 @@ function toInstalledViewModel(entry, state, appVersion) {
         requiresExtension: !!entry.requiresExtension,
         runtimeSupported: isRuntimeSupported(entry),
         homepage: normalizeString(record.homepage || entry.homepage),
-        canUninstall: entry.kind !== 'builtin',
+        canUninstall: entry.kind !== 'builtin' || entry.defaultInstalled === false,
     };
 }
 
@@ -125,12 +125,12 @@ function toMarketplaceViewModel(entry, state, appVersion) {
         homepage: normalizeString(entry.homepage),
         packageUrl: normalizeString(entry.install?.packageUrl),
         devModeOnly: false,
+        canUninstall: entry.kind !== 'builtin' || entry.defaultInstalled === false,
     };
 }
 
 function shouldShowMarketplaceItem(item) {
     if (!item) return false;
-    if (item.kind === 'builtin') return false;
     if (item.availabilityStatus === 'disabled') return false;
     if (!item.compatible) return false;
     if (!item.runtimeSupported) return false;

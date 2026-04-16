@@ -9,7 +9,7 @@ import {
 import {
     getDeveloperPluginModel,
     installLocalScriptPluginFromDataTransfer,
-    installLocalScriptPluginFromSource,
+    installLocalScriptPluginFromFileList,
     refreshLocalScriptPlugin,
     uninstallLocalScriptPlugin,
 } from '../plugin/dev/local-plugin-service.js';
@@ -290,7 +290,7 @@ function buildMarketplaceCard(item) {
             action: 'noop',
             disabled: true,
         }));
-    } else if (item.kind === 'builtin' && item.installed) {
+    } else if (item.kind === 'builtin' && item.installed && !item.canUninstall) {
         actions.appendChild(createActionButton({
             label: t('plugin_action_builtin'),
             action: 'noop',
@@ -477,9 +477,8 @@ export async function initPluginSettings({ page } = {}) {
     const marketplaceEmpty = page.querySelector('#marketplace-plugin-empty');
     const developerList = page.querySelector('#developer-plugin-list');
     const developerEmpty = page.querySelector('#developer-plugin-empty');
-    const developerSourceInput = page.querySelector('#developer-plugin-source');
     const developerDropzone = page.querySelector('#developer-plugin-dropzone');
-    const developerSamplePath = page.querySelector('#developer-plugin-sample-path');
+    const developerFolderInput = page.querySelector('#developer-plugin-folder-input');
     const statusNode = page.querySelector('#plugin-settings-status');
 
     let activeTab = 'installed';
@@ -488,7 +487,6 @@ export async function initPluginSettings({ page } = {}) {
         installedItems: [],
         marketplaceItems: [],
         developerItems: [],
-        sampleManifestPath: '',
         sources: [],
     };
 
@@ -532,14 +530,24 @@ export async function initPluginSettings({ page } = {}) {
 
     const hasDroppedFiles = (dataTransfer) => {
         const types = Array.from(dataTransfer?.types || []);
-        return types.includes('Files');
+        if (types.includes('Files')) {
+            return true;
+        }
+        if (Array.from(dataTransfer?.items || []).some((item) => item?.kind === 'file')) {
+            return true;
+        }
+        return Number(dataTransfer?.files?.length || 0) > 0;
     };
 
     const setDeveloperDropActive = (active) => {
         developerDropzone?.classList.toggle('is-dragover', !!active);
     };
 
-    const runDeveloperInstall = async (installer, { triggerButton = null, resetInput = false } = {}) => {
+    const openDeveloperPicker = () => {
+        developerFolderInput?.click?.();
+    };
+
+    const runDeveloperInstall = async (installer, { triggerButton = null } = {}) => {
         if (triggerButton) {
             triggerButton.disabled = true;
         }
@@ -548,9 +556,6 @@ export async function initPluginSettings({ page } = {}) {
             const pluginPackage = await installer();
             await refresh();
             setActiveTab('developer');
-            if (resetInput && developerSourceInput) {
-                developerSourceInput.value = '';
-            }
 
             showToast(
                 t('plugin_dev_install_success', [resolvePluginName(pluginPackage)]),
@@ -607,9 +612,6 @@ export async function initPluginSettings({ page } = {}) {
         if (developerEmpty) {
             developerEmpty.hidden = items.length > 0;
         }
-        if (developerSamplePath && currentModel.sampleManifestPath) {
-            developerSamplePath.textContent = currentModel.sampleManifestPath;
-        }
         if (!developerList) return;
 
         const fragment = document.createDocumentFragment();
@@ -641,7 +643,6 @@ export async function initPluginSettings({ page } = {}) {
             currentModel = {
                 ...marketplaceModel,
                 developerItems: developerModel.items || [],
-                sampleManifestPath: developerModel.sampleManifestPath || '',
             };
             render();
         } catch (error) {
@@ -655,23 +656,10 @@ export async function initPluginSettings({ page } = {}) {
 
     const handlePageClick = async (event) => {
         const devActionButton = event.target.closest?.('[data-plugin-dev-action]');
-        if (devActionButton instanceof HTMLButtonElement) {
+        if (devActionButton) {
             const devAction = devActionButton.dataset.pluginDevAction;
-            if (devAction === 'install') {
-                const source = String(developerSourceInput?.value || '').trim();
-                if (!source) {
-                    window.alert(t('plugin_dev_source_required'));
-                    developerSourceInput?.focus?.();
-                    return;
-                }
-
-                await runDeveloperInstall(
-                    () => installLocalScriptPluginFromSource(source),
-                    {
-                        triggerButton: devActionButton,
-                        resetInput: true,
-                    }
-                );
+            if (devAction === 'pick-folder') {
+                openDeveloperPicker();
                 return;
             }
         }
@@ -828,13 +816,47 @@ export async function initPluginSettings({ page } = {}) {
         );
     };
 
+    const handleDeveloperPickerChange = async (event) => {
+        const input = event.target;
+        if (!(input instanceof HTMLInputElement) || input.type !== 'file') {
+            return;
+        }
+
+        const files = Array.from(input.files || []);
+        input.value = '';
+        if (files.length === 0) {
+            return;
+        }
+
+        await runDeveloperInstall(
+            () => installLocalScriptPluginFromFileList(files),
+            { resetInput: false }
+        );
+    };
+
+    const handleDeveloperDropzoneClick = (event) => {
+        if (!developerDropzone?.contains(event.target)) return;
+        if (event.target.closest?.('button, input, a, label')) return;
+        openDeveloperPicker();
+    };
+
+    const handleDeveloperDropzoneKeydown = (event) => {
+        if (!developerDropzone || event.target !== developerDropzone) return;
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        openDeveloperPicker();
+    };
+
     page.addEventListener('click', handlePageClick);
     page.addEventListener('change', handlePageChange);
     page.addEventListener('click', handleTabClick);
+    developerDropzone?.addEventListener('click', handleDeveloperDropzoneClick);
+    developerDropzone?.addEventListener('keydown', handleDeveloperDropzoneKeydown);
     developerDropzone?.addEventListener('dragenter', handleDeveloperDragEnter);
     developerDropzone?.addEventListener('dragover', handleDeveloperDragOver);
     developerDropzone?.addEventListener('dragleave', handleDeveloperDragLeave);
     developerDropzone?.addEventListener('drop', handleDeveloperDrop);
+    developerFolderInput?.addEventListener('change', handleDeveloperPickerChange);
 
     const unsubscribe = subscribePluginState(() => {
         void refresh();
@@ -850,10 +872,13 @@ export async function initPluginSettings({ page } = {}) {
             page.removeEventListener('click', handlePageClick);
             page.removeEventListener('change', handlePageChange);
             page.removeEventListener('click', handleTabClick);
+            developerDropzone?.removeEventListener('click', handleDeveloperDropzoneClick);
+            developerDropzone?.removeEventListener('keydown', handleDeveloperDropzoneKeydown);
             developerDropzone?.removeEventListener('dragenter', handleDeveloperDragEnter);
             developerDropzone?.removeEventListener('dragover', handleDeveloperDragOver);
             developerDropzone?.removeEventListener('dragleave', handleDeveloperDragLeave);
             developerDropzone?.removeEventListener('drop', handleDeveloperDrop);
+            developerFolderInput?.removeEventListener('change', handleDeveloperPickerChange);
             unsubscribe?.();
         },
     };

@@ -1,5 +1,5 @@
 import { createPluginManager } from '../shared/plugin-manager.js';
-import { isPluginEnabled, readPluginSettings, subscribePluginSettings } from '../shared/plugin-store.js';
+import { isPluginEnabled, isPluginInstalled, readPluginSettings, subscribePluginSettings } from '../shared/plugin-store.js';
 import { getInstalledScriptPlugins } from '../dev/local-plugin-service.js';
 import { readDeveloperModePreference, subscribeDeveloperModePreference } from '../dev/developer-mode.js';
 import { createScriptPluginCacheKey, loadScriptPluginModule } from '../dev/script-plugin-loader.js';
@@ -676,7 +676,9 @@ export function createPagePluginRuntime({
         const desiredScriptPluginIds = new Set();
 
         for (const [pluginId, entry] of builtinEntryMap.entries()) {
-            const shouldEnable = isPluginEnabled(settings, pluginId, entry.manifest?.defaultEnabled !== false);
+            const shouldInstall = isPluginInstalled(settings, pluginId, entry.manifest?.defaultInstalled !== false);
+            const shouldEnable = shouldInstall &&
+                isPluginEnabled(settings, pluginId, entry.manifest?.defaultEnabled !== false);
 
             if (!shouldEnable) {
                 if (registeredPluginIds.has(pluginId)) {

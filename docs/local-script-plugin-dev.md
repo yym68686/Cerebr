@@ -7,8 +7,7 @@ This guide documents the first developer-mode sideload flow for Cerebr script pl
 - Local sideloaded script plugins only run when developer mode is enabled.
 - `scope = page` and `scope = shell` are supported.
 - Reviewed marketplace script plugins can be installed normally; this guide is only about local sideloaded script plugins.
-- Same-origin manifest imports must keep `plugin.json` and `script.entry` on the current Cerebr origin.
-- Dragged local plugin bundles are persisted locally and loaded through Cerebr's bundle loader instead of direct same-origin fetches.
+- Dragged local plugin bundles are persisted locally and loaded through Cerebr's bundle loader.
 
 ## Recommended Layout
 
@@ -52,7 +51,6 @@ statics/dev-plugins/explain-selection/
 Notes:
 
 - `script.entry` is resolved relative to `plugin.json`.
-- The same-origin restriction only applies when you import by manifest path. Dragged local bundles are loaded from persisted local files.
 - `script.exportName` is optional and defaults to `default`.
 - The exported plugin object must match `definePlugin({ id, setup(api) })`.
 
@@ -90,10 +88,9 @@ export default definePlugin({
 
 1. Enable `偏好设置 -> 开发者模式`.
 2. Open `设置 -> 插件 -> 开发者`.
-3. Choose one import mode:
-   - Enter a same-origin manifest path such as `/statics/dev-plugins/explain-selection/plugin.json`, then click `导入本地插件`.
-   - Drag a local plugin folder into the drop area in the same panel. Dragging the whole folder works best. If you only drag `plugin.json`, include the referenced script files too.
-4. Toggle, refresh, or uninstall the plugin from the same page.
+3. Drag a local plugin folder that contains `plugin.json` into the drop area in the same panel.
+4. If your browser does not expose folder drag-and-drop reliably, use the `选择插件文件夹` button in the same panel.
+5. Toggle, refresh, or uninstall the plugin from the same page.
 
 ## Runtime Behavior
 
@@ -106,5 +103,5 @@ export default definePlugin({
 
 The repository ships with a sample local plugin:
 
-- Manifest: `/statics/dev-plugins/explain-selection/plugin.json`
-- Entry: `/statics/dev-plugins/explain-selection/page.js`
+- Folder: `statics/dev-plugins/explain-selection/`
+- Files: `plugin.json` and `page.js`

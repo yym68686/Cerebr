@@ -87,7 +87,7 @@ Current declarative runtime behavior:
 ## Install Flow
 
 1. Cerebr fetches `registry.json` with `cache: no-store`.
-2. The Installed tab shows built-in entries plus installed registry entries. The Marketplace tab only shows active, compatible registry entries supported by the current runtime.
+2. The Installed tab shows installed plugins only. Built-in plugins with `defaultInstalled: false` stay in the Marketplace tab until the user installs them. The Marketplace tab only shows active, compatible entries supported by the current runtime.
 3. Install confirmation lists the plugin permissions.
 4. Declarative and script packages download `plugin.json`, validate it, then persist it locally.
 5. Local plugin state stores installed version, latest version, permissions, availability, compatibility, and source metadata.

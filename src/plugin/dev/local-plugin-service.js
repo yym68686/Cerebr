@@ -16,11 +16,10 @@ import {
     writeInstalledPluginPackage,
 } from '../shared/plugin-package-store.js';
 import { readDeveloperModePreference } from './developer-mode.js';
-import { readLocalPluginBundleFromDataTransfer } from './local-plugin-bundle.js';
 import {
-    normalizeLocalPluginSourceLabel,
-    resolveLocalPluginSourceUrl,
-} from './local-plugin-source.js';
+    readLocalPluginBundleFromDataTransfer,
+    readLocalPluginBundleFromFileList,
+} from './local-plugin-bundle.js';
 
 function normalizeString(value, fallback = '') {
     const normalized = String(value ?? '').trim();
@@ -178,21 +177,18 @@ async function readInstalledScriptPluginItemsInternal({ sourceType = '' } = {}) 
     });
 }
 
-export async function installLocalScriptPluginFromSource(sourceInput) {
+export async function installLocalScriptPluginFromDataTransfer(dataTransfer) {
+    const droppedBundle = await readLocalPluginBundleFromDataTransfer(dataTransfer);
     await ensureDeveloperModeEnabled();
 
-    const sourceLabel = normalizeLocalPluginSourceLabel(sourceInput);
-    const manifestUrl = resolveLocalPluginSourceUrl(sourceInput);
-    const manifest = await fetchPluginManifestFromUrl(manifestUrl);
-
-    return installLocalScriptPluginPackage(manifest, {
-        manifestUrl,
-        sourceLabel,
+    return installLocalScriptPluginPackage(droppedBundle.manifest, {
+        sourceLabel: droppedBundle.sourceLabel,
+        bundle: droppedBundle.bundle,
     });
 }
 
-export async function installLocalScriptPluginFromDataTransfer(dataTransfer) {
-    const droppedBundle = await readLocalPluginBundleFromDataTransfer(dataTransfer);
+export async function installLocalScriptPluginFromFileList(fileList) {
+    const droppedBundle = await readLocalPluginBundleFromFileList(fileList);
     await ensureDeveloperModeEnabled();
 
     return installLocalScriptPluginPackage(droppedBundle.manifest, {
@@ -248,7 +244,6 @@ export async function uninstallLocalScriptPlugin(pluginId) {
 export async function getDeveloperPluginModel() {
     const items = await readLocalScriptPluginItemsInternal();
     return {
-        sampleManifestPath: '/statics/dev-plugins/explain-selection/plugin.json',
         items: items.map(({ record, manifest, ...item }) => ({
             ...item,
         })),

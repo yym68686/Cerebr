@@ -379,6 +379,18 @@
     color: var(--cerebr-text-secondary-color);
 }
 
+.plugin-dev-dropzone__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.plugin-dev-file-input {
+    display: none;
+}
+
 .plugin-dev-import__row {
     display: flex;
     gap: 10px;
@@ -425,6 +437,11 @@
     }
 
     .plugin-dev-import__row {
+        flex-direction: column;
+    }
+
+    .plugin-dev-dropzone__actions {
+        width: 100%;
         flex-direction: column;
     }
 

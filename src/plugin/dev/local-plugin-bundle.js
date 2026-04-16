@@ -98,6 +98,14 @@ function readFileFromEntry(entry) {
     });
 }
 
+async function readFileFromHandle(handle) {
+    try {
+        return await handle.getFile();
+    } catch (error) {
+        throw error || new Error(`Failed to read local plugin file "${handle?.name || ''}"`);
+    }
+}
+
 function readDirectoryEntries(entry) {
     return new Promise((resolve, reject) => {
         const reader = entry.createReader();
@@ -143,15 +151,81 @@ async function walkDroppedEntry(entry, parentPath = '') {
     return nestedRecords.flat();
 }
 
+async function readDirectoryHandleChildren(handle) {
+    if (typeof handle?.values === 'function') {
+        const children = [];
+        for await (const childHandle of handle.values()) {
+            children.push(childHandle);
+        }
+        return children;
+    }
+
+    if (typeof handle?.entries === 'function') {
+        const children = [];
+        for await (const entry of handle.entries()) {
+            const value = Array.isArray(entry) ? entry[1] : entry;
+            if (value) {
+                children.push(value);
+            }
+        }
+        return children;
+    }
+
+    return [];
+}
+
+async function walkFileSystemHandle(handle, parentPath = '') {
+    const handleName = normalizeString(handle?.name);
+    const handlePath = normalizeBundlePath(parentPath ? `${parentPath}/${handleName}` : handleName);
+    if (!handlePath) return [];
+
+    if (handle?.kind === 'file') {
+        return [{
+            path: handlePath,
+            file: await readFileFromHandle(handle),
+        }];
+    }
+
+    if (handle?.kind !== 'directory') {
+        return [];
+    }
+
+    const children = await readDirectoryHandleChildren(handle);
+    const nestedRecords = await Promise.all(children.map((child) => walkFileSystemHandle(child, handlePath)));
+    return nestedRecords.flat();
+}
+
+function collectFileRecordsFromFileList(fileList) {
+    return uniqueFileRecords(
+        Array.from(fileList || []).map((file) => ({
+            path: normalizeBundlePath(file.webkitRelativePath || file.name),
+            file,
+        }))
+    );
+}
+
 async function collectDroppedFileRecords(dataTransfer) {
     if (!dataTransfer) return [];
 
+    const handleRecords = [];
     const directFileRecords = [];
     const entryRecords = [];
 
     const items = Array.from(dataTransfer.items || []);
     for (const item of items) {
         if (item?.kind !== 'file') continue;
+
+        if (typeof item.getAsFileSystemHandle === 'function') {
+            try {
+                const handle = await item.getAsFileSystemHandle();
+                if (handle) {
+                    handleRecords.push(...await walkFileSystemHandle(handle));
+                    continue;
+                }
+            } catch {
+                // Fall through to legacy entry / direct file handling.
+            }
+        }
 
         if (typeof item.webkitGetAsEntry === 'function') {
             const entry = item.webkitGetAsEntry();
@@ -169,20 +243,12 @@ async function collectDroppedFileRecords(dataTransfer) {
         });
     }
 
-    if (entryRecords.length > 0) {
-        return uniqueFileRecords(entryRecords);
-    }
-
-    if (directFileRecords.length > 0) {
-        return uniqueFileRecords(directFileRecords);
-    }
-
-    return uniqueFileRecords(
-        Array.from(dataTransfer.files || []).map((file) => ({
-            path: normalizeBundlePath(file.webkitRelativePath || file.name),
-            file,
-        }))
-    );
+    return uniqueFileRecords([
+        ...handleRecords,
+        ...entryRecords,
+        ...directFileRecords,
+        ...collectFileRecordsFromFileList(dataTransfer.files),
+    ]);
 }
 
 function resolveBundleRootPath(fileRecords) {
@@ -329,10 +395,9 @@ export function getLocalPluginBundleFiles(pluginPackage) {
     return normalizeBundleFiles(pluginPackage?.source?.bundle?.files);
 }
 
-export async function readLocalPluginBundleFromDataTransfer(dataTransfer) {
-    const fileRecords = await collectDroppedFileRecords(dataTransfer);
+async function buildLocalPluginBundleFromFileRecords(fileRecords) {
     if (fileRecords.length === 0) {
-        throw new Error('No local plugin files were dropped');
+        throw new Error('No local plugin files were provided');
     }
 
     const { rootPath, manifestPath } = resolveBundleRootPath(fileRecords);
@@ -358,7 +423,7 @@ export async function readLocalPluginBundleFromDataTransfer(dataTransfer) {
 
     const manifestFile = files[PLUGIN_MANIFEST_FILE];
     if (!manifestFile?.text) {
-        throw new Error('The dropped plugin bundle is missing plugin.json');
+        throw new Error('The local plugin bundle is missing plugin.json');
     }
 
     let payload = null;
@@ -370,13 +435,28 @@ export async function readLocalPluginBundleFromDataTransfer(dataTransfer) {
 
     const manifest = validatePluginManifest(payload);
     validateBundledEntryAvailability(manifest, files);
+    const sourceRoot = rootPath || (
+        manifestPath !== PLUGIN_MANIFEST_FILE
+            ? getTopLevelFolder(manifestPath)
+            : ''
+    );
 
     return {
         manifest,
-        sourceLabel: resolveBundleSourceLabel(rootPath || getTopLevelFolder(manifestPath), manifest),
+        sourceLabel: resolveBundleSourceLabel(sourceRoot, manifest),
         bundle: {
             manifestPath: PLUGIN_MANIFEST_FILE,
             files,
         },
     };
+}
+
+export async function readLocalPluginBundleFromDataTransfer(dataTransfer) {
+    const fileRecords = await collectDroppedFileRecords(dataTransfer);
+    return buildLocalPluginBundleFromFileRecords(fileRecords);
+}
+
+export async function readLocalPluginBundleFromFileList(fileList) {
+    const fileRecords = collectFileRecordsFromFileList(fileList);
+    return buildLocalPluginBundleFromFileRecords(fileRecords);
 }
