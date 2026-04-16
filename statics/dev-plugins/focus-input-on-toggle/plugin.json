@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "local.focus-input-on-toggle",
+  "version": "1.0.0",
+  "kind": "script",
+  "scope": "background",
+  "displayName": "Focus Input On Toggle",
+  "description": "After the sidebar is toggled from the extension action or shortcut, focus the Cerebr input on the active tab.",
+  "defaultEnabled": true,
+  "requiresExtension": true,
+  "permissions": ["tabs:read", "bridge:send"],
+  "compatibility": {
+    "versionRange": ">=2.4.75 <3.0.0"
+  },
+  "script": {
+    "entry": "./background.js"
+  }
+}

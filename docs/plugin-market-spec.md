@@ -12,8 +12,8 @@ This document defines the first stable marketplace format for Cerebr plugins, pl
 ## Package Types
 
 - `builtin`: shipped inside the main Cerebr app.
-- `declarative`: reviewed package with data-only behavior. The current supported type is `prompt_fragment`.
-- `script`: reviewed code package for `page` or `shell` runtime behavior.
+- `declarative`: reviewed package with data-only behavior. Supported types are `prompt_fragment`, `request_policy`, and `page_extractor`.
+- `script`: reviewed code package for `page`, `shell`, or `background` runtime behavior.
 
 ## `registry.json`
 
@@ -31,7 +31,7 @@ Registry entry fields:
 
 - `id`: stable plugin id, for example `official.prompt.concise-reply`
 - `kind`: `builtin` | `declarative` | `script`
-- `scope`: `page` | `shell` | `prompt`
+- `scope`: `page` | `shell` | `prompt` | `background`
 - `displayName`
 - `description`
 - `latestVersion`
@@ -74,15 +74,43 @@ Optional shared fields:
 
 Declarative package fields:
 
-- `declarative.type`: currently only `prompt_fragment`
-- `declarative.placement`: `system.prepend` | `system.append`
-- `declarative.content`: prompt text to inject
+- `declarative.type`: `prompt_fragment` | `request_policy` | `page_extractor`
+- `prompt_fragment`
+  - `declarative.placement`: `system.prepend` | `system.append`
+  - `declarative.content`: prompt text to inject
+  - `declarative.priority`: optional ordering hint, higher runs earlier within the same placement
+- `request_policy`
+  - `declarative.applyTo.modes`: optional request modes such as `send` or `regenerate`
+  - `declarative.applyTo.modelIncludes`: optional case-insensitive model-name substrings
+  - `declarative.applyTo.urlIncludes`: optional case-insensitive request URL substrings
+  - `declarative.promptFragments`: optional prompt fragment or fragment list
+  - `declarative.requestPatch.url`: optional request URL override
+  - `declarative.requestPatch.headers`: optional request header patch
+  - `declarative.requestPatch.body`: optional shallow request body patch
+  - `declarative.retry.onErrorCodes`: optional error codes that should trigger retry
+  - `declarative.retry.maxAttempts`: optional retry ceiling, default `20`
+  - `declarative.cancel.draftMatches` / `declarative.cancel.draftIncludes`: optional draft cancellation rules
+- `page_extractor`
+  - `declarative.matches`: optional URL wildcard patterns, default matches all pages
+  - `declarative.includeSelectors`: optional selectors to prefer for text capture
+  - `declarative.excludeSelectors`: optional selectors to strip before capture
+  - `declarative.strategy`: `replace` | `prepend` | `append`
+  - `declarative.priority`: optional ordering hint, higher runs earlier
+  - `declarative.maxTextLength`: optional maximum extracted text length
+  - `declarative.collapseWhitespace`: optional whitespace normalization toggle
 
 Current declarative runtime behavior:
 
-- Prompt fragments are loaded from locally installed packages only.
-- Disabled or incompatible packages are ignored at send time.
+- `prompt_fragment` and `request_policy` packages are loaded into the shared shell plugin runtime and participate in the same hook pipeline as built-in and script plugins.
+- `page_extractor` packages register extractor definitions into the page runtime and can replace, prepend, or append webpage text before Cerebr sends it to the model.
+- Disabled or incompatible packages are ignored at runtime.
 - Registry metadata controls installability and remote disable; package metadata controls local execution.
+
+Cross-host runtime behavior:
+
+- `page` and `shell` script plugins can call `bridge.send(target, command, payload)` to talk to other hosts.
+- `background` script plugins can call `bridge.send()`, `bridge.sendToTab()`, and `bridge.broadcast()` to deliver messages into page or shell runtimes on specific tabs.
+- `page`, `shell`, and `background` script plugins can implement `onBridgeMessage(message, ctx)` to receive routed bridge commands.
 
 ## Install Flow
 
@@ -96,7 +124,8 @@ Current declarative runtime behavior:
 
 - Reviewed script plugins can be listed and installed from the Marketplace tab.
 - Script manifests must include `install.packageUrl` in the registry and `script.entry` in `plugin.json`.
-- Script packages are still limited to `scope = page` or `scope = shell`.
+- Script packages support `scope = page`, `scope = shell`, or `scope = background`.
+- `background` script packages must declare `requiresExtension = true`.
 - Unreviewed local script plugins remain in the developer-mode sideload flow.
 
 ## Developer-Mode Local Script Sideload
@@ -110,7 +139,8 @@ Rules:
 - The developer tab also supports dragging a local plugin folder directly into Cerebr for installation. Dragging the whole folder is recommended so relative `script.entry` files are available.
 - `plugin.json` and `script.entry` must resolve to the current Cerebr origin only. Cross-origin script URLs are rejected.
 - Script manifests must include `script.entry`; optional `script.exportName` defaults to `default`.
-- Script plugins currently support `scope = page` or `scope = shell` only.
+- Script plugins currently support `scope = page`, `scope = shell`, or `scope = background`.
+- `background` script plugins only run in the browser extension host.
 - Sideloaded script plugins store manifest metadata plus either the source URL or a dropped local file bundle, so they can be reloaded on the next launch.
 
 Recommended folder layout:
@@ -118,7 +148,7 @@ Recommended folder layout:
 ```text
 statics/dev-plugins/<plugin-id>/
   plugin.json
-  page.js | shell.js
+  page.js | shell.js | background.js
 ```
 
 ## Compatibility

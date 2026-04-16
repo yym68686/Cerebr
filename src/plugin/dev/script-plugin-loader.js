@@ -14,6 +14,10 @@ const EXPORT_FROM_PATTERN = /(export\s+(?:[^"'()]*?\s+from\s+))(['"])([^'"]+)\2/
 const DYNAMIC_IMPORT_PATTERN = /(import\s*\(\s*)(['"])([^'"]+)\2(\s*(?:,\s*[^)]*)?\))/g;
 const bundledPluginUrlStates = new Map();
 
+function getRuntimeBaseUrl() {
+    return globalThis.location?.href || 'https://cerebr.local/';
+}
+
 function revokeBundledPluginUrls(state) {
     if (!state?.urlByPath) return;
     state.urlByPath.forEach((url) => {
@@ -70,6 +74,16 @@ function getModuleMimeType(modulePath, fileRecord = {}) {
     if (declaredType) return declaredType;
     if (isJsonModulePath(modulePath, fileRecord)) return 'application/json';
     return 'text/javascript';
+}
+
+function createModuleSourceUrl(source, mimeType) {
+    if (typeof URL?.createObjectURL === 'function' && typeof Blob !== 'undefined') {
+        return URL.createObjectURL(new Blob([source], {
+            type: mimeType,
+        }));
+    }
+
+    return `data:${mimeType};charset=utf-8,${encodeURIComponent(source)}`;
 }
 
 async function replaceAsync(source, pattern, replacer) {
@@ -154,9 +168,10 @@ async function createBundledModuleUrl(modulePath, bundleFiles, state) {
             ? await rewriteBundledModuleSource(fileRecord.text, normalizedPath, bundleFiles, state)
             : String(fileRecord.text ?? '');
 
-        const objectUrl = URL.createObjectURL(new Blob([moduleSource], {
-            type: getModuleMimeType(normalizedPath, fileRecord),
-        }));
+        const objectUrl = createModuleSourceUrl(
+            moduleSource,
+            getModuleMimeType(normalizedPath, fileRecord)
+        );
 
         state.urlByPath.set(normalizedPath, objectUrl);
         state.pendingByPath.delete(normalizedPath);
@@ -210,15 +225,17 @@ export async function loadScriptPluginModule(descriptor = {}) {
             const bundledEntryUrl = await createBundledModuleUrl(resolvedEntry.path, bundleFiles, bundledUrlState);
             importUrl = new URL(resolvedEntry.suffix ? `${bundledEntryUrl}${resolvedEntry.suffix}` : bundledEntryUrl);
         } else if (resolvedEntry.kind === 'origin' || resolvedEntry.kind === 'external') {
-            importUrl = new URL(resolvedEntry.url, window.location.href);
+            importUrl = new URL(resolvedEntry.url, getRuntimeBaseUrl());
         } else {
             throw new Error(`Script plugin "${pluginId}" has an unsupported entry "${entryUrl}"`);
         }
     } else {
-        importUrl = new URL(entryUrl, window.location.href);
+        importUrl = new URL(entryUrl, getRuntimeBaseUrl());
     }
 
-    importUrl.searchParams.set('cerebr_plugin_rev', cacheKey);
+    if (importUrl.protocol !== 'data:') {
+        importUrl.searchParams.set('cerebr_plugin_rev', cacheKey);
+    }
 
     const moduleNamespace = await import(importUrl.toString());
     let plugin = null;

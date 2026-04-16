@@ -5,7 +5,8 @@ This guide documents the first developer-mode sideload flow for Cerebr script pl
 ## Scope
 
 - Local sideloaded script plugins only run when developer mode is enabled.
-- `scope = page` and `scope = shell` are supported.
+- `scope = page`, `scope = shell`, and `scope = background` are supported.
+- `background` plugins only run in the browser extension host and must set `requiresExtension = true`.
 - Reviewed marketplace script plugins can be installed normally; this guide is only about local sideloaded script plugins.
 - Dragged local plugin bundles are persisted locally and loaded through Cerebr's bundle loader.
 
@@ -14,7 +15,7 @@ This guide documents the first developer-mode sideload flow for Cerebr script pl
 ```text
 statics/dev-plugins/<plugin-id>/
   plugin.json
-  page.js | shell.js
+  page.js | shell.js | background.js
 ```
 
 Example:
@@ -71,15 +72,19 @@ export default definePlugin({
 
 ## Capability APIs
 
-- `page` plugins can use `page.getSnapshot()`, `page.watchSelection()`, `page.watchSelectors()`, `page.query()` and `page.queryAll()`.
+- `page` plugins can use `page.getSnapshot()`, `page.watchSelection()`, `page.watchSelectors()`, `page.query()`, `page.queryAll()`, `page.registerExtractor()` and `page.listExtractors()`.
 - `page` plugins can use `site.query()`, `site.fill()`, `site.click()` and `site.observe()` for site automation style workflows.
 - `page` plugins can use `ui.showAnchoredAction()` and `ui.mountSlot()`, which require `ui:mount`.
 - `page` plugins can bridge into Cerebr with `shell.focusInput()`, `shell.setDraft()`, `shell.insertText()` and `shell.importText()`.
 - `shell` plugins can use `editor`, `chat`, `prompt` and `ui` APIs. `chat` hooks now run through the official request pipeline instead of intercepting `window.fetch`.
+- `page` and `shell` plugins can use `bridge.send(target, command, payload)` for cross-host messages.
+- `background` plugins can use `browser.getCurrentTab()`, `browser.getTab()`, `browser.queryTabs()`, `browser.reloadTab()`, `storage.get()/set()/remove()`, and `bridge.send()/sendToTab()/broadcast()`.
 
 ## Hook Lifecycle
 
 - `shell` plugins can implement `onBeforeSend`, `onBuildPrompt`, `onRequest`, `onResponse`, `onRequestError`, `onStreamChunk`, `onResponseError` and `onAfterResponse`.
+- `page`, `shell`, and `background` plugins can implement `onBridgeMessage`.
+- `background` plugins can implement `onBackgroundReady`, `onActionClicked`, `onCommand`, `onInstalled`, `onTabActivated`, `onTabUpdated`, and `onTabRemoved`.
 - Hook contexts are isolated per plugin and still enforce manifest permissions.
 - `ctx.chat.retry()` / `ctx.chat.cancel()` only work for plugins that requested `chat:write`.
 - `ctx.prompt.addFragment()` only works for plugins that requested `prompt:extend` or `prompt:write`.
@@ -94,7 +99,7 @@ export default definePlugin({
 
 ## Runtime Behavior
 
-- Page and shell runtimes subscribe to developer-mode changes.
+- Page, shell, and background runtimes subscribe to developer-mode changes.
 - Turning developer mode off unloads all local script plugins.
 - Refreshing a local plugin re-fetches `plugin.json` and reloads `script.entry` with a cache-busting revision token.
 - Plugins installed from dropped local files are persisted in local storage. To update them, drag the updated plugin folder into Cerebr again.
@@ -105,3 +110,5 @@ The repository ships with a sample local plugin:
 
 - Folder: `statics/dev-plugins/explain-selection/`
 - Files: `plugin.json` and `page.js`
+- Folder: `statics/dev-plugins/focus-input-on-toggle/`
+- Files: `plugin.json` and `background.js`

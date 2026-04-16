@@ -78,6 +78,55 @@
         "mode": "package",
         "packageUrl": "plugins/official.page.explain-selection/1.0.0/plugin.json"
       }
+    },
+    {
+      "id": "official.shell.reasoning-retry",
+      "kind": "declarative",
+      "scope": "shell",
+      "displayName": "Reasoning Retry Policy",
+      "description": "Retry when a model returns only reasoning content or leaks think-silently text into the final answer.",
+      "latestVersion": "1.0.0",
+      "publisher": "Cerebr Team",
+      "homepage": "https://github.com/yym68686/Cerebr",
+      "permissions": [
+        "chat:write"
+      ],
+      "compatibility": {
+        "versionRange": ">=2.4.75 <3.0.0"
+      },
+      "availability": {
+        "status": "active",
+        "reason": ""
+      },
+      "install": {
+        "mode": "package",
+        "packageUrl": "plugins/official.shell.reasoning-retry/1.0.0/plugin.json"
+      }
+    },
+    {
+      "id": "official.page.article-focus",
+      "kind": "declarative",
+      "scope": "page",
+      "displayName": "Article Focus Extractor",
+      "description": "Prefer article-like selectors and strip common chrome when Cerebr extracts webpage content for the model.",
+      "latestVersion": "1.0.0",
+      "publisher": "Cerebr Team",
+      "homepage": "https://github.com/yym68686/Cerebr",
+      "permissions": [
+        "page:read"
+      ],
+      "requiresExtension": true,
+      "compatibility": {
+        "versionRange": ">=2.4.75 <3.0.0"
+      },
+      "availability": {
+        "status": "active",
+        "reason": ""
+      },
+      "install": {
+        "mode": "package",
+        "packageUrl": "plugins/official.page.article-focus/1.0.0/plugin.json"
+      }
     }
   ]
 }

@@ -1,9 +1,14 @@
 const SUPPORTED_PLUGIN_KINDS = new Set(['builtin', 'declarative', 'script']);
-const SUPPORTED_PLUGIN_SCOPES = new Set(['page', 'shell', 'prompt']);
-const SUPPORTED_DECLARATIVE_TYPES = new Set(['prompt_fragment']);
+const SUPPORTED_PLUGIN_SCOPES = new Set(['page', 'shell', 'prompt', 'background']);
+const SUPPORTED_DECLARATIVE_TYPES = new Set([
+    'prompt_fragment',
+    'request_policy',
+    'page_extractor',
+]);
 const SUPPORTED_PROMPT_FRAGMENT_PLACEMENTS = new Set(['system.prepend', 'system.append']);
+const SUPPORTED_PAGE_EXTRACTOR_STRATEGIES = new Set(['replace', 'prepend', 'append']);
 const SUPPORTED_AVAILABILITY_STATUSES = new Set(['active', 'disabled']);
-const SUPPORTED_SCRIPT_SCOPES = new Set(['page', 'shell']);
+const SUPPORTED_SCRIPT_SCOPES = new Set(['page', 'shell', 'background']);
 
 function normalizeString(value, fallback = '') {
     const normalized = String(value ?? '').trim();
@@ -34,6 +39,140 @@ function normalizeCompatibility(value) {
 
     return {
         versionRange: normalizeString(value.versionRange),
+    };
+}
+
+function getDefaultBaseUrl() {
+    return globalThis.location?.href || 'https://cerebr.local/';
+}
+
+function normalizePromptFragments(value) {
+    const fragments = Array.isArray(value) ? value : [value];
+
+    return fragments
+        .map((fragment) => {
+            if (typeof fragment === 'string') {
+                const content = normalizeString(fragment);
+                if (!content) return null;
+
+                return {
+                    content,
+                    placement: 'system.append',
+                    priority: 0,
+                };
+            }
+
+            if (!fragment || typeof fragment !== 'object') {
+                return null;
+            }
+
+            const content = normalizeString(fragment.content);
+            if (!content) {
+                return null;
+            }
+
+            const placement = normalizeString(fragment.placement, 'system.append');
+            return {
+                content,
+                placement: SUPPORTED_PROMPT_FRAGMENT_PLACEMENTS.has(placement)
+                    ? placement
+                    : 'system.append',
+                priority: Number.isFinite(Number(fragment.priority))
+                    ? Number(fragment.priority)
+                    : 0,
+            };
+        })
+        .filter(Boolean);
+}
+
+function normalizeRequestPolicy(declarative, id) {
+    const promptFragments = normalizePromptFragments(declarative.promptFragments);
+    const requestPatch = declarative.requestPatch && typeof declarative.requestPatch === 'object'
+        ? declarative.requestPatch
+        : {};
+    const retry = declarative.retry && typeof declarative.retry === 'object'
+        ? declarative.retry
+        : {};
+    const cancel = declarative.cancel && typeof declarative.cancel === 'object'
+        ? declarative.cancel
+        : {};
+
+    const normalized = {
+        type: 'request_policy',
+        applyTo: {
+            modes: normalizeStringArray(declarative.applyTo?.modes),
+            modelIncludes: normalizeStringArray(declarative.applyTo?.modelIncludes),
+            urlIncludes: normalizeStringArray(declarative.applyTo?.urlIncludes),
+        },
+        promptFragments,
+        requestPatch: {
+            url: normalizeString(requestPatch.url),
+            headers: requestPatch.headers && typeof requestPatch.headers === 'object'
+                ? Object.fromEntries(
+                    Object.entries(requestPatch.headers)
+                        .map(([key, value]) => [normalizeString(key), String(value ?? '')])
+                        .filter(([key]) => !!key)
+                )
+                : {},
+            body: requestPatch.body && typeof requestPatch.body === 'object'
+                ? { ...requestPatch.body }
+                : {},
+        },
+        retry: {
+            onErrorCodes: normalizeStringArray(retry.onErrorCodes),
+            maxAttempts: Number.isFinite(Number(retry.maxAttempts)) && Number(retry.maxAttempts) > 0
+                ? Math.max(1, Math.floor(Number(retry.maxAttempts)))
+                : 20,
+            reason: normalizeString(retry.reason),
+        },
+        cancel: {
+            draftMatches: normalizeString(cancel.draftMatches),
+            draftIncludes: normalizeStringArray(cancel.draftIncludes),
+            reason: normalizeString(cancel.reason),
+        },
+    };
+
+    const hasPromptFragments = normalized.promptFragments.length > 0;
+    const hasRequestPatch = !!(
+        normalized.requestPatch.url ||
+        Object.keys(normalized.requestPatch.headers).length > 0 ||
+        Object.keys(normalized.requestPatch.body).length > 0
+    );
+    const hasRetry = normalized.retry.onErrorCodes.length > 0;
+    const hasCancel = !!(
+        normalized.cancel.draftMatches ||
+        normalized.cancel.draftIncludes.length > 0
+    );
+
+    if (!hasPromptFragments && !hasRequestPatch && !hasRetry && !hasCancel) {
+        throw new Error(`Plugin "${id}" request_policy requires at least one rule`);
+    }
+
+    return normalized;
+}
+
+function normalizePageExtractor(declarative, id) {
+    const strategy = normalizeString(declarative.strategy, 'replace');
+
+    return {
+        type: 'page_extractor',
+        matches: normalizeStringArray(declarative.matches),
+        includeSelectors: normalizeStringArray(
+            declarative.includeSelectors || declarative.selectors?.include
+        ),
+        excludeSelectors: normalizeStringArray(
+            declarative.excludeSelectors || declarative.selectors?.exclude
+        ),
+        strategy: SUPPORTED_PAGE_EXTRACTOR_STRATEGIES.has(strategy)
+            ? strategy
+            : 'replace',
+        priority: Number.isFinite(Number(declarative.priority))
+            ? Number(declarative.priority)
+            : 0,
+        maxTextLength: Number.isFinite(Number(declarative.maxTextLength)) && Number(declarative.maxTextLength) > 0
+            ? Math.max(1, Math.floor(Number(declarative.maxTextLength)))
+            : 20000,
+        collapseWhitespace: declarative.collapseWhitespace !== false,
     };
 }
 
@@ -79,6 +218,10 @@ export function validatePluginManifest(manifest, sourceUrl = '') {
         script: null,
     };
 
+    if (scope === 'background' && !normalized.requiresExtension) {
+        throw new Error(`Plugin "${id}" background scope requires requiresExtension = true`);
+    }
+
     if (kind === 'declarative') {
         const declarative = manifest.declarative;
         const type = normalizeString(declarative?.type);
@@ -87,6 +230,9 @@ export function validatePluginManifest(manifest, sourceUrl = '') {
         }
 
         if (type === 'prompt_fragment') {
+            if (scope !== 'prompt' && scope !== 'shell') {
+                throw new Error(`Plugin "${id}" prompt fragments must target "prompt" or "shell"`);
+            }
             const placement = normalizeString(declarative?.placement, 'system.append');
             const content = normalizeString(declarative?.content);
             if (!SUPPORTED_PROMPT_FRAGMENT_PLACEMENTS.has(placement)) {
@@ -100,13 +246,28 @@ export function validatePluginManifest(manifest, sourceUrl = '') {
                 type,
                 placement,
                 content,
+                priority: Number.isFinite(Number(declarative?.priority))
+                    ? Number(declarative.priority)
+                    : 0,
             };
+        } else if (type === 'request_policy') {
+            if (scope !== 'shell') {
+                throw new Error(`Plugin "${id}" request_policy must target "shell"`);
+            }
+
+            normalized.declarative = normalizeRequestPolicy(declarative, id);
+        } else if (type === 'page_extractor') {
+            if (scope !== 'page') {
+                throw new Error(`Plugin "${id}" page_extractor must target "page"`);
+            }
+
+            normalized.declarative = normalizePageExtractor(declarative, id);
         }
     }
 
     if (kind === 'script') {
         if (!SUPPORTED_SCRIPT_SCOPES.has(scope)) {
-            throw new Error(`Plugin "${id}" script plugins must target "page" or "shell"`);
+            throw new Error(`Plugin "${id}" script plugins must target "page", "shell", or "background"`);
         }
 
         const scriptConfig = manifest.script && typeof manifest.script === 'object'
@@ -124,7 +285,7 @@ export function validatePluginManifest(manifest, sourceUrl = '') {
             : entry;
 
         if (sourceUrl) {
-            const sourceOrigin = new URL(sourceUrl, window.location.href).origin;
+            const sourceOrigin = new URL(sourceUrl, getDefaultBaseUrl()).origin;
             const entryOrigin = new URL(resolvedEntry, sourceUrl).origin;
             if (sourceOrigin !== entryOrigin) {
                 throw new Error(`Plugin "${id}" script.entry must stay on the same origin as plugin.json`);
@@ -158,6 +319,10 @@ function normalizeRegistryPluginEntry(entry, registryId, baseUrl) {
     const install = entry?.install && typeof entry.install === 'object' ? entry.install : {};
     const installMode = normalizeString(install.mode, kind === 'builtin' ? 'builtin' : '');
     const packageUrl = normalizeString(install.packageUrl);
+
+    if (scope === 'background' && !entry?.requiresExtension) {
+        throw new Error(`Registry entry "${id}" background scope requires requiresExtension = true`);
+    }
 
     if (kind === 'declarative' || kind === 'script') {
         if (installMode !== 'package') {
@@ -204,7 +369,7 @@ export function validatePluginRegistry(payload, sourceUrl) {
     const displayName = normalizeString(payload.displayName, registryId);
     const generatedAt = normalizeString(payload.generatedAt);
     const plugins = Array.isArray(payload.plugins) ? payload.plugins : [];
-    const baseUrl = sourceUrl || window.location.href;
+    const baseUrl = sourceUrl || getDefaultBaseUrl();
 
     return {
         schemaVersion,

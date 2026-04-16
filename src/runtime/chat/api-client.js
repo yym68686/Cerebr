@@ -11,6 +11,7 @@ import { normalizeChatCompletionsUrl } from '../../utils/api-url.js';
 import { t } from '../../utils/i18n.js';
 import { normalizeMessageForChatCompletions } from '../../utils/message-content.js';
 import { modelSupportsReasoningEffort, normalizeReasoningEffort } from '../../utils/reasoning-effort.js';
+import { sortPromptFragments } from '../../plugin/core/prompt-fragment-utils.js';
 import { createChatError } from './chat-errors.js';
 
 /**
@@ -66,7 +67,7 @@ export async function callAPI({
     const prependPromptFragments = [];
     const appendPromptFragments = [];
 
-    (Array.isArray(promptFragments) ? promptFragments : []).forEach((fragment) => {
+    sortPromptFragments(Array.isArray(promptFragments) ? promptFragments : []).forEach((fragment) => {
         const content = String(fragment?.content || '').trim();
         if (!content) return;
 

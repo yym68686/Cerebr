@@ -32,6 +32,9 @@ function normalizeStringArray(value) {
 }
 
 function isRuntimeSupported(record = {}) {
+    if (normalizeString(record?.scope) === 'background') {
+        return isExtensionEnvironment;
+    }
     if (!record.requiresExtension) return true;
     return isExtensionEnvironment;
 }
@@ -90,8 +93,8 @@ async function ensureScriptPluginInstallable(manifest) {
     if (manifest.kind !== 'script') {
         throw new Error(`Local sideload only supports script plugins. Received "${manifest.kind}"`);
     }
-    if (manifest.scope !== 'page' && manifest.scope !== 'shell') {
-        throw new Error(`Script plugin "${manifest.id}" must target "page" or "shell"`);
+    if (manifest.scope !== 'page' && manifest.scope !== 'shell' && manifest.scope !== 'background') {
+        throw new Error(`Script plugin "${manifest.id}" must target "page", "shell", or "background"`);
     }
     if (getBuiltinPluginManifestById(manifest.id)) {
         throw new Error(`Plugin id "${manifest.id}" is reserved by a built-in plugin`);

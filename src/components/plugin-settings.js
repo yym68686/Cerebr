@@ -51,6 +51,7 @@ function getScopeLabel(scope) {
     if (scope === 'page') return t('plugin_scope_page');
     if (scope === 'shell') return t('plugin_scope_shell');
     if (scope === 'prompt') return t('plugin_scope_prompt');
+    if (scope === 'background') return 'background';
     return scope;
 }
 

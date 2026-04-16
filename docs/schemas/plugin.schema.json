@@ -31,7 +31,7 @@
     },
     "scope": {
       "type": "string",
-      "enum": ["page", "shell", "prompt"]
+      "enum": ["page", "shell", "prompt", "background"]
     },
     "displayName": {
       "type": "string",
@@ -75,7 +75,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["prompt_fragment"]
+          "enum": ["prompt_fragment", "request_policy", "page_extractor"]
         },
         "placement": {
           "type": "string",
@@ -83,6 +83,186 @@
         },
         "content": {
           "type": "string"
+        },
+        "priority": {
+          "type": "number"
+        },
+        "applyTo": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "modes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "modelIncludes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "urlIncludes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "promptFragments": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["content"],
+              "properties": {
+                "content": {
+                  "type": "string"
+                },
+                "placement": {
+                  "type": "string",
+                  "enum": ["system.prepend", "system.append"]
+                },
+                "priority": {
+                  "type": "number"
+                }
+              }
+            },
+            {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["content"],
+                    "properties": {
+                      "content": {
+                        "type": "string"
+                      },
+                      "placement": {
+                        "type": "string",
+                        "enum": ["system.prepend", "system.append"]
+                      },
+                      "priority": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "requestPatch": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "url": {
+              "type": "string"
+            },
+            "headers": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "body": {
+              "type": "object"
+            }
+          }
+        },
+        "retry": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "onErrorCodes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "maxAttempts": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "reason": {
+              "type": "string"
+            }
+          }
+        },
+        "cancel": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "draftMatches": {
+              "type": "string"
+            },
+            "draftIncludes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": "string"
+            }
+          }
+        },
+        "matches": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "includeSelectors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "excludeSelectors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "selectors": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "include": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "strategy": {
+          "type": "string",
+          "enum": ["replace", "prepend", "append"]
+        },
+        "maxTextLength": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "collapseWhitespace": {
+          "type": "boolean"
         }
       },
       "allOf": [
@@ -96,6 +276,47 @@
           },
           "then": {
             "required": ["placement", "content"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "request_policy"
+              }
+            }
+          },
+          "then": {
+            "anyOf": [
+              {
+                "required": ["promptFragments"]
+              },
+              {
+                "required": ["requestPatch"]
+              },
+              {
+                "required": ["retry"]
+              },
+              {
+                "required": ["cancel"]
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "page_extractor"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "strategy": {
+                "enum": ["replace", "prepend", "append"]
+              }
+            }
           }
         }
       ]
@@ -141,7 +362,24 @@
         "required": ["script"],
         "properties": {
           "scope": {
-            "enum": ["page", "shell"]
+            "enum": ["page", "shell", "background"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "const": "background"
+          }
+        }
+      },
+      "then": {
+        "required": ["requiresExtension"],
+        "properties": {
+          "requiresExtension": {
+            "const": true
           }
         }
       }

@@ -1,3 +1,6 @@
+import { createBackgroundPluginRuntime } from '../../plugin/background/background-plugin-runtime.js';
+import { isPluginBridgeMessage } from '../../plugin/bridge/plugin-bridge.js';
+
 // 确保 Service Worker 立即激活
 self.addEventListener('install', (event) => {
   console.log('Service Worker 安装中...', new Date().toISOString());
@@ -25,6 +28,11 @@ self.addEventListener('activate', (event) => {
 
 // 按需注入 PDF.js：避免每个页面都加载 300KB+ 的库
 const pdfJsInjectedTabs = new Set();
+const backgroundPluginRuntime = createBackgroundPluginRuntime();
+
+void backgroundPluginRuntime.start().catch((error) => {
+  console.error('[Cerebr] 初始化 background 插件运行时失败:', error);
+});
 
 // YouTube timedtext URL 缓存：从 webRequest 捕获“带签名的完整 URL”，避免自行构造参数
 const ytTimedTextUrlByTabAndVideo = new Map(); // key: `${tabId}:${videoId}` -> { url, createdAt }
@@ -75,7 +83,7 @@ try {
   // ignore (e.g., missing permission in some environments)
 }
 
-chrome.tabs?.onRemoved?.addListener?.((tabId) => {
+chrome.tabs?.onRemoved?.addListener?.((tabId, removeInfo) => {
   pdfJsInjectedTabs.delete(tabId);
   // 清理该 tab 的 timedtext 缓存
   for (const key of ytTimedTextUrlByTabAndVideo.keys()) {
@@ -83,9 +91,11 @@ chrome.tabs?.onRemoved?.addListener?.((tabId) => {
       ytTimedTextUrlByTabAndVideo.delete(key);
     }
   }
+
+  void backgroundPluginRuntime.handleTabRemoved(tabId, removeInfo || {});
 });
 
-chrome.tabs?.onUpdated?.addListener?.((tabId, changeInfo) => {
+chrome.tabs?.onUpdated?.addListener?.((tabId, changeInfo, tab) => {
   if (changeInfo?.status === 'loading') {
     pdfJsInjectedTabs.delete(tabId);
     // 页面刷新/跳转后清理该 tab 的 timedtext 缓存（新视频会产生新 URL）
@@ -95,6 +105,12 @@ chrome.tabs?.onUpdated?.addListener?.((tabId, changeInfo) => {
       }
     }
   }
+
+  void backgroundPluginRuntime.handleTabUpdated(tabId, changeInfo, tab || null);
+});
+
+chrome.tabs?.onActivated?.addListener?.((activeInfo) => {
+  void backgroundPluginRuntime.handleTabActivated(activeInfo);
 });
 
 async function ensurePdfJsInjected(tabId) {
@@ -179,14 +195,13 @@ chrome.action.onClicked.addListener(async (tab) => {
     const isConnected = await isTabConnected(tab.id);
     if (!isConnected && await reinjectContentScript(tab.id)) {
       await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
-      return;
-    }
-
-    if (isConnected) {
+    } else if (isConnected) {
       await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
     }
   } catch (error) {
     console.error('处理切换失败:', error);
+  } finally {
+    void backgroundPluginRuntime.handleActionClicked(tab || null);
   }
 });
 
@@ -194,16 +209,48 @@ chrome.action.onClicked.addListener(async (tab) => {
 chrome.commands.onCommand.addListener(async (command) => {
   console.log('onCommand:', command);
 
-  if (command === 'toggle_sidebar') {
-    await handleTabCommand('TOGGLE_SIDEBAR_toggle_sidebar');
-  } else if (command === 'new_chat') {
-    await handleTabCommand('NEW_CHAT');
+  try {
+    if (command === 'toggle_sidebar') {
+      await handleTabCommand('TOGGLE_SIDEBAR_toggle_sidebar');
+    } else if (command === 'new_chat') {
+      await handleTabCommand('NEW_CHAT');
+    }
+  } finally {
+    void backgroundPluginRuntime.handleCommand(command);
   }
 });
 
 // 监听来自 content script 的消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // console.log('收到消息:', message, '来自:', sender.tab?.id);
+
+  if (message.type === 'PLUGIN_BRIDGE_RELAY') {
+    (async () => {
+      try {
+        if (!isPluginBridgeMessage(message?.bridge, 'background')) {
+          sendResponse({
+            success: false,
+            error: 'Invalid background bridge message',
+          });
+          return;
+        }
+
+        const results = await backgroundPluginRuntime.handleBridgeMessage(message.bridge, sender);
+        sendResponse({
+          success: true,
+          target: 'background',
+          results,
+        });
+      } catch (error) {
+        console.error('处理 background bridge 消息失败:', error);
+        sendResponse({
+          success: false,
+          error: error?.message || String(error),
+        });
+      }
+    })();
+    return true;
+  }
 
   if (message.type === 'ENSURE_PDFJS') {
     (async () => {
@@ -495,8 +542,12 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 });
 
 // 简化初始化检查
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
     console.log('扩展已安装/更新:', new Date().toISOString());
+    void backgroundPluginRuntime.handleInstalled({
+      ...(details || {}),
+      occurredAt: Date.now(),
+    });
 });
 
 // 改进标签页连接检查

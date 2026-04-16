@@ -45,6 +45,9 @@ function getPluginDescription(entry) {
 }
 
 function isRuntimeSupported(entry) {
+    if (normalizeString(entry?.scope) === 'background') {
+        return isExtensionEnvironment;
+    }
     if (!entry?.requiresExtension) return true;
     return isExtensionEnvironment;
 }

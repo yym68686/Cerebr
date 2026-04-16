@@ -8,7 +8,6 @@ import {
 import { ensureChatElementVisible } from '../../utils/scroll.js';
 import { showToast } from '../../utils/ui.js';
 import { t } from '../../utils/i18n.js';
-import { getInstalledPromptFragments } from '../../plugin/market/plugin-market-service.js';
 import { createChatError, isAbortError, normalizeChatError } from './chat-errors.js';
 
 function cloneMessage(message) {
@@ -207,22 +206,16 @@ export function createChatPipeline({
                 ...promptBaseContext,
             };
 
-            const [installedPromptFragments, pluginPromptResult] = await Promise.all([
-                getInstalledPromptFragments(),
-                pluginRuntime?.buildPromptFragments
-                    ? pluginRuntime.buildPromptFragments(requestContext)
-                    : Promise.resolve({ fragments: [] }),
-            ]);
+            const pluginPromptResult = pluginRuntime?.buildPromptFragments
+                ? await pluginRuntime.buildPromptFragments(requestContext)
+                : { fragments: [] };
 
             const apiParams = {
                 messages,
                 apiConfig,
                 userLanguage,
                 webpageInfo,
-                promptFragments: [
-                    ...(installedPromptFragments || []),
-                    ...((pluginPromptResult?.fragments || [])),
-                ],
+                promptFragments: pluginPromptResult?.fragments || [],
             };
 
             const requestLifecycle = {

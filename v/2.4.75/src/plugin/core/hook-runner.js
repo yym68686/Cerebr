@@ -1,11 +1,19 @@
 const DEFAULT_HOOK_TIMEOUT_MS = 1500;
 
 const DEFAULT_HOOK_TIMEOUTS = Object.freeze({
+    onBackgroundReady: 900,
     onBeforeSend: 1600,
     onBuildPrompt: 900,
     onRequest: 900,
     onResponseError: 900,
     onAfterResponse: 900,
+    onBridgeMessage: 320,
+    onActionClicked: 320,
+    onCommand: 320,
+    onInstalled: 900,
+    onTabActivated: 320,
+    onTabRemoved: 320,
+    onTabUpdated: 320,
     onStreamChunk: 220,
     onInputChanged: 220,
     onPageSnapshot: 320,
@@ -131,22 +139,25 @@ export function createHookRunner({
     };
 
     const invokeHook = async (hookName, args = [], options = {}) => {
-        const results = [];
+        const entries = resolveEntries();
+        const results = await Promise.all(
+            entries.map(async (entry) => {
+                const result = await callPluginHook(entry, hookName, resolveHookArgs(entry, args), {
+                    logger,
+                    timeoutMs: options.timeoutMs ?? null,
+                });
+                if (!result.called || typeof result.value === 'undefined') {
+                    return null;
+                }
 
-        for (const entry of resolveEntries()) {
-            const result = await callPluginHook(entry, hookName, resolveHookArgs(entry, args), {
-                logger,
-                timeoutMs: options.timeoutMs ?? null,
-            });
-            if (!result.called || typeof result.value === 'undefined') continue;
+                return {
+                    pluginId: entry?.plugin?.id || '',
+                    value: result.value,
+                };
+            })
+        );
 
-            results.push({
-                pluginId: entry?.plugin?.id || '',
-                value: result.value,
-            });
-        }
-
-        return results;
+        return results.filter(Boolean);
     };
 
     const runWaterfallHook = async (hookName, initialValue, args = [], options = {}) => {
@@ -183,20 +194,23 @@ export function createHookRunner({
     };
 
     const collectHookResults = async (hookName, args = [], options = {}) => {
-        const collected = [];
+        const entries = resolveEntries();
+        const collected = await Promise.all(
+            entries.map(async (entry) => {
+                const result = await callPluginHook(entry, hookName, resolveHookArgs(entry, args), {
+                    logger,
+                    timeoutMs: options.timeoutMs ?? null,
+                });
+                if (!result.called) {
+                    return [];
+                }
 
-        for (const entry of resolveEntries()) {
-            const result = await callPluginHook(entry, hookName, resolveHookArgs(entry, args), {
-                logger,
-                timeoutMs: options.timeoutMs ?? null,
-            });
-            if (!result.called) continue;
+                const pluginId = entry?.plugin?.id || '';
+                return flattenHookValue(pluginId, result.value);
+            })
+        );
 
-            const pluginId = entry?.plugin?.id || '';
-            collected.push(...flattenHookValue(pluginId, result.value));
-        }
-
-        return collected;
+        return collected.flat();
     };
 
     return {

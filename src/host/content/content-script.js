@@ -5,7 +5,7 @@ import {
   getSiteKeyFromLocation,
   pruneSiteOverridesInPlace,
 } from '../../platform/site-key.js';
-import { createPluginBridgeMessage } from '../../plugin/bridge/plugin-bridge.js';
+import { createPluginBridgeMessage, isPluginBridgeMessage } from '../../plugin/bridge/plugin-bridge.js';
 import { createPagePluginRuntime } from '../../plugin/page/page-plugin-runtime.js';
 
 const SITE_OVERRIDES_KEY = 'panelSiteOverridesV1';
@@ -1188,6 +1188,80 @@ let pagePluginRuntime = null;
 let inFlightPageContentPromise = null;
 let hasBooted = false;
 
+async function routePluginBridgeMessage(bridgeMessage, bridgeSource = null) {
+  if (!isPluginBridgeMessage(bridgeMessage)) {
+    return {
+      success: false,
+      error: 'Invalid bridge message',
+    };
+  }
+
+  if (bridgeMessage.target === 'shell') {
+    return {
+      success: sidebar?.sendReadyAwareMessage?.(bridgeMessage) ?? false,
+      target: 'shell',
+    };
+  }
+
+  if (bridgeMessage.target === 'page') {
+    if (!pagePluginRuntime?.handleBridgeMessage) {
+      return {
+        success: false,
+        target: 'page',
+        error: 'Page plugin runtime unavailable',
+      };
+    }
+
+    const results = await pagePluginRuntime.handleBridgeMessage(bridgeMessage, bridgeSource);
+    return {
+      success: true,
+      target: 'page',
+      results,
+    };
+  }
+
+  if (bridgeMessage.target === 'background') {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'PLUGIN_BRIDGE_RELAY',
+        bridge: bridgeMessage
+      });
+      return response || {
+        success: true,
+        target: 'background',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        target: 'background',
+        error: error?.message || String(error),
+      };
+    }
+  }
+
+  return {
+    success: false,
+    target: String(bridgeMessage.target || ''),
+    error: 'Unsupported bridge target',
+  };
+}
+
+function handleWindowPluginBridgeMessage(event) {
+  const iframeWindow = sidebar?.iframe?.contentWindow || null;
+  if (!iframeWindow || event?.source !== iframeWindow) {
+    return;
+  }
+  if (!isPluginBridgeMessage(event?.data)) {
+    return;
+  }
+
+  void routePluginBridgeMessage(event.data, {
+    host: String(event?.data?.meta?.sourceHost || 'shell'),
+    pluginId: String(event?.data?.meta?.sourcePluginId || ''),
+    origin: String(event?.origin || ''),
+  });
+}
+
 function handleRuntimeMessage(message, sender, sendResponse) {
     // console.log('content.js 收到消息:', message.type);
 
@@ -1272,6 +1346,29 @@ function handleRuntimeMessage(message, sender, sendResponse) {
 	        return true;
 	    }
 
+    if (message.type === 'PLUGIN_BRIDGE_RELAY') {
+      (async () => {
+        const result = await routePluginBridgeMessage(message?.bridge, {
+          host: String(message?.bridge?.meta?.sourceHost || 'background'),
+          pluginId: String(message?.bridge?.meta?.sourcePluginId || ''),
+          sender: sender ? {
+            url: sender.url || '',
+            origin: sender.origin || '',
+            documentId: sender.documentId || '',
+            frameId: Number.isFinite(Number(sender.frameId)) ? Number(sender.frameId) : null,
+            tabId: sender.tab?.id ?? null,
+          } : null,
+        });
+        sendResponse(result);
+      })().catch((error) => {
+        sendResponse({
+          success: false,
+          error: error?.message || String(error),
+        });
+      });
+      return true;
+    }
+
     return true;
 }
 
@@ -1353,6 +1450,7 @@ export function bootContentScript() {
   }
 
   attachLifecycleListeners();
+  window.addEventListener('message', handleWindowPluginBridgeMessage);
   return handleRuntimeMessage;
 }
 
@@ -1562,6 +1660,18 @@ async function extractPageContent(skipWaitContent = false) {
 
       mainContent = tempContainer.innerText + frameContent;
       mainContent = mainContent.replace(/\s+/g, ' ').replace(/\n\s*\n/g, '\n').trim();
+    }
+
+    if (pagePluginRuntime?.applyExtractors) {
+      try {
+        mainContent = pagePluginRuntime.applyExtractors({
+          title: document.title,
+          url: currentUrl,
+          content: mainContent
+        });
+      } catch (error) {
+        console.error('页面提取插件执行失败:', error);
+      }
     }
 
     // YouTube：字幕单独返回（由侧边栏决定如何拼接/缓存）

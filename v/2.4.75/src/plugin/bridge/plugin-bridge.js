@@ -1,12 +1,18 @@
 export const CEREBR_PLUGIN_BRIDGE_TYPE = 'CEREBR_PLUGIN_BRIDGE';
 
-export function createPluginBridgeMessage(target, command, payload = {}) {
-    return {
+export function createPluginBridgeMessage(target, command, payload = {}, meta = null) {
+    const message = {
         type: CEREBR_PLUGIN_BRIDGE_TYPE,
         target,
         command,
         payload,
     };
+
+    if (meta && typeof meta === 'object') {
+        message.meta = { ...meta };
+    }
+
+    return message;
 }
 
 export function isPluginBridgeMessage(data, target = null) {

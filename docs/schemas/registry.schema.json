@@ -51,7 +51,7 @@
           },
           "scope": {
             "type": "string",
-            "enum": ["page", "shell", "prompt"]
+            "enum": ["page", "shell", "prompt", "background"]
           },
           "displayName": {
             "type": "string",
@@ -143,6 +143,23 @@
                           "const": "package"
                         }
                       }
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "scope": {
+                      "const": "background"
+                    }
+                  }
+                },
+                "then": {
+                  "required": ["requiresExtension"],
+                  "properties": {
+                    "requiresExtension": {
+                      "const": true
                     }
                   }
                 }
