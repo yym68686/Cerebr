@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "official.prompt.concise-reply",
+  "version": "1.0.1",
+  "kind": "declarative",
+  "scope": "prompt",
+  "displayName": "Concise Reply",
+  "nameKey": "plugin_official_concise_reply_name",
+  "description": "Append a short-answer instruction to the system prompt for users who prefer tighter responses.",
+  "descriptionKey": "plugin_official_concise_reply_description",
+  "publisher": "Cerebr Team",
+  "homepage": "https://github.com/yym68686/Cerebr",
+  "permissions": [
+    "prompt:extend"
+  ],
+  "compatibility": {
+    "versionRange": ">=2.4.66 <3.0.0"
+  },
+  "declarative": {
+    "type": "prompt_fragment",
+    "placement": "system.append",
+    "content": "Prefer concise, high-signal answers by default. Keep structure clear, avoid repetition, and only expand when the user explicitly asks for depth.",
+    "contentKey": "plugin_official_concise_reply_prompt"
+  }
+}

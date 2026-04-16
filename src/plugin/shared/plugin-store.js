@@ -45,6 +45,8 @@ function normalizePluginRecord(entry) {
     }
     normalized.displayName = normalizeString(entry?.displayName);
     normalized.description = normalizeString(entry?.description);
+    normalized.nameKey = normalizeString(entry?.nameKey);
+    normalized.descriptionKey = normalizeString(entry?.descriptionKey);
     normalized.installedVersion = normalizeString(entry?.installedVersion);
     normalized.latestVersion = normalizeString(entry?.latestVersion);
     normalized.homepage = normalizeString(entry?.homepage);
@@ -55,6 +57,7 @@ function normalizePluginRecord(entry) {
     normalized.availability = {
         status: normalizeString(entry?.availability?.status, 'active'),
         reason: normalizeString(entry?.availability?.reason),
+        reasonKey: normalizeString(entry?.availability?.reasonKey),
     };
 
     if (typeof entry?.installedAt === 'number' && Number.isFinite(entry.installedAt)) {
@@ -226,6 +229,8 @@ export async function installBuiltinPlugin(manifest = {}) {
         requiresExtension: !!manifest.requiresExtension,
         displayName: normalizeString(manifest.displayName),
         description: normalizeString(manifest.description),
+        nameKey: normalizeString(manifest.nameKey),
+        descriptionKey: normalizeString(manifest.descriptionKey),
         installedVersion: normalizeString(manifest.latestVersion),
         latestVersion: normalizeString(manifest.latestVersion),
         homepage: normalizeString(manifest.homepage),
@@ -236,6 +241,7 @@ export async function installBuiltinPlugin(manifest = {}) {
         availability: {
             status: normalizeString(manifest.availability?.status, 'active'),
             reason: normalizeString(manifest.availability?.reason),
+            reasonKey: normalizeString(manifest.availability?.reasonKey),
         },
         installedAt: currentRecord.installedAt || Date.now(),
         updatedAt: Date.now(),
@@ -266,6 +272,8 @@ export async function installLocalScriptPlugin(manifest = {}, runtimeSource = {}
         requiresExtension: !!manifest.requiresExtension,
         displayName: normalizeString(manifest.displayName),
         description: normalizeString(manifest.description),
+        nameKey: normalizeString(manifest.nameKey),
+        descriptionKey: normalizeString(manifest.descriptionKey),
         installedVersion: normalizeString(manifest.version),
         latestVersion: normalizeString(manifest.version),
         homepage: normalizeString(manifest.homepage),
@@ -302,6 +310,8 @@ export async function installMarketplacePlugin(manifest = {}, marketEntry = {}) 
         requiresExtension: !!(manifest.requiresExtension ?? marketEntry.requiresExtension),
         displayName: normalizeString(manifest.displayName || marketEntry.displayName),
         description: normalizeString(manifest.description || marketEntry.description),
+        nameKey: normalizeString(manifest.nameKey || marketEntry.nameKey),
+        descriptionKey: normalizeString(manifest.descriptionKey || marketEntry.descriptionKey),
         installedVersion: normalizeString(manifest.version),
         latestVersion: normalizeString(marketEntry.latestVersion || manifest.version),
         homepage: normalizeString(manifest.homepage || marketEntry.homepage),
@@ -314,6 +324,7 @@ export async function installMarketplacePlugin(manifest = {}, marketEntry = {}) 
         availability: {
             status: normalizeString(marketEntry.availability?.status, 'active'),
             reason: normalizeString(marketEntry.availability?.reason),
+            reasonKey: normalizeString(marketEntry.availability?.reasonKey),
         },
         installedAt: currentRecord.installedAt || Date.now(),
         updatedAt: Date.now(),
@@ -380,8 +391,11 @@ export async function reconcileRegistryPluginState(registryEntries = []) {
             availability: {
                 status: normalizeString(registryEntry.availability?.status, 'active'),
                 reason: normalizeString(registryEntry.availability?.reason),
+                reasonKey: normalizeString(registryEntry.availability?.reasonKey),
             },
             homepage: normalizeString(registryEntry.homepage),
+            nameKey: normalizeString(registryEntry.nameKey),
+            descriptionKey: normalizeString(registryEntry.descriptionKey),
         });
 
         if (!pluginRecordsEqual(currentRecord, candidateRecord)) {

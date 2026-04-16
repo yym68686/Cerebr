@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "official.page.explain-selection",
+  "version": "1.0.1",
+  "kind": "script",
+  "scope": "page",
+  "displayName": "Explain Selection",
+  "nameKey": "plugin_official_explain_selection_name",
+  "description": "Adds a selection action that sends the highlighted text into Cerebr with an explanation prompt.",
+  "descriptionKey": "plugin_official_explain_selection_description",
+  "publisher": "Cerebr Team",
+  "homepage": "https://github.com/yym68686/Cerebr",
+  "defaultEnabled": true,
+  "requiresExtension": true,
+  "permissions": [
+    "page:selection",
+    "shell:input",
+    "ui:mount"
+  ],
+  "compatibility": {
+    "versionRange": ">=2.4.66 <3.0.0"
+  },
+  "script": {
+    "entry": "./page.js"
+  }
+}

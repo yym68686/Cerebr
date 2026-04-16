@@ -37,9 +37,15 @@
       "type": "string",
       "minLength": 1
     },
+    "nameKey": {
+      "type": "string"
+    },
     "description": {
       "type": "string",
       "minLength": 1
+    },
+    "descriptionKey": {
+      "type": "string"
     },
     "defaultEnabled": {
       "type": "boolean"
@@ -84,6 +90,9 @@
         "content": {
           "type": "string"
         },
+        "contentKey": {
+          "type": "string"
+        },
         "priority": {
           "type": "number"
         },
@@ -119,9 +128,19 @@
             {
               "type": "object",
               "additionalProperties": false,
-              "required": ["content"],
+              "anyOf": [
+                {
+                  "required": ["content"]
+                },
+                {
+                  "required": ["contentKey"]
+                }
+              ],
               "properties": {
                 "content": {
+                  "type": "string"
+                },
+                "contentKey": {
                   "type": "string"
                 },
                 "placement": {
@@ -143,9 +162,19 @@
                   {
                     "type": "object",
                     "additionalProperties": false,
-                    "required": ["content"],
+                    "anyOf": [
+                      {
+                        "required": ["content"]
+                      },
+                      {
+                        "required": ["contentKey"]
+                      }
+                    ],
                     "properties": {
                       "content": {
+                        "type": "string"
+                      },
+                      "contentKey": {
                         "type": "string"
                       },
                       "placement": {
@@ -275,7 +304,15 @@
             }
           },
           "then": {
-            "required": ["placement", "content"]
+            "required": ["placement"],
+            "anyOf": [
+              {
+                "required": ["content"]
+              },
+              {
+                "required": ["contentKey"]
+              }
+            ]
           }
         },
         {

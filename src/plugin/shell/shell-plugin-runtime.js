@@ -3,6 +3,7 @@ import { createHostedPluginRuntime } from '../core/hosted-plugin-runtime.js';
 import { createPermissionController } from '../core/plugin-permissions.js';
 import { createPluginResourceStore } from '../core/plugin-resource-store.js';
 import {
+    materializePromptFragment,
     normalizePromptFragment,
     sortPromptFragments,
 } from '../core/prompt-fragment-utils.js';
@@ -195,7 +196,7 @@ export function createShellPluginRuntime({
                 pluginResources.addDisposer(entry?.plugin?.id, dispose);
 
                 return {
-                    ...normalized,
+                    ...(materializePromptFragment(normalized) || normalized),
                     dispose,
                 };
             },
@@ -207,7 +208,9 @@ export function createShellPluginRuntime({
                 const resources = pluginResources.ensure(entry?.plugin?.id);
                 return sortPromptFragments(
                     [...resources.promptFragments.values()].map((fragment) => ({ ...fragment }))
-                );
+                )
+                    .map((fragment) => materializePromptFragment(fragment))
+                    .filter(Boolean);
             },
         };
     };
@@ -341,7 +344,7 @@ export function createShellPluginRuntime({
                         return null;
                     }
                     directives.promptFragments.push(normalized);
-                    return normalized;
+                    return materializePromptFragment(normalized) || normalized;
                 },
             },
             ui: {
@@ -444,7 +447,9 @@ export function createShellPluginRuntime({
                     ...collectPersistentPromptFragments(),
                     ...hookStates.flatMap((state) => state.directives.promptFragments),
                     ...dynamicFragments,
-                ]),
+                ])
+                    .map((fragment) => materializePromptFragment(fragment))
+                    .filter(Boolean),
             };
         },
         async transformRequest(requestDescriptor, requestContext = {}) {

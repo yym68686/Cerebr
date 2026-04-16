@@ -27,6 +27,7 @@ function normalizeAvailability(value) {
     return {
         status: SUPPORTED_AVAILABILITY_STATUSES.has(status) ? status : 'active',
         reason: normalizeString(value?.reason),
+        reasonKey: normalizeString(value?.reasonKey),
     };
 }
 
@@ -72,8 +73,10 @@ function normalizePromptFragments(value) {
             }
 
             const placement = normalizeString(fragment.placement, 'system.append');
+            const contentKey = normalizeString(fragment.contentKey);
             return {
                 content,
+                contentKey,
                 placement: SUPPORTED_PROMPT_FRAGMENT_PLACEMENTS.has(placement)
                     ? placement
                     : 'system.append',
@@ -211,6 +214,8 @@ export function validatePluginManifest(manifest, sourceUrl = '') {
         defaultEnabled: manifest.defaultEnabled !== false,
         requiresExtension: !!manifest.requiresExtension,
         permissions: normalizeStringArray(manifest.permissions),
+        nameKey: normalizeString(manifest.nameKey),
+        descriptionKey: normalizeString(manifest.descriptionKey),
         compatibility: normalizeCompatibility(manifest.compatibility),
         homepage: normalizeString(manifest.homepage),
         publisher: normalizeString(manifest.publisher),
@@ -235,17 +240,19 @@ export function validatePluginManifest(manifest, sourceUrl = '') {
             }
             const placement = normalizeString(declarative?.placement, 'system.append');
             const content = normalizeString(declarative?.content);
+            const contentKey = normalizeString(declarative?.contentKey);
             if (!SUPPORTED_PROMPT_FRAGMENT_PLACEMENTS.has(placement)) {
                 throw new Error(`Plugin "${id}" has unsupported prompt placement "${placement}"`);
             }
-            if (!content) {
-                throw new Error(`Plugin "${id}" prompt fragment requires content`);
+            if (!content && !contentKey) {
+                throw new Error(`Plugin "${id}" prompt fragment requires content or contentKey`);
             }
 
             normalized.declarative = {
                 type,
                 placement,
                 content,
+                contentKey,
                 priority: Number.isFinite(Number(declarative?.priority))
                     ? Number(declarative.priority)
                     : 0,
@@ -343,6 +350,8 @@ function normalizeRegistryPluginEntry(entry, registryId, baseUrl) {
         description,
         latestVersion,
         requiresExtension: !!entry?.requiresExtension,
+        nameKey: normalizeString(entry?.nameKey),
+        descriptionKey: normalizeString(entry?.descriptionKey),
         permissions: normalizeStringArray(entry.permissions),
         compatibility: normalizeCompatibility(entry.compatibility),
         availability: normalizeAvailability(entry.availability),

@@ -16,14 +16,32 @@ import {
 import { subscribePluginState } from '../plugin/shared/plugin-store.js';
 import { showToast } from '../utils/ui.js';
 
+function resolveLocalizedText(key, fallback = '') {
+    const normalizedKey = String(key || '').trim();
+    const normalizedFallback = String(fallback || '').trim();
+
+    if (!normalizedKey) {
+        return normalizedFallback;
+    }
+
+    const translated = t(normalizedKey);
+    if (translated && translated !== normalizedKey) {
+        return translated;
+    }
+
+    return normalizedFallback || normalizedKey;
+}
+
 function resolvePluginName(item) {
-    if (item?.nameKey) return t(item.nameKey);
-    return String(item?.displayName || item?.id || '').trim();
+    return resolveLocalizedText(item?.nameKey, item?.displayName || item?.id);
 }
 
 function resolvePluginDescription(item) {
-    if (item?.descriptionKey) return t(item.descriptionKey);
-    return String(item?.description || '').trim();
+    return resolveLocalizedText(item?.descriptionKey, item?.description);
+}
+
+function resolveAvailabilityReason(item) {
+    return resolveLocalizedText(item?.availabilityReasonKey, item?.availabilityReason);
 }
 
 function getPermissionLabel(permission) {
@@ -41,6 +59,12 @@ function getPermissionLabel(permission) {
         'site:click': 'plugin_permission_site_click',
         'site:observe': 'plugin_permission_site_observe',
         'ui:mount': 'plugin_permission_ui_mount',
+        'tabs:read': 'plugin_permission_tabs_read',
+        'tabs:write': 'plugin_permission_tabs_write',
+        'tabs:message': 'plugin_permission_tabs_message',
+        'storage:read': 'plugin_permission_storage_read',
+        'storage:write': 'plugin_permission_storage_write',
+        'bridge:send': 'plugin_permission_bridge_send',
     };
 
     const key = mapping[permission];
@@ -51,7 +75,7 @@ function getScopeLabel(scope) {
     if (scope === 'page') return t('plugin_scope_page');
     if (scope === 'shell') return t('plugin_scope_shell');
     if (scope === 'prompt') return t('plugin_scope_prompt');
-    if (scope === 'background') return 'background';
+    if (scope === 'background') return t('plugin_scope_background');
     return scope;
 }
 
@@ -221,7 +245,7 @@ function buildInstalledCard(item) {
     header.appendChild(content);
     card.appendChild(header);
 
-    const footnoteText = item.availabilityReason || (!item.runtimeSupported && item.requiresExtension
+    const footnoteText = resolveAvailabilityReason(item) || (!item.runtimeSupported && item.requiresExtension
         ? t('plugin_disabled_requires_extension')
         : '');
 

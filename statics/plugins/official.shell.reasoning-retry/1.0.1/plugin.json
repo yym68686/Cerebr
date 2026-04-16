@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "official.shell.reasoning-retry",
+  "version": "1.0.1",
+  "kind": "declarative",
+  "scope": "shell",
+  "displayName": "Reasoning Retry Policy",
+  "nameKey": "plugin_official_reasoning_retry_name",
+  "description": "Retry when a model returns only reasoning content or leaks think-silently text into the final answer.",
+  "descriptionKey": "plugin_official_reasoning_retry_description",
+  "defaultEnabled": true,
+  "permissions": [
+    "chat:write"
+  ],
+  "compatibility": {
+    "versionRange": ">=2.4.75 <3.0.0"
+  },
+  "publisher": "Cerebr Team",
+  "homepage": "https://github.com/yym68686/Cerebr",
+  "declarative": {
+    "type": "request_policy",
+    "retry": {
+      "onErrorCodes": [
+        "CEREBR_MISFILED_THINK_SILENTLY",
+        "CEREBR_REASONING_ONLY_RESPONSE"
+      ],
+      "maxAttempts": 20,
+      "reason": "official:reasoning-retry"
+    }
+  }
+}

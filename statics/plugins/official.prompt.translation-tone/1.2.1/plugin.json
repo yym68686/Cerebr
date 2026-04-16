@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "official.prompt.translation-tone",
+  "version": "1.2.1",
+  "kind": "declarative",
+  "scope": "prompt",
+  "displayName": "Translation Tone Guard",
+  "nameKey": "plugin_official_translation_tone_name",
+  "description": "Preserve names, formatting, code spans, and source tone during translation-style prompts.",
+  "descriptionKey": "plugin_official_translation_tone_description",
+  "publisher": "Cerebr Team",
+  "homepage": "https://github.com/yym68686/Cerebr",
+  "permissions": [
+    "prompt:extend"
+  ],
+  "compatibility": {
+    "versionRange": ">=2.4.66 <3.0.0"
+  },
+  "declarative": {
+    "type": "prompt_fragment",
+    "placement": "system.append",
+    "content": "When translating or paraphrasing text, preserve proper names, inline code, quoted literals, and structural formatting unless the user explicitly asks to normalize them. Keep the tone aligned with the source.",
+    "contentKey": "plugin_official_translation_tone_prompt"
+  }
+}

@@ -1,9 +1,35 @@
+import { t } from '../../utils/i18n.js';
 import { normalizeNumber, normalizeString } from './runtime-utils.js';
 
 const SUPPORTED_PROMPT_FRAGMENT_PLACEMENTS = new Set([
     'system.prepend',
     'system.append',
 ]);
+
+function resolveLocalizedPromptContent(contentKey, fallback = '') {
+    const normalizedKey = normalizeString(contentKey);
+    const normalizedFallback = normalizeString(fallback);
+
+    if (!normalizedKey) {
+        return normalizedFallback;
+    }
+
+    const translated = t(normalizedKey);
+    if (translated && translated !== normalizedKey) {
+        return normalizeString(translated, normalizedFallback);
+    }
+
+    try {
+        const extensionMessage = chrome?.i18n?.getMessage?.(normalizedKey) || '';
+        if (extensionMessage) {
+            return normalizeString(extensionMessage, normalizedFallback);
+        }
+    } catch {
+        // ignore
+    }
+
+    return normalizedFallback;
+}
 
 export function normalizePromptFragment(fragment, pluginId) {
     if (typeof fragment === 'string') {
@@ -24,7 +50,8 @@ export function normalizePromptFragment(fragment, pluginId) {
     }
 
     const content = normalizeString(fragment.content);
-    if (!content) {
+    const contentKey = normalizeString(fragment.contentKey);
+    if (!content && !contentKey) {
         return null;
     }
 
@@ -33,9 +60,10 @@ export function normalizePromptFragment(fragment, pluginId) {
         ? placement
         : 'system.append';
     const normalizedPluginId = normalizeString(fragment.pluginId, pluginId);
+    const idSource = content || contentKey;
     const fragmentId = normalizeString(
         fragment.id,
-        `${normalizedPluginId || 'plugin'}:fragment:${content.slice(0, 32)}`
+        `${normalizedPluginId || 'plugin'}:fragment:${idSource.slice(0, 32)}`
     );
 
     return {
@@ -43,6 +71,23 @@ export function normalizePromptFragment(fragment, pluginId) {
         id: fragmentId,
         placement: normalizedPlacement,
         priority: normalizeNumber(fragment.priority, 0),
+        content,
+        contentKey,
+    };
+}
+
+export function materializePromptFragment(fragment) {
+    if (!fragment || typeof fragment !== 'object') {
+        return null;
+    }
+
+    const content = resolveLocalizedPromptContent(fragment.contentKey, fragment.content);
+    if (!content) {
+        return null;
+    }
+
+    return {
+        ...fragment,
         content,
     };
 }

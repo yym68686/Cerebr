@@ -9,8 +9,10 @@
       "kind": "declarative",
       "scope": "prompt",
       "displayName": "Concise Reply",
+      "nameKey": "plugin_official_concise_reply_name",
       "description": "Append a short-answer instruction to the system prompt for users who prefer tighter responses.",
-      "latestVersion": "1.0.0",
+      "descriptionKey": "plugin_official_concise_reply_description",
+      "latestVersion": "1.0.1",
       "publisher": "Cerebr Team",
       "homepage": "https://github.com/yym68686/Cerebr",
       "permissions": [
@@ -25,7 +27,7 @@
       },
       "install": {
         "mode": "package",
-        "packageUrl": "plugins/official.prompt.concise-reply/1.0.0/plugin.json"
+        "packageUrl": "plugins/official.prompt.concise-reply/1.0.1/plugin.json"
       }
     },
     {
@@ -33,8 +35,10 @@
       "kind": "declarative",
       "scope": "prompt",
       "displayName": "Translation Tone Guard",
+      "nameKey": "plugin_official_translation_tone_name",
       "description": "Preserve names, formatting, code spans, and source tone during translation-style prompts.",
-      "latestVersion": "1.2.0",
+      "descriptionKey": "plugin_official_translation_tone_description",
+      "latestVersion": "1.2.1",
       "publisher": "Cerebr Team",
       "homepage": "https://github.com/yym68686/Cerebr",
       "permissions": [
@@ -45,11 +49,12 @@
       },
       "availability": {
         "status": "disabled",
-        "reason": "Temporarily withdrawn after reviewer feedback."
+        "reason": "Temporarily withdrawn after reviewer feedback.",
+        "reasonKey": "plugin_official_translation_tone_disabled_reason"
       },
       "install": {
         "mode": "package",
-        "packageUrl": "plugins/official.prompt.translation-tone/1.2.0/plugin.json"
+        "packageUrl": "plugins/official.prompt.translation-tone/1.2.1/plugin.json"
       }
     },
     {
@@ -57,8 +62,10 @@
       "kind": "script",
       "scope": "page",
       "displayName": "Explain Selection",
+      "nameKey": "plugin_official_explain_selection_name",
       "description": "Adds a selection action that sends the highlighted text into Cerebr with an explanation prompt.",
-      "latestVersion": "1.0.0",
+      "descriptionKey": "plugin_official_explain_selection_description",
+      "latestVersion": "1.0.1",
       "publisher": "Cerebr Team",
       "homepage": "https://github.com/yym68686/Cerebr",
       "permissions": [
@@ -76,7 +83,7 @@
       },
       "install": {
         "mode": "package",
-        "packageUrl": "plugins/official.page.explain-selection/1.0.0/plugin.json"
+        "packageUrl": "plugins/official.page.explain-selection/1.0.1/plugin.json"
       }
     },
     {
@@ -84,8 +91,10 @@
       "kind": "declarative",
       "scope": "shell",
       "displayName": "Reasoning Retry Policy",
+      "nameKey": "plugin_official_reasoning_retry_name",
       "description": "Retry when a model returns only reasoning content or leaks think-silently text into the final answer.",
-      "latestVersion": "1.0.0",
+      "descriptionKey": "plugin_official_reasoning_retry_description",
+      "latestVersion": "1.0.1",
       "publisher": "Cerebr Team",
       "homepage": "https://github.com/yym68686/Cerebr",
       "permissions": [
@@ -100,7 +109,7 @@
       },
       "install": {
         "mode": "package",
-        "packageUrl": "plugins/official.shell.reasoning-retry/1.0.0/plugin.json"
+        "packageUrl": "plugins/official.shell.reasoning-retry/1.0.1/plugin.json"
       }
     },
     {
@@ -108,8 +117,10 @@
       "kind": "declarative",
       "scope": "page",
       "displayName": "Article Focus Extractor",
+      "nameKey": "plugin_official_article_focus_name",
       "description": "Prefer article-like selectors and strip common chrome when Cerebr extracts webpage content for the model.",
-      "latestVersion": "1.0.0",
+      "descriptionKey": "plugin_official_article_focus_description",
+      "latestVersion": "1.0.1",
       "publisher": "Cerebr Team",
       "homepage": "https://github.com/yym68686/Cerebr",
       "permissions": [
@@ -125,7 +136,7 @@
       },
       "install": {
         "mode": "package",
-        "packageUrl": "plugins/official.page.article-focus/1.0.0/plugin.json"
+        "packageUrl": "plugins/official.page.article-focus/1.0.1/plugin.json"
       }
     }
   ]

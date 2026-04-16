@@ -73,11 +73,12 @@ function toInstalledViewModel(entry, state, appVersion) {
         registryId: normalizeString(entry.registryId),
         displayName: getPluginDisplayName(entry),
         description: getPluginDescription(entry),
-        nameKey: entry.nameKey || '',
-        descriptionKey: entry.descriptionKey || '',
+        nameKey: normalizeString(entry.nameKey || record.nameKey),
+        descriptionKey: normalizeString(entry.descriptionKey || record.descriptionKey),
         permissions: record.permissions?.length ? record.permissions : (entry.permissions || []),
         availabilityStatus,
         availabilityReason,
+        availabilityReasonKey: normalizeString(record.availability?.reasonKey || entry.availability?.reasonKey),
         compatible,
         compatibilityRange,
         enabled: isPluginEnabled(state, entry.id, entry.defaultEnabled !== false),
@@ -110,11 +111,12 @@ function toMarketplaceViewModel(entry, state, appVersion) {
         registryId: normalizeString(entry.registryId),
         displayName: getPluginDisplayName(entry),
         description: getPluginDescription(entry),
-        nameKey: entry.nameKey || '',
-        descriptionKey: entry.descriptionKey || '',
+        nameKey: normalizeString(entry.nameKey || record.nameKey),
+        descriptionKey: normalizeString(entry.descriptionKey || record.descriptionKey),
         permissions: entry.permissions || [],
         availabilityStatus,
         availabilityReason,
+        availabilityReasonKey: normalizeString(record.availability?.reasonKey || entry.availability?.reasonKey),
         compatibilityRange,
         compatible: compatibilityOk,
         installed,
@@ -190,6 +192,8 @@ async function buildInstalledOnlyEntries(state, knownEntriesById) {
                 scope: normalizeString(record.scope || pluginPackage?.scope),
                 displayName: normalizeString(record.displayName || pluginPackage?.displayName),
                 description: normalizeString(record.description || pluginPackage?.description),
+                nameKey: normalizeString(record.nameKey || pluginPackage?.nameKey),
+                descriptionKey: normalizeString(record.descriptionKey || pluginPackage?.descriptionKey),
                 latestVersion: normalizeString(record.latestVersion || pluginPackage?.version),
                 requiresExtension: typeof record.requiresExtension === 'boolean'
                     ? record.requiresExtension
@@ -203,6 +207,7 @@ async function buildInstalledOnlyEntries(state, knownEntriesById) {
                 availability: {
                     status: normalizeString(record.availability?.status, 'active'),
                     reason: normalizeString(record.availability?.reason),
+                    reasonKey: normalizeString(record.availability?.reasonKey),
                 },
                 install: {
                     mode: normalizeString(record.installMode, pluginPackage ? 'package' : ''),
@@ -210,8 +215,6 @@ async function buildInstalledOnlyEntries(state, knownEntriesById) {
                 },
                 publisher: normalizeString(pluginPackage?.publisher),
                 homepage: normalizeString(record.homepage || pluginPackage?.homepage),
-                nameKey: '',
-                descriptionKey: '',
             };
         })
     );
@@ -281,12 +284,18 @@ export async function installMarketplaceItem(item) {
             scope: item.scope,
             installMode: item.installMode,
             latestVersion: item.latestVersion,
+            displayName: item.displayName,
+            description: item.description,
+            nameKey: item.nameKey,
+            descriptionKey: item.descriptionKey,
             permissions: item.permissions,
             compatibility: { versionRange: item.compatibilityRange },
             availability: {
                 status: item.availabilityStatus,
                 reason: item.availabilityReason,
+                reasonKey: item.availabilityReasonKey,
             },
+            homepage: item.homepage,
         });
     }
 
@@ -308,6 +317,7 @@ export async function installMarketplaceItem(item) {
         availability: {
             status: item.availabilityStatus,
             reason: item.availabilityReason,
+            reasonKey: item.availabilityReasonKey,
         },
         install: {
             mode: item.installMode,
@@ -315,6 +325,8 @@ export async function installMarketplaceItem(item) {
         homepage: item.homepage,
         displayName: item.displayName,
         description: item.description,
+        nameKey: item.nameKey,
+        descriptionKey: item.descriptionKey,
     });
 
     return pluginManifest;

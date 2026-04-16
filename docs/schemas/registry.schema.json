@@ -57,9 +57,15 @@
             "type": "string",
             "minLength": 1
           },
+          "nameKey": {
+            "type": "string"
+          },
           "description": {
             "type": "string",
             "minLength": 1
+          },
+          "descriptionKey": {
+            "type": "string"
           },
           "latestVersion": {
             "type": "string",
@@ -98,6 +104,9 @@
                 "enum": ["active", "disabled"]
               },
               "reason": {
+                "type": "string"
+              },
+              "reasonKey": {
                 "type": "string"
               }
             }
