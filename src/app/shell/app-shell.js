@@ -694,6 +694,7 @@ async function onDomReady() {
         active: false,
         chatId: null,
         messageIndex: -1,
+        role: null,
         messageElement: null,
         previousDraftContent: '',
     };
@@ -720,6 +721,7 @@ async function onDomReady() {
         messageEditState.active = false;
         messageEditState.chatId = null;
         messageEditState.messageIndex = -1;
+        messageEditState.role = null;
         messageEditState.messageElement = null;
         messageEditState.previousDraftContent = '';
         syncMessageEditUi();
@@ -740,7 +742,7 @@ async function onDomReady() {
     };
 
     const startMessageEdit = (messageElement) => {
-        if (!messageElement?.isConnected || !messageElement.classList?.contains('user-message')) {
+        if (!messageElement?.isConnected || !messageElement.classList?.contains('message') || messageElement.classList.contains('updating')) {
             return false;
         }
 
@@ -751,7 +753,7 @@ async function onDomReady() {
 
         const messageIndex = getChatMessageElements().indexOf(messageElement);
         const targetMessage = currentChat.messages?.[messageIndex];
-        if (!targetMessage || targetMessage.role !== 'user') {
+        if (!targetMessage || !['user', 'assistant'].includes(targetMessage.role)) {
             return false;
         }
 
@@ -766,6 +768,7 @@ async function onDomReady() {
         messageEditState.active = true;
         messageEditState.chatId = currentChat.id;
         messageEditState.messageIndex = messageIndex;
+        messageEditState.role = targetMessage.role;
         messageEditState.messageElement = messageElement;
         messageEditState.previousDraftContent = previousDraftContent;
 
@@ -792,7 +795,12 @@ async function onDomReady() {
             : -1;
         const messageIndex = liveMessageIndex !== -1 ? liveMessageIndex : messageEditState.messageIndex;
         const currentMessage = currentChat.messages?.[messageIndex];
-        if (!messageElement?.isConnected || !currentMessage || currentMessage.role !== 'user') {
+        if (
+            !messageElement?.isConnected ||
+            !currentMessage ||
+            !['user', 'assistant'].includes(currentMessage.role) ||
+            currentMessage.role !== messageEditState.role
+        ) {
             clearMessageEditState({ restorePreviousDraft: false, syncInput: false });
             return false;
         }
@@ -812,7 +820,7 @@ async function onDomReady() {
 
         const nextMessage = {
             ...currentMessage,
-            role: 'user',
+            role: currentMessage.role,
             content: cloneMessageContent(nextContent)
         };
         delete nextMessage.reasoning_content;
@@ -826,7 +834,7 @@ async function onDomReady() {
         await updateMessageElement({
             messageElement,
             text: nextMessage,
-            sender: 'user'
+            sender: currentMessage.role === 'assistant' ? 'ai' : 'user'
         });
         chatContainerManager.initializeUserQuestions();
         clearMessageEditState({ restorePreviousDraft: true, focusInput: true });

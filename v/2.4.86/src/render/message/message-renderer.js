@@ -259,6 +259,37 @@ function createMainContentNode({ messageText, imageTagNodes, sender }) {
     return mainContent;
 }
 
+function createReasoningWrapperNode({ reasoningContent, plainTextContent = '' }) {
+    if (!reasoningContent) return null;
+
+    const reasoningWrapper = document.createElement('div');
+    reasoningWrapper.className = 'reasoning-wrapper';
+
+    const reasoningDiv = document.createElement('div');
+    reasoningDiv.className = 'reasoning-content';
+
+    const placeholderDiv = document.createElement('div');
+    placeholderDiv.className = 'reasoning-placeholder';
+    placeholderDiv.textContent = t('label_deep_thinking');
+    reasoningDiv.appendChild(placeholderDiv);
+
+    const reasoningTextDiv = document.createElement('div');
+    reasoningTextDiv.className = 'reasoning-text';
+    reasoningTextDiv.setAttribute('data-original-text', reasoningContent);
+    reasoningTextDiv.innerHTML = processMathAndMarkdown(reasoningContent).trim();
+    reasoningDiv.appendChild(reasoningTextDiv);
+
+    if (plainTextContent) {
+        reasoningDiv.classList.add('collapsed');
+    }
+    reasoningDiv.onclick = function() {
+        this.classList.toggle('collapsed');
+    };
+
+    reasoningWrapper.appendChild(reasoningDiv);
+    return reasoningWrapper;
+}
+
 async function finalizeRenderedMessage(messageElement, { plainTextContent, reasoningContent, renderContext }) {
     if (textMayContainMath(plainTextContent) || textMayContainMath(reasoningContent)) {
         try {
@@ -349,35 +380,8 @@ export async function appendMessage({
 
     applyMessageMetadata(messageDiv, { plainTextContent, seedId, isSeedManaged });
 
-    // 如果有思考内容，添加思考模块
-    if (reasoningContent) {
-        const reasoningWrapper = document.createElement('div');
-        reasoningWrapper.className = 'reasoning-wrapper';
-
-        const reasoningDiv = document.createElement('div');
-        reasoningDiv.className = 'reasoning-content';
-
-        // 添加占位文本容器
-        const placeholderDiv = document.createElement('div');
-        placeholderDiv.className = 'reasoning-placeholder';
-        placeholderDiv.textContent = t('label_deep_thinking');
-        reasoningDiv.appendChild(placeholderDiv);
-
-        // 添加文本容器
-        const reasoningTextDiv = document.createElement('div');
-        reasoningTextDiv.className = 'reasoning-text';
-        reasoningTextDiv.innerHTML = processMathAndMarkdown(reasoningContent).trim();
-        reasoningDiv.appendChild(reasoningTextDiv);
-
-        // 添加点击事件处理折叠/展开
-        if (plainTextContent) {
-            reasoningDiv.classList.add('collapsed');
-        }
-        reasoningDiv.onclick = function() {
-            this.classList.toggle('collapsed');
-        };
-
-        reasoningWrapper.appendChild(reasoningDiv);
+    const reasoningWrapper = createReasoningWrapperNode({ reasoningContent, plainTextContent });
+    if (reasoningWrapper) {
         messageDiv.appendChild(reasoningWrapper);
     }
 
@@ -429,24 +433,19 @@ export async function updateMessageElement({
     } = resolveMessageRenderData(text);
 
     applyMessageMetadata(messageElement, { plainTextContent, seedId, isSeedManaged });
+    messageElement.querySelectorAll('.reasoning-wrapper').forEach((node) => node.remove());
+    Array.from(messageElement.children).forEach((child) => child.remove());
 
-    if (resolvedSender !== 'ai') {
-        messageElement.querySelectorAll('.reasoning-wrapper').forEach((node) => node.remove());
-    }
-
-    Array.from(messageElement.children).forEach((child) => {
-        if (!child.classList.contains('reasoning-wrapper')) {
-            child.remove();
-        }
-    });
-
+    const reasoningWrapper = resolvedSender === 'ai'
+        ? createReasoningWrapperNode({ reasoningContent, plainTextContent })
+        : null;
     const mainContent = createMainContentNode({
         messageText,
         imageTagNodes,
         sender: resolvedSender
     });
-    const reasoningWrapper = messageElement.querySelector('.reasoning-wrapper');
     if (reasoningWrapper) {
+        messageElement.appendChild(reasoningWrapper);
         messageElement.insertBefore(mainContent, reasoningWrapper.nextSibling);
     } else {
         messageElement.appendChild(mainContent);

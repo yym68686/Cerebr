@@ -1,4 +1,4 @@
-import { definePlugin } from '../../../../src/plugin/shared/define-plugin.js';
+import { definePlugin } from '../../../runtime/define-plugin.js';
 
 function normalizeSelectedText(text) {
     return String(text ?? '').replace(/\s+\n/g, '\n').trim();

@@ -29,7 +29,7 @@ export function initChatContainer({
     let currentCodeElement = null;
 
     const isSeedManagedMessageElement = (messageElement) => messageElement?.dataset?.seedManaged === '1';
-    const isUserMessageElement = (messageElement) => messageElement?.classList?.contains('user-message');
+    const isEditableMessageElement = (messageElement) => !!messageElement && !messageElement.classList?.contains('updating');
     const getRenderableMessageElements = () => Array.from(chatContainer.querySelectorAll('.message'));
 
     // 初始化 MutationObserver 来监视添加到聊天容器的新用户消息
@@ -79,7 +79,7 @@ export function initChatContainer({
             regenerateMessageButton.style.display = isSeedManaged ? 'none' : 'flex';
             copyMessageButton.style.display = 'flex';
             if (editMessageButton) {
-                editMessageButton.style.display = isUserMessageElement(messageElement) ? 'flex' : 'none';
+                editMessageButton.style.display = isEditableMessageElement(messageElement) ? 'flex' : 'none';
             }
             deleteMessageButton.style.display = 'flex';
             copyCodeButton.style.display = codeElement ? 'flex' : 'none';
@@ -174,7 +174,7 @@ export function initChatContainer({
             regenerateMessageButton.style.display = isSeedManaged ? 'none' : 'flex';
             copyMessageButton.style.display = 'flex';
             if (editMessageButton) {
-                editMessageButton.style.display = isUserMessageElement(messageElement) ? 'flex' : 'none';
+                editMessageButton.style.display = isEditableMessageElement(messageElement) ? 'flex' : 'none';
             }
             deleteMessageButton.style.display = 'flex';
             copyCodeButton.style.display = !mathContainer && codeElement ? 'flex' : 'none';
@@ -425,7 +425,7 @@ export function initChatContainer({
         });
 
         on(editMessageButton, 'click', () => {
-            if (!currentMessageElement || !isUserMessageElement(currentMessageElement)) {
+            if (!isEditableMessageElement(currentMessageElement)) {
                 return;
             }
 
@@ -521,7 +521,7 @@ export function initChatContainer({
             mathContextMenu.style.display = 'flex';
             copyMessageButton.style.display = 'flex';
             if (editMessageButton) {
-                editMessageButton.style.display = isUserMessageElement(messageElement) ? 'flex' : 'none';
+                editMessageButton.style.display = isEditableMessageElement(messageElement) ? 'flex' : 'none';
             }
             deleteMessageButton.style.display = 'flex';
             regenerateMessageButton.style.display = isSeedManaged ? 'none' : 'flex';

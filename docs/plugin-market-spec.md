@@ -17,6 +17,31 @@ The reviewed marketplace registry is intended to live in a separate repository, 
 
 The Cerebr app can read that curated remote registry and also keep a bundled local fallback copy under `statics/`.
 
+### Source of truth and bundled fallback
+
+The `cerebr-plugins` repository is the source of truth for the official reviewed marketplace registry and package files.
+
+The main Cerebr repository should only keep a mirrored bundled fallback snapshot under:
+
+- `statics/plugin-registry.json`
+- `statics/plugins/**`
+- `statics/runtime/**`
+
+Do not hand-edit those bundled fallback files in the main app repo. Sync them from `cerebr-plugins` instead:
+
+```bash
+node scripts/sync_official_plugin_fallback.mjs
+```
+
+Or from the source-of-truth repo:
+
+```bash
+cd /Users/yanyuming/Downloads/GitHub/cerebr-plugins
+npm run sync:cerebr
+```
+
+The runtime already prefers the curated remote registry when it is available and only relies on the bundled snapshot as a fallback.
+
 ## Package Types
 
 - `builtin`: shipped inside the main Cerebr app.

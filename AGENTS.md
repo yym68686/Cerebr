@@ -78,6 +78,11 @@
 
 - 独立插件市场仓库路径：`/Users/yanyuming/Downloads/GitHub/cerebr-plugins`
 - 这个仓库承载 **审核后的 marketplace registry 和插件包**，供 Cerebr 插件市场远程读取。
+- `cerebr-plugins` 是官方 marketplace 插件的**唯一真源（source of truth）**。
+- 主仓库里的 `statics/plugin-registry.json`、`statics/plugins/**`、`statics/runtime/**` 只是 **bundled fallback 快照**，不应手工维护。
+- 官方 marketplace 插件或 registry 发生变化后，必须运行：
+  - 主仓：`node scripts/sync_official_plugin_fallback.mjs`
+  - 或市场仓：`cd /Users/yanyuming/Downloads/GitHub/cerebr-plugins && npm run sync:cerebr`
 - 因此，只要本仓库的插件市场机制或官方上架插件发生变化，必须评估并同步更新 `cerebr-plugins`，必要时也同步更新本仓库里的 bundled fallback（`statics/plugin-registry.json`、`statics/plugins/**`）。
 
 以下变化都默认需要同步检查 `cerebr-plugins`：

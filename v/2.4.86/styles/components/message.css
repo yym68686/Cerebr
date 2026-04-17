@@ -48,7 +48,7 @@
     border-bottom-right-radius: 4px;
 }
 
-.user-message.is-editing {
+.message.is-editing {
     border-color: var(--cerebr-highlight-border-color);
     box-shadow: 0 0 0 1px var(--cerebr-highlight-border-color), 0 6px 18px var(--cerebr-message-hover-shadow);
 }
