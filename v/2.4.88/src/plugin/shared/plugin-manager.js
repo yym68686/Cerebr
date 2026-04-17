@@ -17,12 +17,16 @@ function normalizePluginEntry(input) {
             manifest: input.manifest && typeof input.manifest === 'object'
                 ? { ...input.manifest }
                 : null,
+            runtime: input.runtime && typeof input.runtime === 'object'
+                ? { ...input.runtime }
+                : null,
         };
     }
 
     return {
         plugin: input,
         manifest: null,
+        runtime: null,
     };
 }
 
@@ -78,9 +82,14 @@ export function createPluginManager({
         }
 
         try {
-            const scopedApi = typeof createApi === 'function'
-                ? createApi(entry)
-                : api;
+            const precomputedPluginApi = entry?.runtime?.pluginApi && typeof entry.runtime.pluginApi === 'object'
+                ? entry.runtime.pluginApi
+                : null;
+            const scopedApi = precomputedPluginApi || (
+                typeof createApi === 'function'
+                    ? createApi(entry)
+                    : api
+            );
             const cleanup = await plugin.setup(scopedApi);
             activePlugins.set(plugin.id, {
                 entry,

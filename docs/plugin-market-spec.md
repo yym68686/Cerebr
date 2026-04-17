@@ -351,8 +351,9 @@ Rules:
 
 - developer mode must be enabled
 - local `script.entry` must resolve under the current Cerebr origin or dropped bundle
-- dropped local `shell` plugins in the extension host run inside the static guest runtime
-- local guest shell plugins must stay self-contained and must not import `/src/...` host internals
+- when multiple `plugin.json` files exist in a dropped folder, the shallowest manifest wins; Cerebr only errors if the shallowest level still has multiple candidates
+- dropped local `shell` plugins in the extension host run inside the sandboxed guest runtime
+- local shell plugins must stay self-contained and must not import `/src/...` host internals
 
 Recommended layout:
 

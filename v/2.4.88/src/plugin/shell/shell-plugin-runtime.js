@@ -34,11 +34,58 @@ import {
     t as getI18nMessage,
 } from '../../utils/i18n.js';
 
+const SHELL_PLUGIN_API_FACTORY_KEY = '__CEREBR_SHELL_PLUGIN_API_FACTORY__';
+const SHELL_GUEST_HOST_API_FACTORY_KEY = '__CEREBR_SHELL_GUEST_HOST_API_FACTORY__';
+
 function createPluginMeta(entry = {}) {
     return {
         id: normalizeString(entry?.plugin?.id),
         manifest: entry?.manifest ? { ...entry.manifest } : null,
     };
+}
+
+async function copyTextToClipboard(text) {
+    const normalizedText = String(text ?? '');
+
+    if (navigator?.clipboard?.writeText) {
+        try {
+            await navigator.clipboard.writeText(normalizedText);
+            return true;
+        } catch {
+            // Fall back to execCommand when the async clipboard API is unavailable.
+        }
+    }
+
+    const hostBody = document?.body;
+    if (!(hostBody instanceof HTMLElement)) {
+        throw new Error('Clipboard is unavailable');
+    }
+
+    const textarea = document.createElement('textarea');
+    const activeElement = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    textarea.value = normalizedText;
+    textarea.setAttribute('readonly', 'true');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    textarea.style.pointerEvents = 'none';
+    hostBody.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+
+    try {
+        if (document.execCommand('copy')) {
+            return true;
+        }
+    } finally {
+        textarea.remove();
+        activeElement?.focus?.();
+    }
+
+    throw new Error(document?.hasFocus?.()
+        ? 'Clipboard is unavailable'
+        : 'Document is not focused');
 }
 
 export function createShellPluginRuntime({
@@ -245,6 +292,9 @@ export function createShellPluginRuntime({
             showToast(message, options = {}) {
                 showToast(String(message ?? ''), options);
             },
+            copyText(text) {
+                return copyTextToClipboard(text);
+            },
             mountSlot(slotId, renderer, options = {}) {
                 permissions.assert('ui:slots', ['ui:mount']);
                 const handle = slotRegistry.mount(slotId, entry?.plugin?.id, renderer, options);
@@ -359,6 +409,9 @@ export function createShellPluginRuntime({
     const createHookUiApi = () => ({
         showToast(message, options = {}) {
             showToast(String(message ?? ''), options);
+        },
+        copyText(text) {
+            return copyTextToClipboard(text);
         },
         getAvailableSlots() {
             return slotRegistry.getAvailableSlots();
@@ -693,6 +746,18 @@ export function createShellPluginRuntime({
     });
 
     const createPluginApi = (entry = {}) => hostServiceRegistry.createPluginApi(entry);
+    const createGuestHostApi = (entry = {}) => ({
+        shell: createShellApi(entry),
+        browser: createBrowserApi(entry),
+        chat: createChatHostApi(entry),
+        editor: createEditorApi(entry),
+        storage: createStorageApi(entry),
+        i18n: createI18nApi(entry),
+        ui: createUiApi(entry),
+        bridge: createBridgeApi(entry),
+    });
+    globalThis[SHELL_PLUGIN_API_FACTORY_KEY] = createPluginApi;
+    globalThis[SHELL_GUEST_HOST_API_FACTORY_KEY] = createGuestHostApi;
 
     const createHookContext = (entry = {}, baseContext = {}) => {
         const directives = {
@@ -914,6 +979,12 @@ export function createShellPluginRuntime({
 
             await runtimeController.stop();
             pluginResources.cleanupAll();
+            if (globalThis[SHELL_PLUGIN_API_FACTORY_KEY] === createPluginApi) {
+                delete globalThis[SHELL_PLUGIN_API_FACTORY_KEY];
+            }
+            if (globalThis[SHELL_GUEST_HOST_API_FACTORY_KEY] === createGuestHostApi) {
+                delete globalThis[SHELL_GUEST_HOST_API_FACTORY_KEY];
+            }
         },
     };
 }

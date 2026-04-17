@@ -12,6 +12,8 @@ import {
 } from '../shared/plugin-store.js';
 import { normalizeString, normalizeStringArray } from './runtime-utils.js';
 
+const SHELL_PLUGIN_API_REGISTRY_KEY = '__CEREBR_SHELL_PLUGIN_API_REGISTRY__';
+
 function normalizePluginEntry(input) {
     if (input?.plugin && typeof input.plugin === 'object') {
         return {
@@ -19,12 +21,16 @@ function normalizePluginEntry(input) {
             manifest: input.manifest && typeof input.manifest === 'object'
                 ? { ...input.manifest }
                 : null,
+            runtime: input.runtime && typeof input.runtime === 'object'
+                ? { ...input.runtime }
+                : null,
         };
     }
 
     return {
         plugin: input,
         manifest: null,
+        runtime: null,
     };
 }
 
@@ -37,6 +43,20 @@ export function createHostedPluginRuntime({
     onPluginStopped = null,
 } = {}) {
     const normalizedHost = normalizeString(host);
+    const shellPluginApiRegistry = normalizedHost === 'shell'
+        ? (() => {
+            const existingRegistry = globalThis?.[SHELL_PLUGIN_API_REGISTRY_KEY];
+            if (existingRegistry && typeof existingRegistry === 'object') {
+                return existingRegistry;
+            }
+
+            const createdRegistry = {};
+            if (typeof globalThis === 'object' && globalThis) {
+                globalThis[SHELL_PLUGIN_API_REGISTRY_KEY] = createdRegistry;
+            }
+            return createdRegistry;
+        })()
+        : null;
     const builtinEntryMap = new Map(
         (Array.isArray(builtinEntries) ? builtinEntries : [])
             .map((entry) => normalizePluginEntry(entry))
@@ -60,6 +80,18 @@ export function createHostedPluginRuntime({
     const getRegisteredPluginIds = () => new Set(
         pluginKernel.getPlugins().map((plugin) => plugin?.id).filter(Boolean)
     );
+    const updateShellPluginApiRegistry = (pluginId, pluginApi = null) => {
+        if (!shellPluginApiRegistry || !pluginId) {
+            return;
+        }
+
+        if (pluginApi && typeof pluginApi === 'object') {
+            shellPluginApiRegistry[pluginId] = pluginApi;
+            return;
+        }
+
+        delete shellPluginApiRegistry[pluginId];
+    };
 
     const resolveScriptPlugin = async (descriptor) => {
         const signature = createScriptPluginCacheKey(descriptor);
@@ -92,6 +124,7 @@ export function createHostedPluginRuntime({
             activePluginIds.delete(pluginId);
         }
 
+        updateShellPluginApiRegistry(pluginId, null);
         scriptPluginCache.delete(pluginId);
         dynamicEntrySignatures.delete(pluginId);
     };
@@ -185,10 +218,45 @@ export function createHostedPluginRuntime({
             }
 
             try {
-                const { plugin, signature } = await resolveScriptPlugin(descriptor);
+                const runtimeEntry = {
+                    plugin: {
+                        id: descriptor.id,
+                    },
+                    manifest: descriptor.manifest || null,
+                };
+                const runtimeDescriptor = {
+                    ...descriptor,
+                    runtime: {
+                        ...(descriptor.runtime && typeof descriptor.runtime === 'object'
+                            ? descriptor.runtime
+                            : {}),
+                        createApi,
+                        pluginApi: typeof createApi === 'function'
+                            ? createApi(runtimeEntry)
+                            : null,
+                    },
+                };
+                const runtimePluginApiKeys = Object.keys(
+                    runtimeDescriptor?.runtime?.pluginApi
+                    && typeof runtimeDescriptor.runtime.pluginApi === 'object'
+                        ? runtimeDescriptor.runtime.pluginApi
+                        : {}
+                );
+                if (normalizedHost === 'shell' && runtimePluginApiKeys.length === 0) {
+                    logger?.warn?.(
+                        `[Cerebr] Shell runtime created an empty plugin API `
+                        + `(pluginId=${descriptor.id}, scope=${normalizeString(descriptor?.manifest?.scope) || 'unknown'})`
+                    );
+                }
+                updateShellPluginApiRegistry(
+                    descriptor.id,
+                    runtimeDescriptor?.runtime?.pluginApi
+                );
+                const { plugin, signature } = await resolveScriptPlugin(runtimeDescriptor);
                 const entry = {
                     plugin,
                     manifest: descriptor.manifest || null,
+                    runtime: runtimeDescriptor.runtime || null,
                 };
 
                 if (dynamicEntrySignatures.get(descriptor.id) !== signature || !registeredPluginIds.has(descriptor.id)) {
@@ -198,7 +266,11 @@ export function createHostedPluginRuntime({
                     activePluginIds.add(descriptor.id);
                 }
             } catch (error) {
-                logger?.error?.(`[Cerebr] Failed to load ${normalizedHost} script plugin "${descriptor.id}"`, error);
+                logger?.error?.(
+                    `[Cerebr] Failed to load ${normalizedHost} script plugin "${descriptor.id}" `
+                    + `(runtimePluginApiKeys=${runtimePluginApiKeys.join(',') || 'none'})`,
+                    error
+                );
                 await unregisterDynamicPlugin(descriptor.id, registeredPluginIds, activePluginIds);
             }
         }
@@ -282,6 +354,11 @@ export function createHostedPluginRuntime({
         unsubscribePluginSettings = null;
         unsubscribeDeveloperMode?.();
         unsubscribeDeveloperMode = null;
+        if (shellPluginApiRegistry) {
+            Object.keys(shellPluginApiRegistry).forEach((pluginId) => {
+                delete shellPluginApiRegistry[pluginId];
+            });
+        }
         scriptPluginCache.clear();
         dynamicEntrySignatures.clear();
         await pluginKernel.stop();

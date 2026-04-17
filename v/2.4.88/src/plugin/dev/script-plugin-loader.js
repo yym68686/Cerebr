@@ -4,6 +4,7 @@ import {
     resolveLocalPluginBundleSpecifier,
 } from './local-plugin-bundle.js';
 import { createGuestShellPluginProxy } from '../guest/guest-shell-plugin-host.js';
+import { isExtensionEnvironment } from '../../utils/storage-adapter.js';
 
 function normalizeString(value, fallback = '') {
     const normalized = String(value ?? '').trim();
@@ -227,6 +228,7 @@ function resolveModuleUrlStrategy(descriptor = {}) {
 
 export async function loadScriptPluginModule(descriptor = {}) {
     const manifest = descriptor?.manifest || {};
+    const record = descriptor?.record || {};
     const pluginId = normalizeString(manifest.id);
     const entryUrl = normalizeString(manifest.script?.entry);
     const exportName = normalizeString(manifest.script?.exportName, 'default');
@@ -234,6 +236,14 @@ export async function loadScriptPluginModule(descriptor = {}) {
     const isBundledSource = isLocalPluginBundlePackage(manifest);
     const sourceMode = normalizeString(manifest?.source?.mode, isBundledSource ? 'bundle' : 'url');
     const moduleUrlStrategy = resolveModuleUrlStrategy(descriptor);
+    const disableGuestProxy = descriptor?.runtime?.disableGuestProxy === true;
+    const shouldUseGuestRuntime = isExtensionEnvironment
+        && !disableGuestProxy
+        && normalizeString(manifest.scope) === 'shell'
+        && (
+            sourceMode === 'guest'
+            || (isBundledSource && normalizeString(record?.sourceType) === 'developer')
+        );
 
     if (!pluginId) {
         throw new Error('Cannot load a script plugin without manifest.id');
@@ -242,10 +252,7 @@ export async function loadScriptPluginModule(descriptor = {}) {
         throw new Error(`Script plugin "${pluginId}" is missing script.entry`);
     }
 
-    if (sourceMode === 'guest') {
-        if (normalizeString(manifest.scope) !== 'shell') {
-            throw new Error(`Guest runtime currently only supports shell plugins. Received "${manifest.scope}"`);
-        }
+    if (shouldUseGuestRuntime) {
         return createGuestShellPluginProxy(descriptor);
     }
 

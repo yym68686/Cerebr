@@ -425,6 +425,9 @@ function createGuestPluginApi() {
             showToast(message, options = {}) {
                 return createRpcRequest('ui.showToast', [message, options]);
             },
+            copyText(text) {
+                return createRpcRequest('ui.copyText', [text]);
+            },
         },
     };
 }
@@ -445,6 +448,7 @@ function createGuestDescriptor(manifest) {
             source: normalizedSource,
         },
         runtime: {
+            disableGuestProxy: true,
             moduleUrlStrategy: 'data',
         },
         record: {

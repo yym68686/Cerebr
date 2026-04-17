@@ -14,6 +14,7 @@ import {
     uninstallLocalScriptPlugin,
 } from '../plugin/dev/local-plugin-service.js';
 import { subscribePluginState } from '../plugin/shared/plugin-store.js';
+import { isExtensionContextInvalidatedError } from '../utils/storage-adapter.js';
 import { showToast } from '../utils/ui.js';
 
 function normalizeString(value, fallback = '') {
@@ -632,9 +633,14 @@ function buildDeveloperCard(item) {
     header.appendChild(content);
     card.appendChild(header);
 
-    const footnoteText = !item.runtimeSupported && item.requiresExtension
-        ? t('plugin_disabled_requires_extension')
-        : '';
+    const footnoteMessages = [];
+    if (!item.manifestUrl && item.canRefresh) {
+        footnoteMessages.push('Reload uses the cached bundle. Reinstall the folder after editing plugin files.');
+    }
+    if (!item.runtimeSupported && item.requiresExtension) {
+        footnoteMessages.push(t('plugin_disabled_requires_extension'));
+    }
+    const footnoteText = footnoteMessages.join(' ');
 
     if (footnoteText) {
         const footnote = document.createElement('p');
@@ -685,6 +691,7 @@ export async function initPluginSettings({ page, loadRuntimeDiagnostics = null }
 
     let activeTab = 'installed';
     let developerDragDepth = 0;
+    let extensionContextInvalidated = false;
     let currentModel = {
         installedItems: [],
         marketplaceItems: [],
@@ -957,6 +964,9 @@ export async function initPluginSettings({ page, loadRuntimeDiagnostics = null }
     };
 
     const refresh = async () => {
+        if (extensionContextInvalidated) {
+            return;
+        }
         if (statusNode) {
             statusNode.textContent = t('plugin_market_loading');
             statusNode.dataset.state = 'loading';
@@ -967,6 +977,9 @@ export async function initPluginSettings({ page, loadRuntimeDiagnostics = null }
                 getDeveloperPluginModel(),
                 typeof loadRuntimeDiagnostics === 'function'
                     ? loadRuntimeDiagnostics().catch((error) => {
+                        if (isExtensionContextInvalidatedError(error)) {
+                            throw error;
+                        }
                         console.warn('[Cerebr] Failed to load runtime diagnostics', error);
                         return {
                             hosts: {
@@ -996,6 +1009,14 @@ export async function initPluginSettings({ page, loadRuntimeDiagnostics = null }
             }, normalizeRuntimeDiagnostics(runtimeDiagnosticsPayload));
             render();
         } catch (error) {
+            if (isExtensionContextInvalidatedError(error)) {
+                extensionContextInvalidated = true;
+                if (statusNode) {
+                    statusNode.textContent = t('plugin_market_sync_failed');
+                    statusNode.dataset.state = 'error';
+                }
+                return;
+            }
             console.error('[Cerebr] Failed to refresh plugin marketplace', error);
             if (statusNode) {
                 statusNode.textContent = `${t('plugin_market_sync_failed')}: ${error?.message || String(error)}`;
@@ -1080,6 +1101,15 @@ export async function initPluginSettings({ page, loadRuntimeDiagnostics = null }
             try {
                 await refreshLocalScriptPlugin(pluginId);
                 await refresh();
+                showToast(
+                    developerItem.manifestUrl
+                        ? `Reloaded local plugin: ${resolvePluginName(developerItem)}`
+                        : 'Reloaded cached local bundle. Reinstall the folder to apply file changes.',
+                    {
+                        type: developerItem.manifestUrl ? 'success' : 'warning',
+                        durationMs: 2600,
+                    }
+                );
             } catch (error) {
                 console.error('[Cerebr] Failed to refresh local plugin', error);
                 window.alert(error?.message || t('plugin_market_sync_failed'));

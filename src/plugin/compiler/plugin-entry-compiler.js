@@ -31,12 +31,16 @@ function normalizePluginEntry(input) {
             manifest: input.manifest && typeof input.manifest === 'object'
                 ? { ...input.manifest }
                 : null,
+            runtime: input.runtime && typeof input.runtime === 'object'
+                ? { ...input.runtime }
+                : null,
         };
     }
 
     return {
         plugin: input,
         manifest: null,
+        runtime: null,
     };
 }
 

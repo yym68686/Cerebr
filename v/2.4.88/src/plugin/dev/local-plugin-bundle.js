@@ -46,6 +46,12 @@ function getDirname(path) {
     return normalized.slice(0, normalized.lastIndexOf('/'));
 }
 
+function getPathDepth(path) {
+    const normalized = normalizeBundlePath(path);
+    if (!normalized) return 0;
+    return normalized.split('/').filter(Boolean).length;
+}
+
 function getTopLevelFolder(path) {
     const normalized = normalizeBundlePath(path);
     if (!normalized) return '';
@@ -276,13 +282,21 @@ function resolveBundleRootPath(fileRecords) {
     if (manifestRecords.length === 0) {
         throw new Error('The dropped files do not contain a plugin.json manifest');
     }
-    if (manifestRecords.length > 1) {
+
+    const manifestRootDepths = manifestRecords.map((record) => getPathDepth(getDirname(record.path)));
+    const shallowestDepth = Math.min(...manifestRootDepths);
+    const shallowestRecords = manifestRecords.filter(
+        (record) => getPathDepth(getDirname(record.path)) === shallowestDepth
+    );
+
+    if (shallowestRecords.length > 1) {
         throw new Error('Multiple plugin.json files were found. Drag a single plugin folder instead');
     }
 
+    const selectedManifest = shallowestRecords[0];
     return {
-        rootPath: getDirname(manifestRecords[0].path),
-        manifestPath: manifestRecords[0].path,
+        rootPath: getDirname(selectedManifest.path),
+        manifestPath: selectedManifest.path,
     };
 }
 
@@ -424,7 +438,7 @@ function collectModuleSpecifiers(source, pattern) {
     return matches.filter(Boolean);
 }
 
-function assertGuestSpecifierIsBundled(specifier, fromFilePath, bundleFiles, pluginId) {
+function assertLocalShellSpecifierIsBundled(specifier, fromFilePath, bundleFiles, pluginId) {
     const resolved = resolveLocalPluginBundleSpecifier(specifier, fromFilePath);
     if (resolved.kind !== 'bundle') {
         throw new Error(
@@ -441,16 +455,16 @@ function assertGuestSpecifierIsBundled(specifier, fromFilePath, bundleFiles, plu
     return resolved.path;
 }
 
-export function validateLocalGuestPluginBundle(manifest, bundleFiles) {
+export function validateLocalShellPluginBundle(manifest, bundleFiles) {
     const pluginId = normalizeString(manifest?.id);
     const entry = normalizeString(manifest?.script?.entry);
 
     if (!pluginId) {
-        throw new Error('Guest plugin validation requires manifest.id');
+        throw new Error('Local shell plugin validation requires manifest.id');
     }
     if (!entry || entry.startsWith('/') || ABSOLUTE_URL_PATTERN.test(entry)) {
         throw new Error(
-            `Local shell plugin "${pluginId}" must use a relative script.entry so Cerebr can run it inside the guest runtime`
+            `Local shell plugin "${pluginId}" must use a relative script.entry so Cerebr can validate the dropped bundle`
         );
     }
 
@@ -484,7 +498,7 @@ export function validateLocalGuestPluginBundle(manifest, bundleFiles) {
         ];
 
         specifiers.forEach((specifier) => {
-            const resolvedPath = assertGuestSpecifierIsBundled(specifier, nextPath, bundleFiles, pluginId);
+            const resolvedPath = assertLocalShellSpecifierIsBundled(specifier, nextPath, bundleFiles, pluginId);
             if (bundleFiles?.[resolvedPath] && isJavaScriptModulePath(resolvedPath, bundleFiles[resolvedPath])) {
                 pendingPaths.push(resolvedPath);
             }

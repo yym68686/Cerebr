@@ -1,6 +1,28 @@
 // 检测是否在Chrome扩展环境中
 export const isExtensionEnvironment = !!(typeof chrome !== 'undefined' && chrome.runtime);
 
+export function isExtensionContextInvalidatedError(error) {
+    return /Extension context invalidated/i.test(String(error?.message || error || ''));
+}
+
+export function isExtensionRuntimeAvailable() {
+    if (!isExtensionEnvironment) {
+        return false;
+    }
+
+    try {
+        if (typeof chrome.runtime?.getManifest === 'function') {
+            chrome.runtime.getManifest();
+        }
+        return true;
+    } catch (error) {
+        if (isExtensionContextInvalidatedError(error)) {
+            return false;
+        }
+        return true;
+    }
+}
+
 const IDB_DB_NAME = 'CerebrData';
 const IDB_DB_VERSION = 1;
 const IDB_STORE_NAME = 'keyValueStore';

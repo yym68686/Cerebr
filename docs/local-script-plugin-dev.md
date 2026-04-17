@@ -8,7 +8,7 @@ This guide documents the current developer-mode sideload flow after the plugin r
 - `scope = page`, `scope = shell`, and `scope = background` are supported
 - `background` plugins only run in the browser extension host and must set `requiresExtension = true`
 - reviewed marketplace script plugins use the same runtime contract; this guide only focuses on local sideload
-- dropped local `shell` plugins in the browser extension host still run inside the static guest runtime and must stay self-contained
+- dropped local `shell` plugins in the browser extension host run inside the sandboxed guest runtime and must stay self-contained
 
 ## Recommended layout
 
@@ -31,7 +31,7 @@ New local script plugins should use schema v2 and explicit activation events:
   "kind": "script",
   "scope": "shell",
   "displayName": "CTTF for Cerebr",
-  "description": "Run Chat Template Text Folders inside the Cerebr shell through the self-contained guest runtime.",
+  "description": "Run Chat Template Text Folders inside the Cerebr shell through the sandboxed guest runtime.",
   "defaultEnabled": true,
   "requiresExtension": true,
   "permissions": [
@@ -55,10 +55,11 @@ New local script plugins should use schema v2 and explicit activation events:
 Notes:
 
 - `script.entry` should be relative to `plugin.json` for dropped self-contained plugins
+- when a dropped folder contains multiple `plugin.json` files, Cerebr prefers the shallowest one and ignores deeper example manifests under that root
 - `script.exportName` is optional and defaults to `default`
 - prefer manifest-level `activationEvents`; runtime-level `plugin.activationEvents` is still supported as a fallback
 - the exported plugin object must expose `id` and `setup(api)`
-- do not import `/src/...` files from the Cerebr repository in dropped local `shell` plugins
+- dropped local `shell` plugins must stay self-contained and should not import `/src/...` files from the Cerebr repository
 - plugin permissions are normalized by the host before runtime use
 - legacy namespace-like permissions and aliases still resolve for compatibility, but new packages should declare resource-scoped permissions such as `page:selection:read`, `shell:input:write`, `prompt:fragments`, or `bridge:send:shell`
 - namespace wildcards such as `shell:*`, `page:*`, or `site:*` still work, but fine-grained capabilities are preferred
@@ -119,6 +120,7 @@ export default {
 - `i18n.*`
 - `shell.*`
 - `ui.showToast(...)`
+- `ui.copyText(...)`
 - `bridge.send(...)`
 
 ### Background plugins
@@ -184,9 +186,9 @@ If a plugin only needs one hook, prefer activating on `hook:<that-hook>` instead
 - the kernel keeps activation state and diagnostics per plugin
 - turning developer mode off unloads all local script plugins
 - refreshing a local plugin re-reads the stored source bundle and reloads the plugin
-- in the browser extension host, dropped local `shell` plugin folders run in the static guest runtime
+- in the browser extension host, dropped local `shell` plugin folders run in the sandboxed guest runtime
 - host-native input actions, menu items, slash commands, and shell pages are forwarded through the guest bridge
-- guest shell plugins must stay self-contained; absolute `/src/...` imports and direct host DOM access are rejected
+- local shell plugins must stay self-contained; absolute `/src/...` imports and cross-origin script imports are rejected during bundle validation
 
 ## Example
 

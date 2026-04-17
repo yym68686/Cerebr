@@ -19,7 +19,7 @@ import { readDeveloperModePreference } from './developer-mode.js';
 import {
     readLocalPluginBundleFromDataTransfer,
     readLocalPluginBundleFromFileList,
-    validateLocalGuestPluginBundle,
+    validateLocalShellPluginBundle,
 } from './local-plugin-bundle.js';
 import {
     normalizeLocalPluginSourceLabel,
@@ -159,16 +159,6 @@ async function installLocalScriptPluginFromManifestUrl(manifestUrl, sourceLabel 
     return installLocalScriptPluginPackage(manifest, buildLocalPluginSourceMeta(manifestUrl, sourceLabel));
 }
 
-async function installLocalGuestShellScriptPlugin(droppedBundle) {
-    validateLocalGuestPluginBundle(droppedBundle.manifest, droppedBundle.bundle?.files);
-
-    return installLocalScriptPluginPackage(droppedBundle.manifest, {
-        sourceLabel: droppedBundle.sourceLabel,
-        mode: 'guest',
-        bundle: droppedBundle.bundle,
-    });
-}
-
 async function readLocalScriptPluginItemsInternal() {
     return readInstalledScriptPluginItemsInternal({
         sourceType: 'developer',
@@ -236,12 +226,15 @@ export async function installLocalScriptPluginFromDataTransfer(dataTransfer) {
     const droppedBundle = await readLocalPluginBundleFromDataTransfer(dataTransfer);
     await ensureDeveloperModeEnabled();
 
-    if (isExtensionEnvironment && droppedBundle.manifest?.scope === 'shell') {
-        return installLocalGuestShellScriptPlugin(droppedBundle);
+    if (droppedBundle.manifest?.scope === 'shell') {
+        validateLocalShellPluginBundle(droppedBundle.manifest, droppedBundle.bundle?.files);
     }
 
     return installLocalScriptPluginPackage(droppedBundle.manifest, {
         sourceLabel: droppedBundle.sourceLabel,
+        mode: isExtensionEnvironment && droppedBundle.manifest?.scope === 'shell'
+            ? 'guest'
+            : 'bundle',
         bundle: droppedBundle.bundle,
     });
 }
@@ -250,12 +243,15 @@ export async function installLocalScriptPluginFromFileList(fileList) {
     const droppedBundle = await readLocalPluginBundleFromFileList(fileList);
     await ensureDeveloperModeEnabled();
 
-    if (isExtensionEnvironment && droppedBundle.manifest?.scope === 'shell') {
-        return installLocalGuestShellScriptPlugin(droppedBundle);
+    if (droppedBundle.manifest?.scope === 'shell') {
+        validateLocalShellPluginBundle(droppedBundle.manifest, droppedBundle.bundle?.files);
     }
 
     return installLocalScriptPluginPackage(droppedBundle.manifest, {
         sourceLabel: droppedBundle.sourceLabel,
+        mode: isExtensionEnvironment && droppedBundle.manifest?.scope === 'shell'
+            ? 'guest'
+            : 'bundle',
         bundle: droppedBundle.bundle,
     });
 }
@@ -278,12 +274,15 @@ export async function refreshLocalScriptPlugin(pluginId) {
     if (!manifestUrl) {
         const droppedBundle = buildDroppedBundleFromInstalledPackage(installedPackage, pluginId);
         if (droppedBundle) {
-            if (isExtensionEnvironment && droppedBundle.manifest?.scope === 'shell') {
-                return installLocalGuestShellScriptPlugin(droppedBundle);
+            if (droppedBundle.manifest?.scope === 'shell') {
+                validateLocalShellPluginBundle(droppedBundle.manifest, droppedBundle.bundle?.files);
             }
 
             return installLocalScriptPluginPackage(droppedBundle.manifest, {
                 sourceLabel: droppedBundle.sourceLabel || pluginId,
+                mode: isExtensionEnvironment && droppedBundle.manifest?.scope === 'shell'
+                    ? 'guest'
+                    : normalizeString(installedPackage?.source?.mode, 'bundle'),
                 bundle: droppedBundle.bundle,
             });
         }

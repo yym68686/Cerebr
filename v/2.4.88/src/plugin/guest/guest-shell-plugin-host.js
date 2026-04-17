@@ -16,9 +16,23 @@ import {
     getActiveLocale as getHostLocale,
     onLocaleChanged as observeLocaleChanged,
 } from '../../utils/i18n.js';
+import { isExtensionRuntimeAvailable } from '../../utils/storage-adapter.js';
 
 const GUEST_STORAGE_KEY_PREFIX = 'cerebr_guest_plugin_storage_v1_';
 const GUEST_BOOT_TIMEOUT_MS = 8000;
+const SHELL_PLUGIN_API_FACTORY_KEY = '__CEREBR_SHELL_PLUGIN_API_FACTORY__';
+const SHELL_GUEST_HOST_API_FACTORY_KEY = '__CEREBR_SHELL_GUEST_HOST_API_FACTORY__';
+const SHELL_PLUGIN_API_REGISTRY_KEY = '__CEREBR_SHELL_PLUGIN_API_REGISTRY__';
+const GUEST_SERVICE_NAMES = Object.freeze([
+    'shell',
+    'browser',
+    'chat',
+    'editor',
+    'storage',
+    'i18n',
+    'ui',
+    'bridge',
+]);
 const LEGACY_GUEST_OVERLAY_OPTIONS = Object.freeze({
     width: 'min(1100px, calc(100vw - 24px))',
     maxWidth: 'calc(100vw - 24px)',
@@ -32,6 +46,136 @@ const LEGACY_GUEST_OVERLAY_OPTIONS = Object.freeze({
 
 function getGuestPageUrl() {
     return new URL('./shell-plugin-guest.html', import.meta.url).toString();
+}
+
+function hasCallableMethod(target, methodNames = []) {
+    return methodNames.some((methodName) => typeof target?.[methodName] === 'function');
+}
+
+function hasNamespacedGuestServices(target) {
+    return GUEST_SERVICE_NAMES.some((serviceName) => {
+        return target?.[serviceName] && typeof target[serviceName] === 'object';
+    });
+}
+
+function hasGuestServiceKeys(target) {
+    if (!target || typeof target !== 'object') {
+        return false;
+    }
+
+    return GUEST_SERVICE_NAMES.some((serviceName) => {
+        return Object.prototype.hasOwnProperty.call(target, serviceName);
+    });
+}
+
+function normalizeGuestHostApi(api = {}) {
+    const rootApi = api && typeof api === 'object' ? api : {};
+    const nestedApi = rootApi?.api && typeof rootApi.api === 'object' ? rootApi.api : null;
+    const nestedContext = rootApi?.context && typeof rootApi.context === 'object' ? rootApi.context : null;
+    const fallbackApi = nestedApi || nestedContext || rootApi;
+
+    if (hasNamespacedGuestServices(rootApi)) {
+        return rootApi;
+    }
+    if (hasNamespacedGuestServices(nestedApi)) {
+        return nestedApi;
+    }
+    if (hasNamespacedGuestServices(nestedContext)) {
+        return nestedContext;
+    }
+
+    return {
+        shell: hasCallableMethod(fallbackApi, [
+            'mountInputAddon',
+            'requestLayoutSync',
+            'showModal',
+            'updateModal',
+            'hideModal',
+            'openPage',
+            'updatePage',
+            'closePage',
+            'observeTheme',
+            'getThemeSnapshot',
+            'setInputActions',
+            'clearInputActions',
+            'onInputAction',
+            'setMenuItems',
+            'clearMenuItems',
+            'onMenuAction',
+            'setSlashCommands',
+            'clearSlashCommands',
+            'onSlashCommandEvent',
+            'isVisible',
+            'open',
+            'close',
+            'toggle',
+        ]) ? fallbackApi : undefined,
+        browser: hasCallableMethod(fallbackApi, [
+            'getCurrentTab',
+        ]) ? fallbackApi : undefined,
+        chat: hasCallableMethod(fallbackApi, [
+            'abort',
+            'sendDraft',
+            'getCurrentChat',
+            'getMessages',
+        ]) ? fallbackApi : undefined,
+        editor: hasCallableMethod(fallbackApi, [
+            'clear',
+            'focus',
+            'getDraft',
+            'getDraftSnapshot',
+            'hasDraft',
+            'importText',
+            'insertText',
+            'setDraft',
+        ]) ? fallbackApi : undefined,
+        storage: hasCallableMethod(fallbackApi, [
+            'get',
+            'set',
+            'remove',
+        ]) ? fallbackApi : undefined,
+        i18n: hasCallableMethod(fallbackApi, [
+            'getLocale',
+            'getMessage',
+            'onLocaleChanged',
+        ]) ? fallbackApi : undefined,
+        ui: hasCallableMethod(fallbackApi, [
+            'showToast',
+            'copyText',
+        ]) ? fallbackApi : undefined,
+        bridge: hasCallableMethod(fallbackApi, [
+            'send',
+        ]) ? fallbackApi : undefined,
+    };
+}
+
+function coerceGuestHostApi(api = {}) {
+    const rootApi = api && typeof api === 'object' ? api : {};
+    if (hasNamespacedGuestServices(rootApi) || hasGuestServiceKeys(rootApi)) {
+        return rootApi;
+    }
+
+    return normalizeGuestHostApi(rootApi);
+}
+
+function mergeGuestHostApis(primaryApi = {}, fallbackApi = {}) {
+    const serviceNames = [
+        'shell',
+        'browser',
+        'chat',
+        'editor',
+        'storage',
+        'i18n',
+        'ui',
+        'bridge',
+    ];
+
+    return Object.fromEntries(
+        serviceNames.map((serviceName) => [
+            serviceName,
+            primaryApi?.[serviceName] || fallbackApi?.[serviceName] || undefined,
+        ])
+    );
 }
 
 function normalizeSerializableError(error) {
@@ -106,13 +250,102 @@ export function createGuestShellPluginProxy(descriptor = {}) {
         ? descriptor.manifest
         : {};
     const pluginId = normalizeString(manifest.id);
+    const descriptorPluginApi = coerceGuestHostApi(
+        descriptor?.runtime?.pluginApi && typeof descriptor.runtime.pluginApi === 'object'
+            ? descriptor.runtime.pluginApi
+            : {}
+    );
+    const descriptorCreateApi = typeof descriptor?.runtime?.createApi === 'function'
+        ? descriptor.runtime.createApi
+        : null;
+    const resolveRegisteredPluginApi = () => coerceGuestHostApi(
+        globalThis?.[SHELL_PLUGIN_API_REGISTRY_KEY]?.[pluginId]
+            && typeof globalThis[SHELL_PLUGIN_API_REGISTRY_KEY][pluginId] === 'object'
+            ? globalThis[SHELL_PLUGIN_API_REGISTRY_KEY][pluginId]
+            : {}
+    );
 
     return Object.freeze({
         id: pluginId,
         async setup(api) {
+            const registeredPluginApi = resolveRegisteredPluginApi();
+            let normalizedApi = mergeGuestHostApis(
+                coerceGuestHostApi(api),
+                descriptorPluginApi
+            );
+            const extensionRuntimeInvalidated = typeof chrome !== 'undefined'
+                && !!chrome?.runtime
+                && !isExtensionRuntimeAvailable();
+
+            if (!normalizedApi.shell) {
+                normalizedApi = mergeGuestHostApis(
+                    normalizedApi,
+                    registeredPluginApi
+                );
+            }
+
+            if (!normalizedApi.shell) {
+                const createGuestHostApi = globalThis?.[SHELL_GUEST_HOST_API_FACTORY_KEY];
+                if (typeof createGuestHostApi === 'function') {
+                    try {
+                        normalizedApi = mergeGuestHostApis(
+                            normalizedApi,
+                            coerceGuestHostApi(createGuestHostApi({
+                                plugin: {
+                                    id: pluginId,
+                                },
+                                manifest,
+                            }))
+                        );
+                    } catch (error) {
+                        console.warn('[Cerebr] Failed to create direct guest host API for plugin', {
+                            pluginId,
+                            message: error?.message || String(error),
+                        });
+                    }
+                }
+            }
+
+            if (!normalizedApi.shell) {
+                const createPluginApi = descriptorCreateApi
+                    || globalThis?.[SHELL_PLUGIN_API_FACTORY_KEY];
+                if (typeof createPluginApi === 'function') {
+                    try {
+                        normalizedApi = mergeGuestHostApis(
+                            normalizedApi,
+                            coerceGuestHostApi(createPluginApi({
+                                plugin: {
+                                    id: pluginId,
+                                },
+                                manifest,
+                            }))
+                        );
+                    } catch (error) {
+                        console.warn('[Cerebr] Failed to create fallback shell API for guest plugin', {
+                            pluginId,
+                            message: error?.message || String(error),
+                        });
+                    }
+                }
+            }
+
+            if (!normalizedApi.shell) {
+                if (extensionRuntimeInvalidated) {
+                    return () => {};
+                }
+                console.warn(
+                    `[Cerebr] Guest shell plugin host did not receive a shell API `
+                    + `(pluginId=${pluginId || 'unknown'}, `
+                    + `apiKeys=${Object.keys(api && typeof api === 'object' ? api : {}).join(',') || 'none'}, `
+                    + `descriptorShell=${descriptorPluginApi?.shell ? 'yes' : 'no'}, `
+                    + `registryShell=${registeredPluginApi?.shell ? 'yes' : 'no'}, `
+                    + `directFactory=${typeof globalThis?.[SHELL_GUEST_HOST_API_FACTORY_KEY] === 'function' ? 'yes' : 'no'}, `
+                    + `factory=${typeof descriptorCreateApi === 'function' || typeof globalThis?.[SHELL_PLUGIN_API_FACTORY_KEY] === 'function' ? 'yes' : 'no'})`
+                );
+            }
             const host = createGuestShellPluginHost({
                 descriptor,
-                api,
+                api: normalizedApi,
             });
             await host.start();
             return () => host.stop();
@@ -138,6 +371,7 @@ function createGuestShellPluginHost({
     const disposers = [];
     let iframe = null;
     let mountHandle = null;
+    let hiddenRuntimeHost = null;
     let modalPresentationActive = false;
     let modalFillHeight = false;
     let pagePresentationActive = false;
@@ -210,12 +444,87 @@ function createGuestShellPluginHost({
         }
     }
 
+    function ensureHiddenRuntimeHost() {
+        if (hiddenRuntimeHost?.isConnected) {
+            return hiddenRuntimeHost;
+        }
+
+        const hostBody = document?.body;
+        if (!(hostBody instanceof HTMLElement)) {
+            throw new Error('Guest shell plugin could not create a hidden runtime host');
+        }
+
+        const container = document.createElement('div');
+        container.className = 'cerebr-plugin-guest-frame-host cerebr-plugin-guest-frame-host--hidden';
+        container.hidden = true;
+        container.setAttribute('aria-hidden', 'true');
+        container.style.position = 'fixed';
+        container.style.inset = '0 auto auto 0';
+        container.style.width = '0';
+        container.style.height = '0';
+        container.style.overflow = 'hidden';
+        container.style.opacity = '0';
+        container.style.pointerEvents = 'none';
+        hostBody.appendChild(container);
+        hiddenRuntimeHost = container;
+        return container;
+    }
+
+    function mountGuestFrame() {
+        if (typeof api.shell?.mountInputAddon === 'function') {
+            try {
+                mountHandle = api.shell.mountInputAddon(() => iframe, {
+                    slotId: 'shell.input.row.after',
+                    className: 'cerebr-plugin-slot-item--shell-input-addon-guest',
+                });
+                hiddenRuntimeHost?.remove?.();
+                hiddenRuntimeHost = null;
+                return;
+            } catch (error) {
+                if (!isMissingPermissionError(error)) {
+                    throw error;
+                }
+            }
+        }
+
+        mountHandle = null;
+        ensureHiddenRuntimeHost().replaceChildren(iframe);
+    }
+
+    async function requestLayoutSyncSafe() {
+        try {
+            await api.shell?.requestLayoutSync?.();
+            return true;
+        } catch (error) {
+            if (isMissingPermissionError(error)) {
+                return false;
+            }
+            throw error;
+        }
+    }
+
+    async function invokeShellMethodForCleanup(methodName, args = []) {
+        try {
+            const method = api.shell?.[methodName];
+            if (typeof method !== 'function') {
+                return false;
+            }
+            await method(...args);
+            return true;
+        } catch (error) {
+            if (isMissingPermissionError(error)) {
+                return false;
+            }
+            throw error;
+        }
+    }
+
     async function showModal(options = {}) {
         modalPresentationActive = true;
         modalFillHeight = !!options?.fillHeight;
         syncModalFrameState();
         await api.shell?.showModal?.(options);
-        api.shell?.requestLayoutSync?.();
+        await requestLayoutSyncSafe();
         return true;
     }
 
@@ -229,7 +538,7 @@ function createGuestShellPluginHost({
         }
         syncModalFrameState();
         await api.shell?.updateModal?.(options);
-        api.shell?.requestLayoutSync?.();
+        await requestLayoutSyncSafe();
         return true;
     }
 
@@ -240,7 +549,7 @@ function createGuestShellPluginHost({
         syncPageFrameState();
         syncInlineFrameState(lastInlineHeight);
         await api.shell?.hideModal?.();
-        api.shell?.requestLayoutSync?.();
+        await requestLayoutSyncSafe();
         return true;
     }
 
@@ -252,7 +561,7 @@ function createGuestShellPluginHost({
         syncPageFrameState();
         syncInlineFrameState(lastInlineHeight);
         await api.shell?.openPage?.(page);
-        api.shell?.requestLayoutSync?.();
+        await requestLayoutSyncSafe();
         return true;
     }
 
@@ -269,7 +578,7 @@ function createGuestShellPluginHost({
         syncPageFrameState();
         syncInlineFrameState(lastInlineHeight);
         await api.shell?.updatePage?.(page);
-        api.shell?.requestLayoutSync?.();
+        await requestLayoutSyncSafe();
         return true;
     }
 
@@ -279,7 +588,7 @@ function createGuestShellPluginHost({
         syncPageFrameState();
         syncInlineFrameState(lastInlineHeight);
         await api.shell?.closePage?.(reason);
-        api.shell?.requestLayoutSync?.();
+        await requestLayoutSyncSafe();
         return true;
     }
 
@@ -401,6 +710,8 @@ function createGuestShellPluginHost({
         case 'ui.showToast':
             api.ui?.showToast?.(args[0], args[1] && typeof args[1] === 'object' ? args[1] : {});
             return true;
+        case 'ui.copyText':
+            return api.ui?.copyText?.(args[0]) ?? false;
         case 'bridge.send':
             return api.bridge?.send?.(args[0], args[1], args[2] && typeof args[2] === 'object' ? args[2] : {});
         default:
@@ -444,7 +755,7 @@ function createGuestShellPluginHost({
 
         if (kind === GUEST_RESIZE) {
             syncInlineFrameState(payload?.height);
-            api.shell?.requestLayoutSync?.();
+            void requestLayoutSyncSafe();
             return;
         }
 
@@ -481,9 +792,6 @@ function createGuestShellPluginHost({
         if (!pluginId) {
             throw new Error('Guest shell plugin is missing manifest.id');
         }
-        if (typeof api.shell?.mountInputAddon !== 'function') {
-            throw new Error('Shell guest plugins require shell.mountInputAddon() support');
-        }
 
         started = true;
         iframe = document.createElement('iframe');
@@ -518,7 +826,7 @@ function createGuestShellPluginHost({
             }
         };
 
-        registerOptionalObserver(() => api.shell.observeTheme?.(onTheme));
+        registerOptionalObserver(() => api.shell?.observeTheme?.(onTheme));
 
         registerOptionalObserver(() => api.i18n?.onLocaleChanged?.(({ locale } = {}) => {
             currentLocaleRef.current = normalizeString(locale, getHostLocale());
@@ -530,28 +838,28 @@ function createGuestShellPluginHost({
             });
         }));
 
-        registerOptionalObserver(() => api.shell.onInputAction?.((event) => {
+        registerOptionalObserver(() => api.shell?.onInputAction?.((event) => {
             postToGuest(GUEST_EVENT, {
                 name: 'shell.inputAction',
                 value: event,
             });
         }));
 
-        registerOptionalObserver(() => api.shell.onSlashCommandEvent?.((event) => {
+        registerOptionalObserver(() => api.shell?.onSlashCommandEvent?.((event) => {
             postToGuest(GUEST_EVENT, {
                 name: 'shell.slashCommand',
                 value: event,
             });
         }));
 
-        registerOptionalObserver(() => api.shell.onMenuAction?.((event) => {
+        registerOptionalObserver(() => api.shell?.onMenuAction?.((event) => {
             postToGuest(GUEST_EVENT, {
                 name: 'shell.menuAction',
                 value: event,
             });
         }));
 
-        registerOptionalObserver(() => api.shell.onPageEvent?.((event) => {
+        registerOptionalObserver(() => api.shell?.onPageEvent?.((event) => {
             if (event?.type === 'close') {
                 pagePresentationActive = false;
                 pageRenderMode = '';
@@ -590,16 +898,13 @@ function createGuestShellPluginHost({
         });
 
         iframe.src = getGuestPageUrl();
-        mountHandle = api.shell.mountInputAddon(() => iframe, {
-            slotId: 'shell.input.row.after',
-            className: 'cerebr-plugin-slot-item--shell-input-addon-guest',
-        });
+        mountGuestFrame();
         syncInlineFrameState(0);
         syncModalFrameState();
 
         try {
             await readyPromise;
-            api.shell?.requestLayoutSync?.();
+            await requestLayoutSyncSafe();
         } catch (error) {
             await stop();
             throw error;
@@ -624,16 +929,19 @@ function createGuestShellPluginHost({
         }
 
         try {
-            await api.shell?.clearInputActions?.();
-            await api.shell?.clearMenuItems?.();
-            await closePage('stop');
-            await hideModal();
+            await invokeShellMethodForCleanup('clearInputActions');
+            await invokeShellMethodForCleanup('clearMenuItems');
+            await invokeShellMethodForCleanup('closePage', ['stop']);
+            await invokeShellMethodForCleanup('hideModal');
+            await requestLayoutSyncSafe();
             mountHandle?.dispose?.();
         } catch (error) {
             console.error('[Cerebr] Failed to dispose guest shell plugin mount', error);
         }
 
         mountHandle = null;
+        hiddenRuntimeHost?.remove?.();
+        hiddenRuntimeHost = null;
 
         if (iframe?.parentElement) {
             iframe.parentElement.removeChild(iframe);
