@@ -2,6 +2,7 @@ import { createShellInputActionManager } from './shell-input-action-manager.js';
 import { createShellMenuManager } from './shell-menu-manager.js';
 import { createShellModalManager } from './shell-modal-manager.js';
 import { createShellPageManager } from './shell-page-manager.js';
+import { createShellSlashCommandManager } from './shell-slash-command-manager.js';
 
 function normalizeString(value, fallback = '') {
     const normalized = String(value ?? '').trim();
@@ -11,6 +12,10 @@ function normalizeString(value, fallback = '') {
 export function createShellHostManager({
     inputActionsContainer = null,
     menuItemsContainer = null,
+    slashCommandsContainer = null,
+    messageInput = null,
+    inputContainer = null,
+    editor = null,
     pageElements = {},
     logger = console,
     onLayoutSync = null,
@@ -22,6 +27,14 @@ export function createShellHostManager({
     const menuManager = createShellMenuManager({
         container: menuItemsContainer,
         logger,
+    });
+    const slashCommandManager = createShellSlashCommandManager({
+        container: slashCommandsContainer,
+        messageInput,
+        inputContainer,
+        editor,
+        logger,
+        onLayoutSync,
     });
     const modalManager = createShellModalManager();
     const pageManager = createShellPageManager({
@@ -57,6 +70,19 @@ export function createShellHostManager({
         },
         onMenuAction(pluginId, callback) {
             return menuManager.addListener(pluginId, callback);
+        },
+        setSlashCommands(pluginId, commands = [], options = {}) {
+            const nextCommands = slashCommandManager.setCommands(pluginId, commands, options);
+            syncLayout();
+            return nextCommands;
+        },
+        clearSlashCommands(pluginId) {
+            const cleared = slashCommandManager.clearCommands(pluginId);
+            syncLayout();
+            return cleared;
+        },
+        onSlashCommandEvent(callback) {
+            return slashCommandManager.addListener(callback);
         },
         showModal(pluginId, mountElement, options = {}) {
             const modalHandle = modalManager.present(pluginId, mountElement, options);
@@ -100,6 +126,7 @@ export function createShellHostManager({
         removePlugin(pluginId) {
             inputActionManager.removePlugin(pluginId);
             menuManager.removePlugin(pluginId);
+            slashCommandManager.removePlugin(pluginId);
             modalManager.dismiss(pluginId);
             pageManager.removePlugin(pluginId);
             syncLayout();

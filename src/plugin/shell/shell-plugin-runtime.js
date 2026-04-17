@@ -14,6 +14,8 @@ import {
 import {
     browserAdapter,
     isExtensionEnvironment,
+    storageAdapter,
+    syncStorageAdapter,
 } from '../../utils/storage-adapter.js';
 import { showToast } from '../../utils/ui.js';
 import { createEditorController } from '../../runtime/input/editor-controller.js';
@@ -25,6 +27,11 @@ import {
     observeShellTheme,
     requestShellLayoutSync,
 } from './shell-host-utils.js';
+import {
+    getActiveLocale as getHostLocale,
+    onLocaleChanged as observeLocaleChanged,
+    t as getI18nMessage,
+} from '../../utils/i18n.js';
 
 function createPluginMeta(entry = {}) {
     return {
@@ -35,8 +42,10 @@ function createPluginMeta(entry = {}) {
 
 export function createShellPluginRuntime({
     messageInput,
+    inputContainer = null,
     inputActionsContainer = null,
     menuItemsContainer = null,
+    slashCommandsContainer = null,
     pageElements = {},
     slotContainers = {},
 } = {}) {
@@ -47,8 +56,12 @@ export function createShellPluginRuntime({
         slots: slotContainers,
     });
     const shellHostManager = createShellHostManager({
+        messageInput,
+        inputContainer,
+        editor,
         inputActionsContainer,
         menuItemsContainer,
+        slashCommandsContainer,
         pageElements,
         onLayoutSync: requestShellLayoutSync,
     });
@@ -254,6 +267,65 @@ export function createShellPluginRuntime({
         };
     };
 
+    const resolveStorageArea = (area = 'local') => normalizeString(area) === 'sync'
+        ? syncStorageAdapter
+        : storageAdapter;
+
+    const createStorageApi = (entry = {}) => {
+        const permissions = createPermissionController(entry);
+
+        return {
+            async get(keys, options = {}) {
+                permissions.assert('storage:read');
+                return resolveStorageArea(options?.area).get(keys);
+            },
+            async set(items, options = {}) {
+                permissions.assert('storage:write');
+                if (!items || typeof items !== 'object') {
+                    return false;
+                }
+                await resolveStorageArea(options?.area).set(items);
+                return true;
+            },
+            async remove(keys, options = {}) {
+                permissions.assert('storage:write');
+                await resolveStorageArea(options?.area).remove(keys);
+                return true;
+            },
+        };
+    };
+
+    const createI18nApi = (entry = {}) => {
+        const pluginId = normalizeString(entry?.plugin?.id);
+
+        return {
+            getLocale() {
+                return getHostLocale();
+            },
+            getMessage(key, substitutions = [], fallback = '') {
+                const normalizedKey = normalizeString(key);
+                if (!normalizedKey) {
+                    return normalizeString(fallback);
+                }
+
+                const translated = getI18nMessage(normalizedKey, substitutions);
+                if (translated === normalizedKey) {
+                    return normalizeString(fallback, normalizedKey);
+                }
+                return translated;
+            },
+            onLocaleChanged(callback, options = {}) {
+                if (typeof callback !== 'function') {
+                    return () => {};
+                }
+
+                const unsubscribe = observeLocaleChanged(callback, options);
+                pluginResources.addDisposer(pluginId, unsubscribe);
+                return unsubscribe;
+            },
+        };
+    };
+
     const createShellApi = (entry = {}) => {
         const permissions = createPermissionController(entry);
         const pluginId = normalizeString(entry?.plugin?.id);
@@ -328,6 +400,29 @@ export function createShellPluginRuntime({
             onMenuAction(callback) {
                 permissions.assert('shell:menu', ['ui:mount']);
                 const unsubscribe = shellHostManager.onMenuAction(pluginId, callback);
+                pluginResources.addDisposer(pluginId, unsubscribe);
+                return unsubscribe;
+            },
+            setSlashCommands(commands = [], options = {}) {
+                permissions.assert('shell:input', ['ui:mount']);
+                return shellHostManager.setSlashCommands(
+                    pluginId,
+                    Array.isArray(commands) ? commands : [],
+                    options && typeof options === 'object' ? options : {}
+                );
+            },
+            clearSlashCommands() {
+                permissions.assert('shell:input', ['ui:mount']);
+                return shellHostManager.clearSlashCommands(pluginId);
+            },
+            onSlashCommandEvent(callback) {
+                permissions.assert('shell:input', ['ui:mount']);
+                const unsubscribe = shellHostManager.onSlashCommandEvent((event) => {
+                    if (normalizeString(event?.pluginId) !== pluginId) {
+                        return;
+                    }
+                    callback?.(event);
+                });
                 pluginResources.addDisposer(pluginId, unsubscribe);
                 return unsubscribe;
             },
@@ -466,6 +561,8 @@ export function createShellPluginRuntime({
         editor,
         browser: createBrowserApi(entry),
         chat: createChatHostApi(entry),
+        storage: createStorageApi(entry),
+        i18n: createI18nApi(entry),
         prompt: createPromptApi(entry),
         ui: createUiApi(entry),
         bridge: createBridgeApi(entry),
@@ -490,6 +587,8 @@ export function createShellPluginRuntime({
                 allowDirectives: true,
                 directives,
             }),
+            storage: createStorageApi(entry),
+            i18n: createI18nApi(entry),
             prompt: {
                 addFragment(fragment) {
                     permissions.assert('prompt:extend', ['prompt:write']);

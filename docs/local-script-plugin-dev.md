@@ -43,7 +43,7 @@ cttf-cerebr-plugin/
   "requiresExtension": true,
   "permissions": ["shell:input", "shell:menu", "shell:page", "tabs:read", "chat:write"],
   "compatibility": {
-    "versionRange": ">=2.4.80 <3.0.0"
+    "versionRange": ">=2.4.84 <3.0.0"
   },
   "script": {
     "entry": "./shell.js"
@@ -80,6 +80,9 @@ export default {
 - `shell.setInputActions(actions)` lets the host render native buttons under the composer without the plugin mounting its own toolbar.
 - `shell.clearInputActions()` removes those host-rendered buttons.
 - `shell.onInputAction(callback)` receives host button clicks with `{ actionId, action, anchorRect }`, so the plugin can open its own popover or dialog from a native Cerebr button.
+- `shell.setSlashCommands(commands, options)` lets the host own `/` command UI, keyboard handling, IME/composition safety, and draft replacement.
+- `shell.clearSlashCommands()` removes those slash commands.
+- `shell.onSlashCommandEvent(callback)` receives host slash events such as `{ type: 'select', command, trailingText }`.
 - `shell.setMenuItems(items)` adds first-level menu entries to the Cerebr settings menu.
 - `shell.clearMenuItems()` removes those host-rendered menu entries.
 - `shell.onMenuAction(callback)` receives host menu clicks with `{ itemId, item, anchorRect }`.
@@ -92,6 +95,8 @@ export default {
 - `shell.hideModal()` restores the plugin surface back to its inline shell slot.
 - `shell.observeTheme(callback)` notifies plugins when the shell theme changes.
 - `shell.requestLayoutSync()` asks Cerebr to recompute the input/chat spacing after the plugin UI changes height.
+- `storage.get(...)`, `storage.set(...)`, and `storage.remove(...)` are available to `shell` plugins through the same capability model as `background` plugins.
+- `i18n.getLocale()`, `i18n.getMessage(...)`, and `i18n.onLocaleChanged(...)` let local shell plugins stay in sync with the host locale without importing `/src/utils/i18n.js`.
 - `chat.sendDraft()` can be used instead of synthesizing key events against the host editor DOM.
 - `page` and `background` plugins keep using their existing APIs.
 
@@ -103,6 +108,7 @@ Host-rendered pages now default to the same visual language as Cerebr's native s
 - Use `card` sections for content groups and `columns` only when you truly need split management panes.
 - Use content nodes like `text`, `note`, `stats`, `actions`, `form`, `list`, and `badges`.
 - `checkbox`, `select`, `color`, `text`, and `textarea` fields are automatically rendered with host-native settings controls.
+- For guest shell plugins, keep bundled data in local JS/JSON modules. Avoid `fetch(new URL('./file.json', import.meta.url))` for plugin-local resources.
 
 ## Hook Lifecycle
 

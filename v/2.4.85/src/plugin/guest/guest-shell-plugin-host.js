@@ -12,6 +12,10 @@ import {
     GUEST_SHUTDOWN,
     isGuestMessage,
 } from './guest-protocol.js';
+import {
+    getActiveLocale as getHostLocale,
+    onLocaleChanged as observeLocaleChanged,
+} from '../../utils/i18n.js';
 
 const GUEST_STORAGE_KEY_PREFIX = 'cerebr_guest_plugin_storage_v1_';
 const GUEST_BOOT_TIMEOUT_MS = 8000;
@@ -35,6 +39,10 @@ function normalizeSerializableError(error) {
         message: error?.message || String(error),
         stack: error?.stack ? String(error.stack) : '',
     };
+}
+
+function isMissingPermissionError(error) {
+    return /requires permission/i.test(String(error?.message || ''));
 }
 
 function getGuestStorageKey(pluginId) {
@@ -123,6 +131,9 @@ function createGuestShellPluginHost({
     const sessionId = `${pluginId || 'guest-plugin'}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
     const currentThemeRef = {
         current: null,
+    };
+    const currentLocaleRef = {
+        current: getHostLocale(),
     };
     const disposers = [];
     let iframe = null;
@@ -334,6 +345,16 @@ function createGuestShellPluginHost({
                 state[String(args[0] ?? '')] = String(args[1] ?? '');
             });
             return true;
+        case 'i18n.getLocale':
+            return currentLocaleRef.current || getHostLocale();
+        case 'i18n.getMessage':
+            return api.i18n?.getMessage?.(args[0], Array.isArray(args[1]) ? args[1] : args[1], args[2]) || '';
+        case 'storage.get':
+            return api.storage?.get?.(args[0], args[1] && typeof args[1] === 'object' ? args[1] : {}) || {};
+        case 'storage.set':
+            return api.storage?.set?.(args[0], args[1] && typeof args[1] === 'object' ? args[1] : {}) ?? false;
+        case 'storage.remove':
+            return api.storage?.remove?.(args[0], args[1] && typeof args[1] === 'object' ? args[1] : {}) ?? false;
         case 'shell.close':
             return api.shell?.close?.() ?? true;
         case 'shell.getThemeSnapshot':
@@ -356,6 +377,13 @@ function createGuestShellPluginHost({
             return api.shell?.setInputActions?.(Array.isArray(args[0]) ? args[0] : []) ?? [];
         case 'shell.clearInputActions':
             return api.shell?.clearInputActions?.() ?? true;
+        case 'shell.setSlashCommands':
+            return api.shell?.setSlashCommands?.(
+                Array.isArray(args[0]) ? args[0] : [],
+                args[1] && typeof args[1] === 'object' ? args[1] : {}
+            ) ?? [];
+        case 'shell.clearSlashCommands':
+            return api.shell?.clearSlashCommands?.() ?? true;
         case 'shell.setMenuItems':
             return api.shell?.setMenuItems?.(Array.isArray(args[0]) ? args[0] : []) ?? [];
         case 'shell.clearMenuItems':
@@ -392,6 +420,7 @@ function createGuestShellPluginHost({
                 sessionId,
                 manifest,
                 theme: currentThemeRef.current || api.shell?.getThemeSnapshot?.() || null,
+                locale: currentLocaleRef.current || getHostLocale(),
                 storage: readGuestStorageSnapshot(pluginId),
             });
             return;
@@ -470,32 +499,59 @@ function createGuestShellPluginHost({
                 value: snapshot,
             });
         };
-        const stopObservingTheme = api.shell.observeTheme?.(onTheme);
-        if (typeof stopObservingTheme === 'function') {
-            disposers.push(stopObservingTheme);
-        }
+        const registerOptionalObserver = (subscribe) => {
+            if (typeof subscribe !== 'function') {
+                return false;
+            }
 
-        const stopObservingInputActions = api.shell.onInputAction?.((event) => {
+            try {
+                const unsubscribe = subscribe();
+                if (typeof unsubscribe === 'function') {
+                    disposers.push(unsubscribe);
+                }
+                return true;
+            } catch (error) {
+                if (isMissingPermissionError(error)) {
+                    return false;
+                }
+                throw error;
+            }
+        };
+
+        registerOptionalObserver(() => api.shell.observeTheme?.(onTheme));
+
+        registerOptionalObserver(() => api.i18n?.onLocaleChanged?.(({ locale } = {}) => {
+            currentLocaleRef.current = normalizeString(locale, getHostLocale());
+            postToGuest(GUEST_EVENT, {
+                name: 'i18n.locale',
+                value: {
+                    locale: currentLocaleRef.current,
+                },
+            });
+        }));
+
+        registerOptionalObserver(() => api.shell.onInputAction?.((event) => {
             postToGuest(GUEST_EVENT, {
                 name: 'shell.inputAction',
                 value: event,
             });
-        });
-        if (typeof stopObservingInputActions === 'function') {
-            disposers.push(stopObservingInputActions);
-        }
+        }));
 
-        const stopObservingMenuActions = api.shell.onMenuAction?.((event) => {
+        registerOptionalObserver(() => api.shell.onSlashCommandEvent?.((event) => {
+            postToGuest(GUEST_EVENT, {
+                name: 'shell.slashCommand',
+                value: event,
+            });
+        }));
+
+        registerOptionalObserver(() => api.shell.onMenuAction?.((event) => {
             postToGuest(GUEST_EVENT, {
                 name: 'shell.menuAction',
                 value: event,
             });
-        });
-        if (typeof stopObservingMenuActions === 'function') {
-            disposers.push(stopObservingMenuActions);
-        }
+        }));
 
-        const stopObservingPageEvents = api.shell.onPageEvent?.((event) => {
+        registerOptionalObserver(() => api.shell.onPageEvent?.((event) => {
             if (event?.type === 'close') {
                 pagePresentationActive = false;
                 pageRenderMode = '';
@@ -506,10 +562,7 @@ function createGuestShellPluginHost({
                 name: 'shell.pageEvent',
                 value: event,
             });
-        });
-        if (typeof stopObservingPageEvents === 'function') {
-            disposers.push(stopObservingPageEvents);
-        }
+        }));
 
         const readyPromise = new Promise((resolve, reject) => {
             const timeoutId = window.setTimeout(() => {

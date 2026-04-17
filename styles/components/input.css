@@ -13,7 +13,7 @@
     right: 0;
     flex-shrink: 0;
     padding-bottom: env(safe-area-inset-bottom);
-    z-index: 100;
+    z-index: 220;
     min-height: 48px;
     backdrop-filter: var(--cerebr-surface-backdrop-filter);
     -webkit-backdrop-filter: var(--cerebr-surface-backdrop-filter);

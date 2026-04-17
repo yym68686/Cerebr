@@ -109,6 +109,7 @@ async function onDomReady() {
         const preferencesImportFile = document.getElementById('preferences-import-file');
         const scrollToBottomButton = document.getElementById('scroll-to-bottom');
         const pluginInputActions = document.getElementById('plugin-input-actions');
+        const pluginSlashCommands = document.getElementById('plugin-slash-commands');
         const pluginMenuItems = document.getElementById('plugin-menu-items');
         const pluginShellPage = document.getElementById('plugin-shell-page');
         const pluginShellPageBack = document.getElementById('plugin-shell-page-back');
@@ -602,7 +603,9 @@ async function onDomReady() {
 
     const shellPluginRuntime = createShellPluginRuntime({
         messageInput,
+        inputContainer,
         inputActionsContainer: pluginInputActions,
+        slashCommandsContainer: pluginSlashCommands,
         menuItemsContainer: pluginMenuItems,
         pageElements: {
             root: pluginShellPage,

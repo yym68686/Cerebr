@@ -16,8 +16,10 @@ import {
 const guestRoot = document.getElementById('cerebr-plugin-guest-root');
 const state = {
     cleanup: null,
+    currentLocale: '',
     currentTheme: null,
     inputActionWatchers: new Set(),
+    localeWatchers: new Set(),
     menuActionWatchers: new Set(),
     pendingRpc: new Map(),
     pageEventWatchers: new Set(),
@@ -25,6 +27,7 @@ const state = {
     resizeRaf: 0,
     rpcCounter: 0,
     sessionId: '',
+    slashCommandWatchers: new Set(),
     themeWatchers: new Set(),
 };
 
@@ -77,6 +80,23 @@ function applyThemeSnapshot(snapshot) {
             callback(cloneSimpleObject(state.currentTheme, null));
         } catch (error) {
             console.warn('[Cerebr] Guest theme watcher failed', error);
+        }
+    });
+}
+
+function applyLocaleSnapshot(snapshot) {
+    const locale = typeof snapshot === 'string'
+        ? snapshot
+        : String(snapshot?.locale || '');
+    state.currentLocale = locale || 'en';
+
+    state.localeWatchers.forEach((callback) => {
+        try {
+            callback({
+                locale: state.currentLocale,
+            });
+        } catch (error) {
+            console.warn('[Cerebr] Guest locale watcher failed', error);
         }
     });
 }
@@ -212,6 +232,15 @@ function createGuestShellApi() {
         clearInputActions() {
             return createRpcRequest('shell.clearInputActions');
         },
+        setSlashCommands(commands = [], options = {}) {
+            return createRpcRequest('shell.setSlashCommands', [
+                Array.isArray(commands) ? commands : [],
+                options && typeof options === 'object' ? options : {},
+            ]);
+        },
+        clearSlashCommands() {
+            return createRpcRequest('shell.clearSlashCommands');
+        },
         onInputAction(callback) {
             if (typeof callback !== 'function') {
                 return () => {};
@@ -220,6 +249,16 @@ function createGuestShellApi() {
             state.inputActionWatchers.add(callback);
             return () => {
                 state.inputActionWatchers.delete(callback);
+            };
+        },
+        onSlashCommandEvent(callback) {
+            if (typeof callback !== 'function') {
+                return () => {};
+            }
+
+            state.slashCommandWatchers.add(callback);
+            return () => {
+                state.slashCommandWatchers.delete(callback);
             };
         },
         setMenuItems(items = []) {
@@ -307,6 +346,30 @@ function createGuestPluginApi() {
                 return createRpcRequest('browser.getCurrentTab');
             },
         },
+        i18n: {
+            getLocale() {
+                return state.currentLocale || createRpcRequest('i18n.getLocale');
+            },
+            getMessage(key, substitutions = [], fallback = '') {
+                return createRpcRequest('i18n.getMessage', [key, substitutions, fallback]);
+            },
+            onLocaleChanged(callback, { immediate = true } = {}) {
+                if (typeof callback !== 'function') {
+                    return () => {};
+                }
+
+                state.localeWatchers.add(callback);
+                if (immediate && state.currentLocale) {
+                    callback({
+                        locale: state.currentLocale,
+                    });
+                }
+
+                return () => {
+                    state.localeWatchers.delete(callback);
+                };
+            },
+        },
         bridge: {
             send(target, command, payload = {}) {
                 return createRpcRequest('bridge.send', [target, command, payload]);
@@ -346,6 +409,17 @@ function createGuestPluginApi() {
                 return createRpcRequest('editor.setDraft', [text]);
             },
         },
+        storage: {
+            get(keys, options = {}) {
+                return createRpcRequest('storage.get', [keys, options]);
+            },
+            set(items, options = {}) {
+                return createRpcRequest('storage.set', [items, options]);
+            },
+            remove(keys, options = {}) {
+                return createRpcRequest('storage.remove', [keys, options]);
+            },
+        },
         shell: createGuestShellApi(),
         ui: {
             showToast(message, options = {}) {
@@ -382,6 +456,7 @@ function createGuestDescriptor(manifest) {
 async function bootGuestPlugin(payload = {}) {
     state.sessionId = String(payload.sessionId || '');
     installLocalStorageShim(payload.storage);
+    applyLocaleSnapshot(payload.locale);
     applyThemeSnapshot(payload.theme);
     ensureResizeObserver();
 
@@ -419,8 +494,10 @@ async function shutdownGuestPlugin() {
     }
 
     state.inputActionWatchers.clear();
+    state.localeWatchers.clear();
     state.menuActionWatchers.clear();
     state.pageEventWatchers.clear();
+    state.slashCommandWatchers.clear();
     state.themeWatchers.clear();
 }
 
@@ -447,6 +524,11 @@ window.addEventListener('message', (event) => {
         return;
     }
 
+    if (kind === GUEST_EVENT && payload?.name === 'i18n.locale') {
+        applyLocaleSnapshot(payload.value);
+        return;
+    }
+
     if (kind === GUEST_EVENT && payload?.name === 'shell.inputAction') {
         const eventValue = cloneSimpleObject(payload.value, null);
         state.inputActionWatchers.forEach((callback) => {
@@ -454,6 +536,18 @@ window.addEventListener('message', (event) => {
                 callback(eventValue);
             } catch (error) {
                 console.warn('[Cerebr] Guest input action watcher failed', error);
+            }
+        });
+        return;
+    }
+
+    if (kind === GUEST_EVENT && payload?.name === 'shell.slashCommand') {
+        const eventValue = cloneSimpleObject(payload.value, null);
+        state.slashCommandWatchers.forEach((callback) => {
+            try {
+                callback(eventValue);
+            } catch (error) {
+                console.warn('[Cerebr] Guest slash command watcher failed', error);
             }
         });
         return;
