@@ -115,6 +115,7 @@ export default {
 - `browser.getCurrentTab()`
 - `editor.*`
 - `chat.*`
+- `chat.getRenderedTranscript()`
 - `prompt.*`
 - `storage.*`
 - `i18n.*`

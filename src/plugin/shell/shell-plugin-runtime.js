@@ -36,6 +36,21 @@ import {
 
 const SHELL_PLUGIN_API_FACTORY_KEY = '__CEREBR_SHELL_PLUGIN_API_FACTORY__';
 const SHELL_GUEST_HOST_API_FACTORY_KEY = '__CEREBR_SHELL_GUEST_HOST_API_FACTORY__';
+const CHAT_RENDER_SNAPSHOT_STYLE_URLS = Object.freeze([
+    '../../../styles/base/variables.css',
+    '../../../styles/base/reset.css',
+    '../../../styles/utils/animations.css',
+    '../../../styles/components/chat-container.css',
+    '../../../styles/components/message.css',
+    '../../../styles/components/reasoning.css',
+    '../../../styles/components/image-tag.css',
+    '../../../styles/components/code.css',
+    '../../../../../htmd/styles/code.css',
+    '../../../../../htmd/styles/math.css',
+    '../../../../../htmd/styles/table.css',
+]);
+
+let chatRenderSnapshotStyleTextPromise = null;
 
 function createPluginMeta(entry = {}) {
     return {
@@ -86,6 +101,97 @@ async function copyTextToClipboard(text) {
     throw new Error(document?.hasFocus?.()
         ? 'Clipboard is unavailable'
         : 'Document is not focused');
+}
+
+function stripCssImports(cssText = '') {
+    return String(cssText ?? '').replace(/@import\s+[^;]+;\s*/g, '');
+}
+
+async function loadChatRenderSnapshotStyleText() {
+    if (chatRenderSnapshotStyleTextPromise) {
+        return chatRenderSnapshotStyleTextPromise;
+    }
+
+    chatRenderSnapshotStyleTextPromise = Promise.all(
+        CHAT_RENDER_SNAPSHOT_STYLE_URLS.map(async (relativeUrl) => {
+            const response = await fetch(new URL(relativeUrl, import.meta.url), {
+                cache: 'no-store',
+            });
+            if (!response.ok) {
+                throw new Error(`Failed to load snapshot style asset: ${relativeUrl}`);
+            }
+            return stripCssImports(await response.text());
+        })
+    )
+        .then((styleTexts) => styleTexts.join('\n\n'))
+        .catch((error) => {
+            chatRenderSnapshotStyleTextPromise = null;
+            throw error;
+        });
+
+    return chatRenderSnapshotStyleTextPromise;
+}
+
+function sanitizeRenderedTranscriptMessageNode(messageNode) {
+    if (!(messageNode instanceof HTMLElement)) {
+        return null;
+    }
+
+    const clone = messageNode.cloneNode(true);
+    clone.classList.remove('updating', 'batch-load', 'show', 'is-editing');
+    clone.removeAttribute('data-original-text');
+    delete clone.dataset.seedId;
+    delete clone.dataset.seedManaged;
+
+    clone.querySelectorAll('.delete-btn').forEach((button) => button.remove());
+    clone.querySelectorAll('.typing-indicator').forEach((indicator) => indicator.remove());
+    clone.querySelectorAll('[data-original-text]').forEach((element) => {
+        element.removeAttribute('data-original-text');
+    });
+    clone.querySelectorAll('[data-seed-id]').forEach((element) => {
+        element.removeAttribute('data-seed-id');
+    });
+    clone.querySelectorAll('[data-seed-managed]').forEach((element) => {
+        element.removeAttribute('data-seed-managed');
+    });
+
+    return clone;
+}
+
+async function createRenderedTranscriptSnapshot() {
+    const chatContainer = document.getElementById('chat-container');
+    let styleText = '';
+
+    try {
+        styleText = await loadChatRenderSnapshotStyleText();
+    } catch (error) {
+        console.warn('[Cerebr] Failed to load rendered transcript styles for snapshot export', error);
+    }
+
+    if (!(chatContainer instanceof HTMLElement)) {
+        return {
+            html: '',
+            styleText,
+            messageCount: 0,
+            imageCount: 0,
+        };
+    }
+
+    const messageNodes = Array.from(chatContainer.querySelectorAll('.message'))
+        .map((messageNode) => sanitizeRenderedTranscriptMessageNode(messageNode))
+        .filter(Boolean);
+
+    const transcriptHost = document.createElement('div');
+    messageNodes.forEach((messageNode) => {
+        transcriptHost.appendChild(messageNode);
+    });
+
+    return {
+        html: transcriptHost.innerHTML,
+        styleText,
+        messageCount: messageNodes.length,
+        imageCount: transcriptHost.querySelectorAll('.message img').length,
+    };
 }
 
 export function createShellPluginRuntime({
@@ -200,6 +306,12 @@ export function createShellPluginRuntime({
                     permissions.assert('chat:messages', ['chat:read']);
                 }
                 return chatRuntimeRef.current?.getMessages?.() || [];
+            },
+            async getRenderedTranscript() {
+                if (entry) {
+                    permissions.assert('chat:messages', ['chat:read']);
+                }
+                return createRenderedTranscriptSnapshot();
             },
             sendDraft() {
                 if (entry) {

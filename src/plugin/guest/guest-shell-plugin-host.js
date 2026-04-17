@@ -610,6 +610,13 @@ function createGuestShellPluginHost({
             return api.browser?.getCurrentTab?.() ?? null;
         case 'chat.abort':
             return api.chat?.abort?.() ?? false;
+        case 'chat.getRenderedTranscript':
+            return api.chat?.getRenderedTranscript?.() || {
+                html: '',
+                styleText: '',
+                messageCount: 0,
+                imageCount: 0,
+            };
         case 'chat.sendDraft':
             return api.chat?.sendDraft?.() ?? false;
         case 'editor.clear':

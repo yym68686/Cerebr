@@ -379,6 +379,9 @@ function createGuestPluginApi() {
             abort() {
                 return createRpcRequest('chat.abort');
             },
+            getRenderedTranscript() {
+                return createRpcRequest('chat.getRenderedTranscript');
+            },
             sendDraft() {
                 return createRpcRequest('chat.sendDraft');
             },
