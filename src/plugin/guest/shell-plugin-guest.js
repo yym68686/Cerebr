@@ -17,7 +17,10 @@ const guestRoot = document.getElementById('cerebr-plugin-guest-root');
 const state = {
     cleanup: null,
     currentTheme: null,
+    inputActionWatchers: new Set(),
+    menuActionWatchers: new Set(),
     pendingRpc: new Map(),
+    pageEventWatchers: new Set(),
     resizeObserver: null,
     resizeRaf: 0,
     rpcCounter: 0,
@@ -203,6 +206,76 @@ function createGuestShellApi() {
             scheduleResizeReport();
             return guestRoot;
         },
+        setInputActions(actions = []) {
+            return createRpcRequest('shell.setInputActions', [Array.isArray(actions) ? actions : []]);
+        },
+        clearInputActions() {
+            return createRpcRequest('shell.clearInputActions');
+        },
+        onInputAction(callback) {
+            if (typeof callback !== 'function') {
+                return () => {};
+            }
+
+            state.inputActionWatchers.add(callback);
+            return () => {
+                state.inputActionWatchers.delete(callback);
+            };
+        },
+        setMenuItems(items = []) {
+            return createRpcRequest('shell.setMenuItems', [Array.isArray(items) ? items : []]);
+        },
+        clearMenuItems() {
+            return createRpcRequest('shell.clearMenuItems');
+        },
+        onMenuAction(callback) {
+            if (typeof callback !== 'function') {
+                return () => {};
+            }
+
+            state.menuActionWatchers.add(callback);
+            return () => {
+                state.menuActionWatchers.delete(callback);
+            };
+        },
+        showModal(options = {}) {
+            scheduleResizeReport();
+            return createRpcRequest('shell.showModal', [options]);
+        },
+        updateModal(options = {}) {
+            scheduleResizeReport();
+            return createRpcRequest('shell.updateModal', [options]);
+        },
+        hideModal() {
+            return createRpcRequest('shell.hideModal');
+        },
+        enterOverlayPresentation() {
+            return createRpcRequest('shell.enterOverlayPresentation');
+        },
+        exitOverlayPresentation() {
+            return createRpcRequest('shell.exitOverlayPresentation');
+        },
+        openPage(page = {}) {
+            scheduleResizeReport();
+            return createRpcRequest('shell.openPage', [page]);
+        },
+        updatePage(page = {}) {
+            scheduleResizeReport();
+            return createRpcRequest('shell.updatePage', [page]);
+        },
+        closePage(reason = 'programmatic') {
+            return createRpcRequest('shell.closePage', [reason]);
+        },
+        onPageEvent(callback) {
+            if (typeof callback !== 'function') {
+                return () => {};
+            }
+
+            state.pageEventWatchers.add(callback);
+            return () => {
+                state.pageEventWatchers.delete(callback);
+            };
+        },
         requestLayoutSync() {
             scheduleResizeReport();
             return createRpcRequest('shell.requestLayoutSync');
@@ -297,6 +370,9 @@ function createGuestDescriptor(manifest) {
             ...manifest,
             source: normalizedSource,
         },
+        runtime: {
+            moduleUrlStrategy: 'data',
+        },
         record: {
             updatedAt: Date.now(),
         },
@@ -341,6 +417,11 @@ async function shutdownGuestPlugin() {
     if (typeof cleanup === 'function') {
         await cleanup();
     }
+
+    state.inputActionWatchers.clear();
+    state.menuActionWatchers.clear();
+    state.pageEventWatchers.clear();
+    state.themeWatchers.clear();
 }
 
 window.addEventListener('message', (event) => {
@@ -363,6 +444,42 @@ window.addEventListener('message', (event) => {
     if (kind === GUEST_EVENT && payload?.name === 'shell.theme') {
         applyThemeSnapshot(payload.value);
         scheduleResizeReport();
+        return;
+    }
+
+    if (kind === GUEST_EVENT && payload?.name === 'shell.inputAction') {
+        const eventValue = cloneSimpleObject(payload.value, null);
+        state.inputActionWatchers.forEach((callback) => {
+            try {
+                callback(eventValue);
+            } catch (error) {
+                console.warn('[Cerebr] Guest input action watcher failed', error);
+            }
+        });
+        return;
+    }
+
+    if (kind === GUEST_EVENT && payload?.name === 'shell.menuAction') {
+        const eventValue = cloneSimpleObject(payload.value, null);
+        state.menuActionWatchers.forEach((callback) => {
+            try {
+                callback(eventValue);
+            } catch (error) {
+                console.warn('[Cerebr] Guest menu action watcher failed', error);
+            }
+        });
+        return;
+    }
+
+    if (kind === GUEST_EVENT && payload?.name === 'shell.pageEvent') {
+        const eventValue = cloneSimpleObject(payload.value, null);
+        state.pageEventWatchers.forEach((callback) => {
+            try {
+                callback(eventValue);
+            } catch (error) {
+                console.warn('[Cerebr] Guest page watcher failed', error);
+            }
+        });
         return;
     }
 

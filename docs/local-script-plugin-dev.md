@@ -34,16 +34,16 @@ cttf-cerebr-plugin/
 {
   "schemaVersion": 1,
   "id": "local.cttf-shell",
-  "version": "1.3.0",
+  "version": "1.8.0",
   "kind": "script",
   "scope": "shell",
   "displayName": "CTTF for Cerebr",
   "description": "Run Chat Template Text Folders inside the Cerebr shell through the official self-contained guest runtime.",
   "defaultEnabled": true,
   "requiresExtension": true,
-  "permissions": ["shell:input", "tabs:read", "chat:write"],
+  "permissions": ["shell:input", "shell:menu", "shell:page", "tabs:read", "chat:write"],
   "compatibility": {
-    "versionRange": ">=2.4.76 <3.0.0"
+    "versionRange": ">=2.4.80 <3.0.0"
   },
   "script": {
     "entry": "./shell.js"
@@ -74,11 +74,33 @@ export default {
 
 - `shell` plugins can use `editor`, `chat`, `prompt`, `ui`, `bridge`, `browser`, and `shell`.
 - `browser.getCurrentTab()` returns the active browser tab in the extension host.
-- `shell.mountInputAddon()` gives the plugin a stable container inside the shell input area.
+- `shell.mountInputAddon()` gives the plugin a stable full-width container in `shell.input.row.after`, directly under the composer row.
+- `shell.setInputActions(actions)` lets the host render native buttons under the composer without the plugin mounting its own toolbar.
+- `shell.clearInputActions()` removes those host-rendered buttons.
+- `shell.onInputAction(callback)` receives host button clicks with `{ actionId, action, anchorRect }`, so the plugin can open its own popover or dialog from a native Cerebr button.
+- `shell.setMenuItems(items)` adds first-level menu entries to the Cerebr settings menu.
+- `shell.clearMenuItems()` removes those host-rendered menu entries.
+- `shell.onMenuAction(callback)` receives host menu clicks with `{ itemId, item, anchorRect }`.
+- `shell.openPage(page)` opens a host-managed full page inside the Cerebr shell. Pass `page.view` to let Cerebr render the body from a serializable schema instead of reparenting plugin DOM.
+- `shell.updatePage(page)` updates the current page metadata or `page.view` without reopening it.
+- `shell.closePage(reason)` dismisses the host page and returns the plugin surface to its inline slot.
+- `shell.onPageEvent(callback)` receives lifecycle plus interaction events such as `{ type: 'open' | 'close' | 'action' | 'change', page, ... }`.
+- `shell.showModal(options)` moves the plugin's mounted shell surface into a host-managed modal panel inside the Cerebr chat area.
+- `shell.updateModal(options)` updates that modal panel's size/alignment without closing it first.
+- `shell.hideModal()` restores the plugin surface back to its inline shell slot.
 - `shell.observeTheme(callback)` notifies plugins when the shell theme changes.
 - `shell.requestLayoutSync()` asks Cerebr to recompute the input/chat spacing after the plugin UI changes height.
 - `chat.sendDraft()` can be used instead of synthesizing key events against the host editor DOM.
 - `page` and `background` plugins keep using their existing APIs.
+
+For settings, dashboards, or management flows, prefer `shell.setMenuItems()` + `shell.openPage({ view })` over plugin-owned modal dialogs. The host page chrome stays visually consistent with Cerebr, avoids guest iframe overlay issues, and lets the host own buttons, forms, and list layout.
+
+Host-rendered pages now default to the same visual language as Cerebr's native settings pages. Plugin authors should describe structure instead of styles:
+
+- Use page `title` and `subtitle` for the shell header, not a duplicated in-page hero headline.
+- Use `card` sections for content groups and `columns` only when you truly need split management panes.
+- Use content nodes like `text`, `note`, `stats`, `actions`, `form`, `list`, and `badges`.
+- `checkbox`, `select`, `color`, `text`, and `textarea` fields are automatically rendered with host-native settings controls.
 
 ## Hook Lifecycle
 
@@ -99,7 +121,8 @@ export default {
 - Page, shell, and background runtimes subscribe to developer-mode changes.
 - Turning developer mode off unloads all local script plugins.
 - Refreshing a local plugin re-reads the stored source bundle and reloads the plugin.
-- In the browser extension host, dropped local `shell` plugin folders run in a static guest runtime inside the shell input area.
+- In the browser extension host, dropped local `shell` plugin folders run in a static guest runtime mounted into the row-level `shell.input.row.after` slot.
+- Host-native input actions, first-level menu items, and shell pages are forwarded through the guest bridge, so local shell plugins can use the same `shell.*` navigation/layout APIs without reaching into host DOM.
 - Guest shell plugins must be self-contained. Absolute `/src/...` imports, same-origin host internals, and direct host DOM access are rejected.
 - On the web host, dropped local file bundles still use local bundle storage.
 

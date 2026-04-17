@@ -49,6 +49,8 @@ function getPermissionLabel(permission) {
         'prompt:extend': 'plugin_permission_prompt_extend',
         'page:selection': 'plugin_permission_page_selection',
         'shell:input': 'plugin_permission_shell_input',
+        'shell:menu': 'plugin_permission_shell_menu',
+        'shell:page': 'plugin_permission_shell_page',
         'page:read': 'plugin_permission_page_read',
         'page:observe': 'plugin_permission_page_observe',
         'page:write': 'plugin_permission_page_write',

@@ -185,6 +185,8 @@
   "plugin_permission_prompt_extend": { "message": "扩展系统提示词" },
   "plugin_permission_page_selection": { "message": "读取网页选中文本" },
   "plugin_permission_shell_input": { "message": "读写 Cerebr 输入框" },
+  "plugin_permission_shell_menu": { "message": "添加 Cerebr 一级菜单入口" },
+  "plugin_permission_shell_page": { "message": "打开 Cerebr 原生插件页面" },
   "plugin_permission_page_read": { "message": "读取网页内容" },
   "plugin_permission_page_observe": { "message": "监听网页元素变化" },
   "plugin_permission_page_write": { "message": "写入网页元素" },

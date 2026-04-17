@@ -185,6 +185,8 @@
   "plugin_permission_prompt_extend": { "message": "Extend system prompt" },
   "plugin_permission_page_selection": { "message": "Read text selection" },
   "plugin_permission_shell_input": { "message": "Read and write the Cerebr input" },
+  "plugin_permission_shell_menu": { "message": "Add first-level Cerebr menu entries" },
+  "plugin_permission_shell_page": { "message": "Open native Cerebr plugin pages" },
   "plugin_permission_page_read": { "message": "Read webpage content" },
   "plugin_permission_page_observe": { "message": "Observe webpage element changes" },
   "plugin_permission_page_write": { "message": "Write webpage elements" },

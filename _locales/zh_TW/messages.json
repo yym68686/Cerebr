@@ -185,6 +185,8 @@
   "plugin_permission_prompt_extend": { "message": "擴展系統提示詞" },
   "plugin_permission_page_selection": { "message": "讀取網頁選取文字" },
   "plugin_permission_shell_input": { "message": "讀寫 Cerebr 輸入框" },
+  "plugin_permission_shell_menu": { "message": "新增 Cerebr 一級選單入口" },
+  "plugin_permission_shell_page": { "message": "開啟 Cerebr 原生外掛頁面" },
   "plugin_permission_page_read": { "message": "讀取網頁內容" },
   "plugin_permission_page_observe": { "message": "監聽網頁元素變化" },
   "plugin_permission_page_write": { "message": "寫入網頁元素" },

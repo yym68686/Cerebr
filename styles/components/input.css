@@ -5,6 +5,7 @@
     border-top: none;
     box-shadow: none;
     display: flex;
+    flex-direction: column;
     align-items: flex-start;
     position: fixed;
     bottom: 0;
@@ -16,6 +17,14 @@
     min-height: 48px;
     backdrop-filter: var(--cerebr-surface-backdrop-filter);
     -webkit-backdrop-filter: var(--cerebr-surface-backdrop-filter);
+}
+
+.input-container-main-row {
+    display: flex;
+    align-items: flex-start;
+    position: relative;
+    width: 100%;
+    min-width: 0;
 }
 
 #input-container.is-editing-message .message-input-shell {

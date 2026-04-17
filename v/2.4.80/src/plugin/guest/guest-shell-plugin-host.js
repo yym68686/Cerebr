@@ -15,6 +15,16 @@ import {
 
 const GUEST_STORAGE_KEY_PREFIX = 'cerebr_guest_plugin_storage_v1_';
 const GUEST_BOOT_TIMEOUT_MS = 8000;
+const LEGACY_GUEST_OVERLAY_OPTIONS = Object.freeze({
+    width: 'min(1100px, calc(100vw - 24px))',
+    maxWidth: 'calc(100vw - 24px)',
+    height: 'min(820px, calc(100vh - 24px))',
+    maxHeight: 'calc(100vh - 24px)',
+    minHeight: '320px',
+    fillHeight: true,
+    dimBackground: true,
+    blockBackground: true,
+});
 
 function getGuestPageUrl() {
     return new URL('./shell-plugin-guest.html', import.meta.url).toString();
@@ -117,7 +127,150 @@ function createGuestShellPluginHost({
     const disposers = [];
     let iframe = null;
     let mountHandle = null;
+    let modalPresentationActive = false;
+    let modalFillHeight = false;
+    let pagePresentationActive = false;
+    let pageRenderMode = '';
+    let lastInlineHeight = 0;
     let started = false;
+
+    function syncInlineFrameState(height = 0) {
+        const normalizedHeight = Math.max(0, Math.ceil(Number(height) || 0));
+        lastInlineHeight = normalizedHeight;
+        const collapsed = normalizedHeight <= 0
+            && !modalPresentationActive
+            && !(pagePresentationActive && pageRenderMode === 'mount');
+
+        iframe?.classList.toggle('cerebr-plugin-guest-frame--collapsed', collapsed);
+        mountHandle?.element?.classList?.toggle?.('cerebr-plugin-slot-item--shell-input-addon-empty', collapsed);
+
+        if (!iframe) {
+            return;
+        }
+
+        if (collapsed) {
+            iframe.style.height = '0px';
+            return;
+        }
+
+        if (pagePresentationActive && pageRenderMode === 'mount') {
+            iframe.style.height = '100%';
+            return;
+        }
+
+        if (!modalPresentationActive || !modalFillHeight) {
+            iframe.style.height = `${normalizedHeight}px`;
+        }
+    }
+
+    function syncModalFrameState() {
+        if (!iframe) {
+            return;
+        }
+
+        iframe.classList.toggle(
+            'cerebr-plugin-guest-frame--modal',
+            modalPresentationActive && modalFillHeight
+        );
+        iframe.classList.toggle(
+            'cerebr-plugin-guest-frame--overlay',
+            false
+        );
+        iframe.style.height = modalPresentationActive && modalFillHeight
+            ? '100%'
+            : (iframe.classList.contains('cerebr-plugin-guest-frame--collapsed') ? '0px' : '');
+    }
+
+    function syncPageFrameState() {
+        if (!iframe) {
+            return;
+        }
+
+        iframe.classList.toggle(
+            'cerebr-plugin-guest-frame--page',
+            pagePresentationActive && pageRenderMode === 'mount'
+        );
+        if (pagePresentationActive && pageRenderMode === 'mount') {
+            iframe.style.height = '100%';
+        } else if (!modalPresentationActive || !modalFillHeight) {
+            iframe.style.height = iframe.classList.contains('cerebr-plugin-guest-frame--collapsed')
+                ? '0px'
+                : `${lastInlineHeight}px`;
+        }
+    }
+
+    async function showModal(options = {}) {
+        modalPresentationActive = true;
+        modalFillHeight = !!options?.fillHeight;
+        syncModalFrameState();
+        await api.shell?.showModal?.(options);
+        api.shell?.requestLayoutSync?.();
+        return true;
+    }
+
+    async function updateModal(options = {}) {
+        if (!modalPresentationActive) {
+            return showModal(options);
+        }
+
+        if (Object.prototype.hasOwnProperty.call(options || {}, 'fillHeight')) {
+            modalFillHeight = !!options?.fillHeight;
+        }
+        syncModalFrameState();
+        await api.shell?.updateModal?.(options);
+        api.shell?.requestLayoutSync?.();
+        return true;
+    }
+
+    async function hideModal() {
+        modalPresentationActive = false;
+        modalFillHeight = false;
+        syncModalFrameState();
+        syncPageFrameState();
+        syncInlineFrameState(lastInlineHeight);
+        await api.shell?.hideModal?.();
+        api.shell?.requestLayoutSync?.();
+        return true;
+    }
+
+    async function openPage(page = {}) {
+        pagePresentationActive = true;
+        pageRenderMode = page && typeof page === 'object' && page.view && typeof page.view === 'object'
+            ? 'host-view'
+            : 'mount';
+        syncPageFrameState();
+        syncInlineFrameState(lastInlineHeight);
+        await api.shell?.openPage?.(page);
+        api.shell?.requestLayoutSync?.();
+        return true;
+    }
+
+    async function updatePage(page = {}) {
+        if (!pagePresentationActive) {
+            return openPage(page);
+        }
+
+        if (page && typeof page === 'object' && Object.prototype.hasOwnProperty.call(page, 'view')) {
+            pageRenderMode = page.view && typeof page.view === 'object'
+                ? 'host-view'
+                : 'mount';
+        }
+        syncPageFrameState();
+        syncInlineFrameState(lastInlineHeight);
+        await api.shell?.updatePage?.(page);
+        api.shell?.requestLayoutSync?.();
+        return true;
+    }
+
+    async function closePage(reason = 'programmatic') {
+        pagePresentationActive = false;
+        pageRenderMode = '';
+        syncPageFrameState();
+        syncInlineFrameState(lastInlineHeight);
+        await api.shell?.closePage?.(reason);
+        api.shell?.requestLayoutSync?.();
+        return true;
+    }
 
     function postToGuest(kind, payload = {}) {
         if (!iframe?.contentWindow) {
@@ -185,10 +338,34 @@ function createGuestShellPluginHost({
             return api.shell?.close?.() ?? true;
         case 'shell.getThemeSnapshot':
             return currentThemeRef.current || api.shell?.getThemeSnapshot?.() || null;
+        case 'shell.showModal':
+            return showModal(args[0] && typeof args[0] === 'object' ? args[0] : {});
+        case 'shell.updateModal':
+            return updateModal(args[0] && typeof args[0] === 'object' ? args[0] : {});
+        case 'shell.hideModal':
+            return hideModal();
+        case 'shell.enterOverlayPresentation':
+            return showModal(LEGACY_GUEST_OVERLAY_OPTIONS);
+        case 'shell.exitOverlayPresentation':
+            return hideModal();
         case 'shell.isVisible':
             return api.shell?.isVisible?.() ?? true;
         case 'shell.open':
             return api.shell?.open?.() ?? true;
+        case 'shell.setInputActions':
+            return api.shell?.setInputActions?.(Array.isArray(args[0]) ? args[0] : []) ?? [];
+        case 'shell.clearInputActions':
+            return api.shell?.clearInputActions?.() ?? true;
+        case 'shell.setMenuItems':
+            return api.shell?.setMenuItems?.(Array.isArray(args[0]) ? args[0] : []) ?? [];
+        case 'shell.clearMenuItems':
+            return api.shell?.clearMenuItems?.() ?? true;
+        case 'shell.openPage':
+            return openPage(args[0] && typeof args[0] === 'object' ? args[0] : {});
+        case 'shell.updatePage':
+            return updatePage(args[0] && typeof args[0] === 'object' ? args[0] : {});
+        case 'shell.closePage':
+            return closePage(normalizeString(args[0], 'programmatic'));
         case 'shell.requestLayoutSync':
             return api.shell?.requestLayoutSync?.() ?? true;
         case 'shell.toggle':
@@ -237,10 +414,7 @@ function createGuestShellPluginHost({
         }
 
         if (kind === GUEST_RESIZE) {
-            const height = Math.max(0, Math.ceil(Number(payload?.height) || 0));
-            if (iframe) {
-                iframe.style.height = `${height}px`;
-            }
+            syncInlineFrameState(payload?.height);
             api.shell?.requestLayoutSync?.();
             return;
         }
@@ -301,6 +475,42 @@ function createGuestShellPluginHost({
             disposers.push(stopObservingTheme);
         }
 
+        const stopObservingInputActions = api.shell.onInputAction?.((event) => {
+            postToGuest(GUEST_EVENT, {
+                name: 'shell.inputAction',
+                value: event,
+            });
+        });
+        if (typeof stopObservingInputActions === 'function') {
+            disposers.push(stopObservingInputActions);
+        }
+
+        const stopObservingMenuActions = api.shell.onMenuAction?.((event) => {
+            postToGuest(GUEST_EVENT, {
+                name: 'shell.menuAction',
+                value: event,
+            });
+        });
+        if (typeof stopObservingMenuActions === 'function') {
+            disposers.push(stopObservingMenuActions);
+        }
+
+        const stopObservingPageEvents = api.shell.onPageEvent?.((event) => {
+            if (event?.type === 'close') {
+                pagePresentationActive = false;
+                pageRenderMode = '';
+                syncPageFrameState();
+                syncInlineFrameState(lastInlineHeight);
+            }
+            postToGuest(GUEST_EVENT, {
+                name: 'shell.pageEvent',
+                value: event,
+            });
+        });
+        if (typeof stopObservingPageEvents === 'function') {
+            disposers.push(stopObservingPageEvents);
+        }
+
         const readyPromise = new Promise((resolve, reject) => {
             const timeoutId = window.setTimeout(() => {
                 reject(new Error(`Guest shell plugin "${pluginId}" timed out while starting`));
@@ -328,9 +538,11 @@ function createGuestShellPluginHost({
 
         iframe.src = getGuestPageUrl();
         mountHandle = api.shell.mountInputAddon(() => iframe, {
-            slotId: 'shell.input.after',
+            slotId: 'shell.input.row.after',
             className: 'cerebr-plugin-slot-item--shell-input-addon-guest',
         });
+        syncInlineFrameState(0);
+        syncModalFrameState();
 
         try {
             await readyPromise;
@@ -359,6 +571,10 @@ function createGuestShellPluginHost({
         }
 
         try {
+            await api.shell?.clearInputActions?.();
+            await api.shell?.clearMenuItems?.();
+            await closePage('stop');
+            await hideModal();
             mountHandle?.dispose?.();
         } catch (error) {
             console.error('[Cerebr] Failed to dispose guest shell plugin mount', error);

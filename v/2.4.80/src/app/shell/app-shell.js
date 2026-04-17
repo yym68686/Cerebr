@@ -108,6 +108,13 @@ async function onDomReady() {
         const preferencesDataImport = document.getElementById('preferences-import-data');
         const preferencesImportFile = document.getElementById('preferences-import-file');
         const scrollToBottomButton = document.getElementById('scroll-to-bottom');
+        const pluginInputActions = document.getElementById('plugin-input-actions');
+        const pluginMenuItems = document.getElementById('plugin-menu-items');
+        const pluginShellPage = document.getElementById('plugin-shell-page');
+        const pluginShellPageBack = document.getElementById('plugin-shell-page-back');
+        const pluginShellPageTitle = document.getElementById('plugin-shell-page-title');
+        const pluginShellPageSubtitle = document.getElementById('plugin-shell-page-subtitle');
+        const pluginShellPageBody = document.getElementById('plugin-shell-page-body');
         const shellSlotContainers = Object.fromEntries(
             Array.from(document.querySelectorAll('[data-plugin-slot^="shell."]'))
                 .map((element) => [element.dataset.pluginSlot, element])
@@ -595,6 +602,15 @@ async function onDomReady() {
 
     const shellPluginRuntime = createShellPluginRuntime({
         messageInput,
+        inputActionsContainer: pluginInputActions,
+        menuItemsContainer: pluginMenuItems,
+        pageElements: {
+            root: pluginShellPage,
+            backButton: pluginShellPageBack,
+            titleElement: pluginShellPageTitle,
+            subtitleElement: pluginShellPageSubtitle,
+            bodyElement: pluginShellPageBody,
+        },
         slotContainers: shellSlotContainers,
     });
 
@@ -617,6 +633,14 @@ async function onDomReady() {
         pluginRuntime: shellPluginRuntime,
     });
     shellPluginRuntime.attachChatRuntime(chatController);
+
+    const closePluginShellPage = (reason = 'host-navigation') => {
+        try {
+            shellPluginRuntime.dismissPage?.(reason);
+        } catch (error) {
+            console.warn('[Cerebr] Failed to close shell plugin page', error);
+        }
+    };
 
     const cloneMessageContent = (content) => Array.isArray(content)
         ? content.map((part) => {
@@ -1577,6 +1601,7 @@ async function onDomReady() {
 
     const openPluginSettingsPage = ({ tabId = '' } = {}) => {
         if (!lastAppliedDeveloperModeEnabled || !pluginSettings) return;
+        closePluginShellPage();
 
         const shouldRefreshAfterEnsure = !!pluginSettingsController;
         if (!shouldRefreshAfterEnsure && !pluginSettingsControllerPromise && pluginSettingsStatus) {
@@ -1690,6 +1715,7 @@ async function onDomReady() {
 
     if (preferencesToggle && preferencesSettings) {
         preferencesToggle.addEventListener('click', () => {
+            closePluginShellPage();
             preferencesSettings.classList.add('visible');
             closeSettingsMenu();
         });
@@ -2214,6 +2240,7 @@ async function onDomReady() {
 
     // 显示/隐藏 API 设置
     apiSettingsToggle?.addEventListener('click', () => {
+        closePluginShellPage();
         apiSettings?.classList?.add('visible');
         closeSettingsMenu();
         // 确保每次打开设置时都重新渲染卡片
@@ -2300,6 +2327,11 @@ async function onDomReady() {
 
         if (pluginSettings?.classList?.contains('visible')) {
             pluginSettings.classList.remove('visible');
+            handled = true;
+        }
+
+        if (shellPluginRuntime.hasOpenPage?.()) {
+            shellPluginRuntime.dismissPage?.('escape');
             handled = true;
         }
 

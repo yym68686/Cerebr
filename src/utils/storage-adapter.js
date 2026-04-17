@@ -497,8 +497,38 @@ export const browserAdapter = {
     }
 };
 
+function isUnsupportedStorageEstimateError(error) {
+    const message = String(error?.message || '');
+    return error?.name === 'TypeError' && /not supported in this context/i.test(message);
+}
+
+function shouldLogStorageUsage() {
+    if (typeof window === 'undefined') {
+        return false;
+    }
+
+    try {
+        if (window.top !== window) {
+            return false;
+        }
+    } catch {
+        return false;
+    }
+
+    if (isExtensionEnvironment) {
+        const href = String(globalThis.location?.href || '');
+        return href.startsWith('chrome-extension://') || href.startsWith('moz-extension://');
+    }
+
+    return true;
+}
+
 // 记录存储空间占用的函数
 function logStorageUsage() {
+    if (!shouldLogStorageUsage()) {
+        return;
+    }
+
     if (isExtensionEnvironment && typeof chrome.storage.local.getBytesInUse === 'function') {
         chrome.storage.local.getBytesInUse(null).then((bytesInUse) => {
             console.log(`[Cerebr] 插件(Chrome)本地存储精确占用: ${(bytesInUse / (1024 * 1024)).toFixed(2)} MB`);
@@ -528,7 +558,11 @@ function logStorageUsage() {
             navigator.storage.estimate().then(estimate => {
                 console.log(`[Cerebr] 网页预估存储使用 (IndexedDB等): ${(estimate.usage / (1024 * 1024)).toFixed(2)} MB / 配额: ${(estimate.quota / (1024 * 1024)).toFixed(2)} MB`);
             }).catch(error => {
-                console.warn("[Cerebr] 无法通过 navigator.storage.estimate() 获取网页存储信息:", error);
+                if (isUnsupportedStorageEstimateError(error)) {
+                    console.log("[Cerebr] 当前网页上下文不支持 navigator.storage.estimate()。");
+                } else {
+                    console.warn("[Cerebr] 无法通过 navigator.storage.estimate() 获取网页存储信息:", error);
+                }
                 console.log("[Cerebr] 网页环境使用 IndexedDB。具体大小请通过浏览器开发者工具查看。");
             });
         } else {

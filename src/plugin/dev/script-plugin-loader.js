@@ -14,6 +14,8 @@ const STATIC_IMPORT_PATTERN = /(import\s+(?:[^"'()]*?\s+from\s+)?)(['"])([^'"]+)
 const EXPORT_FROM_PATTERN = /(export\s+(?:[^"'()]*?\s+from\s+))(['"])([^'"]+)\2/g;
 const DYNAMIC_IMPORT_PATTERN = /(import\s*\(\s*)(['"])([^'"]+)\2(\s*(?:,\s*[^)]*)?\))/g;
 const bundledPluginUrlStates = new Map();
+const MODULE_URL_STRATEGY_BLOB = 'blob';
+const MODULE_URL_STRATEGY_DATA = 'data';
 
 function getRuntimeBaseUrl() {
     return globalThis.location?.href || 'https://cerebr.local/';
@@ -30,9 +32,9 @@ function revokeBundledPluginUrls(state) {
     });
 }
 
-function ensureBundledPluginUrlState(pluginId, cacheKey, enabled) {
+function ensureBundledPluginUrlState(pluginId, cacheKey, enabled, moduleUrlStrategy = MODULE_URL_STRATEGY_BLOB) {
     const existing = bundledPluginUrlStates.get(pluginId) || null;
-    if (existing && (!enabled || existing.cacheKey !== cacheKey)) {
+    if (existing && (!enabled || existing.cacheKey !== cacheKey || existing.moduleUrlStrategy !== moduleUrlStrategy)) {
         revokeBundledPluginUrls(existing);
         bundledPluginUrlStates.delete(pluginId);
     }
@@ -46,6 +48,7 @@ function ensureBundledPluginUrlState(pluginId, cacheKey, enabled) {
 
     const created = {
         cacheKey,
+        moduleUrlStrategy,
         pendingByPath: new Map(),
         urlByPath: new Map(),
     };
@@ -77,14 +80,22 @@ function getModuleMimeType(modulePath, fileRecord = {}) {
     return 'text/javascript';
 }
 
-function createModuleSourceUrl(source, mimeType) {
+function createDataModuleSourceUrl(source, mimeType) {
+    return `data:${mimeType};charset=utf-8,${encodeURIComponent(source)}`;
+}
+
+function createModuleSourceUrl(source, mimeType, strategy = MODULE_URL_STRATEGY_BLOB) {
+    if (strategy === MODULE_URL_STRATEGY_DATA) {
+        return createDataModuleSourceUrl(source, mimeType);
+    }
+
     if (typeof URL?.createObjectURL === 'function' && typeof Blob !== 'undefined') {
         return URL.createObjectURL(new Blob([source], {
             type: mimeType,
         }));
     }
 
-    return `data:${mimeType};charset=utf-8,${encodeURIComponent(source)}`;
+    return createDataModuleSourceUrl(source, mimeType);
 }
 
 async function replaceAsync(source, pattern, replacer) {
@@ -127,17 +138,17 @@ async function rewriteBundledModuleSource(source, modulePath, bundleFiles, state
 
     rewritten = await replaceAsync(rewritten, STATIC_IMPORT_PATTERN, async (match, prefix, quote, specifier) => {
         const resolvedSpecifier = await resolveBundledImportSpecifier(specifier, modulePath, bundleFiles, state);
-        return `${prefix}${quote}${resolvedSpecifier}${quote}`;
+        return `${prefix}${JSON.stringify(resolvedSpecifier)}`;
     });
 
     rewritten = await replaceAsync(rewritten, EXPORT_FROM_PATTERN, async (match, prefix, quote, specifier) => {
         const resolvedSpecifier = await resolveBundledImportSpecifier(specifier, modulePath, bundleFiles, state);
-        return `${prefix}${quote}${resolvedSpecifier}${quote}`;
+        return `${prefix}${JSON.stringify(resolvedSpecifier)}`;
     });
 
     rewritten = await replaceAsync(rewritten, DYNAMIC_IMPORT_PATTERN, async (match, prefix, quote, specifier, suffix) => {
         const resolvedSpecifier = await resolveBundledImportSpecifier(specifier, modulePath, bundleFiles, state);
-        return `${prefix}${quote}${resolvedSpecifier}${quote}${suffix}`;
+        return `${prefix}${JSON.stringify(resolvedSpecifier)}${suffix}`;
     });
 
     return rewritten;
@@ -171,7 +182,8 @@ async function createBundledModuleUrl(modulePath, bundleFiles, state) {
 
         const objectUrl = createModuleSourceUrl(
             moduleSource,
-            getModuleMimeType(normalizedPath, fileRecord)
+            getModuleMimeType(normalizedPath, fileRecord),
+            state?.moduleUrlStrategy
         );
 
         state.urlByPath.set(normalizedPath, objectUrl);
@@ -199,6 +211,20 @@ export function createScriptPluginCacheKey(descriptor = {}) {
     ].join('|');
 }
 
+function resolveModuleUrlStrategy(descriptor = {}) {
+    const requestedStrategy = normalizeString(descriptor?.runtime?.moduleUrlStrategy).toLowerCase();
+    if (requestedStrategy === MODULE_URL_STRATEGY_DATA) {
+        return MODULE_URL_STRATEGY_DATA;
+    }
+    if (requestedStrategy === MODULE_URL_STRATEGY_BLOB) {
+        return MODULE_URL_STRATEGY_BLOB;
+    }
+
+    return globalThis.origin === 'null'
+        ? MODULE_URL_STRATEGY_DATA
+        : MODULE_URL_STRATEGY_BLOB;
+}
+
 export async function loadScriptPluginModule(descriptor = {}) {
     const manifest = descriptor?.manifest || {};
     const pluginId = normalizeString(manifest.id);
@@ -207,6 +233,7 @@ export async function loadScriptPluginModule(descriptor = {}) {
     const cacheKey = createScriptPluginCacheKey(descriptor);
     const isBundledSource = isLocalPluginBundlePackage(manifest);
     const sourceMode = normalizeString(manifest?.source?.mode, isBundledSource ? 'bundle' : 'url');
+    const moduleUrlStrategy = resolveModuleUrlStrategy(descriptor);
 
     if (!pluginId) {
         throw new Error('Cannot load a script plugin without manifest.id');
@@ -222,7 +249,7 @@ export async function loadScriptPluginModule(descriptor = {}) {
         return createGuestShellPluginProxy(descriptor);
     }
 
-    const bundledUrlState = ensureBundledPluginUrlState(pluginId, cacheKey, isBundledSource);
+    const bundledUrlState = ensureBundledPluginUrlState(pluginId, cacheKey, isBundledSource, moduleUrlStrategy);
     let importUrl = null;
 
     if (isBundledSource) {

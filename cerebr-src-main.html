@@ -89,61 +89,66 @@
         </div>
     </div>
     <div id="input-container">
-        <div class="cerebr-plugin-slot cerebr-plugin-slot--shell-input-before" data-plugin-slot="shell.input.before"></div>
-        <button id="settings-button" aria-label="打开设置" data-i18n-attr="aria-label:aria_open_settings">
-            <svg viewBox="0 0 24 24">
-                <circle cx="12" cy="6" r="2"/>
-                <circle cx="12" cy="12" r="2"/>
-                <circle cx="12" cy="18" r="2"/>
-            </svg>
-        </button>
-        <div id="settings-menu" role="menu" aria-label="设置菜单" data-i18n-attr="aria-label:settings_menu_label">
-            <div class="menu-item" id="webpage-qa" role="menuitem" tabindex="0">
-                <span data-i18n="settings_webpage_content">网页内容</span>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <div class="input-container-main-row">
+            <div class="cerebr-plugin-slot cerebr-plugin-slot--shell-input-before" data-plugin-slot="shell.input.before"></div>
+            <button id="settings-button" aria-label="打开设置" data-i18n-attr="aria-label:aria_open_settings">
+                <svg viewBox="0 0 24 24">
+                    <circle cx="12" cy="6" r="2"/>
+                    <circle cx="12" cy="12" r="2"/>
+                    <circle cx="12" cy="18" r="2"/>
                 </svg>
+            </button>
+            <div id="settings-menu" role="menu" aria-label="设置菜单" data-i18n-attr="aria-label:settings_menu_label">
+                <div class="menu-item" id="webpage-qa" role="menuitem" tabindex="0">
+                    <span data-i18n="settings_webpage_content">网页内容</span>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div class="menu-item" id="new-chat" role="menuitem" tabindex="0">
+                    <span data-i18n="settings_new_chat">新的对话</span>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div class="menu-item" id="chat-list" role="menuitem" tabindex="0">
+                    <span data-i18n="settings_chat_list">对话列表</span>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div class="menu-item" id="plugins-toggle" role="menuitem" tabindex="0" hidden>
+                    <span data-i18n="settings_plugins">插件</span>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path d="M6.5 2.75C6.5 2.06 7.06 1.5 7.75 1.5C8.44 1.5 9 2.06 9 2.75V3.25H10.75C11.85 3.25 12.75 4.15 12.75 5.25V6.5H13.25C13.94 6.5 14.5 7.06 14.5 7.75C14.5 8.44 13.94 9 13.25 9H12.75V10.75C12.75 11.85 11.85 12.75 10.75 12.75H9V13.25C9 13.94 8.44 14.5 7.75 14.5C7.06 14.5 6.5 13.94 6.5 13.25V12.75H5.25C4.15 12.75 3.25 11.85 3.25 10.75V9H2.75C2.06 9 1.5 8.44 1.5 7.75C1.5 7.06 2.06 6.5 2.75 6.5H3.25V5.25C3.25 4.15 4.15 3.25 5.25 3.25H6.5V2.75Z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <div id="plugin-menu-items" class="cerebr-plugin-menu-items" hidden></div>
+                <div class="menu-item" id="api-settings-toggle" role="menuitem" tabindex="0">
+                    <span data-i18n="settings_api_settings">API 设置</span>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div class="menu-item" id="preferences-toggle" role="menuitem" tabindex="0">
+                    <span data-i18n="settings_preferences">偏好设置</span>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path d="M6.5 1.75H9.5L9.82 3.17C10.06 3.25 10.28 3.34 10.5 3.46L11.84 2.78L13.22 4.16L12.54 5.5C12.66 5.72 12.75 5.94 12.83 6.18L14.25 6.5V9.5L12.83 9.82C12.75 10.06 12.66 10.28 12.54 10.5L13.22 11.84L11.84 13.22L10.5 12.54C10.28 12.66 10.06 12.75 9.82 12.83L9.5 14.25H6.5L6.18 12.83C5.94 12.75 5.72 12.66 5.5 12.54L4.16 13.22L2.78 11.84L3.46 10.5C3.34 10.28 3.25 10.06 3.17 9.82L1.75 9.5V6.5L3.17 6.18C3.25 5.94 3.34 5.72 3.46 5.5L2.78 4.16L4.16 2.78L5.5 3.46C5.72 3.34 5.94 3.25 6.18 3.17L6.5 1.75Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+                        <circle cx="8" cy="8" r="2.1" stroke="currentColor" stroke-width="1.2"/>
+                    </svg>
+                </div>
             </div>
-            <div class="menu-item" id="new-chat" role="menuitem" tabindex="0">
-                <span data-i18n="settings_new_chat">新的对话</span>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                </svg>
+            <div id="message-input-shell" class="message-input-shell">
+                <div id="message-input" contenteditable="true" placeholder="输入消息..." enterkeyhint="send" role="textbox" aria-label="消息输入框" aria-multiline="true" spellcheck="true" data-i18n-attr="placeholder:message_input_placeholder;aria-label:message_input_aria"></div>
+                <div class="fake-caret" aria-hidden="true"></div>
             </div>
-            <div class="menu-item" id="chat-list" role="menuitem" tabindex="0">
-                <span data-i18n="settings_chat_list">对话列表</span>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                </svg>
-            </div>
-            <div class="menu-item" id="plugins-toggle" role="menuitem" tabindex="0" hidden>
-                <span data-i18n="settings_plugins">插件</span>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path d="M6.5 2.75C6.5 2.06 7.06 1.5 7.75 1.5C8.44 1.5 9 2.06 9 2.75V3.25H10.75C11.85 3.25 12.75 4.15 12.75 5.25V6.5H13.25C13.94 6.5 14.5 7.06 14.5 7.75C14.5 8.44 13.94 9 13.25 9H12.75V10.75C12.75 11.85 11.85 12.75 10.75 12.75H9V13.25C9 13.94 8.44 14.5 7.75 14.5C7.06 14.5 6.5 13.94 6.5 13.25V12.75H5.25C4.15 12.75 3.25 11.85 3.25 10.75V9H2.75C2.06 9 1.5 8.44 1.5 7.75C1.5 7.06 2.06 6.5 2.75 6.5H3.25V5.25C3.25 4.15 4.15 3.25 5.25 3.25H6.5V2.75Z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </div>
-            <div class="menu-item" id="api-settings-toggle" role="menuitem" tabindex="0">
-                <span data-i18n="settings_api_settings">API 设置</span>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-            </div>
-            <div class="menu-item" id="preferences-toggle" role="menuitem" tabindex="0">
-                <span data-i18n="settings_preferences">偏好设置</span>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path d="M6.5 1.75H9.5L9.82 3.17C10.06 3.25 10.28 3.34 10.5 3.46L11.84 2.78L13.22 4.16L12.54 5.5C12.66 5.72 12.75 5.94 12.83 6.18L14.25 6.5V9.5L12.83 9.82C12.75 10.06 12.66 10.28 12.54 10.5L13.22 11.84L11.84 13.22L10.5 12.54C10.28 12.66 10.06 12.75 9.82 12.83L9.5 14.25H6.5L6.18 12.83C5.94 12.75 5.72 12.66 5.5 12.54L4.16 13.22L2.78 11.84L3.46 10.5C3.34 10.28 3.25 10.06 3.17 9.82L1.75 9.5V6.5L3.17 6.18C3.25 5.94 3.34 5.72 3.46 5.5L2.78 4.16L4.16 2.78L5.5 3.46C5.72 3.34 5.94 3.25 6.18 3.17L6.5 1.75Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-                    <circle cx="8" cy="8" r="2.1" stroke="currentColor" stroke-width="1.2"/>
-                </svg>
-            </div>
+            <div class="cerebr-plugin-slot cerebr-plugin-slot--shell-input-after" data-plugin-slot="shell.input.after"></div>
+            <button id="confirm-edit-button" type="button" hidden data-i18n="message_edit_confirm" data-i18n-attr="aria-label:message_edit_confirm_aria">
+                确定
+            </button>
         </div>
-        <div id="message-input-shell" class="message-input-shell">
-            <div id="message-input" contenteditable="true" placeholder="输入消息..." enterkeyhint="send" role="textbox" aria-label="消息输入框" aria-multiline="true" spellcheck="true" data-i18n-attr="placeholder:message_input_placeholder;aria-label:message_input_aria"></div>
-            <div class="fake-caret" aria-hidden="true"></div>
-        </div>
-        <div class="cerebr-plugin-slot cerebr-plugin-slot--shell-input-after" data-plugin-slot="shell.input.after"></div>
-        <button id="confirm-edit-button" type="button" hidden data-i18n="message_edit_confirm" data-i18n-attr="aria-label:message_edit_confirm_aria">
-            确定
-        </button>
+        <div id="plugin-input-actions" class="cerebr-plugin-input-actions" hidden></div>
+        <div class="cerebr-plugin-slot cerebr-plugin-slot--shell-input-row-after" data-plugin-slot="shell.input.row.after"></div>
     </div>
     <div id="api-settings">
         <div class="settings-header">
@@ -373,6 +378,22 @@
                 <div class="plugin-list" id="developer-plugin-list"></div>
                 <div class="plugin-settings-empty" id="developer-plugin-empty" hidden data-i18n="plugins_developer_empty">还没有侧载任何本地脚本插件</div>
             </section>
+        </div>
+    </div>
+    <div id="plugin-shell-page" hidden>
+        <div class="settings-header">
+            <button class="back-button" id="plugin-shell-page-back" aria-label="返回" data-i18n-attr="aria-label:aria_back">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M12 4L6 10L12 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <div class="plugin-shell-page__title-wrap">
+                <span class="settings-title" id="plugin-shell-page-title">Plugin</span>
+                <p class="plugin-shell-page__subtitle" id="plugin-shell-page-subtitle" hidden></p>
+            </div>
+        </div>
+        <div class="plugin-shell-page__content">
+            <div id="plugin-shell-page-body" class="plugin-shell-page__body"></div>
         </div>
     </div>
     <div id="chat-list-page">

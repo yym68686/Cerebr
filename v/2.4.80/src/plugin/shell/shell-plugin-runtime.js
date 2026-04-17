@@ -18,6 +18,10 @@ import {
 import { showToast } from '../../utils/ui.js';
 import { createEditorController } from '../../runtime/input/editor-controller.js';
 import { createSlotRegistry } from '../../runtime/ui/slot-registry.js';
+import { createShellInputActionManager } from '../../runtime/ui/shell-input-action-manager.js';
+import { createShellMenuManager } from '../../runtime/ui/shell-menu-manager.js';
+import { createShellModalManager } from '../../runtime/ui/shell-modal-manager.js';
+import { createShellPageManager } from '../../runtime/ui/shell-page-manager.js';
 import { getBuiltinShellPluginEntries } from './shell-plugin-registry.js';
 import {
     getShellThemeSnapshot,
@@ -34,6 +38,9 @@ function createPluginMeta(entry = {}) {
 
 export function createShellPluginRuntime({
     messageInput,
+    inputActionsContainer = null,
+    menuItemsContainer = null,
+    pageElements = {},
     slotContainers = {},
 } = {}) {
     const editor = createEditorController({
@@ -42,6 +49,14 @@ export function createShellPluginRuntime({
     const slotRegistry = createSlotRegistry({
         slots: slotContainers,
     });
+    const shellInputActionManager = createShellInputActionManager({
+        container: inputActionsContainer,
+    });
+    const shellMenuManager = createShellMenuManager({
+        container: menuItemsContainer,
+    });
+    const shellModalManager = createShellModalManager();
+    const shellPageManager = createShellPageManager(pageElements);
     const chatRuntimeRef = {
         current: null,
     };
@@ -49,10 +64,19 @@ export function createShellPluginRuntime({
         logger: console,
         createState: () => ({
             promptFragments: new Map(),
+            latestInputAddonHandle: null,
         }),
         onCleanup(pluginId, resources) {
             resources?.promptFragments?.clear?.();
+            shellInputActionManager.removePlugin(pluginId);
+            shellMenuManager.removePlugin(pluginId);
+            shellModalManager.dismiss(pluginId);
+            shellPageManager.removePlugin(pluginId);
+            if (resources) {
+                resources.latestInputAddonHandle = null;
+            }
             slotRegistry.unmountByPlugin(pluginId);
+            requestShellLayoutSync();
         },
     });
     let started = false;
@@ -240,6 +264,12 @@ export function createShellPluginRuntime({
 
     const createShellApi = (entry = {}) => {
         const permissions = createPermissionController(entry);
+        const pluginId = normalizeString(entry?.plugin?.id);
+
+        const getLatestInputAddonHandle = () => {
+            const resources = pluginResources.ensure(pluginId);
+            return resources?.latestInputAddonHandle || null;
+        };
 
         return {
             isVisible() {
@@ -258,7 +288,7 @@ export function createShellPluginRuntime({
                 permissions.assert('shell:input', ['ui:mount']);
                 const handle = slotRegistry.mount(
                     normalizeString(options.slotId, 'shell.input.after'),
-                    entry?.plugin?.id,
+                    pluginId,
                     renderer,
                     {
                         ...options,
@@ -270,14 +300,102 @@ export function createShellPluginRuntime({
                             .join(' '),
                     }
                 );
-
-                pluginResources.addDisposer(entry?.plugin?.id, () => handle.dispose());
+                const resources = pluginResources.ensure(pluginId);
+                resources.latestInputAddonHandle = handle;
+                pluginResources.addDisposer(pluginId, () => {
+                    if (resources.latestInputAddonHandle === handle) {
+                        resources.latestInputAddonHandle = null;
+                    }
+                    handle.dispose();
+                });
                 requestShellLayoutSync();
                 return handle;
             },
+            setInputActions(actions = []) {
+                permissions.assert('shell:input', ['ui:mount']);
+                const nextActions = shellInputActionManager.setActions(pluginId, actions);
+                requestShellLayoutSync();
+                return nextActions;
+            },
+            clearInputActions() {
+                permissions.assert('shell:input', ['ui:mount']);
+                const cleared = shellInputActionManager.clearActions(pluginId);
+                requestShellLayoutSync();
+                return cleared;
+            },
+            onInputAction(callback) {
+                permissions.assert('shell:input', ['ui:mount']);
+                const unsubscribe = shellInputActionManager.addListener(pluginId, callback);
+                pluginResources.addDisposer(pluginId, unsubscribe);
+                return unsubscribe;
+            },
+            setMenuItems(items = []) {
+                permissions.assert('shell:menu', ['ui:mount']);
+                return shellMenuManager.setItems(pluginId, items);
+            },
+            clearMenuItems() {
+                permissions.assert('shell:menu', ['ui:mount']);
+                return shellMenuManager.clearItems(pluginId);
+            },
+            onMenuAction(callback) {
+                permissions.assert('shell:menu', ['ui:mount']);
+                const unsubscribe = shellMenuManager.addListener(pluginId, callback);
+                pluginResources.addDisposer(pluginId, unsubscribe);
+                return unsubscribe;
+            },
+            showModal(options = {}) {
+                permissions.assert('shell:input', ['ui:mount']);
+                const targetHandle = getLatestInputAddonHandle();
+                const modalHandle = shellModalManager.present(
+                    pluginId,
+                    targetHandle?.element,
+                    options
+                );
+                requestShellLayoutSync();
+                return modalHandle;
+            },
+            updateModal(options = {}) {
+                permissions.assert('shell:input', ['ui:mount']);
+                const modalHandle = shellModalManager.update(pluginId, options);
+                requestShellLayoutSync();
+                return modalHandle;
+            },
+            hideModal() {
+                permissions.assert('shell:input', ['ui:mount']);
+                const dismissed = shellModalManager.dismiss(pluginId);
+                requestShellLayoutSync();
+                return dismissed;
+            },
+            openPage(page = {}) {
+                permissions.assert('shell:page', ['ui:mount']);
+                const targetHandle = getLatestInputAddonHandle();
+                const pageHandle = shellPageManager.present(
+                    pluginId,
+                    targetHandle?.element,
+                    page
+                );
+                requestShellLayoutSync();
+                return pageHandle;
+            },
+            updatePage(page = {}) {
+                permissions.assert('shell:page', ['ui:mount']);
+                return shellPageManager.update(pluginId, page);
+            },
+            closePage(reason = 'programmatic') {
+                permissions.assert('shell:page', ['ui:mount']);
+                const dismissed = shellPageManager.dismiss(pluginId, normalizeString(reason, 'programmatic'));
+                requestShellLayoutSync();
+                return dismissed;
+            },
+            onPageEvent(callback) {
+                permissions.assert('shell:page', ['ui:mount']);
+                const unsubscribe = shellPageManager.addListener(pluginId, callback);
+                pluginResources.addDisposer(pluginId, unsubscribe);
+                return unsubscribe;
+            },
             observeTheme(callback, options = {}) {
                 const unsubscribe = observeShellTheme(callback, options);
-                pluginResources.addDisposer(entry?.plugin?.id, unsubscribe);
+                pluginResources.addDisposer(pluginId, unsubscribe);
                 return unsubscribe;
             },
             getThemeSnapshot() {
@@ -587,6 +705,12 @@ export function createShellPluginRuntime({
         },
         getAvailableSlots() {
             return slotRegistry.getAvailableSlots();
+        },
+        dismissPage(reason = 'programmatic') {
+            return shellPageManager.dismissActive(normalizeString(reason, 'programmatic'));
+        },
+        hasOpenPage() {
+            return shellPageManager.isOpen();
         },
         async start() {
             if (started) return;
