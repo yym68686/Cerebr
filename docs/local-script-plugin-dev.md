@@ -57,6 +57,8 @@ Notes:
 - `script.exportName` is optional and defaults to `default`.
 - The exported plugin object must expose `id` and `setup(api)`.
 - Do not import `/src/...` files from the Cerebr repository. Bundle or copy the helpers you need into your plugin folder.
+- Plugin permissions are normalized by the host. Legacy aliases such as `tabs:active` and `storage:local` are expanded to the current canonical capability names automatically.
+- Namespace wildcards such as `shell:*`, `page:*`, or `site:*` are supported, but fine-grained capabilities are still recommended for published plugins.
 
 Minimal entry example:
 

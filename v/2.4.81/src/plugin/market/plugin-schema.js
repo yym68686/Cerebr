@@ -1,3 +1,5 @@
+import { normalizePluginCapabilities } from '../core/plugin-capabilities.js';
+
 const SUPPORTED_PLUGIN_KINDS = new Set(['builtin', 'declarative', 'script']);
 const SUPPORTED_PLUGIN_SCOPES = new Set(['page', 'shell', 'prompt', 'background']);
 const SUPPORTED_DECLARATIVE_TYPES = new Set([
@@ -213,7 +215,7 @@ export function validatePluginManifest(manifest, sourceUrl = '') {
         description,
         defaultEnabled: manifest.defaultEnabled !== false,
         requiresExtension: !!manifest.requiresExtension,
-        permissions: normalizeStringArray(manifest.permissions),
+        permissions: normalizePluginCapabilities(manifest.permissions),
         nameKey: normalizeString(manifest.nameKey),
         descriptionKey: normalizeString(manifest.descriptionKey),
         compatibility: normalizeCompatibility(manifest.compatibility),
@@ -352,7 +354,7 @@ function normalizeRegistryPluginEntry(entry, registryId, baseUrl) {
         requiresExtension: !!entry?.requiresExtension,
         nameKey: normalizeString(entry?.nameKey),
         descriptionKey: normalizeString(entry?.descriptionKey),
-        permissions: normalizeStringArray(entry.permissions),
+        permissions: normalizePluginCapabilities(entry.permissions),
         compatibility: normalizeCompatibility(entry.compatibility),
         availability: normalizeAvailability(entry.availability),
         install: {

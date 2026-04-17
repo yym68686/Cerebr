@@ -314,6 +314,9 @@
     padding: 6px 20px calc(20px + env(safe-area-inset-bottom));
     display: flex;
     flex-direction: column;
+    container-type: inline-size;
+    container-name: plugin-shell-page;
+    overflow-x: clip;
 }
 
 .plugin-shell-page__body {
@@ -1029,6 +1032,50 @@
 
 .cerebr-plugin-slot-item:empty {
     display: none;
+}
+
+@container plugin-shell-page (max-width: 900px) {
+    .cerebr-plugin-page-columns {
+        grid-template-columns: 1fr;
+    }
+}
+
+@container plugin-shell-page (max-width: 760px) {
+    .cerebr-plugin-page-hero {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .cerebr-plugin-page-hero__side {
+        align-items: flex-start;
+    }
+
+    .cerebr-plugin-page-form {
+        grid-template-columns: 1fr;
+    }
+
+    .cerebr-plugin-page-stats {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .cerebr-plugin-page-switch {
+        align-items: flex-start;
+    }
+}
+
+@container plugin-shell-page (max-width: 560px) {
+    .plugin-shell-page__content {
+        padding: 4px 14px calc(18px + env(safe-area-inset-bottom));
+    }
+
+    .cerebr-plugin-page-hero,
+    .cerebr-plugin-page-card {
+        padding: 16px;
+    }
+
+    .cerebr-plugin-page-stats {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 768px) {
