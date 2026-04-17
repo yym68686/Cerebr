@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "registryId": "official",
   "displayName": "Cerebr Official Registry",
-  "generatedAt": "2026-04-16T00:00:00Z",
+  "generatedAt": "2026-04-18T00:00:00Z",
   "plugins": [
     {
       "id": "official.prompt.concise-reply",
@@ -12,14 +12,20 @@
       "nameKey": "plugin_official_concise_reply_name",
       "description": "Append a short-answer instruction to the system prompt for users who prefer tighter responses.",
       "descriptionKey": "plugin_official_concise_reply_description",
-      "latestVersion": "1.0.1",
+      "latestVersion": "1.0.2",
       "publisher": "Cerebr Team",
       "homepage": "https://github.com/yym68686/Cerebr",
       "permissions": [
-        "prompt:extend"
+        "prompt:fragments"
+      ],
+      "activationEvents": [
+        "app.startup"
+      ],
+      "contributionTypes": [
+        "promptFragments"
       ],
       "compatibility": {
-        "versionRange": ">=2.4.66 <3.0.0"
+        "versionRange": ">=2.4.86 <3.0.0"
       },
       "availability": {
         "status": "active",
@@ -27,7 +33,7 @@
       },
       "install": {
         "mode": "package",
-        "packageUrl": "plugins/official.prompt.concise-reply/1.0.1/plugin.json"
+        "packageUrl": "plugins/official.prompt.concise-reply/1.0.2/plugin.json"
       }
     },
     {
@@ -38,14 +44,20 @@
       "nameKey": "plugin_official_translation_tone_name",
       "description": "Preserve names, formatting, code spans, and source tone during translation-style prompts.",
       "descriptionKey": "plugin_official_translation_tone_description",
-      "latestVersion": "1.2.1",
+      "latestVersion": "1.2.2",
       "publisher": "Cerebr Team",
       "homepage": "https://github.com/yym68686/Cerebr",
       "permissions": [
-        "prompt:extend"
+        "prompt:fragments"
+      ],
+      "activationEvents": [
+        "app.startup"
+      ],
+      "contributionTypes": [
+        "promptFragments"
       ],
       "compatibility": {
-        "versionRange": ">=2.4.66 <3.0.0"
+        "versionRange": ">=2.4.86 <3.0.0"
       },
       "availability": {
         "status": "disabled",
@@ -54,7 +66,7 @@
       },
       "install": {
         "mode": "package",
-        "packageUrl": "plugins/official.prompt.translation-tone/1.2.1/plugin.json"
+        "packageUrl": "plugins/official.prompt.translation-tone/1.2.2/plugin.json"
       }
     },
     {
@@ -65,17 +77,20 @@
       "nameKey": "plugin_official_explain_selection_name",
       "description": "Adds a selection action that sends the highlighted text into Cerebr with an explanation prompt.",
       "descriptionKey": "plugin_official_explain_selection_description",
-      "latestVersion": "1.0.1",
+      "latestVersion": "1.0.2",
       "publisher": "Cerebr Team",
       "homepage": "https://github.com/yym68686/Cerebr",
       "permissions": [
-        "page:selection",
-        "shell:input",
-        "ui:mount"
+        "page:selection:read",
+        "shell:input:write",
+        "ui:anchored-action"
       ],
       "requiresExtension": true,
+      "activationEvents": [
+        "page.ready"
+      ],
       "compatibility": {
-        "versionRange": ">=2.4.66 <3.0.0"
+        "versionRange": ">=2.4.86 <3.0.0"
       },
       "availability": {
         "status": "active",
@@ -83,7 +98,7 @@
       },
       "install": {
         "mode": "package",
-        "packageUrl": "plugins/official.page.explain-selection/1.0.1/plugin.json"
+        "packageUrl": "plugins/official.page.explain-selection/1.0.2/plugin.json"
       }
     },
     {
@@ -94,14 +109,20 @@
       "nameKey": "plugin_official_reasoning_retry_name",
       "description": "Retry when a model returns only reasoning content or leaks think-silently text into the final answer.",
       "descriptionKey": "plugin_official_reasoning_retry_description",
-      "latestVersion": "1.0.1",
+      "latestVersion": "1.0.2",
       "publisher": "Cerebr Team",
       "homepage": "https://github.com/yym68686/Cerebr",
       "permissions": [
-        "chat:write"
+        "chat:retry"
+      ],
+      "activationEvents": [
+        "hook:onResponseError"
+      ],
+      "contributionTypes": [
+        "requestPolicies"
       ],
       "compatibility": {
-        "versionRange": ">=2.4.75 <3.0.0"
+        "versionRange": ">=2.4.86 <3.0.0"
       },
       "availability": {
         "status": "active",
@@ -109,7 +130,7 @@
       },
       "install": {
         "mode": "package",
-        "packageUrl": "plugins/official.shell.reasoning-retry/1.0.1/plugin.json"
+        "packageUrl": "plugins/official.shell.reasoning-retry/1.0.2/plugin.json"
       }
     },
     {
@@ -120,15 +141,21 @@
       "nameKey": "plugin_official_article_focus_name",
       "description": "Prefer article-like selectors and strip common chrome when Cerebr extracts webpage content for the model.",
       "descriptionKey": "plugin_official_article_focus_description",
-      "latestVersion": "1.0.1",
+      "latestVersion": "1.0.2",
       "publisher": "Cerebr Team",
       "homepage": "https://github.com/yym68686/Cerebr",
       "permissions": [
-        "page:read"
+        "page:extractors"
       ],
       "requiresExtension": true,
+      "activationEvents": [
+        "page.ready"
+      ],
+      "contributionTypes": [
+        "pageExtractors"
+      ],
       "compatibility": {
-        "versionRange": ">=2.4.75 <3.0.0"
+        "versionRange": ">=2.4.86 <3.0.0"
       },
       "availability": {
         "status": "active",
@@ -136,7 +163,7 @@
       },
       "install": {
         "mode": "package",
-        "packageUrl": "plugins/official.page.article-focus/1.0.1/plugin.json"
+        "packageUrl": "plugins/official.page.article-focus/1.0.2/plugin.json"
       }
     }
   ]

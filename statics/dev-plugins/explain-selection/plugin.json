@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "local.explain-selection",
   "version": "1.0.0",
   "kind": "script",
@@ -8,9 +8,10 @@
   "description": "Show a local developer action next to selected text and send an explanation prompt into Cerebr.",
   "defaultEnabled": true,
   "requiresExtension": true,
-  "permissions": ["page:selection", "shell:input", "ui:mount"],
+  "permissions": ["page:selection:read", "shell:input:write", "ui:anchored-action"],
+  "activationEvents": ["page.ready"],
   "compatibility": {
-    "versionRange": ">=2.4.66 <3.0.0"
+    "versionRange": ">=2.4.86 <3.0.0"
   },
   "script": {
     "entry": "./page.js"

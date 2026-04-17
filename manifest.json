@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "default_locale": "en",
   "name": "__MSG_extension_name__",
-  "version": "2.4.86",
+  "version": "2.4.87",
   "description": "__MSG_extension_description__",
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
@@ -104,6 +104,9 @@
         "src/plugin/core/prompt-fragment-utils.js",
         "src/plugin/core/runtime-utils.js",
         "src/plugin/core/url-pattern-utils.js",
+        "src/plugin/compiler/plugin-entry-compiler.js",
+        "src/plugin/kernel/plugin-kernel.js",
+        "src/plugin/services/host-service-registry.js",
         "src/plugin/shared/define-plugin.js",
         "src/runtime/ui/slot-registry.js",
         "src/utils/app-version.js",

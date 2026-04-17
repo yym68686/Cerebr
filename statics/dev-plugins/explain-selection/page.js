@@ -6,6 +6,7 @@ function normalizeSelectedText(text) {
 
 export default definePlugin({
     id: 'local.explain-selection',
+    activationEvents: ['page.ready'],
     setup(api) {
         let action = null;
 

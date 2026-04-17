@@ -15,15 +15,14 @@
   ],
   "properties": {
     "schemaVersion": {
-      "const": 1
+      "type": "integer",
+      "enum": [1, 2]
     },
     "id": {
-      "type": "string",
-      "minLength": 1
+      "$ref": "#/$defs/nonEmptyString"
     },
     "version": {
-      "type": "string",
-      "minLength": 1
+      "$ref": "#/$defs/nonEmptyString"
     },
     "kind": {
       "type": "string",
@@ -34,15 +33,13 @@
       "enum": ["page", "shell", "prompt", "background"]
     },
     "displayName": {
-      "type": "string",
-      "minLength": 1
+      "$ref": "#/$defs/nonEmptyString"
     },
     "nameKey": {
       "type": "string"
     },
     "description": {
-      "type": "string",
-      "minLength": 1
+      "$ref": "#/$defs/nonEmptyString"
     },
     "descriptionKey": {
       "type": "string"
@@ -57,13 +54,159 @@
       "type": "string"
     },
     "permissions": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "requiresExtension": {
+      "type": "boolean"
+    },
+    "activationEvents": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "compatibility": {
+      "$ref": "#/$defs/compatibility"
+    },
+    "script": {
+      "$ref": "#/$defs/scriptBlock"
+    },
+    "declarative": {
+      "$ref": "#/$defs/legacyDeclarative"
+    },
+    "contributions": {
+      "$ref": "#/$defs/contributions"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "const": "background"
+          }
+        },
+        "required": ["scope"]
+      },
+      "then": {
+        "required": ["requiresExtension"],
+        "properties": {
+          "requiresExtension": {
+            "const": true
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "script"
+          }
+        },
+        "required": ["kind"]
+      },
+      "then": {
+        "required": ["script"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "declarative"
+          }
+        },
+        "required": ["kind"]
+      },
+      "then": {
+        "anyOf": [
+          {
+            "required": ["declarative"]
+          },
+          {
+            "required": ["contributions"]
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "declarative": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "const": "prompt_fragment"
+              }
+            },
+            "required": ["type"]
+          }
+        },
+        "required": ["declarative"]
+      },
+      "then": {
+        "properties": {
+          "scope": {
+            "enum": ["prompt", "shell"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "declarative": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "const": "request_policy"
+              }
+            },
+            "required": ["type"]
+          }
+        },
+        "required": ["declarative"]
+      },
+      "then": {
+        "properties": {
+          "scope": {
+            "const": "shell"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "declarative": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "const": "page_extractor"
+              }
+            },
+            "required": ["type"]
+          }
+        },
+        "required": ["declarative"]
+      },
+      "then": {
+        "properties": {
+          "scope": {
+            "const": "page"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stringArray": {
       "type": "array",
       "items": {
         "type": "string"
       }
-    },
-    "requiresExtension": {
-      "type": "boolean"
     },
     "compatibility": {
       "type": "object",
@@ -74,7 +217,466 @@
         }
       }
     },
-    "declarative": {
+    "scriptBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entry"],
+      "properties": {
+        "entry": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "module": {
+          "type": "string"
+        },
+        "exportName": {
+          "type": "string"
+        }
+      }
+    },
+    "promptFragment": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "anyOf": [
+            {
+              "required": ["content"]
+            },
+            {
+              "required": ["contentKey"]
+            }
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "content": {
+              "type": "string"
+            },
+            "contentKey": {
+              "type": "string"
+            },
+            "placement": {
+              "type": "string",
+              "enum": ["system.prepend", "system.append"]
+            },
+            "priority": {
+              "type": "number"
+            }
+          }
+        }
+      ]
+    },
+    "promptFragmentList": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/promptFragment"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/promptFragment"
+          }
+        }
+      ]
+    },
+    "requestPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "applyTo": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "modes": {
+              "$ref": "#/$defs/stringArray"
+            },
+            "modelIncludes": {
+              "$ref": "#/$defs/stringArray"
+            },
+            "urlIncludes": {
+              "$ref": "#/$defs/stringArray"
+            }
+          }
+        },
+        "promptFragments": {
+          "$ref": "#/$defs/promptFragmentList"
+        },
+        "requestPatch": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "url": {
+              "type": "string"
+            },
+            "headers": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "body": {
+              "type": "object"
+            }
+          }
+        },
+        "retry": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "onErrorCodes": {
+              "$ref": "#/$defs/stringArray"
+            },
+            "maxAttempts": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "reason": {
+              "type": "string"
+            }
+          }
+        },
+        "cancel": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "draftMatches": {
+              "type": "string"
+            },
+            "draftIncludes": {
+              "$ref": "#/$defs/stringArray"
+            },
+            "reason": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "pageExtractor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "matches": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "includeSelectors": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "excludeSelectors": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "selectors": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "include": {
+              "$ref": "#/$defs/stringArray"
+            },
+            "exclude": {
+              "$ref": "#/$defs/stringArray"
+            }
+          }
+        },
+        "strategy": {
+          "type": "string",
+          "enum": ["replace", "prepend", "append"]
+        },
+        "priority": {
+          "type": "number"
+        },
+        "maxTextLength": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "collapseWhitespace": {
+          "type": "boolean"
+        }
+      }
+    },
+    "selectionAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label"],
+      "anyOf": [
+        {
+          "required": ["prompt"]
+        },
+        {
+          "required": ["text"]
+        },
+        {
+          "required": ["promptTemplate"]
+        }
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "title": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "promptTemplate": {
+          "type": "string"
+        },
+        "focus": {
+          "type": "boolean"
+        },
+        "separator": {
+          "type": "string"
+        },
+        "offsetX": {
+          "type": "number"
+        },
+        "offsetY": {
+          "type": "number"
+        },
+        "minLength": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxLength": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "shellExecute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["import_text", "insert_text", "set_draft", "show_toast", "open_page"]
+        },
+        "text": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string"
+        },
+        "focus": {
+          "type": "boolean"
+        },
+        "separator": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "toastType": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "level": {
+          "type": "string"
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "page": {
+          "type": "object"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": ["import_text", "insert_text", "set_draft"]
+              }
+            }
+          },
+          "then": {
+            "anyOf": [
+              {
+                "required": ["text"]
+              },
+              {
+                "required": ["prompt"]
+              },
+              {
+                "required": ["template"]
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "show_toast"
+              }
+            }
+          },
+          "then": {
+            "anyOf": [
+              {
+                "required": ["message"]
+              },
+              {
+                "required": ["text"]
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "open_page"
+              }
+            }
+          },
+          "then": {
+            "required": ["page"]
+          }
+        }
+      ]
+    },
+    "inputAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["execute"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "variant": {
+          "type": "string"
+        },
+        "disabled": {
+          "type": "boolean"
+        },
+        "background": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "order": {
+          "type": "number"
+        },
+        "execute": {
+          "$ref": "#/$defs/shellExecute"
+        }
+      }
+    },
+    "menuItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "execute"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "order": {
+          "type": "number"
+        },
+        "disclosure": {
+          "type": "boolean"
+        },
+        "disabled": {
+          "type": "boolean"
+        },
+        "execute": {
+          "$ref": "#/$defs/shellExecute"
+        }
+      }
+    },
+    "slashCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "anyOf": [
+        {
+          "required": ["prompt"]
+        },
+        {
+          "required": ["text"]
+        },
+        {
+          "required": ["template"]
+        }
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "aliases": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string"
+        },
+        "separator": {
+          "type": "string"
+        },
+        "disabled": {
+          "type": "boolean"
+        },
+        "order": {
+          "type": "number"
+        }
+      }
+    },
+    "legacyDeclarative": {
       "type": "object",
       "additionalProperties": false,
       "required": ["type"],
@@ -101,95 +703,18 @@
           "additionalProperties": false,
           "properties": {
             "modes": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
+              "$ref": "#/$defs/stringArray"
             },
             "modelIncludes": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
+              "$ref": "#/$defs/stringArray"
             },
             "urlIncludes": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
+              "$ref": "#/$defs/stringArray"
             }
           }
         },
         "promptFragments": {
-          "oneOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "anyOf": [
-                {
-                  "required": ["content"]
-                },
-                {
-                  "required": ["contentKey"]
-                }
-              ],
-              "properties": {
-                "content": {
-                  "type": "string"
-                },
-                "contentKey": {
-                  "type": "string"
-                },
-                "placement": {
-                  "type": "string",
-                  "enum": ["system.prepend", "system.append"]
-                },
-                "priority": {
-                  "type": "number"
-                }
-              }
-            },
-            {
-              "type": "array",
-              "items": {
-                "oneOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "anyOf": [
-                      {
-                        "required": ["content"]
-                      },
-                      {
-                        "required": ["contentKey"]
-                      }
-                    ],
-                    "properties": {
-                      "content": {
-                        "type": "string"
-                      },
-                      "contentKey": {
-                        "type": "string"
-                      },
-                      "placement": {
-                        "type": "string",
-                        "enum": ["system.prepend", "system.append"]
-                      },
-                      "priority": {
-                        "type": "number"
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          ]
+          "$ref": "#/$defs/promptFragmentList"
         },
         "requestPatch": {
           "type": "object",
@@ -214,10 +739,7 @@
           "additionalProperties": false,
           "properties": {
             "onErrorCodes": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
+              "$ref": "#/$defs/stringArray"
             },
             "maxAttempts": {
               "type": "integer",
@@ -236,10 +758,7 @@
               "type": "string"
             },
             "draftIncludes": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
+              "$ref": "#/$defs/stringArray"
             },
             "reason": {
               "type": "string"
@@ -247,40 +766,13 @@
           }
         },
         "matches": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/$defs/stringArray"
         },
         "includeSelectors": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/$defs/stringArray"
         },
         "excludeSelectors": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "selectors": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "include": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "exclude": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          }
+          "$ref": "#/$defs/stringArray"
         },
         "strategy": {
           "type": "string",
@@ -293,133 +785,52 @@
         "collapseWhitespace": {
           "type": "boolean"
         }
-      },
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "prompt_fragment"
-              }
-            }
-          },
-          "then": {
-            "required": ["placement"],
-            "anyOf": [
-              {
-                "required": ["content"]
-              },
-              {
-                "required": ["contentKey"]
-              }
-            ]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "request_policy"
-              }
-            }
-          },
-          "then": {
-            "anyOf": [
-              {
-                "required": ["promptFragments"]
-              },
-              {
-                "required": ["requestPatch"]
-              },
-              {
-                "required": ["retry"]
-              },
-              {
-                "required": ["cancel"]
-              }
-            ]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "page_extractor"
-              }
-            }
-          },
-          "then": {
-            "properties": {
-              "strategy": {
-                "enum": ["replace", "prepend", "append"]
-              }
-            }
-          }
-        }
-      ]
+      }
     },
-    "script": {
+    "contributions": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["entry"],
       "properties": {
-        "entry": {
-          "type": "string",
-          "minLength": 1
+        "promptFragments": {
+          "$ref": "#/$defs/promptFragmentList"
         },
-        "exportName": {
-          "type": "string",
-          "minLength": 1
-        }
-      }
-    }
-  },
-  "allOf": [
-    {
-      "if": {
-        "properties": {
-          "kind": {
-            "const": "declarative"
+        "requestPolicies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/requestPolicy"
           }
-        }
-      },
-      "then": {
-        "required": ["declarative"]
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "kind": {
-            "const": "script"
+        },
+        "pageExtractors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pageExtractor"
           }
-        }
-      },
-      "then": {
-        "required": ["script"],
-        "properties": {
-          "scope": {
-            "enum": ["page", "shell", "background"]
+        },
+        "selectionActions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/selectionAction"
           }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "scope": {
-            "const": "background"
+        },
+        "inputActions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/inputAction"
           }
-        }
-      },
-      "then": {
-        "required": ["requiresExtension"],
-        "properties": {
-          "requiresExtension": {
-            "const": true
+        },
+        "menuItems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/menuItem"
+          }
+        },
+        "slashCommands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/slashCommand"
           }
         }
       }
     }
-  ]
+  }
 }

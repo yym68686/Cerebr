@@ -1,27 +1,20 @@
 # Plugin Marketplace Spec
 
-This document defines the first stable marketplace format for Cerebr plugins, plus the developer-mode contract for local script sideloading.
+This document defines the current Cerebr marketplace contract after the plugin-system refactor.
 
-## Goals
+## Scope
 
-- Keep marketplace installs reviewable and predictable.
-- Support built-in plugins plus reviewed declarative and script packages.
-- Allow registry-driven compatibility checks, updates, and remote disable.
-- Keep unreviewed local script sideloading behind developer mode until a stronger sandbox exists.
+The marketplace format now needs to cover three layers at the same time:
 
-## Official Curated Registry
+- package metadata for install/update/compatibility
+- contribution metadata for declarative plugins
+- runtime activation metadata so plugins are not eagerly loaded by default
 
-The reviewed marketplace registry is intended to live in a separate repository, currently:
+The official reviewed marketplace source of truth remains:
 
 - `/Users/yanyuming/Downloads/GitHub/cerebr-plugins`
 
-The Cerebr app can read that curated remote registry and also keep a bundled local fallback copy under `statics/`.
-
-### Source of truth and bundled fallback
-
-The `cerebr-plugins` repository is the source of truth for the official reviewed marketplace registry and package files.
-
-The main Cerebr repository should only keep a mirrored bundled fallback snapshot under:
+The main Cerebr repository only carries a bundled fallback snapshot under:
 
 - `statics/plugin-registry.json`
 - `statics/plugins/**`
@@ -40,13 +33,53 @@ cd /Users/yanyuming/Downloads/GitHub/cerebr-plugins
 npm run sync:cerebr
 ```
 
-The runtime already prefers the curated remote registry when it is available and only relies on the bundled snapshot as a fallback.
+## Runtime model
 
-## Package Types
+Marketplace payloads target the refactored plugin runtime:
 
-- `builtin`: shipped inside the main Cerebr app.
-- `declarative`: reviewed package with data-only behavior. Supported types are `prompt_fragment`, `request_policy`, and `page_extractor`.
-- `script`: reviewed code package for `page`, `shell`, or `background` runtime behavior.
+- `compiler`: normalizes manifest v1/v2 into a shared contribution shape
+- `kernel`: keeps plugin state, activation, lazy loading, and diagnostics
+- `services`: expose host capabilities through stable service groups
+- `hosts`: `shell`, `page`, and `background` each register the services they provide
+
+Internally, declarative and script plugins are both compiled into the same runtime entry model. The marketplace format therefore exposes both package metadata and activation metadata.
+
+## Package kinds
+
+- `builtin`: shipped with the main Cerebr app
+- `declarative`: reviewed data-only package that compiles into runtime contributions
+- `script`: reviewed executable package for `page`, `shell`, or `background`
+
+## Supported manifest schema versions
+
+- `schemaVersion = 1`
+  - legacy format
+  - declarative packages use `declarative.type`
+- `schemaVersion = 2`
+  - preferred format
+  - declarative packages use `contributions`
+  - script and declarative packages can declare `activationEvents`
+
+Manifest v1 remains supported for backward compatibility. New marketplace packages should use schema v2 unless there is a compatibility reason not to.
+
+## Activation events
+
+Plugins are no longer required to activate eagerly at startup.
+
+Supported activation patterns:
+
+- `app.startup`
+- `page.ready`
+- `shell.ready`
+- `background.ready`
+- `hook:<hookName>` such as `hook:onBeforeSend`, `hook:onResponseError`, `hook:onCommand`
+- wildcard forms such as `hook:*` and `page.*`
+
+Guidance:
+
+- UI setup plugins should usually activate on the host-ready event for their scope.
+- request / retry plugins should usually activate on the hook they intercept.
+- background command plugins should usually activate on `hook:onActionClicked`, `hook:onCommand`, or both.
 
 ## `registry.json`
 
@@ -55,41 +88,53 @@ Registry payloads describe what the marketplace can show and install.
 Required top-level fields:
 
 - `schemaVersion`: currently `1`
-- `registryId`: stable registry identifier
-- `displayName`: human-readable registry name
-- `generatedAt`: RFC 3339 timestamp
-- `plugins`: array of registry entries
+- `registryId`
+- `displayName`
+- `generatedAt`
+- `plugins`
 
 Registry entry fields:
 
-- `id`: stable plugin id, for example `official.prompt.concise-reply`
+- `id`
 - `kind`: `builtin` | `declarative` | `script`
 - `scope`: `page` | `shell` | `prompt` | `background`
 - `displayName`
 - `description`
 - `latestVersion`
-- `permissions`: array of capability strings
-- `requiresExtension`: optional boolean for plugins that only work in the browser extension host
-- `compatibility.versionRange`: semver comparator string, for example `>=2.4.66 <3.0.0`
+- `permissions`
+- `requiresExtension`
+- `compatibility.versionRange`
 - `availability.status`: `active` | `disabled`
-- `availability.reason`: optional human-readable disable reason
+- `availability.reason`
 - `install.mode`: `builtin` | `package`
-- `install.packageUrl`: required for installable declarative and script packages
-- `publisher`, `homepage`: optional metadata
+- `install.packageUrl`
+- `publisher`, `homepage`
+
+Optional v2 metadata fields:
+
+- `activationEvents`: activation hints shown to the host before install
+- `contributionTypes`: summary of declarative contribution groups, for example:
+  - `promptFragments`
+  - `requestPolicies`
+  - `pageExtractors`
+  - `selectionActions`
+  - `inputActions`
+  - `menuItems`
+  - `slashCommands`
 
 Behavior rules:
 
-- `availability.status = disabled` keeps installed copies manageable via the Installed tab, but hides the plugin from the Marketplace tab until the registry re-enables it.
-- Missing installed registry entries are treated as removed from the registry after a successful full registry sync.
-- `latestVersion` is compared against the locally installed version to surface updates.
+- `availability.status = disabled` keeps installed copies manageable from Installed, but hides the marketplace card until the registry re-enables it.
+- Missing registry entries are treated as removed after a successful full sync.
+- `latestVersion` is compared against the local installed version to surface updates.
+- `activationEvents` and `contributionTypes` are metadata only; the package manifest is still the execution source of truth.
+- registry and package manifests should prefer resource-scoped permissions such as `page:selection:read`, `shell:input:write`, `prompt:fragments`, and `bridge:send:shell`; legacy namespace permissions still load for compatibility
 
 ## `plugin.json`
 
-Package manifests describe the locally installed plugin payload.
+Required shared fields:
 
-Required fields:
-
-- `schemaVersion`: currently `1`
+- `schemaVersion`
 - `id`
 - `version`
 - `kind`
@@ -99,85 +144,217 @@ Required fields:
 
 Optional shared fields:
 
+- `defaultEnabled`
 - `publisher`
 - `homepage`
 - `permissions`
 - `requiresExtension`
+- `activationEvents`
 - `compatibility.versionRange`
 
-Declarative package fields:
+### Script packages
 
-- `declarative.type`: `prompt_fragment` | `request_policy` | `page_extractor`
+Script packages must include:
+
+- `script.entry`
+- optional `script.exportName`
+
+Script packages support:
+
+- `scope = page`
+- `scope = shell`
+- `scope = background`
+
+Background script packages must set:
+
+```json
+"requiresExtension": true
+```
+
+### Declarative packages
+
+Declarative packages can use either of these formats:
+
+#### Legacy v1 format
+
+Use `declarative.type`:
+
 - `prompt_fragment`
-  - `declarative.placement`: `system.prepend` | `system.append`
-  - `declarative.content`: prompt text to inject
-  - `declarative.priority`: optional ordering hint, higher runs earlier within the same placement
 - `request_policy`
-  - `declarative.applyTo.modes`: optional request modes such as `send` or `regenerate`
-  - `declarative.applyTo.modelIncludes`: optional case-insensitive model-name substrings
-  - `declarative.applyTo.urlIncludes`: optional case-insensitive request URL substrings
-  - `declarative.promptFragments`: optional prompt fragment or fragment list
-  - `declarative.requestPatch.url`: optional request URL override
-  - `declarative.requestPatch.headers`: optional request header patch
-  - `declarative.requestPatch.body`: optional shallow request body patch
-  - `declarative.retry.onErrorCodes`: optional error codes that should trigger retry
-  - `declarative.retry.maxAttempts`: optional retry ceiling, default `20`
-  - `declarative.cancel.draftMatches` / `declarative.cancel.draftIncludes`: optional draft cancellation rules
 - `page_extractor`
-  - `declarative.matches`: optional URL wildcard patterns, default matches all pages
-  - `declarative.includeSelectors`: optional selectors to prefer for text capture
-  - `declarative.excludeSelectors`: optional selectors to strip before capture
-  - `declarative.strategy`: `replace` | `prepend` | `append`
-  - `declarative.priority`: optional ordering hint, higher runs earlier
-  - `declarative.maxTextLength`: optional maximum extracted text length
-  - `declarative.collapseWhitespace`: optional whitespace normalization toggle
 
-Current declarative runtime behavior:
+#### Preferred v2 format
 
-- `prompt_fragment` and `request_policy` packages are loaded into the shared shell plugin runtime and participate in the same hook pipeline as built-in and script plugins.
-- `page_extractor` packages register extractor definitions into the page runtime and can replace, prepend, or append webpage text before Cerebr sends it to the model.
-- Disabled or incompatible packages are ignored at runtime.
-- Registry metadata controls installability and remote disable; package metadata controls local execution.
+Use `contributions`:
 
-Cross-host runtime behavior:
+- `promptFragments`
+- `requestPolicies`
+- `pageExtractors`
+- `selectionActions`
+- `inputActions`
+- `menuItems`
+- `slashCommands`
 
-- `page` and `shell` script plugins can call `bridge.send(target, command, payload)` to talk to other hosts.
-- `background` script plugins can call `bridge.send()`, `bridge.sendToTab()`, and `bridge.broadcast()` to deliver messages into page or shell runtimes on specific tabs.
-- `page`, `shell`, and `background` script plugins can implement `onBridgeMessage(message, ctx)` to receive routed bridge commands.
+Scope rules:
 
-## Install Flow
+- prompt contributions require `scope = prompt` or `scope = shell`
+- request policies require `scope = shell`
+- shell actions require `scope = shell`
+- page extractors and selection actions require `scope = page`
+
+### Contribution details
+
+#### `promptFragments`
+
+Adds persistent prompt fragments through the host prompt service.
+
+Fields:
+
+- `content` or `contentKey`
+- `placement`: `system.prepend` | `system.append`
+- `priority`
+
+#### `requestPolicies`
+
+Declares shell request interception without shipping runtime code.
+
+Fields:
+
+- `applyTo.modes`
+- `applyTo.modelIncludes`
+- `applyTo.urlIncludes`
+- `promptFragments`
+- `requestPatch.url`
+- `requestPatch.headers`
+- `requestPatch.body`
+- `retry.onErrorCodes`
+- `retry.maxAttempts`
+- `retry.reason`
+- `cancel.draftMatches`
+- `cancel.draftIncludes`
+- `cancel.reason`
+
+#### `pageExtractors`
+
+Registers extractor definitions in the page runtime.
+
+Fields:
+
+- `matches`
+- `includeSelectors`
+- `excludeSelectors`
+- `strategy`: `replace` | `prepend` | `append`
+- `priority`
+- `maxTextLength`
+- `collapseWhitespace`
+
+#### `selectionActions`
+
+Adds anchored actions beside the current page selection.
+
+Fields:
+
+- `label`
+- `prompt` or `promptTemplate`
+- `title`
+- `icon`
+- `focus`
+- `separator`
+- `minLength`
+- `maxLength`
+- `offsetX`
+- `offsetY`
+
+Selection prompts support template expansion such as:
+
+- `{{selection.text}}`
+- `{{page.url}}`
+- `{{page.title}}`
+
+#### `inputActions`
+
+Adds native shell buttons under the composer.
+
+Fields:
+
+- `id`
+- `label`
+- `icon`
+- `title`
+- `variant`
+- `disabled`
+- `order`
+- `execute`
+
+#### `menuItems`
+
+Adds first-level menu entries to the Cerebr settings shell.
+
+Fields:
+
+- `id`
+- `label`
+- `icon`
+- `title`
+- `order`
+- `disclosure`
+- `disabled`
+- `execute`
+
+#### `slashCommands`
+
+Adds host-owned `/` commands in the shell composer.
+
+Fields:
+
+- `name`
+- `label`
+- `description`
+- `aliases`
+- `prompt`
+- `separator`
+- `disabled`
+- `order`
+
+#### Shared shell `execute` actions
+
+Declarative shell actions currently support:
+
+- `import_text`
+- `insert_text`
+- `set_draft`
+- `show_toast`
+- `open_page`
+
+## Install flow
 
 1. Cerebr fetches `registry.json` with `cache: no-store`.
-2. The Installed tab shows installed plugins only. Built-in plugins with `defaultInstalled: false` stay in the Marketplace tab until the user installs them. The Marketplace tab only shows active, compatible entries supported by the current runtime.
-3. Install confirmation lists the plugin permissions.
-4. Declarative and script packages download `plugin.json`, validate it, then persist it locally.
-5. Local plugin state stores installed version, latest version, permissions, availability, compatibility, and source metadata.
+2. The marketplace filters entries by host support, compatibility, and availability.
+3. Install confirmation lists permissions.
+4. For declarative and script packages, Cerebr downloads `plugin.json`, validates it, and stores the package metadata locally.
+5. At runtime, the compiler normalizes the package into a resolved plugin entry, then the kernel activates it lazily according to `activationEvents`.
 
-## Script Plugin Policy
+## Script plugin policy
 
-- Reviewed script plugins can be listed and installed from the Marketplace tab.
-- Script manifests must include `install.packageUrl` in the registry and `script.entry` in `plugin.json`.
-- Script packages support `scope = page`, `scope = shell`, or `scope = background`.
-- `background` script packages must declare `requiresExtension = true`.
-- Remote marketplace script packages should be self-contained and must not rely on relative imports into the main Cerebr repository.
-- Unreviewed local script plugins remain in the developer-mode sideload flow.
+- Reviewed script plugins can be listed and installed from the marketplace.
+- Script packages must be self-contained.
+- `script.entry` must stay on the same origin as the fetched `plugin.json`.
+- Remote marketplace script packages must not import private files from the main Cerebr repository.
+- `background` script packages must set `requiresExtension = true`.
+- Unreviewed local script plugins remain in developer-mode sideloading.
 
-## Developer-Mode Local Script Sideload
+## Developer-mode local script sideload
 
 Local script plugins are installed outside the reviewed marketplace flow.
 
 Rules:
 
-- Developer mode must be explicitly enabled before script plugins can be side-loaded or executed.
-- The developer tab also supports dragging a local plugin folder directly into Cerebr for installation. Dragging the whole folder is recommended so relative `script.entry` files are available.
-- `plugin.json` and `script.entry` must resolve to the current Cerebr origin only. Cross-origin script URLs are rejected.
-- Script manifests must include `script.entry`; optional `script.exportName` defaults to `default`.
-- Script plugins currently support `scope = page`, `scope = shell`, or `scope = background`.
-- `background` script plugins only run in the browser extension host.
-- Sideloaded script plugins store manifest metadata plus either the source URL or a dropped local file bundle, so they can be reloaded on the next launch.
-- Dropped local `shell` plugin folders in the browser extension host run inside the static guest runtime and therefore must be self-contained.
+- developer mode must be enabled
+- local `script.entry` must resolve under the current Cerebr origin or dropped bundle
+- dropped local `shell` plugins in the extension host run inside the static guest runtime
+- local guest shell plugins must stay self-contained and must not import `/src/...` host internals
 
-Recommended folder layout:
+Recommended layout:
 
 ```text
 <plugin-id>/
@@ -188,5 +365,6 @@ Recommended folder layout:
 ## Compatibility
 
 - Compatibility is evaluated against the running Cerebr app version.
-- Incompatible plugins remain manageable if already installed, but they are hidden from the Marketplace tab until they become compatible again.
-- Registry updates may change compatibility or availability without changing the package payload.
+- Incompatible plugins remain manageable if already installed.
+- Registry metadata can change availability or compatibility without changing the package payload.
+- Schema v2 packages should declare a compatibility floor that matches the host release which introduced the required contribution or activation behavior.

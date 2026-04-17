@@ -30,101 +30,7 @@
     "plugins": {
       "type": "array",
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "id",
-          "kind",
-          "scope",
-          "displayName",
-          "description",
-          "latestVersion"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "minLength": 1
-          },
-          "kind": {
-            "type": "string",
-            "enum": ["builtin", "declarative", "script"]
-          },
-          "scope": {
-            "type": "string",
-            "enum": ["page", "shell", "prompt", "background"]
-          },
-          "displayName": {
-            "type": "string",
-            "minLength": 1
-          },
-          "nameKey": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string",
-            "minLength": 1
-          },
-          "descriptionKey": {
-            "type": "string"
-          },
-          "latestVersion": {
-            "type": "string",
-            "minLength": 1
-          },
-          "publisher": {
-            "type": "string"
-          },
-          "homepage": {
-            "type": "string"
-          },
-          "permissions": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "requiresExtension": {
-            "type": "boolean"
-          },
-          "compatibility": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "versionRange": {
-                "type": "string"
-              }
-            }
-          },
-          "availability": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "status": {
-                "type": "string",
-                "enum": ["active", "disabled"]
-              },
-              "reason": {
-                "type": "string"
-              },
-              "reasonKey": {
-                "type": "string"
-              }
-            }
-          },
-          "install": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "mode": {
-                "type": "string",
-                "enum": ["builtin", "package", "script"]
-              },
-              "packageUrl": {
-                "type": "string"
-              }
-            }
-          }
-        }
+        "$ref": "#/$defs/pluginEntry"
       }
     }
   },
@@ -138,7 +44,7 @@
                 "if": {
                   "properties": {
                     "kind": {
-                      "const": "declarative"
+                      "enum": ["declarative", "script"]
                     }
                   }
                 },
@@ -178,5 +84,125 @@
         }
       }
     }
-  ]
+  ],
+  "$defs": {
+    "pluginEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "scope",
+        "displayName",
+        "description",
+        "latestVersion"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["builtin", "declarative", "script"]
+        },
+        "scope": {
+          "type": "string",
+          "enum": ["page", "shell", "prompt", "background"]
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nameKey": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "descriptionKey": {
+          "type": "string"
+        },
+        "latestVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "publisher": {
+          "type": "string"
+        },
+        "homepage": {
+          "type": "string"
+        },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requiresExtension": {
+          "type": "boolean"
+        },
+        "activationEvents": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "contributionTypes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "promptFragments",
+              "requestPolicies",
+              "pageExtractors",
+              "selectionActions",
+              "inputActions",
+              "menuItems",
+              "slashCommands"
+            ]
+          }
+        },
+        "compatibility": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "versionRange": {
+              "type": "string"
+            }
+          }
+        },
+        "availability": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["active", "disabled"]
+            },
+            "reason": {
+              "type": "string"
+            },
+            "reasonKey": {
+              "type": "string"
+            }
+          }
+        },
+        "install": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["builtin", "package", "script"]
+            },
+            "packageUrl": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
 }

@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 2,
+  "id": "official.page.article-focus",
+  "version": "1.0.2",
+  "kind": "declarative",
+  "scope": "page",
+  "displayName": "Article Focus Extractor",
+  "nameKey": "plugin_official_article_focus_name",
+  "description": "Prefer article-like selectors and strip common chrome when Cerebr extracts webpage content for the model.",
+  "descriptionKey": "plugin_official_article_focus_description",
+  "defaultEnabled": true,
+  "requiresExtension": true,
+  "permissions": [
+    "page:extractors"
+  ],
+  "activationEvents": ["page.ready"],
+  "compatibility": {
+    "versionRange": ">=2.4.86 <3.0.0"
+  },
+  "publisher": "Cerebr Team",
+  "homepage": "https://github.com/yym68686/Cerebr",
+  "declarative": {
+    "type": "page_extractor",
+    "matches": [
+      "*://*/*"
+    ],
+    "includeSelectors": [
+      "article",
+      "main",
+      "[role=\"main\"]",
+      ".article",
+      ".post",
+      ".entry-content",
+      ".markdown-body"
+    ],
+    "excludeSelectors": [
+      "nav",
+      "header",
+      "footer",
+      "aside",
+      ".sidebar",
+      ".advertisement",
+      ".ads",
+      ".toc"
+    ],
+    "strategy": "replace",
+    "priority": 10,
+    "maxTextLength": 30000,
+    "collapseWhitespace": true
+  },
+  "contributions": {
+    "pageExtractors": [
+      {
+        "matches": [
+          "*://*/*"
+        ],
+        "includeSelectors": [
+          "article",
+          "main",
+          "[role=\"main\"]",
+          ".article",
+          ".post",
+          ".entry-content",
+          ".markdown-body"
+        ],
+        "excludeSelectors": [
+          "nav",
+          "header",
+          "footer",
+          "aside",
+          ".sidebar",
+          ".advertisement",
+          ".ads",
+          ".toc"
+        ],
+        "strategy": "replace",
+        "priority": 10,
+        "maxTextLength": 30000,
+        "collapseWhitespace": true
+      }
+    ]
+  }
+}
