@@ -9,6 +9,14 @@ This document defines the first stable marketplace format for Cerebr plugins, pl
 - Allow registry-driven compatibility checks, updates, and remote disable.
 - Keep unreviewed local script sideloading behind developer mode until a stronger sandbox exists.
 
+## Official Curated Registry
+
+The reviewed marketplace registry is intended to live in a separate repository, currently:
+
+- `/Users/yanyuming/Downloads/GitHub/cerebr-plugins`
+
+The Cerebr app can read that curated remote registry and also keep a bundled local fallback copy under `statics/`.
+
 ## Package Types
 
 - `builtin`: shipped inside the main Cerebr app.
@@ -126,6 +134,7 @@ Cross-host runtime behavior:
 - Script manifests must include `install.packageUrl` in the registry and `script.entry` in `plugin.json`.
 - Script packages support `scope = page`, `scope = shell`, or `scope = background`.
 - `background` script packages must declare `requiresExtension = true`.
+- Remote marketplace script packages should be self-contained and must not rely on relative imports into the main Cerebr repository.
 - Unreviewed local script plugins remain in the developer-mode sideload flow.
 
 ## Developer-Mode Local Script Sideload
@@ -135,18 +144,18 @@ Local script plugins are installed outside the reviewed marketplace flow.
 Rules:
 
 - Developer mode must be explicitly enabled before script plugins can be side-loaded or executed.
-- The plugin page accepts a local `plugin.json` path, for example `/statics/dev-plugins/explain-selection/plugin.json`.
 - The developer tab also supports dragging a local plugin folder directly into Cerebr for installation. Dragging the whole folder is recommended so relative `script.entry` files are available.
 - `plugin.json` and `script.entry` must resolve to the current Cerebr origin only. Cross-origin script URLs are rejected.
 - Script manifests must include `script.entry`; optional `script.exportName` defaults to `default`.
 - Script plugins currently support `scope = page`, `scope = shell`, or `scope = background`.
 - `background` script plugins only run in the browser extension host.
 - Sideloaded script plugins store manifest metadata plus either the source URL or a dropped local file bundle, so they can be reloaded on the next launch.
+- Dropped local `shell` plugin folders in the browser extension host run inside the static guest runtime and therefore must be self-contained.
 
 Recommended folder layout:
 
 ```text
-statics/dev-plugins/<plugin-id>/
+<plugin-id>/
   plugin.json
   page.js | shell.js | background.js
 ```

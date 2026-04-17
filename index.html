@@ -22,7 +22,9 @@
     <link rel="stylesheet" href="styles/main.css">
 </head>
 <body>
+    <div class="cerebr-plugin-slot cerebr-plugin-slot--shell-chat-before" data-plugin-slot="shell.chat.before"></div>
     <div id="chat-container"></div>
+    <div class="cerebr-plugin-slot cerebr-plugin-slot--shell-chat-after" data-plugin-slot="shell.chat.after"></div>
     <button id="scroll-to-bottom" type="button" tabindex="-1" aria-hidden="true" aria-label="滚动到底部" data-i18n-attr="aria-label:aria_scroll_to_bottom">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M12 5v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -36,6 +38,13 @@
                 <path d="M4 16V4a1 1 0 0 1 1-1h11"/>
             </svg>
             <span data-i18n="context_copy_message">复制消息</span>
+        </div>
+        <div class="context-menu-item" id="edit-message" role="menuitem" tabindex="0">
+            <svg viewBox="0 0 24 24">
+                <path d="M4 20h4l10.5-10.5a2.12 2.12 0 0 0-4-4L4 16v4"/>
+                <path d="M13.5 6.5l4 4"/>
+            </svg>
+            <span data-i18n="context_edit_message">编辑消息</span>
         </div>
         <div class="context-menu-item" id="copy-code" role="menuitem" tabindex="0">
             <svg viewBox="0 0 24 24">
@@ -80,6 +89,7 @@
         </div>
     </div>
     <div id="input-container">
+        <div class="cerebr-plugin-slot cerebr-plugin-slot--shell-input-before" data-plugin-slot="shell.input.before"></div>
         <button id="settings-button" aria-label="打开设置" data-i18n-attr="aria-label:aria_open_settings">
             <svg viewBox="0 0 24 24">
                 <circle cx="12" cy="6" r="2"/>
@@ -130,6 +140,10 @@
             <div id="message-input" contenteditable="true" placeholder="输入消息..." enterkeyhint="send" role="textbox" aria-label="消息输入框" aria-multiline="true" spellcheck="true" data-i18n-attr="placeholder:message_input_placeholder;aria-label:message_input_aria"></div>
             <div class="fake-caret" aria-hidden="true"></div>
         </div>
+        <div class="cerebr-plugin-slot cerebr-plugin-slot--shell-input-after" data-plugin-slot="shell.input.after"></div>
+        <button id="confirm-edit-button" type="button" hidden data-i18n="message_edit_confirm" data-i18n-attr="aria-label:message_edit_confirm_aria">
+            确定
+        </button>
     </div>
     <div id="api-settings">
         <div class="settings-header">
@@ -354,9 +368,13 @@
             </section>
             <section class="plugin-settings-panel" data-plugin-panel="developer" hidden>
                 <div class="plugin-dev-import">
+                    <div class="plugin-dev-import__copy">
+                        <div class="plugin-dev-import__label" data-i18n="plugin_dev_guest_title">直接拖入自包含插件</div>
+                        <p class="plugin-dev-import__hint" data-i18n="plugin_dev_guest_hint">把包含 plugin.json 的自包含插件文件夹直接拖进来即可。Cerebr 会把本地 shell 插件放进静态 guest runtime 中运行，不再要求写入 statics/dev-plugins。</p>
+                    </div>
                     <div class="plugin-dev-dropzone" id="developer-plugin-dropzone" tabindex="0">
                         <div class="plugin-dev-dropzone__title" data-i18n="plugin_dev_drop_title">拖入包含 plugin.json 的插件文件夹</div>
-                        <p class="plugin-dev-dropzone__hint" data-i18n="plugin_dev_drop_hint">把包含 plugin.json 的插件文件夹拖到这里即可；如果当前浏览器不支持目录拖放，可以点击下方按钮选择插件目录。</p>
+                        <p class="plugin-dev-dropzone__hint" data-i18n="plugin_dev_drop_hint">把包含 plugin.json 的插件文件夹拖到这里即可。Shell 插件会在受限的 guest runtime 中直接运行；依赖 /src 私有路径或宿主 DOM 的插件需要先迁到官方 SDK。</p>
                         <div class="plugin-dev-dropzone__actions">
                             <button type="button" class="plugin-action-button" data-plugin-dev-action="pick-folder" data-i18n="plugin_dev_action_pick_folder">选择插件目录</button>
                         </div>

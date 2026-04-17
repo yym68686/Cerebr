@@ -2,10 +2,11 @@
   "manifest_version": 3,
   "default_locale": "en",
   "name": "__MSG_extension_name__",
-  "version": "2.4.76",
+  "version": "2.4.77",
   "description": "__MSG_extension_description__",
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
+    "sandbox": "sandbox allow-scripts allow-forms allow-popups allow-modals; script-src 'self' blob: data:; child-src 'self'; object-src 'self'"
   },
   "icons": {
     "16": "icons/icon16.png",
@@ -53,6 +54,11 @@
     "scripts": ["background.js"],
     "type": "module"
   },
+  "sandbox": {
+    "pages": [
+      "src/plugin/guest/shell-plugin-guest.html"
+    ]
+  },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
@@ -77,6 +83,10 @@
         "src/plugin/dev/local-plugin-service.js",
         "src/plugin/dev/local-plugin-source.js",
         "src/plugin/dev/script-plugin-loader.js",
+        "src/plugin/guest/guest-protocol.js",
+        "src/plugin/guest/guest-shell-plugin-host.js",
+        "src/plugin/guest/shell-plugin-guest.html",
+        "src/plugin/guest/shell-plugin-guest.js",
         "src/plugin/market/plugin-schema.js",
         "src/plugin/market/version-utils.js",
         "src/plugin/shared/plugin-catalog.js",
@@ -98,7 +108,7 @@
         "src/utils/app-version.js",
         "src/utils/i18n.js",
         "src/utils/storage-adapter.js",
-        "statics/dev-plugins/*/*",
+        "src/utils/theme.js",
         "statics/plugins/*/*/*",
         "styles/main.css",
         "styles/components/sidebar.css",

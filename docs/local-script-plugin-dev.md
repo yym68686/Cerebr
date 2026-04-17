@@ -1,6 +1,6 @@
 # Local Script Plugin Development
 
-This guide documents the first developer-mode sideload flow for Cerebr script plugins.
+This guide documents the current developer-mode sideload flow for Cerebr script plugins.
 
 ## Scope
 
@@ -8,22 +8,24 @@ This guide documents the first developer-mode sideload flow for Cerebr script pl
 - `scope = page`, `scope = shell`, and `scope = background` are supported.
 - `background` plugins only run in the browser extension host and must set `requiresExtension = true`.
 - Reviewed marketplace script plugins can be installed normally; this guide is only about local sideloaded script plugins.
-- Dragged local plugin bundles are persisted locally and loaded through Cerebr's bundle loader.
+- Dropped local `shell` plugin folders in the browser extension host now run inside a static guest runtime. They must be self-contained and must not import `/src/...` host internals or reach into the host DOM directly.
 
 ## Recommended Layout
 
 ```text
-statics/dev-plugins/<plugin-id>/
+my-plugin/
   plugin.json
-  page.js | shell.js | background.js
+  shell.js | page.js | background.js
+  vendor/
 ```
 
 Example:
 
 ```text
-statics/dev-plugins/explain-selection/
+cttf-cerebr-plugin/
   plugin.json
-  page.js
+  shell.js
+  vendor/
 ```
 
 ## `plugin.json`
@@ -31,84 +33,76 @@ statics/dev-plugins/explain-selection/
 ```json
 {
   "schemaVersion": 1,
-  "id": "local.explain-selection",
-  "version": "1.0.0",
+  "id": "local.cttf-shell",
+  "version": "1.3.0",
   "kind": "script",
-  "scope": "page",
-  "displayName": "Explain Selection",
-  "description": "Show a local developer action next to selected text and send an explanation prompt into Cerebr.",
+  "scope": "shell",
+  "displayName": "CTTF for Cerebr",
+  "description": "Run Chat Template Text Folders inside the Cerebr shell through the official self-contained guest runtime.",
   "defaultEnabled": true,
   "requiresExtension": true,
-  "permissions": ["page:selection", "shell:input", "ui:mount"],
+  "permissions": ["shell:input", "tabs:read", "chat:write"],
   "compatibility": {
-    "versionRange": ">=2.4.66 <3.0.0"
+    "versionRange": ">=2.4.76 <3.0.0"
   },
   "script": {
-    "entry": "./page.js"
+    "entry": "./shell.js"
   }
 }
 ```
 
 Notes:
 
-- `script.entry` is resolved relative to `plugin.json`.
+- `script.entry` should be relative to `plugin.json` for dropped self-contained shell plugins.
 - `script.exportName` is optional and defaults to `default`.
-- The exported plugin object must match `definePlugin({ id, setup(api) })`.
+- The exported plugin object must expose `id` and `setup(api)`.
+- Do not import `/src/...` files from the Cerebr repository. Bundle or copy the helpers you need into your plugin folder.
 
 Minimal entry example:
 
 ```js
-import { definePlugin } from '../../../src/plugin/shared/define-plugin.js';
-
-export default definePlugin({
-  id: 'local.explain-selection',
+export default {
+  id: 'local.cttf-shell',
   setup(api) {
-    return api.page.watchSelection((snapshot) => {
-      // your plugin logic
-    });
+    const mountRoot = api.shell.mountInputAddon();
+    return () => mountRoot?.replaceChildren?.();
   }
-});
+};
 ```
 
 ## Capability APIs
 
-- `page` plugins can use `page.getSnapshot()`, `page.watchSelection()`, `page.watchSelectors()`, `page.query()`, `page.queryAll()`, `page.registerExtractor()` and `page.listExtractors()`.
-- `page` plugins can use `site.query()`, `site.fill()`, `site.click()` and `site.observe()` for site automation style workflows.
-- `page` plugins can use `ui.showAnchoredAction()` and `ui.mountSlot()`, which require `ui:mount`.
-- `page` plugins can bridge into Cerebr with `shell.focusInput()`, `shell.setDraft()`, `shell.insertText()` and `shell.importText()`.
-- `shell` plugins can use `editor`, `chat`, `prompt` and `ui` APIs. `chat` hooks now run through the official request pipeline instead of intercepting `window.fetch`.
-- `page` and `shell` plugins can use `bridge.send(target, command, payload)` for cross-host messages.
-- `background` plugins can use `browser.getCurrentTab()`, `browser.getTab()`, `browser.queryTabs()`, `browser.reloadTab()`, `storage.get()/set()/remove()`, and `bridge.send()/sendToTab()/broadcast()`.
+- `shell` plugins can use `editor`, `chat`, `prompt`, `ui`, `bridge`, `browser`, and `shell`.
+- `browser.getCurrentTab()` returns the active browser tab in the extension host.
+- `shell.mountInputAddon()` gives the plugin a stable container inside the shell input area.
+- `shell.observeTheme(callback)` notifies plugins when the shell theme changes.
+- `shell.requestLayoutSync()` asks Cerebr to recompute the input/chat spacing after the plugin UI changes height.
+- `chat.sendDraft()` can be used instead of synthesizing key events against the host editor DOM.
+- `page` and `background` plugins keep using their existing APIs.
 
 ## Hook Lifecycle
 
-- `shell` plugins can implement `onBeforeSend`, `onBuildPrompt`, `onRequest`, `onResponse`, `onRequestError`, `onStreamChunk`, `onResponseError` and `onAfterResponse`.
+- `shell` plugins can implement `onBeforeSend`, `onBuildPrompt`, `onRequest`, `onResponse`, `onRequestError`, `onStreamChunk`, `onResponseError`, and `onAfterResponse`.
 - `page`, `shell`, and `background` plugins can implement `onBridgeMessage`.
 - `background` plugins can implement `onBackgroundReady`, `onActionClicked`, `onCommand`, `onInstalled`, `onTabActivated`, `onTabUpdated`, and `onTabRemoved`.
-- Hook contexts are isolated per plugin and still enforce manifest permissions.
-- `ctx.chat.retry()` / `ctx.chat.cancel()` only work for plugins that requested `chat:write`.
-- `ctx.prompt.addFragment()` only works for plugins that requested `prompt:extend` or `prompt:write`.
+- Local guest shell plugins are optimized for `setup(api)` UI integrations. If you need hooks, keep the plugin self-contained and stay within the official SDK surface.
 
 ## Install Flow
 
 1. Enable `偏好设置 -> 开发者模式`.
 2. Open `设置 -> 插件 -> 开发者`.
-3. Drag a local plugin folder that contains `plugin.json` into the drop area in the same panel.
-4. If your browser does not expose folder drag-and-drop reliably, use the `选择插件文件夹` button in the same panel.
-5. Toggle, refresh, or uninstall the plugin from the same page.
+3. Drag a plugin folder that contains `plugin.json` into the drop area, or use `选择插件文件夹`.
+4. Cerebr installs the package immediately. There is no `dev-plugins` directory authorization step anymore.
 
 ## Runtime Behavior
 
 - Page, shell, and background runtimes subscribe to developer-mode changes.
 - Turning developer mode off unloads all local script plugins.
-- Refreshing a local plugin re-fetches `plugin.json` and reloads `script.entry` with a cache-busting revision token.
-- Plugins installed from dropped local files are persisted in local storage. To update them, drag the updated plugin folder into Cerebr again.
+- Refreshing a local plugin re-reads the stored source bundle and reloads the plugin.
+- In the browser extension host, dropped local `shell` plugin folders run in a static guest runtime inside the shell input area.
+- Guest shell plugins must be self-contained. Absolute `/src/...` imports, same-origin host internals, and direct host DOM access are rejected.
+- On the web host, dropped local file bundles still use local bundle storage.
 
 ## Example
 
-The repository ships with a sample local plugin:
-
-- Folder: `statics/dev-plugins/explain-selection/`
-- Files: `plugin.json` and `page.js`
-- Folder: `statics/dev-plugins/focus-input-on-toggle/`
-- Files: `plugin.json` and `background.js`
+The migrated `cttf-cerebr-plugin` repository is now the reference example for a self-contained local `shell` plugin that runs through the guest runtime.

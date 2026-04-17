@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cerebr Shell Plugin Guest</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            min-height: 100%;
+            background: transparent;
+            overflow: hidden;
+        }
+
+        body {
+            color: inherit;
+            font: inherit;
+        }
+
+        #cerebr-plugin-guest-root {
+            width: 100%;
+            min-width: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="cerebr-plugin-guest-root"></div>
+    <script type="module" src="./shell-plugin-guest.js"></script>
+</body>
+</html>

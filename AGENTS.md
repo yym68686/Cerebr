@@ -73,3 +73,26 @@
 - `examples/` 下的脚本式 / 声明式示例是否需要更新
 - `schemas/` 下的 schema 副本是否需要同步
 - `scripts/check-manifests.mjs` 的校验规则是否仍匹配当前宿主实现
+
+## 插件市场仓库同步
+
+- 独立插件市场仓库路径：`/Users/yanyuming/Downloads/GitHub/cerebr-plugins`
+- 这个仓库承载 **审核后的 marketplace registry 和插件包**，供 Cerebr 插件市场远程读取。
+- 因此，只要本仓库的插件市场机制或官方上架插件发生变化，必须评估并同步更新 `cerebr-plugins`，必要时也同步更新本仓库里的 bundled fallback（`statics/plugin-registry.json`、`statics/plugins/**`）。
+
+以下变化都默认需要同步检查 `cerebr-plugins`：
+
+- `plugin-registry.json` 格式变化
+- marketplace 插件安装 / 更新 / 下架逻辑变化
+- script 插件远程加载约束变化
+- 官方推荐插件集合变化
+- 插件包目录结构变化
+- schema 变化
+
+同步时至少检查这些内容：
+
+- `cerebr-plugins/plugin-registry.json` 是否仍能被当前宿主读取
+- `cerebr-plugins/plugins/**` 下的包结构是否仍匹配当前运行时
+- 远程 script 插件是否仍然保持“自包含”，没有错误依赖主仓库私有路径
+- GitHub Pages 或其它托管地址是否仍然能正确提供 `plugin.json` / `.js`
+- 本仓库 bundled fallback 是否需要镜像更新
