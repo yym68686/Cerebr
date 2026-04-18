@@ -177,9 +177,48 @@ function normalizeFieldDescriptor(field = {}, index = 0) {
         disabled: !!field?.disabled,
         span: field?.span === 2 || field?.span === 'full' ? 2 : 1,
         rows: Math.max(2, normalizeNumber(field?.rows, 4)),
+        action: type === 'checkbox'
+            ? null
+            : normalizeActionDescriptor(field?.action, index),
         options: Array.isArray(field?.options)
             ? field.options.map((option, optionIndex) => normalizeFieldOption(option, optionIndex))
             : [],
+    };
+}
+
+function normalizePaginationControlDescriptor(control = {}, index = 0) {
+    const fieldId = normalizeString(control?.fieldId, `pagination-field-${index}`);
+    const options = Array.isArray(control?.options)
+        ? control.options.map((option, optionIndex) => normalizeFieldOption(option, optionIndex))
+        : [];
+
+    if (!fieldId || options.length === 0) {
+        return null;
+    }
+
+    return {
+        fieldId,
+        label: normalizeString(control?.label),
+        value: control?.value == null ? '' : String(control.value),
+        disabled: !!control?.disabled,
+        suffix: normalizeString(control?.suffix),
+        options,
+    };
+}
+
+function normalizePaginationButtonDescriptor(button = {}, index = 0) {
+    const label = normalizeString(button?.label);
+    if (!label) {
+        return null;
+    }
+
+    return {
+        id: normalizeString(button?.id, `pagination-button-${index}`),
+        label,
+        title: normalizeString(button?.title, label),
+        actionId: normalizeString(button?.actionId),
+        selected: !!button?.selected,
+        disabled: !!button?.disabled,
     };
 }
 
@@ -295,6 +334,30 @@ function normalizeContentDescriptor(node = {}, index = 0) {
             items: Array.isArray(node?.items)
                 ? node.items.map((item, itemIndex) => normalizeListItemDescriptor(item, itemIndex)).filter(Boolean)
                 : [],
+        };
+    }
+
+    if (kind === 'pagination') {
+        const pages = Array.isArray(node?.pages)
+            ? node.pages.map((page, pageIndex) => normalizePaginationButtonDescriptor(page, pageIndex)).filter(Boolean)
+            : [];
+        const previousAction = normalizePaginationButtonDescriptor(node?.previousAction, 0);
+        const nextAction = normalizePaginationButtonDescriptor(node?.nextAction, 1);
+        const pageSize = normalizePaginationControlDescriptor(node?.pageSize, 0);
+        const jump = normalizePaginationControlDescriptor(node?.jump, 1);
+
+        if (!pages.length && !previousAction && !nextAction && !pageSize && !jump) {
+            return null;
+        }
+
+        return {
+            kind,
+            id: normalizeString(node?.id, `pagination-${index}`),
+            pages,
+            previousAction,
+            nextAction,
+            pageSize,
+            jump,
         };
     }
 
@@ -569,15 +632,47 @@ function createFieldElement({
     field,
     session,
     dispatchEvent,
+    logger,
 }) {
-    const wrapper = createElement('label', 'cerebr-plugin-page-field');
+    const wrapper = createElement('div', 'cerebr-plugin-page-field');
     if (field.span === 2) {
         wrapper.classList.add('cerebr-plugin-page-field--span-2');
     }
 
     let control = null;
+    let controlElement = null;
     const currentValue = readFieldValue(session, field);
     let colorValueElement = null;
+    const controlId = `cerebr-plugin-page-field-${String(field.id || 'field').replace(/[^A-Za-z0-9_-]+/g, '-')}`;
+
+    function appendLabeledControl(labelText, element) {
+        const label = document.createElement('label');
+        label.className = 'cerebr-plugin-page-field__label';
+        label.textContent = labelText;
+        label.htmlFor = controlId;
+        wrapper.appendChild(label);
+
+        const canInlineAction = !!field.action && (field.type === 'text' || field.type === 'select');
+        if (!canInlineAction) {
+            wrapper.appendChild(element);
+            return;
+        }
+
+        const row = createElement('div', 'cerebr-plugin-page-field__row');
+        const controlShell = createElement('div', 'cerebr-plugin-page-field__control');
+        controlShell.appendChild(element);
+        row.appendChild(controlShell);
+
+        const actionButton = createActionButton({
+            action: field.action,
+            session,
+            dispatchEvent,
+            logger,
+        });
+        actionButton.classList.add('cerebr-plugin-page-action--field-inline');
+        row.appendChild(actionButton);
+        wrapper.appendChild(row);
+    }
 
     if (field.type === 'checkbox') {
         wrapper.classList.add('cerebr-plugin-page-field--toggle');
@@ -593,6 +688,7 @@ function createFieldElement({
         }
         toggle.appendChild(copy);
         control = document.createElement('input');
+        control.id = controlId;
         control.className = 'cerebr-plugin-page-switch__input';
         control.type = 'checkbox';
         control.checked = !!currentValue;
@@ -604,21 +700,18 @@ function createFieldElement({
         toggle.appendChild(slider);
         wrapper.appendChild(toggle);
     } else if (field.type === 'textarea') {
-        const label = createElement('span', 'cerebr-plugin-page-field__label');
-        label.textContent = field.label;
-        wrapper.appendChild(label);
         control = createElement('textarea', 'cerebr-plugin-page-input cerebr-plugin-page-input--textarea');
+        control.id = controlId;
         control.rows = field.rows;
         control.value = String(currentValue ?? '');
         control.placeholder = field.placeholder;
         control.disabled = !!field.disabled;
-        wrapper.appendChild(control);
+        controlElement = control;
+        appendLabeledControl(field.label, controlElement);
     } else if (field.type === 'color') {
-        const label = createElement('span', 'cerebr-plugin-page-field__label');
-        label.textContent = field.label;
-        wrapper.appendChild(label);
         const colorField = createElement('span', 'cerebr-plugin-page-color-field');
         control = createElement('input', 'cerebr-plugin-page-input cerebr-plugin-page-input--color');
+        control.id = controlId;
         control.type = 'color';
         control.value = String(currentValue || '#000000');
         control.disabled = !!field.disabled;
@@ -626,13 +719,12 @@ function createFieldElement({
         colorValueElement = createElement('span', 'cerebr-plugin-page-color-field__value');
         colorValueElement.textContent = String(control.value || '#000000').toUpperCase();
         colorField.appendChild(colorValueElement);
-        wrapper.appendChild(colorField);
+        controlElement = colorField;
+        appendLabeledControl(field.label, controlElement);
     } else if (field.type === 'select') {
-        const label = createElement('span', 'cerebr-plugin-page-field__label');
-        label.textContent = field.label;
-        wrapper.appendChild(label);
         const selectWrapper = createElement('span', 'cerebr-plugin-page-select');
         control = createElement('select', 'cerebr-plugin-page-input');
+        control.id = controlId;
         field.options.forEach((option) => {
             const optionElement = document.createElement('option');
             optionElement.value = option.value;
@@ -645,17 +737,17 @@ function createFieldElement({
         const chevron = createElement('span', 'cerebr-plugin-page-select__chevron');
         chevron.textContent = '⌄';
         selectWrapper.appendChild(chevron);
-        wrapper.appendChild(selectWrapper);
+        controlElement = selectWrapper;
+        appendLabeledControl(field.label, controlElement);
     } else {
-        const label = createElement('span', 'cerebr-plugin-page-field__label');
-        label.textContent = field.label;
-        wrapper.appendChild(label);
         control = createElement('input', 'cerebr-plugin-page-input');
+        control.id = controlId;
         control.type = 'text';
         control.value = String(currentValue ?? '');
         control.placeholder = field.placeholder;
         control.disabled = !!field.disabled;
-        wrapper.appendChild(control);
+        controlElement = control;
+        appendLabeledControl(field.label, controlElement);
     }
 
     if (field.description && field.type !== 'checkbox') {
@@ -790,6 +882,182 @@ function renderList({
     return list;
 }
 
+function createPaginationSelectControl({
+    descriptor,
+    session,
+    dispatchEvent,
+}) {
+    const wrapper = createElement('div', 'cerebr-plugin-page-pagination__control');
+    const shell = createElement('div', 'cerebr-plugin-page-pagination__control-shell');
+
+    if (descriptor.label) {
+        const label = createElement('span', 'cerebr-plugin-page-pagination__control-label');
+        label.textContent = descriptor.label;
+        shell.appendChild(label);
+    }
+
+    const selectWrapper = createElement('span', 'cerebr-plugin-page-pagination__select');
+    const select = document.createElement('select');
+    select.className = 'cerebr-plugin-page-pagination__select-input';
+    select.disabled = !!descriptor.disabled;
+
+    const currentValue = Object.prototype.hasOwnProperty.call(session?.fieldValues || {}, descriptor.fieldId)
+        ? String(session.fieldValues[descriptor.fieldId] ?? '')
+        : String(descriptor.value ?? '');
+
+    descriptor.options.forEach((option) => {
+        const optionElement = document.createElement('option');
+        optionElement.value = option.value;
+        optionElement.textContent = option.label;
+        optionElement.selected = currentValue === option.value;
+        select.appendChild(optionElement);
+    });
+
+    const emitChange = () => {
+        updateFieldValue(session, descriptor.fieldId, select.value);
+        dispatchInteraction({
+            session,
+            dispatchEvent,
+            payload: {
+                type: 'change',
+                fieldId: descriptor.fieldId,
+                value: cloneValue(select.value, select.value),
+                values: cloneValues(session),
+            },
+        });
+    };
+
+    select.addEventListener('change', emitChange);
+
+    if (!Object.prototype.hasOwnProperty.call(session.fieldValues || {}, descriptor.fieldId)) {
+        updateFieldValue(session, descriptor.fieldId, select.value);
+    }
+    session.activeFieldIds.add(descriptor.fieldId);
+
+    selectWrapper.appendChild(select);
+
+    const chevron = createElement('span', 'cerebr-plugin-page-pagination__select-chevron');
+    chevron.textContent = '⌄';
+    selectWrapper.appendChild(chevron);
+    shell.appendChild(selectWrapper);
+
+    if (descriptor.suffix) {
+        const suffix = createElement('span', 'cerebr-plugin-page-pagination__control-suffix');
+        suffix.textContent = descriptor.suffix;
+        shell.appendChild(suffix);
+    }
+
+    wrapper.appendChild(shell);
+    return wrapper;
+}
+
+function createPaginationButton({
+    descriptor,
+    session,
+    dispatchEvent,
+    className = '',
+}) {
+    const isInteractive = !!descriptor.actionId && !descriptor.disabled;
+    const element = createElement(
+        isInteractive ? 'button' : 'span',
+        `cerebr-plugin-page-pagination__button${className ? ` ${className}` : ''}`
+    );
+    element.textContent = descriptor.label;
+    if (descriptor.selected) {
+        element.classList.add('is-selected');
+        element.setAttribute('aria-current', 'page');
+    }
+    if (descriptor.title) {
+        element.title = descriptor.title;
+        element.setAttribute('aria-label', descriptor.title);
+    }
+
+    if (isInteractive && element instanceof HTMLButtonElement) {
+        element.type = 'button';
+        element.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            dispatchInteraction({
+                session,
+                dispatchEvent,
+                payload: {
+                    type: 'action',
+                    actionId: descriptor.actionId,
+                    values: cloneValues(session),
+                    anchorRect: measureAnchorRect(element),
+                },
+            });
+        });
+    } else {
+        element.classList.add('is-static');
+    }
+
+    if (descriptor.disabled && element instanceof HTMLButtonElement) {
+        element.disabled = true;
+    }
+
+    return element;
+}
+
+function renderPagination({
+    descriptor,
+    session,
+    dispatchEvent,
+}) {
+    const pagination = createElement('div', 'cerebr-plugin-page-pagination');
+
+    if (descriptor.pageSize) {
+        const startGroup = createElement('div', 'cerebr-plugin-page-pagination__group cerebr-plugin-page-pagination__group--start');
+        startGroup.appendChild(createPaginationSelectControl({
+            descriptor: descriptor.pageSize,
+            session,
+            dispatchEvent,
+        }));
+        pagination.appendChild(startGroup);
+    }
+
+    const hasCenterControls = !!descriptor.previousAction || !!descriptor.nextAction || descriptor.pages.length > 0;
+    if (hasCenterControls) {
+        const centerGroup = createElement('div', 'cerebr-plugin-page-pagination__group cerebr-plugin-page-pagination__group--center');
+        if (descriptor.previousAction) {
+            centerGroup.appendChild(createPaginationButton({
+                descriptor: descriptor.previousAction,
+                session,
+                dispatchEvent,
+                className: 'cerebr-plugin-page-pagination__button--arrow',
+            }));
+        }
+        descriptor.pages.forEach((page) => {
+            centerGroup.appendChild(createPaginationButton({
+                descriptor: page,
+                session,
+                dispatchEvent,
+            }));
+        });
+        if (descriptor.nextAction) {
+            centerGroup.appendChild(createPaginationButton({
+                descriptor: descriptor.nextAction,
+                session,
+                dispatchEvent,
+                className: 'cerebr-plugin-page-pagination__button--arrow',
+            }));
+        }
+        pagination.appendChild(centerGroup);
+    }
+
+    if (descriptor.jump) {
+        const endGroup = createElement('div', 'cerebr-plugin-page-pagination__group cerebr-plugin-page-pagination__group--end');
+        endGroup.appendChild(createPaginationSelectControl({
+            descriptor: descriptor.jump,
+            session,
+            dispatchEvent,
+        }));
+        pagination.appendChild(endGroup);
+    }
+
+    return pagination;
+}
+
 function renderContentNode({
     node,
     session,
@@ -871,6 +1139,14 @@ function renderContentNode({
         });
     }
 
+    if (node.kind === 'pagination') {
+        return renderPagination({
+            descriptor: node,
+            session,
+            dispatchEvent,
+        });
+    }
+
     if (node.kind === 'form') {
         const form = createElement('div', 'cerebr-plugin-page-form');
         form.dataset.columns = String(node.columns);
@@ -879,6 +1155,7 @@ function renderContentNode({
                 field,
                 session,
                 dispatchEvent,
+                logger,
             }));
         });
         return form;
