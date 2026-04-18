@@ -221,6 +221,10 @@ function resolveModuleUrlStrategy(descriptor = {}) {
         return MODULE_URL_STRATEGY_BLOB;
     }
 
+    if (isLocalPluginBundlePackage(descriptor?.manifest) && !isExtensionEnvironment) {
+        return MODULE_URL_STRATEGY_DATA;
+    }
+
     return globalThis.origin === 'null'
         ? MODULE_URL_STRATEGY_DATA
         : MODULE_URL_STRATEGY_BLOB;

@@ -58,11 +58,15 @@ Notes:
 - when a dropped folder contains multiple `plugin.json` files, Cerebr prefers the shallowest one and ignores deeper example manifests under that root
 - `script.exportName` is optional and defaults to `default`
 - prefer manifest-level `activationEvents`; runtime-level `plugin.activationEvents` is still supported as a fallback
-- the exported plugin object must expose `id` and `setup(api)`
+- the exported plugin object must expose `id` and `setup(context)`
 - dropped local `shell` plugins must stay self-contained and should not import `/src/...` files from the Cerebr repository
 - plugin permissions are normalized by the host before runtime use
 - legacy namespace-like permissions and aliases still resolve for compatibility, but new packages should declare resource-scoped permissions such as `page:selection:read`, `shell:input:write`, `prompt:fragments`, or `bridge:send:shell`
 - namespace wildcards such as `shell:*`, `page:*`, or `site:*` still work, but fine-grained capabilities are preferred
+- plugin setup now receives a unified runtime context with `api`, `capabilities`, `permissions`, `plugin`, `runtime`, `env`, and `diagnostics`
+- for compatibility, the runtime still exposes service aliases such as `shell`, `chat`, `page`, or `ui` at the top level, so legacy plugins continue to run
+- local bundled plugins in the web host default to stable `data:` module URLs instead of transient `blob:` URLs
+- Cerebr runs a preflight check before activation and refuses to start plugins with obvious host/runtime mismatches
 
 ## Activation events
 
@@ -92,8 +96,10 @@ Minimal entry example:
 ```js
 export default {
   id: 'local.cttf-shell',
-  setup(api) {
+  setup({ api, permissions, diagnostics }) {
     const mountRoot = api.shell.mountInputAddon();
+    console.debug('plugin diagnostics', diagnostics);
+    permissions.assert('shell:input:mount', ['shell:input', 'ui:mount']);
     return () => mountRoot?.replaceChildren?.();
   }
 };
@@ -184,6 +190,7 @@ If a plugin only needs one hook, prefer activating on `hook:<that-hook>` instead
 ## Runtime behavior
 
 - page, shell, and background runtimes all compile sideloaded manifests through the same validation path as marketplace packages
+- plugin setup receives the same unified runtime context in page, shell, and background hosts
 - the kernel keeps activation state and diagnostics per plugin
 - turning developer mode off unloads all local script plugins
 - refreshing a local plugin re-reads the stored source bundle and reloads the plugin

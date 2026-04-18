@@ -8,6 +8,17 @@ function normalizePluginId(pluginId = '') {
 
 function createStatusSnapshot(entry = {}, currentStatus = null) {
     const pluginId = normalizePluginId(entry?.plugin?.id);
+    const preflight = entry?.runtime?.preflight && typeof entry.runtime.preflight === 'object'
+        ? {
+            ok: entry.runtime.preflight.ok !== false,
+            errors: Array.isArray(entry.runtime.preflight.errors)
+                ? entry.runtime.preflight.errors.map((issue) => ({ ...issue }))
+                : [],
+            warnings: Array.isArray(entry.runtime.preflight.warnings)
+                ? entry.runtime.preflight.warnings.map((issue) => ({ ...issue }))
+                : [],
+        }
+        : null;
 
     return {
         id: pluginId,
@@ -45,6 +56,7 @@ function createStatusSnapshot(entry = {}, currentStatus = null) {
                 stack: normalizeString(currentStatus.lastError.stack),
             }
             : null,
+        preflight,
     };
 }
 
@@ -62,6 +74,7 @@ function toSerializableError(error) {
 export function createPluginKernel({
     host = '',
     createApi,
+    createPluginContext,
     logger = console,
     onPluginStarted = null,
     onPluginStopped = null,
@@ -76,6 +89,7 @@ export function createPluginKernel({
     const pluginManager = createPluginManager({
         plugins: [],
         createApi,
+        createPluginContext,
         logger,
         async onPluginStarted(entry) {
             const pluginId = normalizePluginId(entry?.plugin?.id);

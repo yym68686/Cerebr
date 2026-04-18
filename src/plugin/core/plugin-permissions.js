@@ -10,17 +10,21 @@ export function isBuiltinPluginEntry(entry = {}) {
 
 export function createPermissionController(entry = {}) {
     const allowed = new Set(normalizePluginCapabilities(entry?.manifest?.permissions));
+    const has = (permission, aliases = []) => {
+        if (!permission || isBuiltinPluginEntry(entry)) {
+            return true;
+        }
+
+        return hasPluginCapability(allowed, permission, aliases);
+    };
+
+    const list = () => [...allowed];
 
     return {
-        has(permission, aliases = []) {
-            if (!permission || isBuiltinPluginEntry(entry)) {
-                return true;
-            }
-
-            return hasPluginCapability(allowed, permission, aliases);
-        },
+        list,
+        has,
         assert(permission, aliases = []) {
-            if (this.has(permission, aliases)) {
+            if (has(permission, aliases)) {
                 return true;
             }
 

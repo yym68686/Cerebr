@@ -11,6 +11,7 @@ import {
     normalizePositiveInt,
     normalizeString,
 } from '../core/runtime-utils.js';
+import { createPluginRuntimeContext } from '../core/plugin-runtime-context.js';
 import {
     browserAdapter,
     isExtensionEnvironment,
@@ -891,12 +892,28 @@ export function createShellPluginRuntime({
             },
         };
     };
+    const createPluginContext = (entry = {}) => {
+        const api = createPluginApi(entry);
+
+        return createPluginRuntimeContext(entry, {
+            api,
+            context: {
+                plugin: createPluginMeta(entry),
+                runtime: {
+                    host: 'shell',
+                    isExtension: isExtensionEnvironment,
+                },
+            },
+            host: 'shell',
+        });
+    };
 
     const runtimeController = createHostedPluginRuntime({
         host: 'shell',
         builtinEntries: getBuiltinShellPluginEntries(),
         declarativeScopes: ['shell', 'prompt'],
         createApi: createPluginApi,
+        createPluginContext,
         logger: console,
         onPluginStopped(entry) {
             pluginResources.cleanup(entry?.plugin?.id);

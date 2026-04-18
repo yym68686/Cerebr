@@ -1,4 +1,6 @@
 import { createHookRunner } from '../core/hook-runner.js';
+import { formatPluginPreflightIssues, runPluginPreflight } from '../core/plugin-preflight.js';
+import { createPluginRuntimeContext } from '../core/plugin-runtime-context.js';
 
 function toDisposeHandler(cleanup) {
     if (typeof cleanup === 'function') {
@@ -52,6 +54,7 @@ export function createPluginManager({
     plugins = [],
     api,
     createApi,
+    createPluginContext,
     logger = console,
     onPluginStarted = null,
     onPluginStopped = null,
@@ -70,6 +73,34 @@ export function createPluginManager({
         getActiveEntries,
         logger,
     });
+    const resolveRuntimeContext = (entry) => {
+        const precomputedPluginContext = entry?.runtime?.pluginContext && typeof entry.runtime.pluginContext === 'object'
+            ? entry.runtime.pluginContext
+            : null;
+        if (precomputedPluginContext) {
+            return precomputedPluginContext;
+        }
+
+        if (typeof createPluginContext === 'function') {
+            return createPluginContext(entry);
+        }
+
+        const precomputedPluginApi = entry?.runtime?.pluginApi && typeof entry.runtime.pluginApi === 'object'
+            ? entry.runtime.pluginApi
+            : null;
+        const scopedApi = precomputedPluginApi || (
+            typeof createApi === 'function'
+                ? createApi(entry)
+                : api
+        );
+
+        return createPluginRuntimeContext(entry, {
+            api: scopedApi,
+            context: scopedApi,
+            host: entry?.host,
+            preflight: entry?.runtime?.preflight || null,
+        });
+    };
 
     const startPlugin = async (entry) => {
         const plugin = entry?.plugin;
@@ -82,19 +113,30 @@ export function createPluginManager({
         }
 
         try {
-            const precomputedPluginApi = entry?.runtime?.pluginApi && typeof entry.runtime.pluginApi === 'object'
-                ? entry.runtime.pluginApi
-                : null;
-            const scopedApi = precomputedPluginApi || (
-                typeof createApi === 'function'
-                    ? createApi(entry)
-                    : api
-            );
-            const cleanup = await plugin.setup(scopedApi);
+            const runtimeContext = resolveRuntimeContext(entry);
+            const preflight = entry?.runtime?.preflight || runPluginPreflight(entry, {
+                host: entry?.host,
+                api: runtimeContext?.api,
+                moduleUrlStrategy: entry?.runtime?.moduleUrlStrategy,
+            });
+            if (Array.isArray(preflight?.warnings) && preflight.warnings.length > 0) {
+                logger?.warn?.(
+                    `[Cerebr] Plugin preflight warnings for "${plugin.id}": ${formatPluginPreflightIssues(preflight.warnings)}`
+                );
+            }
+            if (preflight?.ok === false) {
+                logger?.error?.(
+                    `[Cerebr] Plugin preflight failed for "${plugin.id}": ${formatPluginPreflightIssues(preflight.errors)}`
+                );
+                return false;
+            }
+
+            const cleanup = await plugin.setup(runtimeContext);
             activePlugins.set(plugin.id, {
                 entry,
                 cleanup: toDisposeHandler(cleanup),
-                api: scopedApi,
+                api: runtimeContext?.api || null,
+                context: runtimeContext,
             });
             await onPluginStarted?.(entry);
             return true;

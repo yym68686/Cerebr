@@ -1,6 +1,7 @@
 import { createPluginBridgeMessage, isPluginBridgeMessage } from '../bridge/plugin-bridge.js';
 import { createHostedPluginRuntime } from '../core/hosted-plugin-runtime.js';
 import { createPermissionController } from '../core/plugin-permissions.js';
+import { createPluginRuntimeContext } from '../core/plugin-runtime-context.js';
 import { normalizeString } from '../core/runtime-utils.js';
 import { getBuiltinBackgroundPluginEntries } from './background-plugin-registry.js';
 import { isExtensionEnvironment } from '../../utils/storage-adapter.js';
@@ -375,12 +376,29 @@ export function createBackgroundPluginRuntime({
             },
         };
     };
+    const createPluginContext = (entry = {}) => {
+        const api = createPluginApi(entry);
+
+        return createPluginRuntimeContext(entry, {
+            api,
+            context: {
+                plugin: createPluginMeta(entry),
+                runtime: {
+                    host: 'background',
+                    isExtension: isExtensionEnvironment,
+                    isServiceWorker: true,
+                },
+            },
+            host: 'background',
+        });
+    };
 
     const runtimeController = createHostedPluginRuntime({
         host: 'background',
         builtinEntries: pluginEntries,
         declarativeScopes: [],
         createApi: createPluginApi,
+        createPluginContext,
         logger: console,
     });
 

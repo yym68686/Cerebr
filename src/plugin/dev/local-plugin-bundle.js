@@ -455,7 +455,7 @@ function assertLocalShellSpecifierIsBundled(specifier, fromFilePath, bundleFiles
     return resolved.path;
 }
 
-export function validateLocalShellPluginBundle(manifest, bundleFiles) {
+export function validateLocalShellPluginBundle(manifest, bundleFiles, manifestPath = PLUGIN_MANIFEST_FILE) {
     const pluginId = normalizeString(manifest?.id);
     const entry = normalizeString(manifest?.script?.entry);
 
@@ -468,7 +468,10 @@ export function validateLocalShellPluginBundle(manifest, bundleFiles) {
         );
     }
 
-    const entryResolution = resolveLocalPluginBundleSpecifier(entry, PLUGIN_MANIFEST_FILE);
+    const entryResolution = resolveLocalPluginBundleSpecifier(
+        entry,
+        normalizeString(manifestPath, PLUGIN_MANIFEST_FILE)
+    );
     if (entryResolution.kind !== 'bundle' || !bundleFiles?.[entryResolution.path]) {
         throw new Error(
             `Local shell plugin "${pluginId}" is missing "${entryResolution.path || entry}"`

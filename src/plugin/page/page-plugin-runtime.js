@@ -7,6 +7,7 @@ import {
     sortPageExtractors,
 } from '../core/page-extractor-utils.js';
 import { createPermissionController } from '../core/plugin-permissions.js';
+import { createPluginRuntimeContext } from '../core/plugin-runtime-context.js';
 import { createPluginResourceStore } from '../core/plugin-resource-store.js';
 import { normalizeString, normalizeStringArray } from '../core/runtime-utils.js';
 import { getBuiltinPagePluginEntries } from './page-plugin-registry.js';
@@ -762,12 +763,28 @@ export function createPagePluginRuntime({
             },
         };
     };
+    const createPluginContext = (entry = {}) => {
+        const api = createPluginApi(entry);
+
+        return createPluginRuntimeContext(entry, {
+            api,
+            context: {
+                plugin: createPluginMeta(entry),
+                runtime: {
+                    host: 'page',
+                    isExtension: isExtensionEnvironment,
+                },
+            },
+            host: 'page',
+        });
+    };
 
     const runtimeController = createHostedPluginRuntime({
         host: 'page',
         builtinEntries: pluginEntries,
         declarativeScopes: ['page'],
         createApi: createPluginApi,
+        createPluginContext,
         logger: console,
         onPluginStopped(entry) {
             pluginResources.cleanup(entry?.plugin?.id);

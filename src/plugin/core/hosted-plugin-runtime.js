@@ -10,6 +10,8 @@ import {
     readPluginSettings,
     subscribePluginSettings,
 } from '../shared/plugin-store.js';
+import { formatPluginPreflightIssues, runPluginPreflight } from './plugin-preflight.js';
+import { createPluginRuntimeContext } from './plugin-runtime-context.js';
 import { normalizeString, normalizeStringArray } from './runtime-utils.js';
 
 const SHELL_PLUGIN_API_REGISTRY_KEY = '__CEREBR_SHELL_PLUGIN_API_REGISTRY__';
@@ -40,6 +42,7 @@ export function createHostedPluginRuntime({
     builtinEntries = [],
     declarativeScopes = [],
     createApi,
+    createPluginContext,
     logger = console,
     onPluginStopped = null,
 } = {}) {
@@ -75,6 +78,7 @@ export function createHostedPluginRuntime({
     const pluginKernel = createPluginKernel({
         host: normalizedHost,
         createApi,
+        createPluginContext,
         logger,
         onPluginStopped,
     });
@@ -92,6 +96,64 @@ export function createHostedPluginRuntime({
         }
 
         delete shellPluginApiRegistry[pluginId];
+    };
+    const resolveRuntimeArtifacts = (entry = {}, runtimeOverrides = {}) => {
+        const runtimeEntry = {
+            ...entry,
+            runtime: {
+                ...(entry?.runtime && typeof entry.runtime === 'object'
+                    ? entry.runtime
+                    : {}),
+                ...(runtimeOverrides && typeof runtimeOverrides === 'object'
+                    ? runtimeOverrides
+                    : {}),
+            },
+        };
+        const requestedPluginContext = typeof createPluginContext === 'function'
+            ? createPluginContext(runtimeEntry)
+            : null;
+        let pluginApi = runtimeEntry?.runtime?.pluginApi && typeof runtimeEntry.runtime.pluginApi === 'object'
+            ? runtimeEntry.runtime.pluginApi
+            : (
+                requestedPluginContext?.api
+                && typeof requestedPluginContext.api === 'object'
+                    ? requestedPluginContext.api
+                    : (
+                        typeof createApi === 'function'
+                            ? createApi(runtimeEntry)
+                            : null
+                    )
+            );
+
+        if (
+            normalizedHost === 'shell'
+            && (!pluginApi || Object.keys(pluginApi).length === 0)
+        ) {
+            const createGuestHostApi = globalThis?.[SHELL_GUEST_HOST_API_FACTORY_KEY];
+            if (typeof createGuestHostApi === 'function') {
+                pluginApi = createGuestHostApi(runtimeEntry);
+            }
+        }
+
+        const preflight = runPluginPreflight(runtimeEntry, {
+            host: normalizedHost,
+            api: pluginApi,
+            moduleUrlStrategy: runtimeEntry?.runtime?.moduleUrlStrategy,
+            requireSetup: false,
+        });
+        const pluginContext = createPluginRuntimeContext(runtimeEntry, {
+            api: pluginApi,
+            context: requestedPluginContext?.context || requestedPluginContext || pluginApi,
+            host: normalizedHost,
+            preflight,
+            diagnostics: requestedPluginContext?.diagnostics,
+        });
+
+        return {
+            pluginApi: pluginContext.api,
+            pluginContext,
+            preflight,
+        };
     };
 
     const resolveScriptPlugin = async (descriptor) => {
@@ -226,17 +288,24 @@ export function createHostedPluginRuntime({
                     },
                     manifest: descriptor.manifest || null,
                 };
-                let pluginApi = typeof createApi === 'function'
-                    ? createApi(runtimeEntry)
-                    : null;
-                if (
-                    normalizedHost === 'shell'
-                    && (!pluginApi || Object.keys(pluginApi).length === 0)
-                ) {
-                    const createGuestHostApi = globalThis?.[SHELL_GUEST_HOST_API_FACTORY_KEY];
-                    if (typeof createGuestHostApi === 'function') {
-                        pluginApi = createGuestHostApi(runtimeEntry);
-                    }
+                const moduleUrlStrategy = descriptor?.runtime?.moduleUrlStrategy;
+                const {
+                    pluginApi,
+                    pluginContext,
+                    preflight,
+                } = resolveRuntimeArtifacts(runtimeEntry, {
+                    ...(descriptor.runtime && typeof descriptor.runtime === 'object'
+                        ? descriptor.runtime
+                        : {}),
+                    moduleUrlStrategy,
+                });
+                if (preflight.ok === false) {
+                    logger?.error?.(
+                        `[Cerebr] Refused to load ${normalizedHost} script plugin "${descriptor.id}" `
+                        + `because preflight failed: ${formatPluginPreflightIssues(preflight.errors)}`
+                    );
+                    await unregisterDynamicPlugin(descriptor.id, registeredPluginIds, activePluginIds);
+                    continue;
                 }
                 const runtimeDescriptor = {
                     ...descriptor,
@@ -245,7 +314,11 @@ export function createHostedPluginRuntime({
                             ? descriptor.runtime
                             : {}),
                         createApi,
+                        createPluginContext,
+                        moduleUrlStrategy,
                         pluginApi,
+                        pluginContext,
+                        preflight,
                     },
                 };
                 runtimePluginApiKeys = Object.keys(
@@ -263,7 +336,7 @@ export function createHostedPluginRuntime({
                 }
                 updateShellPluginApiRegistry(
                     descriptor.id,
-                    runtimeDescriptor?.runtime?.pluginApi
+                    runtimeDescriptor?.runtime?.pluginContext?.api || runtimeDescriptor?.runtime?.pluginApi
                 );
                 const { plugin, signature } = await resolveScriptPlugin(runtimeDescriptor);
                 const entry = {
@@ -271,6 +344,29 @@ export function createHostedPluginRuntime({
                     manifest: descriptor.manifest || null,
                     runtime: runtimeDescriptor.runtime || null,
                 };
+                const finalPreflight = runPluginPreflight(entry, {
+                    host: normalizedHost,
+                    api: runtimeDescriptor?.runtime?.pluginApi,
+                    moduleUrlStrategy,
+                });
+                if (finalPreflight.ok === false) {
+                    logger?.error?.(
+                        `[Cerebr] Refused to load ${normalizedHost} script plugin "${descriptor.id}" `
+                        + `because preflight failed: ${formatPluginPreflightIssues(finalPreflight.errors)}`
+                    );
+                    await unregisterDynamicPlugin(descriptor.id, registeredPluginIds, activePluginIds);
+                    continue;
+                }
+                runtimeDescriptor.runtime.preflight = finalPreflight;
+                runtimeDescriptor.runtime.pluginContext = createPluginRuntimeContext(entry, {
+                    api: runtimeDescriptor?.runtime?.pluginApi,
+                    context: runtimeDescriptor?.runtime?.pluginContext?.context
+                        || runtimeDescriptor?.runtime?.pluginContext
+                        || runtimeDescriptor?.runtime?.pluginApi,
+                    host: normalizedHost,
+                    preflight: finalPreflight,
+                    diagnostics: runtimeDescriptor?.runtime?.pluginContext?.diagnostics,
+                });
 
                 if (dynamicEntrySignatures.get(descriptor.id) !== signature || !registeredPluginIds.has(descriptor.id)) {
                     await pluginKernel.register(entry);

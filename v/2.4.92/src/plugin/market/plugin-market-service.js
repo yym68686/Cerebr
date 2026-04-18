@@ -13,6 +13,7 @@ import {
     uninstallPlugin,
 } from '../shared/plugin-store.js';
 import { readInstalledPluginPackage, removeInstalledPluginPackage, writeInstalledPluginPackage } from '../shared/plugin-package-store.js';
+import { materializeReviewedScriptPluginPackage } from '../shared/reviewed-script-package.js';
 import { fetchPluginManifestFromUrl, fetchPluginRegistrySource, DEFAULT_PLUGIN_REGISTRY_SOURCES } from './plugin-registry-client.js';
 import { isVersionNewer, satisfiesVersionRange } from './version-utils.js';
 
@@ -304,8 +305,12 @@ export async function installMarketplaceItem(item) {
     }
 
     const pluginManifest = await fetchPluginManifestFromUrl(item.packageUrl);
-    await writeInstalledPluginPackage(item.id, pluginManifest);
-    await installMarketplacePlugin(pluginManifest, {
+    const pluginPackage = pluginManifest.kind === 'script'
+        ? await materializeReviewedScriptPluginPackage(pluginManifest, item.packageUrl)
+        : pluginManifest;
+
+    await writeInstalledPluginPackage(item.id, pluginPackage);
+    await installMarketplacePlugin(pluginPackage, {
         id: item.id,
         kind: item.kind,
         scope: item.scope,
@@ -322,6 +327,7 @@ export async function installMarketplaceItem(item) {
         install: {
             mode: item.installMode,
         },
+        manifestUrl: item.packageUrl,
         homepage: item.homepage,
         displayName: item.displayName,
         description: item.description,
@@ -329,7 +335,7 @@ export async function installMarketplaceItem(item) {
         descriptionKey: item.descriptionKey,
     });
 
-    return pluginManifest;
+    return pluginPackage;
 }
 
 export async function updateMarketplaceItem(item) {

@@ -15,6 +15,7 @@ import {
     removeInstalledPluginPackage,
     writeInstalledPluginPackage,
 } from '../shared/plugin-package-store.js';
+import { materializeReviewedScriptPluginPackage } from '../shared/reviewed-script-package.js';
 import { readDeveloperModePreference } from './developer-mode.js';
 import {
     readLocalPluginBundleFromDataTransfer,
@@ -96,6 +97,26 @@ function buildDroppedBundleFromInstalledPackage(installedPackage, pluginId = '')
             files: { ...bundle.files },
         },
     };
+}
+
+function deriveMarketplaceManifestUrl(record = {}, pluginPackage = {}) {
+    const explicitManifestUrl = normalizeString(
+        pluginPackage?.source?.manifestUrl || record?.manifestUrl
+    );
+    if (explicitManifestUrl) {
+        return explicitManifestUrl;
+    }
+
+    const entryUrl = normalizeString(pluginPackage?.script?.entry || record?.entryUrl);
+    if (!entryUrl) {
+        return '';
+    }
+
+    try {
+        return new URL('./plugin.json', entryUrl).toString();
+    } catch {
+        return '';
+    }
 }
 
 async function fetchPluginManifestFromUrl(sourceUrl) {
@@ -186,34 +207,57 @@ async function readInstalledScriptPluginItemsInternal({ sourceType = '' } = {}) 
             continue;
         }
 
-        const compatibilityRange = getCompatibilityRange(record, pluginPackage);
+        let effectivePluginPackage = pluginPackage;
+        if (
+            normalizeString(record.sourceType) === 'registry'
+            && effectivePluginPackage?.kind === 'script'
+            && !effectivePluginPackage?.source?.bundle
+        ) {
+            const manifestUrl = deriveMarketplaceManifestUrl(record, effectivePluginPackage);
+            if (manifestUrl) {
+                try {
+                    effectivePluginPackage = await materializeReviewedScriptPluginPackage(
+                        effectivePluginPackage,
+                        manifestUrl
+                    );
+                    await writeInstalledPluginPackage(pluginId, effectivePluginPackage);
+                } catch (error) {
+                    console.warn(
+                        `[Cerebr] Failed to migrate reviewed script plugin "${pluginId}" into a bundled package`,
+                        error
+                    );
+                }
+            }
+        }
+
+        const compatibilityRange = getCompatibilityRange(record, effectivePluginPackage);
         items.push({
             id: pluginId,
             kind: 'script',
-            scope: normalizeString(record.scope || pluginPackage.scope),
+            scope: normalizeString(record.scope || effectivePluginPackage.scope),
             sourceType: normalizeString(record.sourceType, 'developer'),
-            displayName: normalizeString(record.displayName || pluginPackage.displayName || pluginId),
-            description: normalizeString(record.description || pluginPackage.description),
-            permissions: normalizeStringArray(record.permissions?.length ? record.permissions : pluginPackage.permissions),
-            enabled: isPluginEnabled(state, pluginId, pluginPackage.defaultEnabled !== false),
-            installedVersion: normalizeString(record.installedVersion || pluginPackage.version),
-            latestVersion: normalizeString(record.latestVersion || pluginPackage.version),
+            displayName: normalizeString(record.displayName || effectivePluginPackage.displayName || pluginId),
+            description: normalizeString(record.description || effectivePluginPackage.description),
+            permissions: normalizeStringArray(record.permissions?.length ? record.permissions : effectivePluginPackage.permissions),
+            enabled: isPluginEnabled(state, pluginId, effectivePluginPackage.defaultEnabled !== false),
+            installedVersion: normalizeString(record.installedVersion || effectivePluginPackage.version),
+            latestVersion: normalizeString(record.latestVersion || effectivePluginPackage.version),
             compatibilityRange,
             compatible: satisfiesVersionRange(appVersion, compatibilityRange),
             runtimeSupported: isRuntimeSupported(record),
-            requiresExtension: !!(record.requiresExtension ?? pluginPackage.requiresExtension),
+            requiresExtension: !!(record.requiresExtension ?? effectivePluginPackage.requiresExtension),
             sourceLabel: normalizeString(
-                record.sourceLabel || pluginPackage.source?.sourceLabel || record.manifestUrl || pluginPackage.source?.manifestUrl
+                record.sourceLabel || effectivePluginPackage.source?.sourceLabel || record.manifestUrl || effectivePluginPackage.source?.manifestUrl
             ),
-            manifestUrl: normalizeString(record.manifestUrl || pluginPackage.source?.manifestUrl),
-            entryUrl: normalizeString(record.entryUrl || pluginPackage.script?.entry),
+            manifestUrl: normalizeString(record.manifestUrl || effectivePluginPackage.source?.manifestUrl),
+            entryUrl: normalizeString(record.entryUrl || effectivePluginPackage.script?.entry),
             canRefresh: !!(
                 record.manifestUrl
-                || pluginPackage.source?.manifestUrl
-                || pluginPackage.source?.bundle
+                || effectivePluginPackage.source?.manifestUrl
+                || effectivePluginPackage.source?.bundle
             ),
             record: { ...record },
-            manifest: pluginPackage,
+            manifest: effectivePluginPackage,
         });
     }
 

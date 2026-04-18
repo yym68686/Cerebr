@@ -88,6 +88,56 @@ Each host now:
   - `page.ready`
   - `background.ready`
 
+## Unified setup context
+
+Script plugin `setup(...)` now receives a single runtime context object instead of an implicit host API blob.
+
+The runtime context includes:
+
+- `api` / `capabilities` / `services`
+- top-level service aliases for compatibility (`shell`, `chat`, `page`, `ui`, ...)
+- `permissions`
+- `plugin`
+- `runtime`
+- `env`
+- `diagnostics`
+
+Design intent:
+
+- plugin setup follows the same contract in shell/page/background
+- host-specific setup does not need fallback chains such as descriptor API, registry API, and ad-hoc global factories
+- later capability additions should extend the runtime context rather than add more loader-time special cases
+
+## Activation preflight
+
+Before a plugin activates, the hosted runtime now performs a preflight check.
+
+The preflight currently rejects or warns on:
+
+- missing `plugin.id`
+- missing `setup()`
+- script plugins without `script.entry`
+- host/scope mismatches
+- extension-only plugins trying to start in the web host
+- empty resolved host APIs
+- unstable web bundle module strategies
+
+Design intent:
+
+- fail early during activation instead of letting plugins crash after a user action
+- keep diagnostics close to the real root cause
+- stop repeating the same guest/host/runtime mismatch bugs across new plugins
+
+## Stable local bundle loading
+
+Local bundled script plugins in the web host now default to `data:` module URLs instead of transient `blob:` module URLs.
+
+Design intent:
+
+- avoid refresh-time `blob:` lifetime failures
+- keep local bundle loading deterministic across page reloads
+- reduce one-off loader logic between extension and web hosts
+
 ## Manifest model
 
 ## Schema versions
@@ -226,6 +276,9 @@ The plugin settings UI now also surfaces kernel diagnostics from the shell host 
 - sticky host-ready events
 - runtime diagnostics surfaced in plugin management UI
 - resource-scoped runtime permission checks with legacy alias compatibility
+- unified setup-time runtime context across hosts
+- plugin activation preflight
+- stable `data:`-first web loading for local bundled script plugins
 - declarative compiler upgraded to v2 contributions
 - manifest validator upgraded to schema v1/v2 compatibility
 - bridge envelope upgraded to schema v2 metadata
