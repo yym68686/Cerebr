@@ -13,6 +13,7 @@ import {
 import { normalizeString, normalizeStringArray } from './runtime-utils.js';
 
 const SHELL_PLUGIN_API_REGISTRY_KEY = '__CEREBR_SHELL_PLUGIN_API_REGISTRY__';
+const SHELL_GUEST_HOST_API_FACTORY_KEY = '__CEREBR_SHELL_GUEST_HOST_API_FACTORY__';
 
 function normalizePluginEntry(input) {
     if (input?.plugin && typeof input.plugin === 'object') {
@@ -211,6 +212,7 @@ export function createHostedPluginRuntime({
             const shouldEnable = descriptor.compatible &&
                 descriptor.runtimeSupported &&
                 isPluginEnabled(settings, descriptor.id, descriptor.manifest?.defaultEnabled !== false);
+            let runtimePluginApiKeys = [];
 
             if (!shouldEnable) {
                 await unregisterDynamicPlugin(descriptor.id, registeredPluginIds, activePluginIds);
@@ -224,6 +226,18 @@ export function createHostedPluginRuntime({
                     },
                     manifest: descriptor.manifest || null,
                 };
+                let pluginApi = typeof createApi === 'function'
+                    ? createApi(runtimeEntry)
+                    : null;
+                if (
+                    normalizedHost === 'shell'
+                    && (!pluginApi || Object.keys(pluginApi).length === 0)
+                ) {
+                    const createGuestHostApi = globalThis?.[SHELL_GUEST_HOST_API_FACTORY_KEY];
+                    if (typeof createGuestHostApi === 'function') {
+                        pluginApi = createGuestHostApi(runtimeEntry);
+                    }
+                }
                 const runtimeDescriptor = {
                     ...descriptor,
                     runtime: {
@@ -231,12 +245,10 @@ export function createHostedPluginRuntime({
                             ? descriptor.runtime
                             : {}),
                         createApi,
-                        pluginApi: typeof createApi === 'function'
-                            ? createApi(runtimeEntry)
-                            : null,
+                        pluginApi,
                     },
                 };
-                const runtimePluginApiKeys = Object.keys(
+                runtimePluginApiKeys = Object.keys(
                     runtimeDescriptor?.runtime?.pluginApi
                     && typeof runtimeDescriptor.runtime.pluginApi === 'object'
                         ? runtimeDescriptor.runtime.pluginApi
@@ -245,7 +257,8 @@ export function createHostedPluginRuntime({
                 if (normalizedHost === 'shell' && runtimePluginApiKeys.length === 0) {
                     logger?.warn?.(
                         `[Cerebr] Shell runtime created an empty plugin API `
-                        + `(pluginId=${descriptor.id}, scope=${normalizeString(descriptor?.manifest?.scope) || 'unknown'})`
+                        + `(pluginId=${descriptor.id}, scope=${normalizeString(descriptor?.manifest?.scope) || 'unknown'}, `
+                        + `guestFactory=${typeof globalThis?.[SHELL_GUEST_HOST_API_FACTORY_KEY] === 'function' ? 'yes' : 'no'})`
                     );
                 }
                 updateShellPluginApiRegistry(
