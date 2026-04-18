@@ -16,6 +16,18 @@ import { normalizeString, normalizeStringArray } from './runtime-utils.js';
 
 const SHELL_PLUGIN_API_REGISTRY_KEY = '__CEREBR_SHELL_PLUGIN_API_REGISTRY__';
 const SHELL_GUEST_HOST_API_FACTORY_KEY = '__CEREBR_SHELL_GUEST_HOST_API_FACTORY__';
+const RESERVED_RUNTIME_CONTEXT_KEYS = new Set([
+    'api',
+    'capabilities',
+    'context',
+    'diagnostics',
+    'env',
+    'meta',
+    'permissions',
+    'plugin',
+    'runtime',
+    'services',
+]);
 
 function normalizePluginEntry(input) {
     if (input?.plugin && typeof input.plugin === 'object') {
@@ -97,6 +109,41 @@ export function createHostedPluginRuntime({
 
         delete shellPluginApiRegistry[pluginId];
     };
+    const hasRuntimeServiceApi = (value) => {
+        return !!(
+            value
+            && typeof value === 'object'
+            && Object.keys(value).length > 0
+        );
+    };
+    const deriveContextServiceApi = (runtimeContext = null) => {
+        if (!runtimeContext || typeof runtimeContext !== 'object') {
+            return null;
+        }
+
+        if (hasRuntimeServiceApi(runtimeContext.api)) {
+            return runtimeContext.api;
+        }
+        if (hasRuntimeServiceApi(runtimeContext.capabilities)) {
+            return runtimeContext.capabilities;
+        }
+        if (hasRuntimeServiceApi(runtimeContext.services)) {
+            return runtimeContext.services;
+        }
+
+        const derivedApi = Object.fromEntries(
+            Object.entries(runtimeContext).filter(([key, value]) => {
+                if (RESERVED_RUNTIME_CONTEXT_KEYS.has(key)) {
+                    return false;
+                }
+                return value && (typeof value === 'object' || typeof value === 'function');
+            })
+        );
+
+        return hasRuntimeServiceApi(derivedApi)
+            ? derivedApi
+            : null;
+    };
     const resolveRuntimeArtifacts = (entry = {}, runtimeOverrides = {}) => {
         const runtimeEntry = {
             ...entry,
@@ -112,22 +159,24 @@ export function createHostedPluginRuntime({
         const requestedPluginContext = typeof createPluginContext === 'function'
             ? createPluginContext(runtimeEntry)
             : null;
-        let pluginApi = runtimeEntry?.runtime?.pluginApi && typeof runtimeEntry.runtime.pluginApi === 'object'
+        let pluginApi = hasRuntimeServiceApi(runtimeEntry?.runtime?.pluginApi)
             ? runtimeEntry.runtime.pluginApi
-            : (
-                requestedPluginContext?.api
-                && typeof requestedPluginContext.api === 'object'
-                    ? requestedPluginContext.api
-                    : (
-                        typeof createApi === 'function'
-                            ? createApi(runtimeEntry)
-                            : null
-                    )
-            );
+            : null;
+
+        if (!hasRuntimeServiceApi(pluginApi)) {
+            pluginApi = deriveContextServiceApi(requestedPluginContext);
+        }
+
+        if (!hasRuntimeServiceApi(pluginApi) && typeof createApi === 'function') {
+            const createdPluginApi = createApi(runtimeEntry);
+            pluginApi = hasRuntimeServiceApi(createdPluginApi)
+                ? createdPluginApi
+                : null;
+        }
 
         if (
             normalizedHost === 'shell'
-            && (!pluginApi || Object.keys(pluginApi).length === 0)
+            && !hasRuntimeServiceApi(pluginApi)
         ) {
             const createGuestHostApi = globalThis?.[SHELL_GUEST_HOST_API_FACTORY_KEY];
             if (typeof createGuestHostApi === 'function') {

@@ -37,6 +37,43 @@ function normalizeStringArray(value) {
     return value.map((item) => normalizeString(item)).filter(Boolean);
 }
 
+const GUEST_PAGE_PERMISSION_SET = new Set([
+    'page:selection:read',
+    'page:selection:clear',
+    'page:snapshot',
+    'shell:input:write',
+    'ui:anchored-action',
+]);
+
+function canUseGuestPageMode(manifest = {}) {
+    if (!isExtensionEnvironment || normalizeString(manifest?.scope) !== 'page') {
+        return false;
+    }
+
+    const activationEvents = normalizeStringArray(manifest?.activationEvents);
+    if (activationEvents.some((eventName) => eventName.startsWith('hook:'))) {
+        return false;
+    }
+
+    const permissions = normalizeStringArray(manifest?.permissions);
+    return permissions.every((permission) => {
+        return (
+            GUEST_PAGE_PERMISSION_SET.has(permission)
+            || permission.startsWith('bridge:send:')
+        );
+    });
+}
+
+function resolveLocalBundleSourceMode(manifest = {}, fallbackMode = 'bundle') {
+    if (isExtensionEnvironment && normalizeString(manifest?.scope) === 'shell') {
+        return 'guest';
+    }
+    if (canUseGuestPageMode(manifest)) {
+        return 'guest';
+    }
+    return normalizeString(fallbackMode, 'bundle');
+}
+
 function isRuntimeSupported(record = {}) {
     if (normalizeString(record?.scope) === 'background') {
         return isExtensionEnvironment;
@@ -209,6 +246,28 @@ async function readInstalledScriptPluginItemsInternal({ sourceType = '' } = {}) 
 
         let effectivePluginPackage = pluginPackage;
         if (
+            normalizeString(record.sourceType) === 'developer'
+            && effectivePluginPackage?.kind === 'script'
+            && effectivePluginPackage?.source?.bundle
+        ) {
+            const nextSourceMode = resolveLocalBundleSourceMode(
+                effectivePluginPackage,
+                normalizeString(effectivePluginPackage?.source?.mode, 'bundle')
+            );
+            if (nextSourceMode !== normalizeString(effectivePluginPackage?.source?.mode, 'bundle')) {
+                effectivePluginPackage = {
+                    ...effectivePluginPackage,
+                    source: {
+                        ...(effectivePluginPackage?.source && typeof effectivePluginPackage.source === 'object'
+                            ? effectivePluginPackage.source
+                            : {}),
+                        mode: nextSourceMode,
+                    },
+                };
+                await writeInstalledPluginPackage(pluginId, effectivePluginPackage);
+            }
+        }
+        if (
             normalizeString(record.sourceType) === 'registry'
             && effectivePluginPackage?.kind === 'script'
             && !effectivePluginPackage?.source?.bundle
@@ -276,9 +335,7 @@ export async function installLocalScriptPluginFromDataTransfer(dataTransfer) {
 
     return installLocalScriptPluginPackage(droppedBundle.manifest, {
         sourceLabel: droppedBundle.sourceLabel,
-        mode: isExtensionEnvironment && droppedBundle.manifest?.scope === 'shell'
-            ? 'guest'
-            : 'bundle',
+        mode: resolveLocalBundleSourceMode(droppedBundle.manifest, 'bundle'),
         bundle: droppedBundle.bundle,
     });
 }
@@ -293,9 +350,7 @@ export async function installLocalScriptPluginFromFileList(fileList) {
 
     return installLocalScriptPluginPackage(droppedBundle.manifest, {
         sourceLabel: droppedBundle.sourceLabel,
-        mode: isExtensionEnvironment && droppedBundle.manifest?.scope === 'shell'
-            ? 'guest'
-            : 'bundle',
+        mode: resolveLocalBundleSourceMode(droppedBundle.manifest, 'bundle'),
         bundle: droppedBundle.bundle,
     });
 }
@@ -324,9 +379,10 @@ export async function refreshLocalScriptPlugin(pluginId) {
 
             return installLocalScriptPluginPackage(droppedBundle.manifest, {
                 sourceLabel: droppedBundle.sourceLabel || pluginId,
-                mode: isExtensionEnvironment && droppedBundle.manifest?.scope === 'shell'
-                    ? 'guest'
-                    : normalizeString(installedPackage?.source?.mode, 'bundle'),
+                mode: resolveLocalBundleSourceMode(
+                    droppedBundle.manifest,
+                    normalizeString(installedPackage?.source?.mode, 'bundle')
+                ),
                 bundle: droppedBundle.bundle,
             });
         }

@@ -3,6 +3,7 @@ import {
     isLocalPluginBundlePackage,
     resolveLocalPluginBundleSpecifier,
 } from './local-plugin-bundle.js';
+import { createGuestPagePluginProxy } from '../guest/guest-page-plugin-host.js';
 import { createGuestShellPluginProxy } from '../guest/guest-shell-plugin-host.js';
 import { isExtensionEnvironment } from '../../utils/storage-adapter.js';
 
@@ -17,6 +18,45 @@ const DYNAMIC_IMPORT_PATTERN = /(import\s*\(\s*)(['"])([^'"]+)\2(\s*(?:,\s*[^)]*
 const bundledPluginUrlStates = new Map();
 const MODULE_URL_STRATEGY_BLOB = 'blob';
 const MODULE_URL_STRATEGY_DATA = 'data';
+const GUEST_SAFE_PAGE_PERMISSIONS = new Set([
+    'page:selection:read',
+    'page:selection:clear',
+    'page:snapshot',
+    'shell:input:write',
+    'ui:anchored-action',
+]);
+
+function shouldForceDataModuleUrls(descriptor = {}) {
+    return (
+        isExtensionEnvironment
+        && isLocalPluginBundlePackage(descriptor?.manifest)
+        && normalizeString(descriptor?.manifest?.scope) === 'page'
+    );
+}
+
+function isGuestCompatiblePagePlugin(manifest = {}) {
+    if (normalizeString(manifest?.scope) !== 'page') {
+        return false;
+    }
+
+    const activationEvents = Array.isArray(manifest?.activationEvents)
+        ? manifest.activationEvents.map((value) => normalizeString(value)).filter(Boolean)
+        : [];
+    if (activationEvents.some((eventName) => eventName.startsWith('hook:'))) {
+        return false;
+    }
+
+    const permissions = Array.isArray(manifest?.permissions)
+        ? manifest.permissions.map((value) => normalizeString(value)).filter(Boolean)
+        : [];
+
+    return permissions.every((permission) => {
+        return (
+            GUEST_SAFE_PAGE_PERMISSIONS.has(permission)
+            || permission.startsWith('bridge:send:')
+        );
+    });
+}
 
 function getRuntimeBaseUrl() {
     return globalThis.location?.href || 'https://cerebr.local/';
@@ -213,6 +253,10 @@ export function createScriptPluginCacheKey(descriptor = {}) {
 }
 
 function resolveModuleUrlStrategy(descriptor = {}) {
+    if (shouldForceDataModuleUrls(descriptor)) {
+        return MODULE_URL_STRATEGY_DATA;
+    }
+
     const requestedStrategy = normalizeString(descriptor?.runtime?.moduleUrlStrategy).toLowerCase();
     if (requestedStrategy === MODULE_URL_STRATEGY_DATA) {
         return MODULE_URL_STRATEGY_DATA;
@@ -221,8 +265,10 @@ function resolveModuleUrlStrategy(descriptor = {}) {
         return MODULE_URL_STRATEGY_BLOB;
     }
 
-    if (isLocalPluginBundlePackage(descriptor?.manifest) && !isExtensionEnvironment) {
-        return MODULE_URL_STRATEGY_DATA;
+    if (isLocalPluginBundlePackage(descriptor?.manifest)) {
+        if (!isExtensionEnvironment) {
+            return MODULE_URL_STRATEGY_DATA;
+        }
     }
 
     return globalThis.origin === 'null'
@@ -241,13 +287,17 @@ export async function loadScriptPluginModule(descriptor = {}) {
     const sourceMode = normalizeString(manifest?.source?.mode, isBundledSource ? 'bundle' : 'url');
     const moduleUrlStrategy = resolveModuleUrlStrategy(descriptor);
     const disableGuestProxy = descriptor?.runtime?.disableGuestProxy === true;
-    const shouldUseGuestRuntime = isExtensionEnvironment
+    const shouldUseGuestShellRuntime = isExtensionEnvironment
         && !disableGuestProxy
         && normalizeString(manifest.scope) === 'shell'
         && (
             sourceMode === 'guest'
             || (isBundledSource && normalizeString(record?.sourceType) === 'developer')
         );
+    const shouldUseGuestPageRuntime = isExtensionEnvironment
+        && !disableGuestProxy
+        && isBundledSource
+        && isGuestCompatiblePagePlugin(manifest);
 
     if (!pluginId) {
         throw new Error('Cannot load a script plugin without manifest.id');
@@ -256,8 +306,11 @@ export async function loadScriptPluginModule(descriptor = {}) {
         throw new Error(`Script plugin "${pluginId}" is missing script.entry`);
     }
 
-    if (shouldUseGuestRuntime) {
+    if (shouldUseGuestShellRuntime) {
         return createGuestShellPluginProxy(descriptor);
+    }
+    if (shouldUseGuestPageRuntime) {
+        return createGuestPagePluginProxy(descriptor);
     }
 
     const bundledUrlState = ensureBundledPluginUrlState(pluginId, cacheKey, isBundledSource, moduleUrlStrategy);

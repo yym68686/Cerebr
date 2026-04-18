@@ -1,7 +1,14 @@
 export function createHostServiceRegistry({
     services = {},
+    ...legacyServiceEntries
 } = {}) {
-    const serviceEntries = Object.entries(services)
+    const normalizedServices = (
+        services && typeof services === 'object' && Object.keys(services).length > 0
+            ? services
+            : legacyServiceEntries
+    );
+
+    const serviceEntries = Object.entries(normalizedServices)
         .filter(([serviceName, definition]) => {
             return !!serviceName && definition && typeof definition === 'object';
         });

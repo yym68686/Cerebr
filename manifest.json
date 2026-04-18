@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "default_locale": "en",
   "name": "__MSG_extension_name__",
-  "version": "2.4.95",
+  "version": "2.4.96",
   "description": "__MSG_extension_description__",
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
@@ -56,7 +56,8 @@
   },
   "sandbox": {
     "pages": [
-      "src/plugin/guest/shell-plugin-guest.html"
+      "src/plugin/guest/shell-plugin-guest.html",
+      "src/plugin/guest/page-plugin-guest.html"
     ]
   },
   "content_scripts": [
@@ -84,7 +85,12 @@
         "src/plugin/dev/local-plugin-source.js",
         "src/plugin/dev/script-plugin-loader.js",
         "src/plugin/guest/guest-protocol.js",
+        "src/plugin/guest/guest-page-plugin-host.js",
         "src/plugin/guest/guest-shell-plugin-host.js",
+        "src/plugin/guest/page-plugin-guest.html",
+        "src/plugin/guest/page-plugin-guest.js",
+        "src/plugin/guest/page-plugin-proxy.html",
+        "src/plugin/guest/page-plugin-proxy.js",
         "src/plugin/guest/shell-plugin-guest.html",
         "src/plugin/guest/shell-plugin-guest.js",
         "src/plugin/market/plugin-schema.js",
