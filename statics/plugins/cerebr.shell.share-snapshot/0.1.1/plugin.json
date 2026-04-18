@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 2,
+  "id": "cerebr.shell.share-snapshot",
+  "version": "0.1.1",
+  "kind": "script",
+  "scope": "shell",
+  "displayName": "Cerebr Snapshot Share",
+  "description": "Export the current Cerebr chat as a self-contained HTML snapshot, or upload it to the hosted short-link service and get a share URL back.",
+  "defaultEnabled": true,
+  "publisher": "Cerebr Team",
+  "homepage": "https://github.com/yym68686/cerebr-plugin-share-snapshot",
+  "permissions": [
+    "chat:current",
+    "chat:messages",
+    "shell:input:read",
+    "shell:menu:items",
+    "shell:page:control",
+    "tabs:query:active",
+    "storage:read:local",
+    "storage:write:local"
+  ],
+  "activationEvents": ["shell.ready"],
+  "compatibility": {
+    "versionRange": ">=2.4.91 <3.0.0"
+  },
+  "script": {
+    "entry": "./shell.js"
+  }
+}
