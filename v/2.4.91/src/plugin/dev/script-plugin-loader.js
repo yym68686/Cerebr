@@ -276,7 +276,7 @@ export async function loadScriptPluginModule(descriptor = {}) {
         importUrl = new URL(entryUrl, getRuntimeBaseUrl());
     }
 
-    if (importUrl.protocol !== 'data:') {
+    if (importUrl.protocol !== 'data:' && importUrl.protocol !== 'blob:') {
         importUrl.searchParams.set('cerebr_plugin_rev', cacheKey);
     }
 
