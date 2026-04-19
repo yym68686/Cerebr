@@ -29,8 +29,8 @@ import {
     requestShellLayoutSync,
 } from './shell-host-utils.js';
 import { createHostServiceRegistry } from '../services/host-service-registry.js';
+import { createPluginRuntimeI18nApi } from '../core/plugin-i18n.js';
 import {
-    createPluginRuntimeI18nApi,
     getActiveLocale as getHostLocale,
     onLocaleChanged as observeLocaleChanged,
     t as getI18nMessage,
