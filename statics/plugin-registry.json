@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "registryId": "official",
   "displayName": "Cerebr Official Registry",
-  "generatedAt": "2026-04-18T04:03:56Z",
+  "generatedAt": "2026-04-18T19:12:27Z",
   "plugins": [
     {
       "id": "official.prompt.concise-reply",
@@ -139,7 +139,7 @@
       "scope": "shell",
       "displayName": "Cerebr Snapshot Share",
       "description": "Export the current Cerebr chat as a self-contained HTML snapshot, or upload it to the hosted short-link service and get a share URL back.",
-      "latestVersion": "0.1.5",
+      "latestVersion": "0.1.8",
       "publisher": "Cerebr Team",
       "homepage": "https://github.com/yym68686/cerebr-plugin-share-snapshot",
       "permissions": [
@@ -164,7 +164,38 @@
       },
       "install": {
         "mode": "package",
-        "packageUrl": "plugins/cerebr.shell.share-snapshot/0.1.5/plugin.json"
+        "packageUrl": "plugins/cerebr.shell.share-snapshot/0.1.8/plugin.json"
+      }
+    },
+    {
+      "id": "local.slash-commands",
+      "kind": "script",
+      "scope": "shell",
+      "displayName": "Slash Commands",
+      "description": "Enable host-native slash commands in the Cerebr input box with custom commands, import/export, {{lang}} placeholders, and an in-app management page.",
+      "latestVersion": "0.1.0",
+      "publisher": "ZETA / yym68686",
+      "homepage": "https://github.com/zeta987/cerebr-plugin-slash-commands",
+      "permissions": [
+        "shell:input:slash-commands",
+        "shell:menu:items",
+        "shell:page:control",
+        "storage:read:local",
+        "storage:write:local"
+      ],
+      "activationEvents": [
+        "shell.ready"
+      ],
+      "compatibility": {
+        "versionRange": ">=2.4.86 <3.0.0"
+      },
+      "availability": {
+        "status": "active",
+        "reason": ""
+      },
+      "install": {
+        "mode": "package",
+        "packageUrl": "plugins/local.slash-commands/0.1.0/plugin.json"
       }
     },
     {

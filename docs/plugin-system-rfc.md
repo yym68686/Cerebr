@@ -138,6 +138,17 @@ Design intent:
 - keep local bundle loading deterministic across page reloads
 - reduce one-off loader logic between extension and web hosts
 
+## Managed page user scripts
+
+Compatible local or reviewed marketplace `page` script plugins in the browser extension host now run through a managed `user_script` execution surface instead of sandbox iframes or direct content-page `blob:` / `data:` imports.
+
+Design intent:
+
+- avoid site CSP blocking locally bundled `page` script plugins
+- stop relying on sandbox guest frames for page-side plugin execution
+- keep the public plugin API stable while the host chooses the underlying execution surface
+- surface explicit diagnostics such as `userscripts-api-unavailable`, `userscripts-toggle-disabled`, and compatibility errors when the host cannot provide that runtime
+
 ## Manifest model
 
 ## Schema versions

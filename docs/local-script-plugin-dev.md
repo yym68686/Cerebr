@@ -9,6 +9,7 @@ This guide documents the current developer-mode sideload flow after the plugin r
 - `background` plugins only run in the browser extension host and must set `requiresExtension = true`
 - reviewed marketplace script plugins use the same runtime contract; this guide only focuses on local sideload
 - dropped local `shell` plugins in the browser extension host run inside the sandboxed guest runtime and must stay self-contained
+- compatible dropped local `page` plugins in the browser extension host run through Cerebr's managed `user_script` execution surface; plugin authors should keep using `setup(context)` and must not call `chrome.userScripts` directly
 
 ## Recommended layout
 
@@ -44,7 +45,7 @@ New local script plugins should use schema v2 and explicit activation events:
   ],
   "activationEvents": ["shell.ready"],
   "compatibility": {
-    "versionRange": ">=2.4.86 <3.0.0"
+    "versionRange": ">=2.4.98 <3.0.0"
   },
   "script": {
     "entry": "./shell.js"
@@ -66,7 +67,9 @@ Notes:
 - plugin setup now receives a unified runtime context with `api`, `capabilities`, `permissions`, `plugin`, `runtime`, `env`, and `diagnostics`
 - for compatibility, the runtime still exposes service aliases such as `shell`, `chat`, `page`, or `ui` at the top level, so legacy plugins continue to run
 - local bundled plugins in the web host default to stable `data:` module URLs instead of transient `blob:` URLs
+- local bundled `page` plugins in the extension host now prefer the managed `user_script` runtime over sandbox iframes or direct `data:` / `blob:` module execution
 - Cerebr runs a preflight check before activation and refuses to start plugins with obvious host/runtime mismatches
+- if diagnostics report `userscripts-toggle-disabled`, the user still needs to enable **Allow User Scripts** for the Cerebr extension in `chrome://extensions`
 
 ## Activation events
 
@@ -195,6 +198,7 @@ If a plugin only needs one hook, prefer activating on `hook:<that-hook>` instead
 - turning developer mode off unloads all local script plugins
 - refreshing a local plugin re-reads the stored source bundle and reloads the plugin
 - in the browser extension host, dropped local `shell` plugin folders run in the sandboxed guest runtime
+- in the browser extension host, compatible dropped local `page` plugin folders run in the managed `user_script` runtime
 - host-native input actions, menu items, slash commands, and shell pages are forwarded through the guest bridge
 - local shell plugins must stay self-contained; absolute `/src/...` imports and cross-origin script imports are rejected during bundle validation
 

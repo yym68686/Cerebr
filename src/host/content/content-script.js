@@ -7,6 +7,7 @@ import {
 } from '../../platform/site-key.js';
 import { createPluginBridgeMessage, isPluginBridgeMessage } from '../../plugin/bridge/plugin-bridge.js';
 import { createPagePluginRuntime } from '../../plugin/page/page-plugin-runtime.js';
+import { handleUserScriptPagePluginHostRpc } from '../../plugin/page/user-script-page-plugin-host.js';
 
 const SITE_OVERRIDES_KEY = 'panelSiteOverridesV1';
 const SIDEBAR_POSITIONS_KEY = 'cerebr_sidebar_positions_v1';
@@ -1365,6 +1366,27 @@ function handleRuntimeMessage(message, sender, sendResponse) {
           url: window.location.href,
           title: document.title || '',
         },
+      });
+      return true;
+    }
+
+    if (message.type === 'PAGE_USER_SCRIPT_PLUGIN_HOST_RPC') {
+      (async () => {
+        const result = await handleUserScriptPagePluginHostRpc(message);
+        if (result) {
+          sendResponse(result);
+          return;
+        }
+
+        sendResponse({
+          success: false,
+          error: 'Unhandled page user script host RPC',
+        });
+      })().catch((error) => {
+        sendResponse({
+          success: false,
+          error: error?.message || String(error),
+        });
       });
       return true;
     }

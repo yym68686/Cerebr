@@ -3,6 +3,7 @@ import {
     normalizeBundlePath,
     validateLocalShellPluginBundle,
 } from '../dev/local-plugin-bundle.js';
+import { isUserScriptCompatiblePagePlugin } from '../page/page-user-script-support.js';
 
 const ABSOLUTE_URL_PATTERN = /^[a-zA-Z][a-zA-Z\d+\-.]*:/;
 const STATIC_IMPORT_PATTERN = /(import\s+(?:[^"'()]*?\s+from\s+)?)(['"])([^'"]+)\2/g;
@@ -292,7 +293,11 @@ export async function materializeReviewedScriptPluginPackage(manifest = {}, mani
             sourceLabel: normalizeString(manifest?.displayName, pluginId),
             mode: isExtensionEnvironment && normalizeString(manifest?.scope) === 'shell'
                 ? 'guest'
-                : 'bundle',
+                : (
+                    isExtensionEnvironment && isUserScriptCompatiblePagePlugin(manifest)
+                        ? 'user-script'
+                        : 'bundle'
+                ),
             bundle: {
                 manifestPath,
                 files: {},

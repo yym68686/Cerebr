@@ -26,6 +26,7 @@ import {
     normalizeLocalPluginSourceLabel,
     resolveLocalPluginSourceUrl,
 } from './local-plugin-source.js';
+import { isUserScriptCompatiblePagePlugin } from '../page/page-user-script-support.js';
 
 function normalizeString(value, fallback = '') {
     const normalized = String(value ?? '').trim();
@@ -37,39 +38,12 @@ function normalizeStringArray(value) {
     return value.map((item) => normalizeString(item)).filter(Boolean);
 }
 
-const GUEST_PAGE_PERMISSION_SET = new Set([
-    'page:selection:read',
-    'page:selection:clear',
-    'page:snapshot',
-    'shell:input:write',
-    'ui:anchored-action',
-]);
-
-function canUseGuestPageMode(manifest = {}) {
-    if (!isExtensionEnvironment || normalizeString(manifest?.scope) !== 'page') {
-        return false;
-    }
-
-    const activationEvents = normalizeStringArray(manifest?.activationEvents);
-    if (activationEvents.some((eventName) => eventName.startsWith('hook:'))) {
-        return false;
-    }
-
-    const permissions = normalizeStringArray(manifest?.permissions);
-    return permissions.every((permission) => {
-        return (
-            GUEST_PAGE_PERMISSION_SET.has(permission)
-            || permission.startsWith('bridge:send:')
-        );
-    });
-}
-
 function resolveLocalBundleSourceMode(manifest = {}, fallbackMode = 'bundle') {
     if (isExtensionEnvironment && normalizeString(manifest?.scope) === 'shell') {
         return 'guest';
     }
-    if (canUseGuestPageMode(manifest)) {
-        return 'guest';
+    if (isExtensionEnvironment && isUserScriptCompatiblePagePlugin(manifest)) {
+        return 'user-script';
     }
     return normalizeString(fallbackMode, 'bundle');
 }

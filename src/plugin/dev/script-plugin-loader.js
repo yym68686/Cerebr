@@ -3,8 +3,9 @@ import {
     isLocalPluginBundlePackage,
     resolveLocalPluginBundleSpecifier,
 } from './local-plugin-bundle.js';
-import { createGuestPagePluginProxy } from '../guest/guest-page-plugin-host.js';
 import { createGuestShellPluginProxy } from '../guest/guest-shell-plugin-host.js';
+import { isUserScriptCompatiblePagePlugin } from '../page/page-user-script-support.js';
+import { createUserScriptPagePluginProxy } from '../page/user-script-page-plugin-host.js';
 import { isExtensionEnvironment } from '../../utils/storage-adapter.js';
 
 function normalizeString(value, fallback = '') {
@@ -18,45 +19,6 @@ const DYNAMIC_IMPORT_PATTERN = /(import\s*\(\s*)(['"])([^'"]+)\2(\s*(?:,\s*[^)]*
 const bundledPluginUrlStates = new Map();
 const MODULE_URL_STRATEGY_BLOB = 'blob';
 const MODULE_URL_STRATEGY_DATA = 'data';
-const GUEST_SAFE_PAGE_PERMISSIONS = new Set([
-    'page:selection:read',
-    'page:selection:clear',
-    'page:snapshot',
-    'shell:input:write',
-    'ui:anchored-action',
-]);
-
-function shouldForceDataModuleUrls(descriptor = {}) {
-    return (
-        isExtensionEnvironment
-        && isLocalPluginBundlePackage(descriptor?.manifest)
-        && normalizeString(descriptor?.manifest?.scope) === 'page'
-    );
-}
-
-function isGuestCompatiblePagePlugin(manifest = {}) {
-    if (normalizeString(manifest?.scope) !== 'page') {
-        return false;
-    }
-
-    const activationEvents = Array.isArray(manifest?.activationEvents)
-        ? manifest.activationEvents.map((value) => normalizeString(value)).filter(Boolean)
-        : [];
-    if (activationEvents.some((eventName) => eventName.startsWith('hook:'))) {
-        return false;
-    }
-
-    const permissions = Array.isArray(manifest?.permissions)
-        ? manifest.permissions.map((value) => normalizeString(value)).filter(Boolean)
-        : [];
-
-    return permissions.every((permission) => {
-        return (
-            GUEST_SAFE_PAGE_PERMISSIONS.has(permission)
-            || permission.startsWith('bridge:send:')
-        );
-    });
-}
 
 function getRuntimeBaseUrl() {
     return globalThis.location?.href || 'https://cerebr.local/';
@@ -253,10 +215,6 @@ export function createScriptPluginCacheKey(descriptor = {}) {
 }
 
 function resolveModuleUrlStrategy(descriptor = {}) {
-    if (shouldForceDataModuleUrls(descriptor)) {
-        return MODULE_URL_STRATEGY_DATA;
-    }
-
     const requestedStrategy = normalizeString(descriptor?.runtime?.moduleUrlStrategy).toLowerCase();
     if (requestedStrategy === MODULE_URL_STRATEGY_DATA) {
         return MODULE_URL_STRATEGY_DATA;
@@ -294,10 +252,14 @@ export async function loadScriptPluginModule(descriptor = {}) {
             sourceMode === 'guest'
             || (isBundledSource && normalizeString(record?.sourceType) === 'developer')
         );
-    const shouldUseGuestPageRuntime = isExtensionEnvironment
+    const shouldUseUserScriptPageRuntime = isExtensionEnvironment
         && !disableGuestProxy
         && isBundledSource
-        && isGuestCompatiblePagePlugin(manifest);
+        && normalizeString(manifest.scope) === 'page'
+        && (
+            sourceMode === 'user-script'
+            || isUserScriptCompatiblePagePlugin(manifest)
+        );
 
     if (!pluginId) {
         throw new Error('Cannot load a script plugin without manifest.id');
@@ -309,8 +271,8 @@ export async function loadScriptPluginModule(descriptor = {}) {
     if (shouldUseGuestShellRuntime) {
         return createGuestShellPluginProxy(descriptor);
     }
-    if (shouldUseGuestPageRuntime) {
-        return createGuestPagePluginProxy(descriptor);
+    if (shouldUseUserScriptPageRuntime) {
+        return createUserScriptPagePluginProxy(descriptor);
     }
 
     const bundledUrlState = ensureBundledPluginUrlState(pluginId, cacheKey, isBundledSource, moduleUrlStrategy);

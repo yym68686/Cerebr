@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "pluginId": "local.slash-commands",
+  "displayName": "Slash Commands",
+  "reviewedPackage": {
+    "latestVersion": "0.1.0",
+    "packagePath": "plugins/local.slash-commands/0.1.0/plugin.json"
+  },
+  "upstream": {
+    "repository": "zeta987/cerebr-plugin-slash-commands",
+    "homepage": "https://github.com/zeta987/cerebr-plugin-slash-commands",
+    "tagPrefix": "v",
+    "trackedTag": "v0.1.0",
+    "trackedVersion": "0.1.0",
+    "trackedCommit": "e84f40df40678632fb9a1387c9450cbcb2f79559"
+  },
+  "policy": {
+    "mode": "alert-only",
+    "notes": "Do not auto-publish new upstream tags. Review and vendor them into this repository first."
+  }
+}

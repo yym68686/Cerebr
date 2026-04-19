@@ -1,5 +1,6 @@
 import { createBackgroundPluginRuntime } from '../../plugin/background/background-plugin-runtime.js';
 import { isPluginBridgeMessage } from '../../plugin/bridge/plugin-bridge.js';
+import { createPageUserScriptService } from '../../plugin/page/page-user-script-service.js';
 
 // 确保 Service Worker 立即激活
 self.addEventListener('install', (event) => {
@@ -29,10 +30,41 @@ self.addEventListener('activate', (event) => {
 // 按需注入 PDF.js：避免每个页面都加载 300KB+ 的库
 const pdfJsInjectedTabs = new Set();
 const backgroundPluginRuntime = createBackgroundPluginRuntime();
+const pageUserScriptService = createPageUserScriptService();
+const PAGE_USER_SCRIPT_PORT_PREFIX = 'cerebr.page.user-script:';
+const PAGE_USER_SCRIPT_MESSAGE_TYPES = new Set([
+  'PAGE_USER_SCRIPT_PLUGIN_STATUS_QUERY',
+  'PAGE_USER_SCRIPT_PLUGIN_HOOK_REQUEST',
+  'PAGE_USER_SCRIPT_PLUGIN_HOST_EVENT',
+]);
+let lastKnownPageDiagnosticsTabId = null;
 
 void backgroundPluginRuntime.start().catch((error) => {
   console.error('[Cerebr] 初始化 background 插件运行时失败:', error);
 });
+void pageUserScriptService.start().catch((error) => {
+  console.error('[Cerebr] 初始化 page user script 服务失败:', error);
+});
+
+const attachPageUserScriptPort = (port) => {
+  try {
+    pageUserScriptService.attachPort(port);
+  } catch (error) {
+    console.error('[Cerebr] Failed to attach page user script port:', error);
+  }
+};
+
+if (chrome.runtime?.onUserScriptConnect?.addListener) {
+  chrome.runtime.onUserScriptConnect.addListener((port) => {
+    attachPageUserScriptPort(port);
+  });
+} else if (chrome.runtime?.onConnect?.addListener) {
+  chrome.runtime.onConnect.addListener((port) => {
+    if (String(port?.name || '').startsWith(PAGE_USER_SCRIPT_PORT_PREFIX)) {
+      attachPageUserScriptPort(port);
+    }
+  });
+}
 
 // YouTube timedtext URL 缓存：从 webRequest 捕获“带签名的完整 URL”，避免自行构造参数
 const ytTimedTextUrlByTabAndVideo = new Map(); // key: `${tabId}:${videoId}` -> { url, createdAt }
@@ -85,6 +117,9 @@ try {
 
 chrome.tabs?.onRemoved?.addListener?.((tabId, removeInfo) => {
   pdfJsInjectedTabs.delete(tabId);
+  if (lastKnownPageDiagnosticsTabId === tabId) {
+    lastKnownPageDiagnosticsTabId = null;
+  }
   // 清理该 tab 的 timedtext 缓存
   for (const key of ytTimedTextUrlByTabAndVideo.keys()) {
     if (key.startsWith(`${tabId}:`)) {
@@ -106,10 +141,15 @@ chrome.tabs?.onUpdated?.addListener?.((tabId, changeInfo, tab) => {
     }
   }
 
+  if (tab?.url && !isExtensionUrl(tab.url)) {
+    rememberPageDiagnosticsTabId(tabId);
+  }
+
   void backgroundPluginRuntime.handleTabUpdated(tabId, changeInfo, tab || null);
 });
 
 chrome.tabs?.onActivated?.addListener?.((activeInfo) => {
+  rememberPageDiagnosticsTabId(activeInfo?.tabId);
   void backgroundPluginRuntime.handleTabActivated(activeInfo);
 });
 
@@ -138,6 +178,49 @@ function checkCustomShortcut(callback) {
           const lastLetter = toggleCommand.shortcut.charAt(toggleCommand.shortcut.length - 1).toLowerCase();
           callback(lastLetter);
       }
+  });
+}
+
+function rememberPageDiagnosticsTabId(tabId) {
+  if (!Number.isFinite(Number(tabId))) {
+    return;
+  }
+
+  lastKnownPageDiagnosticsTabId = Math.floor(Number(tabId));
+}
+
+function isExtensionUrl(url = '') {
+  const normalizedUrl = String(url || '');
+  return normalizedUrl.startsWith('chrome-extension://') || normalizedUrl.startsWith('moz-extension://');
+}
+
+function mergePageDiagnostics(primary = [], secondary = []) {
+  const mergedById = new Map();
+  const normalizeList = (value) => Array.isArray(value)
+    ? value.filter((entry) => entry && typeof entry === 'object')
+    : [];
+
+  normalizeList(primary).forEach((entry) => {
+    const pluginId = String(entry?.id || '');
+    if (!pluginId) {
+      return;
+    }
+    mergedById.set(pluginId, { ...entry });
+  });
+
+  normalizeList(secondary).forEach((entry) => {
+    const pluginId = String(entry?.id || '');
+    if (!pluginId) {
+      return;
+    }
+    mergedById.set(pluginId, {
+      ...(mergedById.get(pluginId) || {}),
+      ...entry,
+    });
+  });
+
+  return Array.from(mergedById.values()).sort((left, right) => {
+    return String(left?.id || '').localeCompare(String(right?.id || ''));
   });
 }
 
@@ -201,6 +284,22 @@ async function getActiveTabForDiagnostics(tabId = null) {
   }
 
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (activeTab && !isExtensionUrl(activeTab.url || activeTab.pendingUrl || '')) {
+    rememberPageDiagnosticsTabId(activeTab.id);
+    return activeTab;
+  }
+
+  if (Number.isFinite(Number(lastKnownPageDiagnosticsTabId))) {
+    try {
+      const fallbackTab = await chrome.tabs.get(lastKnownPageDiagnosticsTabId);
+      if (fallbackTab && !isExtensionUrl(fallbackTab.url || fallbackTab.pendingUrl || '')) {
+        return fallbackTab;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   return activeTab || null;
 }
 
@@ -221,8 +320,17 @@ async function getPluginRuntimeDiagnosticsSnapshot(tabId = null) {
   };
 
   const activeTab = await getActiveTabForDiagnostics(tabId);
+  const pageUserScriptDiagnostics = pageUserScriptService.getDiagnostics({
+    tabId: Number.isFinite(Number(activeTab?.id))
+      ? Number(activeTab.id)
+      : null,
+  });
   if (!Number.isFinite(Number(activeTab?.id))) {
-    hosts.page.error = 'No active tab available for page diagnostics';
+    hosts.page.available = pageUserScriptDiagnostics.length > 0;
+    hosts.page.diagnostics = pageUserScriptDiagnostics;
+    hosts.page.error = pageUserScriptDiagnostics.length > 0
+      ? ''
+      : 'No active tab available for page diagnostics';
     return {
       success: true,
       hosts
@@ -235,17 +343,26 @@ async function getPluginRuntimeDiagnosticsSnapshot(tabId = null) {
     });
 
     if (response?.success) {
+      const runtimeDiagnostics = Array.isArray(response.diagnostics) ? response.diagnostics : [];
       hosts.page = {
         host: 'page',
-        available: response.available !== false,
-        diagnostics: Array.isArray(response.diagnostics) ? response.diagnostics : [],
+        available: response.available !== false || pageUserScriptDiagnostics.length > 0,
+        diagnostics: mergePageDiagnostics(runtimeDiagnostics, pageUserScriptDiagnostics),
         error: typeof response.error === 'string' ? response.error : ''
       };
     } else {
-      hosts.page.error = response?.error || 'Page plugin runtime unavailable';
+      hosts.page.available = pageUserScriptDiagnostics.length > 0;
+      hosts.page.diagnostics = pageUserScriptDiagnostics;
+      hosts.page.error = pageUserScriptDiagnostics.length > 0
+        ? ''
+        : (response?.error || 'Page plugin runtime unavailable');
     }
   } catch (error) {
-    hosts.page.error = error?.message || String(error);
+    hosts.page.available = pageUserScriptDiagnostics.length > 0;
+    hosts.page.diagnostics = pageUserScriptDiagnostics;
+    hosts.page.error = pageUserScriptDiagnostics.length > 0
+      ? ''
+      : (error?.message || String(error));
   }
 
   return {
@@ -290,6 +407,25 @@ chrome.commands.onCommand.addListener(async (command) => {
 // 监听来自 content script 的消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // console.log('收到消息:', message, '来自:', sender.tab?.id);
+  rememberPageDiagnosticsTabId(sender?.tab?.id);
+
+  if (PAGE_USER_SCRIPT_MESSAGE_TYPES.has(message?.type)) {
+    (async () => {
+      try {
+        const result = await pageUserScriptService.handleRuntimeMessage(message, sender);
+        sendResponse(result || {
+          success: false,
+          error: `Unhandled page user script message "${message?.type || 'unknown'}"`,
+        });
+      } catch (error) {
+        sendResponse({
+          success: false,
+          error: error?.message || String(error),
+        });
+      }
+    })();
+    return true;
+  }
 
   if (message.type === 'GET_PLUGIN_RUNTIME_DIAGNOSTICS') {
     (async () => {
@@ -484,6 +620,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === 'CONTENT_LOADED') {
     // console.log('内容脚本已加载:', message.url);
+    rememberPageDiagnosticsTabId(sender?.tab?.id);
     sendResponse({ status: 'ok', timestamp: new Date().toISOString() });
     return false;
   }

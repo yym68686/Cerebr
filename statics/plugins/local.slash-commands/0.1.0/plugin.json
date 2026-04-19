@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 2,
+  "id": "local.slash-commands",
+  "version": "0.1.0",
+  "kind": "script",
+  "scope": "shell",
+  "displayName": "Slash Commands",
+  "description": "Enable host-native slash commands in the Cerebr input box with custom commands, import/export, {{lang}} placeholders, and an in-app management page.",
+  "defaultEnabled": true,
+  "publisher": "ZETA / yym68686",
+  "homepage": "https://github.com/zeta987/cerebr-plugin-slash-commands",
+  "permissions": [
+    "shell:input:slash-commands",
+    "shell:menu:items",
+    "shell:page:control",
+    "storage:read:local",
+    "storage:write:local"
+  ],
+  "activationEvents": [
+    "shell.ready"
+  ],
+  "compatibility": {
+    "versionRange": ">=2.4.86 <3.0.0"
+  },
+  "script": {
+    "entry": "./shell.js"
+  }
+}
