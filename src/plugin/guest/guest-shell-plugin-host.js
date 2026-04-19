@@ -118,6 +118,7 @@ function normalizeGuestHostApi(api = {}) {
             'sendDraft',
             'getCurrentChat',
             'getMessages',
+            'getRenderedTranscript',
         ]) ? fallbackApi : undefined,
         editor: hasCallableMethod(fallbackApi, [
             'clear',
@@ -610,6 +611,10 @@ function createGuestShellPluginHost({
             return api.browser?.getCurrentTab?.() ?? null;
         case 'chat.abort':
             return api.chat?.abort?.() ?? false;
+        case 'chat.getCurrentChat':
+            return api.chat?.getCurrentChat?.() ?? null;
+        case 'chat.getMessages':
+            return api.chat?.getMessages?.() ?? [];
         case 'chat.getRenderedTranscript':
             return api.chat?.getRenderedTranscript?.() || {
                 html: '',

@@ -261,7 +261,7 @@ function createGuestDescriptor(manifest) {
         },
         runtime: {
             disableGuestProxy: true,
-            moduleUrlStrategy: 'data',
+            moduleUrlStrategy: 'blob',
         },
         record: {
             updatedAt: Date.now(),

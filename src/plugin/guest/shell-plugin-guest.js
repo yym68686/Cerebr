@@ -407,6 +407,12 @@ function createGuestPluginApi() {
             abort() {
                 return createRpcRequest('chat.abort');
             },
+            getCurrentChat() {
+                return createRpcRequest('chat.getCurrentChat');
+            },
+            getMessages() {
+                return createRpcRequest('chat.getMessages');
+            },
             getRenderedTranscript() {
                 return createRpcRequest('chat.getRenderedTranscript');
             },
@@ -480,7 +486,7 @@ function createGuestDescriptor(manifest) {
         },
         runtime: {
             disableGuestProxy: true,
-            moduleUrlStrategy: 'data',
+            moduleUrlStrategy: 'blob',
         },
         record: {
             updatedAt: Date.now(),

@@ -55,11 +55,13 @@
 - 独立插件模板仓库路径：`/Users/yanyuming/Downloads/GitHub/cerebr-plugin-template`
 - 这个模板仓库的目标是：**让第三方开发者不需要阅读 Cerebr 主仓库源码，也能开发插件**。
 - 因此，只要本仓库的插件系统发生变更，必须评估并同步更新 `cerebr-plugin-template`。不要只改主仓库而放着模板不管。
+- **硬性要求**：任何插件系统 API 的升级/更新，都必须同步更新 `/Users/yanyuming/Downloads/GitHub/cerebr-plugin-template`。这包括新增 API、删除 API、补齐原先缺失的 API、修改 API 返回值/同步异步语义、调整事件或能力暴露方式；不要以“只是修 bug”或“只是宿主侧补齐”为由跳过模板同步。
 
 以下变更都默认需要同步检查模板：
 
 - `plugin.json` / `registry` schema 变化
 - 插件 runtime API 变化（`page` / `shell` / `background`）
+- 插件系统 API 的语义变化（例如同步/异步行为、返回值结构、guest/runtime 可见性、默认能力暴露）
 - 权限模型变化
 - hook 生命周期变化
 - 插槽（slot）变化
