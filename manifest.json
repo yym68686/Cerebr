@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "default_locale": "en",
   "name": "__MSG_extension_name__",
-  "version": "2.4.99",
+  "version": "2.4.100",
   "description": "__MSG_extension_description__",
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
@@ -107,6 +107,7 @@
         "src/plugin/shared/declarative-plugin-service.js",
         "src/plugin/core/hook-runner.js",
         "src/plugin/core/hosted-plugin-runtime.js",
+        "src/plugin/core/plugin-i18n.js",
         "src/plugin/core/page-extractor-utils.js",
         "src/plugin/core/plugin-capabilities.js",
         "src/plugin/core/plugin-permissions.js",

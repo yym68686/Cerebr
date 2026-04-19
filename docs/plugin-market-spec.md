@@ -147,10 +147,15 @@ Optional shared fields:
 - `defaultEnabled`
 - `publisher`
 - `homepage`
+- `nameKey`
+- `descriptionKey`
+- `i18n`
 - `permissions`
 - `requiresExtension`
 - `activationEvents`
 - `compatibility.versionRange`
+
+`i18n` can provide inline locale messages through `i18n.messages` or bundle-relative locale files through `i18n.locales`. At runtime, Cerebr resolves plugin-local messages first, then falls back to host locale messages.
 
 ### Script packages
 
@@ -214,6 +219,8 @@ Fields:
 - `placement`: `system.prepend` | `system.append`
 - `priority`
 
+Prompt fragments can resolve `contentKey` through plugin-local `i18n` resources.
+
 #### `requestPolicies`
 
 Declares shell request interception without shipping runtime code.
@@ -254,9 +261,9 @@ Adds anchored actions beside the current page selection.
 
 Fields:
 
-- `label`
-- `prompt` or `promptTemplate`
-- `title`
+- `label` or `labelKey`
+- `prompt` / `promptKey` or `promptTemplate`
+- `title` or `titleKey`
 - `icon`
 - `focus`
 - `separator`
@@ -278,9 +285,9 @@ Adds native shell buttons under the composer.
 Fields:
 
 - `id`
-- `label`
+- `label` or `labelKey`
 - `icon`
-- `title`
+- `title` or `titleKey`
 - `variant`
 - `disabled`
 - `order`
@@ -293,9 +300,9 @@ Adds first-level menu entries to the Cerebr settings shell.
 Fields:
 
 - `id`
-- `label`
+- `label` or `labelKey`
 - `icon`
-- `title`
+- `title` or `titleKey`
 - `order`
 - `disclosure`
 - `disabled`
@@ -308,10 +315,10 @@ Adds host-owned `/` commands in the shell composer.
 Fields:
 
 - `name`
-- `label`
-- `description`
+- `label` or `labelKey`
+- `description` or `descriptionKey`
 - `aliases`
-- `prompt`
+- `prompt` or `promptKey`
 - `separator`
 - `disabled`
 - `order`
@@ -325,6 +332,8 @@ Declarative shell actions currently support:
 - `set_draft`
 - `show_toast`
 - `open_page`
+
+Text-bearing execute payloads can also use localized key fields such as `textKey`, `promptKey`, `templateKey`, and `messageKey`.
 
 ## Install flow
 

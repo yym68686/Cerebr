@@ -58,6 +58,7 @@ Notes:
 - `script.entry` should be relative to `plugin.json` for dropped self-contained plugins
 - when a dropped folder contains multiple `plugin.json` files, Cerebr prefers the shallowest one and ignores deeper example manifests under that root
 - `script.exportName` is optional and defaults to `default`
+- plugin packages can ship private locale resources through `i18n.messages` or `i18n.locales`, and `nameKey` / `descriptionKey` now resolve against those plugin-local messages first
 - prefer manifest-level `activationEvents`; runtime-level `plugin.activationEvents` is still supported as a fallback
 - the exported plugin object must expose `id` and `setup(context)`
 - dropped local `shell` plugins must stay self-contained and should not import `/src/...` files from the Cerebr repository
@@ -114,6 +115,7 @@ export default {
 
 - `page.*`
 - `site.*`
+- `i18n.*`
 - `ui.showAnchoredAction(...)`
 - `ui.mountSlot(...)`
 - `shell.*` composer helpers
@@ -136,6 +138,7 @@ export default {
 ### Background plugins
 
 - `browser.*`
+- `i18n.*`
 - `storage.*`
 - `bridge.send(...)`
 - `bridge.sendToTab(...)`
