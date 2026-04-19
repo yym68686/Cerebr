@@ -280,6 +280,7 @@ async function readInstalledScriptPluginItemsInternal({ sourceType = '' } = {}) 
             description: normalizeString(record.description || effectivePluginPackage.description),
             nameKey: normalizeString(record.nameKey || effectivePluginPackage.nameKey),
             descriptionKey: normalizeString(record.descriptionKey || effectivePluginPackage.descriptionKey),
+            homepage: normalizeString(record.homepage || effectivePluginPackage.homepage),
             i18n: effectivePluginPackage?.i18n && typeof effectivePluginPackage.i18n === 'object'
                 ? effectivePluginPackage.i18n
                 : null,

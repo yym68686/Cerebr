@@ -158,6 +158,7 @@
   "plugin_source_builtin": { "message": "Built-in" },
   "plugin_source_registry": { "message": "Registry" },
   "plugin_source_developer": { "message": "Local Sideload" },
+  "plugin_open_source_field": { "message": "Open source" },
   "plugin_kind_builtin": { "message": "Built-in" },
   "plugin_kind_declarative": { "message": "Declarative" },
   "plugin_kind_script": { "message": "Script" },

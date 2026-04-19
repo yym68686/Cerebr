@@ -158,6 +158,7 @@
   "plugin_source_builtin": { "message": "內建" },
   "plugin_source_registry": { "message": "註冊表" },
   "plugin_source_developer": { "message": "本機側載" },
+  "plugin_open_source_field": { "message": "開源位址" },
   "plugin_kind_builtin": { "message": "內建" },
   "plugin_kind_declarative": { "message": "宣告式" },
   "plugin_kind_script": { "message": "腳本式" },

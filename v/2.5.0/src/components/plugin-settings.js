@@ -234,6 +234,71 @@ function createDiagnosticRow(label, value, { error = false } = {}) {
     return row;
 }
 
+function createExternalLinkNode(url, label = '') {
+    const link = document.createElement('a');
+    link.className = 'plugin-card__link';
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = label || url;
+    return link;
+}
+
+function resolvePluginHomepageInfo(item) {
+    const rawValue = normalizeString(
+        item?.homepage
+        || item?.manifest?.homepage
+        || item?.record?.homepage
+    );
+    if (!rawValue) {
+        return null;
+    }
+
+    try {
+        const url = new URL(rawValue);
+        if (url.protocol === 'http:' || url.protocol === 'https:') {
+            return {
+                href: url.toString(),
+                label: rawValue,
+            };
+        }
+    } catch {
+        // fall through to raw display
+    }
+
+    return {
+        href: '',
+        label: rawValue,
+    };
+}
+
+function buildHomepageBlock(item) {
+    const homepage = resolvePluginHomepageInfo(item);
+    if (!homepage) {
+        return null;
+    }
+
+    const block = document.createElement('div');
+    block.className = 'plugin-card__field';
+
+    const label = document.createElement('span');
+    label.className = 'plugin-card__field-label';
+    label.textContent = t('plugin_open_source_field');
+
+    const value = homepage.href
+        ? createExternalLinkNode(homepage.href, homepage.label)
+        : (() => {
+            const node = document.createElement('code');
+            node.className = 'plugin-card__source';
+            node.textContent = homepage.label;
+            return node;
+        })();
+
+    block.appendChild(label);
+    block.appendChild(value);
+    return block;
+}
+
 function buildRuntimeDiagnosticsBlock(item) {
     const diagnostic = item?.runtimeDiagnostic;
     if (!diagnostic) {
@@ -408,6 +473,7 @@ function buildInstalledCard(item) {
     const meta = document.createElement('div');
     meta.className = 'plugin-card__meta';
     meta.appendChild(createStatusBadges(item));
+    const homepageBlock = buildHomepageBlock(item);
 
     const pluginId = document.createElement('code');
     pluginId.className = 'plugin-card__id';
@@ -435,6 +501,9 @@ function buildInstalledCard(item) {
     content.appendChild(titleRow);
     content.appendChild(description);
     content.appendChild(meta);
+    if (homepageBlock) {
+        content.appendChild(homepageBlock);
+    }
     if (runtimeDiagnostics) {
         content.appendChild(runtimeDiagnostics);
     }
@@ -550,6 +619,7 @@ function buildMarketplaceCard(item) {
     const meta = document.createElement('div');
     meta.className = 'plugin-card__meta';
     meta.appendChild(createStatusBadges(item));
+    const homepageBlock = buildHomepageBlock(item);
 
     const pluginId = document.createElement('code');
     pluginId.className = 'plugin-card__id';
@@ -558,6 +628,9 @@ function buildMarketplaceCard(item) {
     content.appendChild(titleRow);
     content.appendChild(description);
     content.appendChild(meta);
+    if (homepageBlock) {
+        content.appendChild(homepageBlock);
+    }
     content.appendChild(pluginId);
 
     header.appendChild(content);
@@ -629,6 +702,7 @@ function buildDeveloperCard(item) {
 
     sourceBlock.appendChild(sourceLabel);
     sourceBlock.appendChild(sourceValue);
+    const homepageBlock = buildHomepageBlock(item);
 
     const pluginId = document.createElement('code');
     pluginId.className = 'plugin-card__id';
@@ -651,6 +725,9 @@ function buildDeveloperCard(item) {
     content.appendChild(description);
     content.appendChild(meta);
     content.appendChild(sourceBlock);
+    if (homepageBlock) {
+        content.appendChild(homepageBlock);
+    }
     if (runtimeDiagnostics) {
         content.appendChild(runtimeDiagnostics);
     }

@@ -335,6 +335,22 @@
     word-break: break-all;
 }
 
+.plugin-card__link {
+    width: fit-content;
+    max-width: 100%;
+    font-size: var(--cerebr-fs-12);
+    line-height: 1.5;
+    color: var(--cerebr-highlight-text-color, var(--cerebr-link-color, var(--cerebr-text-color)));
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    word-break: break-all;
+}
+
+.plugin-card__link:hover {
+    color: var(--cerebr-highlight-text-color, var(--cerebr-link-color, var(--cerebr-text-color)));
+    opacity: 0.88;
+}
+
 .plugin-settings-empty {
     padding: 32px 20px;
     border: 1px dashed var(--cerebr-card-border-color);
