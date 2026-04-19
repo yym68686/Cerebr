@@ -139,7 +139,7 @@
       "scope": "shell",
       "displayName": "Cerebr Snapshot Share",
       "description": "Export the current Cerebr chat as a self-contained HTML snapshot, or upload it to the hosted short-link service and get a share URL back.",
-      "latestVersion": "0.1.12",
+      "latestVersion": "0.1.13",
       "publisher": "Cerebr Team",
       "homepage": "https://github.com/yym68686/cerebr-plugin-share-snapshot",
       "permissions": [
@@ -164,7 +164,7 @@
       },
       "install": {
         "mode": "package",
-        "packageUrl": "plugins/cerebr.shell.share-snapshot/0.1.12/plugin.json"
+        "packageUrl": "plugins/cerebr.shell.share-snapshot/0.1.13/plugin.json"
       }
     },
     {

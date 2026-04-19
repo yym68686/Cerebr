@@ -101,6 +101,43 @@ function createModuleSourceUrl(source, mimeType, strategy = MODULE_URL_STRATEGY_
     return createDataModuleSourceUrl(source, mimeType);
 }
 
+function getAlternateModuleUrlStrategy(strategy = '') {
+    if (strategy === MODULE_URL_STRATEGY_BLOB) {
+        return MODULE_URL_STRATEGY_DATA;
+    }
+    if (strategy === MODULE_URL_STRATEGY_DATA) {
+        return MODULE_URL_STRATEGY_BLOB;
+    }
+    return '';
+}
+
+function shouldRetryBundledModuleImport(error) {
+    const message = normalizeString(error?.message || error).toLowerCase();
+    if (!message) {
+        return false;
+    }
+
+    return [
+        'an unknown error occurred when fetching the script',
+        'failed to fetch dynamically imported module',
+        'failed to load module script',
+        'failed to fetch',
+        'blocked by client',
+        'err_blocked_by_client',
+        'content security policy',
+        'violates the following content security policy directive',
+        'refused to load the script',
+    ].some((pattern) => message.includes(pattern));
+}
+
+function createScriptImportError(pluginId, error, strategy = '') {
+    const strategyLabel = normalizeString(strategy);
+    const message = normalizeString(error?.message || error, 'Unknown import error');
+    return new Error(
+        `Failed to import script plugin "${pluginId}"${strategyLabel ? ` via ${strategyLabel} URL` : ''}: ${message}`
+    );
+}
+
 async function replaceAsync(source, pattern, replacer) {
     const matches = [];
     source.replace(pattern, (...args) => {
@@ -234,6 +271,52 @@ function resolveModuleUrlStrategy(descriptor = {}) {
         : MODULE_URL_STRATEGY_BLOB;
 }
 
+async function resolveScriptImportUrl({
+    pluginId = '',
+    entryUrl = '',
+    manifest = {},
+    cacheKey = '',
+    isBundledSource = false,
+    moduleUrlStrategy = MODULE_URL_STRATEGY_BLOB,
+} = {}) {
+    let importUrl = null;
+
+    if (isBundledSource) {
+        const bundledUrlState = ensureBundledPluginUrlState(
+            pluginId,
+            cacheKey,
+            true,
+            moduleUrlStrategy
+        );
+        const bundleFiles = getLocalPluginBundleFiles(manifest);
+        const manifestPath = normalizeString(manifest?.source?.bundle?.manifestPath, 'plugin.json');
+        const resolvedEntry = resolveLocalPluginBundleSpecifier(entryUrl, manifestPath);
+
+        if (resolvedEntry.kind === 'bundle') {
+            const bundledEntryUrl = await createBundledModuleUrl(
+                resolvedEntry.path,
+                bundleFiles,
+                bundledUrlState
+            );
+            importUrl = new URL(
+                resolvedEntry.suffix ? `${bundledEntryUrl}${resolvedEntry.suffix}` : bundledEntryUrl
+            );
+        } else if (resolvedEntry.kind === 'origin' || resolvedEntry.kind === 'external') {
+            importUrl = new URL(resolvedEntry.url, getRuntimeBaseUrl());
+        } else {
+            throw new Error(`Script plugin "${pluginId}" has an unsupported entry "${entryUrl}"`);
+        }
+    } else {
+        importUrl = new URL(entryUrl, getRuntimeBaseUrl());
+    }
+
+    if (importUrl.protocol !== 'data:' && importUrl.protocol !== 'blob:') {
+        importUrl.searchParams.set('cerebr_plugin_rev', cacheKey);
+    }
+
+    return importUrl;
+}
+
 export async function loadScriptPluginModule(descriptor = {}) {
     const manifest = descriptor?.manifest || {};
     const record = descriptor?.record || {};
@@ -275,31 +358,49 @@ export async function loadScriptPluginModule(descriptor = {}) {
         return createUserScriptPagePluginProxy(descriptor);
     }
 
-    const bundledUrlState = ensureBundledPluginUrlState(pluginId, cacheKey, isBundledSource, moduleUrlStrategy);
-    let importUrl = null;
+    let moduleNamespace = null;
+    let importStrategy = moduleUrlStrategy;
 
-    if (isBundledSource) {
-        const bundleFiles = getLocalPluginBundleFiles(manifest);
-        const manifestPath = normalizeString(manifest?.source?.bundle?.manifestPath, 'plugin.json');
-        const resolvedEntry = resolveLocalPluginBundleSpecifier(entryUrl, manifestPath);
-
-        if (resolvedEntry.kind === 'bundle') {
-            const bundledEntryUrl = await createBundledModuleUrl(resolvedEntry.path, bundleFiles, bundledUrlState);
-            importUrl = new URL(resolvedEntry.suffix ? `${bundledEntryUrl}${resolvedEntry.suffix}` : bundledEntryUrl);
-        } else if (resolvedEntry.kind === 'origin' || resolvedEntry.kind === 'external') {
-            importUrl = new URL(resolvedEntry.url, getRuntimeBaseUrl());
+    try {
+        const importUrl = await resolveScriptImportUrl({
+            pluginId,
+            entryUrl,
+            manifest,
+            cacheKey,
+            isBundledSource,
+            moduleUrlStrategy: importStrategy,
+        });
+        moduleNamespace = await import(importUrl.toString());
+    } catch (error) {
+        const alternateStrategy = getAlternateModuleUrlStrategy(importStrategy);
+        if (
+            isBundledSource
+            && alternateStrategy
+            && shouldRetryBundledModuleImport(error)
+        ) {
+            console.warn(
+                `[Cerebr] Retrying bundled script plugin "${pluginId}" with ${alternateStrategy} module URLs`,
+                error
+            );
+            try {
+                importStrategy = alternateStrategy;
+                const importUrl = await resolveScriptImportUrl({
+                    pluginId,
+                    entryUrl,
+                    manifest,
+                    cacheKey,
+                    isBundledSource,
+                    moduleUrlStrategy: importStrategy,
+                });
+                moduleNamespace = await import(importUrl.toString());
+            } catch (retryError) {
+                throw createScriptImportError(pluginId, retryError, importStrategy);
+            }
         } else {
-            throw new Error(`Script plugin "${pluginId}" has an unsupported entry "${entryUrl}"`);
+            throw createScriptImportError(pluginId, error, importStrategy);
         }
-    } else {
-        importUrl = new URL(entryUrl, getRuntimeBaseUrl());
     }
 
-    if (importUrl.protocol !== 'data:' && importUrl.protocol !== 'blob:') {
-        importUrl.searchParams.set('cerebr_plugin_rev', cacheKey);
-    }
-
-    const moduleNamespace = await import(importUrl.toString());
     let plugin = null;
 
     if (exportName === 'default') {

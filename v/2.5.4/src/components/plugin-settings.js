@@ -1205,12 +1205,13 @@ export async function initPluginSettings({ page, loadRuntimeDiagnostics = null }
             try {
                 await refreshLocalScriptPlugin(pluginId);
                 await refresh();
+                const refreshedDeveloperItem = findDeveloperItem(pluginId) || developerItem;
                 showToast(
-                    developerItem.manifestUrl
-                        ? `Reloaded local plugin: ${resolvePluginName(developerItem)}`
+                    refreshedDeveloperItem.manifestUrl
+                        ? `Reloaded local plugin: ${resolvePluginName(refreshedDeveloperItem)}`
                         : 'Reloaded cached local bundle. Reinstall the folder to apply file changes.',
                     {
-                        type: developerItem.manifestUrl ? 'success' : 'warning',
+                        type: refreshedDeveloperItem.manifestUrl ? 'success' : 'warning',
                         durationMs: 2600,
                     }
                 );

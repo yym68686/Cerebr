@@ -515,14 +515,27 @@ function createTopActions() {
 }
 
 function createCommandListItems() {
-    return getCommands().map((command) => ({
+    const commands = getCommands();
+    return commands.map((command, index) => ({
         id: command.id,
-        token: `/${command.name}`,
         title: command.label || command.name,
-        description: command.description || '',
+        description: command.description || `/${command.name}`,
+        meta: `/${command.name}`,
         selected: runtimeState.editorMode === 'edit' && runtimeState.selectedCommandId === command.id,
         actionId: 'select-command',
         actions: [
+            {
+                id: 'move-up',
+                icon: '↑',
+                title: t('ui.move_up'),
+                disabled: index === 0,
+            },
+            {
+                id: 'move-down',
+                icon: '↓',
+                title: t('ui.move_down'),
+                disabled: index === commands.length - 1,
+            },
             {
                 id: 'delete-command',
                 icon: '🗑',
@@ -583,8 +596,6 @@ function buildManageView() {
                 body: [
                     {
                         kind: 'list',
-                        id: 'slash-command-list',
-                        sortable: true,
                         emptyText: t('ui.list_empty'),
                         items: createCommandListItems(),
                     },
@@ -846,40 +857,6 @@ async function moveCommand(commandId, delta) {
     return true;
 }
 
-async function reorderCommandsByIds(orderedItemIds = [], highlightCommandId = '') {
-    const commands = [...getCommands()];
-    if (!Array.isArray(orderedItemIds) || orderedItemIds.length !== commands.length) {
-        return false;
-    }
-
-    const commandById = new Map(commands.map((command) => [command.id, command]));
-    const nextCommands = [];
-    orderedItemIds.forEach((commandId) => {
-        const command = commandById.get(commandId);
-        if (command) {
-            nextCommands.push(command);
-            commandById.delete(commandId);
-        }
-    });
-
-    if (nextCommands.length !== commands.length || commandById.size > 0) {
-        return false;
-    }
-
-    await persistEnvelope({
-        ...runtimeState.commandEnvelope,
-        commands: nextCommands,
-    });
-
-    const reorderedCommand = nextCommands.find((command) => command.id === highlightCommandId);
-    const selectedCommand = nextCommands.find((command) => command.id === runtimeState.selectedCommandId);
-    runtimeState.api.ui.showToast(t('ui.status_reordered', [
-        reorderedCommand?.name || selectedCommand?.name || nextCommands[0]?.name || ''
-    ]));
-    await renderCurrentPage();
-    return true;
-}
-
 async function deleteCommand(commandId) {
     const commands = [...getCommands()];
     const index = commands.findIndex((command) => command.id === commandId);
@@ -1123,16 +1100,6 @@ async function handlePageEvent(event = {}) {
 
         if (runtimeState.pageMode === 'export' && event.fieldId === 'export-json') {
             runtimeState.importText = String(event.value ?? '');
-        }
-        return;
-    }
-
-    if (event?.type === 'reorder') {
-        if (runtimeState.pageMode === 'manage' && event.listId === 'slash-command-list') {
-            await reorderCommandsByIds(
-                Array.isArray(event.orderedItemIds) ? event.orderedItemIds : [],
-                normalizeString(event.itemId)
-            );
         }
         return;
     }

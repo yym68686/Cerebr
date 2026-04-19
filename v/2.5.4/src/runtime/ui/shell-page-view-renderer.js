@@ -232,11 +232,15 @@ function normalizeListItemDescriptor(item = {}, index = 0) {
     return {
         id,
         title,
+        token: normalizeString(item?.token),
         description: normalizeString(item?.description),
         meta: normalizeString(item?.meta),
         selected: !!item?.selected,
         badges: Array.isArray(item?.badges)
             ? item.badges.map((badge, badgeIndex) => normalizeBadgeDescriptor(badge, badgeIndex)).filter(Boolean)
+            : [],
+        body: Array.isArray(item?.body)
+            ? item.body.map((node, nodeIndex) => normalizeContentDescriptor(node, nodeIndex)).filter(Boolean)
             : [],
         actionId: normalizeString(item?.actionId),
         actions: Array.isArray(item?.actions)
@@ -331,6 +335,7 @@ function normalizeContentDescriptor(node = {}, index = 0) {
             kind,
             id: normalizeString(node?.id, `list-${index}`),
             emptyText: normalizeString(node?.emptyText),
+            sortable: !!node?.sortable,
             items: Array.isArray(node?.items)
                 ? node.items.map((item, itemIndex) => normalizeListItemDescriptor(item, itemIndex)).filter(Boolean)
                 : [],
@@ -628,6 +633,84 @@ function renderActionGroup({ actions, session, dispatchEvent, logger, align = 's
     return group;
 }
 
+function clearListDropMarkers(listElement) {
+    listElement?.querySelectorAll?.('.drop-before, .drop-after').forEach((row) => {
+        row.classList.remove('drop-before', 'drop-after');
+    });
+}
+
+function applyListDropMarker(listElement, row, beforeTarget) {
+    clearListDropMarkers(listElement);
+    if (!row) {
+        return;
+    }
+
+    row.classList.add(beforeTarget ? 'drop-before' : 'drop-after');
+}
+
+function moveListItems(items = [], draggedId = '', targetId = '', beforeTarget = false) {
+    const orderedItemIds = Array.isArray(items)
+        ? items.map((item) => normalizeString(item?.id)).filter(Boolean)
+        : [];
+    const fromIndex = orderedItemIds.indexOf(normalizeString(draggedId));
+    const targetIndex = orderedItemIds.indexOf(normalizeString(targetId));
+
+    if (fromIndex === -1 || targetIndex === -1 || fromIndex === targetIndex) {
+        return null;
+    }
+
+    let insertionIndex = targetIndex;
+    if (beforeTarget) {
+        insertionIndex = targetIndex > fromIndex ? targetIndex - 1 : targetIndex;
+    } else {
+        insertionIndex = targetIndex > fromIndex ? targetIndex : targetIndex + 1;
+    }
+
+    if (insertionIndex === fromIndex) {
+        return null;
+    }
+
+    const nextOrderedItemIds = orderedItemIds.slice();
+    const [movedId] = nextOrderedItemIds.splice(fromIndex, 1);
+    nextOrderedItemIds.splice(insertionIndex, 0, movedId);
+
+    return {
+        orderedItemIds: nextOrderedItemIds,
+        fromIndex,
+        toIndex: insertionIndex,
+    };
+}
+
+function findListDropTarget(listElement, event, draggingId = '') {
+    const directRow = event.target?.closest?.('.cerebr-plugin-page-list__item');
+    if (directRow && normalizeString(directRow.dataset.itemId) !== normalizeString(draggingId)) {
+        const rect = directRow.getBoundingClientRect();
+        return {
+            row: directRow,
+            targetId: normalizeString(directRow.dataset.itemId),
+            beforeTarget: event.clientY < rect.top + (rect.height / 2),
+        };
+    }
+
+    const rows = Array.from(listElement.querySelectorAll('.cerebr-plugin-page-list__item'));
+    const eligibleRows = rows.filter((row) => normalizeString(row.dataset.itemId) !== normalizeString(draggingId));
+    if (eligibleRows.length === 0) {
+        return null;
+    }
+
+    const lastRow = eligibleRows[eligibleRows.length - 1];
+    const rect = lastRow.getBoundingClientRect();
+    if (event.clientY >= rect.top) {
+        return {
+            row: lastRow,
+            targetId: normalizeString(lastRow.dataset.itemId),
+            beforeTarget: false,
+        };
+    }
+
+    return null;
+}
+
 function createFieldElement({
     field,
     session,
@@ -800,6 +883,10 @@ function renderList({
     logger,
 }) {
     const list = createElement('div', 'cerebr-plugin-page-list');
+    if (descriptor.sortable) {
+        list.classList.add('cerebr-plugin-page-list--sortable');
+    }
+
     if (descriptor.items.length === 0) {
         if (descriptor.emptyText) {
             const empty = createElement('p', 'cerebr-plugin-page-text');
@@ -811,9 +898,35 @@ function renderList({
     }
 
     descriptor.items.forEach((item) => {
-        const row = createElement('div', 'cerebr-plugin-page-list__item');
+        const itemElement = createElement('div', 'cerebr-plugin-page-list__item');
+        itemElement.dataset.itemId = item.id;
         if (item.selected) {
-            row.classList.add('is-selected');
+            itemElement.classList.add('is-selected');
+        }
+        if (descriptor.sortable) {
+            itemElement.draggable = true;
+        }
+
+        const hasInlineBody = item.body.length > 0;
+        const needsStructuredRow = descriptor.sortable || hasInlineBody || !!item.token;
+        const row = needsStructuredRow
+            ? createElement('div', 'cerebr-plugin-page-list__row')
+            : itemElement;
+
+        if (descriptor.sortable) {
+            const dragHandle = createElement('button', 'cerebr-plugin-page-list__drag-handle');
+            dragHandle.type = 'button';
+            dragHandle.title = 'Drag to reorder';
+            dragHandle.setAttribute('aria-label', 'Drag to reorder');
+            dragHandle.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">'
+                + '<circle cx="9" cy="6" r="1.5"></circle>'
+                + '<circle cx="15" cy="6" r="1.5"></circle>'
+                + '<circle cx="9" cy="12" r="1.5"></circle>'
+                + '<circle cx="15" cy="12" r="1.5"></circle>'
+                + '<circle cx="9" cy="18" r="1.5"></circle>'
+                + '<circle cx="15" cy="18" r="1.5"></circle>'
+                + '</svg>';
+            row.appendChild(dragHandle);
         }
 
         const main = item.actionId
@@ -842,9 +955,17 @@ function renderList({
             });
         }
 
+        const titleRow = createElement('div', 'cerebr-plugin-page-list__title-row');
+        if (item.token) {
+            const token = createElement('span', 'cerebr-plugin-page-list__token');
+            token.textContent = item.token;
+            titleRow.appendChild(token);
+        }
+
         const title = createElement('span', 'cerebr-plugin-page-list__title');
         title.textContent = item.title;
-        main.appendChild(title);
+        titleRow.appendChild(title);
+        main.appendChild(titleRow);
 
         if (item.description) {
             const description = createElement('span', 'cerebr-plugin-page-list__description');
@@ -876,8 +997,145 @@ function renderList({
             }));
         }
 
-        list.appendChild(row);
+        if (needsStructuredRow) {
+            itemElement.appendChild(row);
+        }
+
+        if (hasInlineBody) {
+            const body = createElement('div', 'cerebr-plugin-page-list__body');
+            item.body.forEach((node) => {
+                const content = renderContentNode({
+                    node,
+                    session,
+                    dispatchEvent,
+                    logger,
+                });
+                if (content) {
+                    body.appendChild(content);
+                }
+            });
+            itemElement.appendChild(body);
+        }
+
+        list.appendChild(itemElement);
     });
+
+    if (descriptor.sortable && descriptor.items.length > 1) {
+        let armedDragId = '';
+        let draggingId = '';
+        let dropTargetId = '';
+        let dropBeforeTarget = false;
+
+        list.addEventListener('pointerdown', (event) => {
+            const handle = event.target?.closest?.('.cerebr-plugin-page-list__drag-handle');
+            const itemElement = handle?.closest?.('.cerebr-plugin-page-list__item');
+            armedDragId = normalizeString(itemElement?.dataset?.itemId);
+        });
+
+        list.addEventListener('pointerup', () => {
+            armedDragId = '';
+        });
+
+        list.addEventListener('dragstart', (event) => {
+            const itemElement = event.target?.closest?.('.cerebr-plugin-page-list__item');
+            const itemId = normalizeString(itemElement?.dataset?.itemId);
+            if (!itemId || itemId !== armedDragId) {
+                event.preventDefault();
+                return;
+            }
+
+            draggingId = itemId;
+            itemElement.classList.add('is-dragging');
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', itemId);
+        });
+
+        list.addEventListener('dragover', (event) => {
+            if (!draggingId) {
+                return;
+            }
+
+            const target = findListDropTarget(list, event, draggingId);
+            if (!target) {
+                clearListDropMarkers(list);
+                return;
+            }
+
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            dropTargetId = target.targetId;
+            dropBeforeTarget = target.beforeTarget;
+            applyListDropMarker(list, target.row, target.beforeTarget);
+        });
+
+        list.addEventListener('drop', (event) => {
+            if (!draggingId) {
+                return;
+            }
+
+            event.preventDefault();
+            const target = findListDropTarget(list, event, draggingId) || (
+                dropTargetId
+                    ? {
+                        targetId: dropTargetId,
+                        beforeTarget: !!dropBeforeTarget,
+                    }
+                    : null
+            );
+
+            clearListDropMarkers(list);
+            if (!target?.targetId) {
+                draggingId = '';
+                armedDragId = '';
+                dropTargetId = '';
+                dropBeforeTarget = false;
+                return;
+            }
+
+            const reorderResult = moveListItems(
+                descriptor.items,
+                draggingId,
+                target.targetId,
+                target.beforeTarget
+            );
+            const sourceItemId = draggingId;
+            draggingId = '';
+            armedDragId = '';
+            dropTargetId = '';
+            dropBeforeTarget = false;
+
+            if (!reorderResult) {
+                return;
+            }
+
+            dispatchInteraction({
+                session,
+                dispatchEvent,
+                payload: {
+                    type: 'reorder',
+                    listId: descriptor.id,
+                    itemId: sourceItemId,
+                    targetItemId: target.targetId,
+                    beforeTarget: !!target.beforeTarget,
+                    fromIndex: reorderResult.fromIndex,
+                    toIndex: reorderResult.toIndex,
+                    orderedItemIds: reorderResult.orderedItemIds,
+                    values: cloneValues(session),
+                },
+            });
+        });
+
+        list.addEventListener('dragend', () => {
+            draggingId = '';
+            armedDragId = '';
+            dropTargetId = '';
+            dropBeforeTarget = false;
+            clearListDropMarkers(list);
+            list.querySelectorAll('.is-dragging').forEach((row) => {
+                row.classList.remove('is-dragging');
+            });
+        });
+    }
 
     return list;
 }

@@ -350,6 +350,26 @@ export async function installLocalScriptPluginFromUrl(source) {
     return installLocalScriptPluginFromManifestUrl(manifestUrl, sourceLabel);
 }
 
+async function reinstallCachedLocalScriptBundle(installedPackage, pluginId = '') {
+    const droppedBundle = buildDroppedBundleFromInstalledPackage(installedPackage, pluginId);
+    if (!droppedBundle) {
+        return null;
+    }
+
+    if (droppedBundle.manifest?.scope === 'shell') {
+        validateLocalShellPluginBundle(droppedBundle.manifest, droppedBundle.bundle?.files);
+    }
+
+    return installLocalScriptPluginPackage(droppedBundle.manifest, {
+        sourceLabel: droppedBundle.sourceLabel || pluginId,
+        mode: resolveLocalBundleSourceMode(
+            droppedBundle.manifest,
+            normalizeString(installedPackage?.source?.mode, 'bundle')
+        ),
+        bundle: droppedBundle.bundle,
+    });
+}
+
 export async function refreshLocalScriptPlugin(pluginId) {
     await ensureDeveloperModeEnabled();
 
@@ -358,33 +378,41 @@ export async function refreshLocalScriptPlugin(pluginId) {
     const sourceLabel = normalizeString(installedPackage?.source?.sourceLabel, manifestUrl);
 
     if (!manifestUrl) {
-        const droppedBundle = buildDroppedBundleFromInstalledPackage(installedPackage, pluginId);
-        if (droppedBundle) {
-            if (droppedBundle.manifest?.scope === 'shell') {
-                validateLocalShellPluginBundle(droppedBundle.manifest, droppedBundle.bundle?.files);
-            }
-
-            return installLocalScriptPluginPackage(droppedBundle.manifest, {
-                sourceLabel: droppedBundle.sourceLabel || pluginId,
-                mode: resolveLocalBundleSourceMode(
-                    droppedBundle.manifest,
-                    normalizeString(installedPackage?.source?.mode, 'bundle')
-                ),
-                bundle: droppedBundle.bundle,
-            });
+        const reinstalledBundle = await reinstallCachedLocalScriptBundle(installedPackage, pluginId);
+        if (reinstalledBundle) {
+            return reinstalledBundle;
         }
         throw new Error(`Local script plugin "${pluginId}" is missing its manifest source`);
     }
 
-    const manifest = await fetchPluginManifestFromUrl(manifestUrl);
+    let manifest = null;
+    try {
+        manifest = await fetchPluginManifestFromUrl(manifestUrl);
+    } catch (error) {
+        const reinstalledBundle = await reinstallCachedLocalScriptBundle(installedPackage, pluginId);
+        if (reinstalledBundle) {
+            return reinstalledBundle;
+        }
+        throw error;
+    }
+
     if (manifest.id !== pluginId) {
         throw new Error(`Plugin manifest id mismatch: expected "${pluginId}", received "${manifest.id}"`);
     }
 
-    const pluginPackage = await buildLocalPluginPackage(manifest, {
-        manifestUrl,
-        sourceLabel,
-    });
+    let pluginPackage = null;
+    try {
+        pluginPackage = await buildLocalPluginPackage(manifest, {
+            manifestUrl,
+            sourceLabel,
+        });
+    } catch (error) {
+        const reinstalledBundle = await reinstallCachedLocalScriptBundle(installedPackage, pluginId);
+        if (reinstalledBundle) {
+            return reinstalledBundle;
+        }
+        throw error;
+    }
 
     await writeInstalledPluginPackage(pluginId, pluginPackage);
     await installLocalScriptPlugin(manifest, {
