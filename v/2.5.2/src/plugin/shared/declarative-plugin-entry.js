@@ -231,6 +231,7 @@ function normalizeMenuItemList(value, pluginId) {
                 labelKey,
                 icon: normalizeString(item.icon),
                 iconSvg: normalizeString(item.iconSvg),
+                iconPlacement: normalizeString(item.iconPlacement),
                 title: normalizeString(item.title, label),
                 titleKey: normalizeString(item.titleKey),
                 order: Number.isFinite(Number(item.order)) ? Number(item.order) : index,

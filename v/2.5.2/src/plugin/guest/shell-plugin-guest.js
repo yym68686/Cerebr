@@ -1,4 +1,5 @@
 import { loadScriptPluginModule } from '../dev/script-plugin-loader.js';
+import { resolvePluginLocalizedText } from '../core/plugin-i18n.js';
 import {
     createGuestMessage,
     GUEST_BOOT,
@@ -16,6 +17,7 @@ import {
 const guestRoot = document.getElementById('cerebr-plugin-guest-root');
 const state = {
     cleanup: null,
+    currentManifest: null,
     currentLocale: '',
     currentTheme: null,
     inputActionWatchers: new Set(),
@@ -145,6 +147,32 @@ function createRpcRequest(method, args = []) {
             method,
             args,
         });
+    });
+}
+
+function getGuestHostMessage(key, substitutions = [], fallback = '') {
+    try {
+        if (typeof chrome !== 'undefined' && chrome.i18n?.getMessage) {
+            return chrome.i18n.getMessage(key, substitutions) || fallback;
+        }
+        if (typeof browser !== 'undefined' && browser.i18n?.getMessage) {
+            return browser.i18n.getMessage(key, substitutions) || fallback;
+        }
+    } catch {
+        // Ignore runtime i18n errors and fall back to plugin-local messages.
+    }
+
+    return fallback;
+}
+
+function resolveGuestPluginMessage(key, substitutions = [], fallback = '') {
+    return resolvePluginLocalizedText({
+        i18n: state.currentManifest?.i18n || null,
+        locale: state.currentLocale,
+        key,
+        fallback,
+        substitutions,
+        hostGetMessage: getGuestHostMessage,
     });
 }
 
@@ -351,7 +379,7 @@ function createGuestPluginApi() {
                 return state.currentLocale || createRpcRequest('i18n.getLocale');
             },
             getMessage(key, substitutions = [], fallback = '') {
-                return createRpcRequest('i18n.getMessage', [key, substitutions, fallback]);
+                return resolveGuestPluginMessage(key, substitutions, fallback);
             },
             onLocaleChanged(callback, { immediate = true } = {}) {
                 if (typeof callback !== 'function') {
@@ -462,6 +490,7 @@ function createGuestDescriptor(manifest) {
 
 async function bootGuestPlugin(payload = {}) {
     state.sessionId = String(payload.sessionId || '');
+    state.currentManifest = cloneSimpleObject(payload.manifest, null);
     installLocalStorageShim(payload.storage);
     applyLocaleSnapshot(payload.locale);
     applyThemeSnapshot(payload.theme);
@@ -501,6 +530,8 @@ async function shutdownGuestPlugin() {
     }
 
     state.inputActionWatchers.clear();
+    state.currentManifest = null;
+    state.currentLocale = '';
     state.localeWatchers.clear();
     state.menuActionWatchers.clear();
     state.pageEventWatchers.clear();

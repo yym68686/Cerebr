@@ -1,5 +1,9 @@
 import { normalizeString } from '../core/runtime-utils.js';
 import {
+    getActiveLocale as getHostLocale,
+    onLocaleChanged as observeLocaleChanged,
+} from '../../utils/i18n.js';
+import {
     createGuestMessage,
     GUEST_BOOT,
     GUEST_ERROR,
@@ -218,6 +222,7 @@ function createGuestPagePluginHost({
             postToGuest(GUEST_BOOT, {
                 sessionId,
                 manifest,
+                locale: getHostLocale(),
                 selection: currentSelection || api.page?.getSelection?.() || null,
             });
             return;
@@ -324,6 +329,15 @@ function createGuestPagePluginHost({
                 window.removeEventListener('message', handleMessage);
             });
         });
+
+        disposers.push(observeLocaleChanged(({ locale } = {}) => {
+            postToGuest(GUEST_EVENT, {
+                name: 'i18n.locale',
+                value: {
+                    locale: normalizeString(locale, getHostLocale()),
+                },
+            });
+        }));
 
         iframe.src = getGuestPageUrl();
         (document.body || document.documentElement)?.appendChild(iframe);

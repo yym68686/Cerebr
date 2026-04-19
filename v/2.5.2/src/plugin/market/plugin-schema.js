@@ -366,6 +366,7 @@ function normalizeMenuItem(value, id, index = 0) {
         labelKey: label.key,
         icon: normalizeString(value.icon),
         iconSvg: normalizeString(value.iconSvg),
+        iconPlacement: normalizeString(value.iconPlacement),
         title: title.text,
         titleKey: title.key,
         order: Number.isFinite(Number(value.order)) ? Number(value.order) : index,

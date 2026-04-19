@@ -201,6 +201,11 @@
     line-height: 1;
 }
 
+.cerebr-plugin-menu-item__icon--disclosure {
+    width: 16px;
+    height: 16px;
+}
+
 .cerebr-plugin-menu-item__icon-svg {
     display: block;
     width: 100%;

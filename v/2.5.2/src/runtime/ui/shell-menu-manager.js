@@ -8,6 +8,13 @@ function normalizeNumber(value, fallback = 0) {
     return Number.isFinite(numericValue) ? numericValue : fallback;
 }
 
+function normalizeMenuItemIconPlacement(value, fallback = 'leading') {
+    const normalized = normalizeString(value, fallback).toLowerCase();
+    return normalized === 'disclosure'
+        ? 'disclosure'
+        : 'leading';
+}
+
 function cloneRect(rect = null) {
     if (!rect || typeof rect !== 'object') {
         return null;
@@ -145,10 +152,13 @@ function createMenuItemSvgElement(source = '') {
     }
 }
 
-function createMenuItemIconElement(item = {}) {
+function createMenuItemIconElement(item = {}, { slot = 'leading' } = {}) {
     const iconWrapper = document.createElement('span');
     iconWrapper.className = 'cerebr-plugin-menu-item__icon';
     iconWrapper.setAttribute('aria-hidden', 'true');
+    if (slot === 'disclosure') {
+        iconWrapper.classList.add('cerebr-plugin-menu-item__icon--disclosure');
+    }
 
     const svgIcon = createMenuItemSvgElement(item.iconSvg);
     if (svgIcon) {
@@ -166,6 +176,33 @@ function createMenuItemIconElement(item = {}) {
     return iconWrapper;
 }
 
+function createDefaultChevronElement() {
+    const chevron = document.createElement('span');
+    chevron.className = 'cerebr-plugin-menu-item__chevron';
+    chevron.setAttribute('aria-hidden', 'true');
+    chevron.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+    return chevron;
+}
+
+function createMenuItemAffordanceElement(item = {}) {
+    if (item.iconPlacement === 'disclosure') {
+        const icon = createMenuItemIconElement(item, { slot: 'disclosure' });
+        if (icon) {
+            const affordance = document.createElement('span');
+            affordance.className = 'cerebr-plugin-menu-item__chevron';
+            affordance.setAttribute('aria-hidden', 'true');
+            affordance.appendChild(icon);
+            return affordance;
+        }
+    }
+
+    if (!item.disclosure) {
+        return null;
+    }
+
+    return createDefaultChevronElement();
+}
+
 function normalizeMenuItemDescriptor(item = {}, index = 0) {
     const id = normalizeString(item.id);
     const label = normalizeString(item.label);
@@ -178,6 +215,7 @@ function normalizeMenuItemDescriptor(item = {}, index = 0) {
         label,
         icon: normalizeString(item.icon),
         iconSvg: normalizeString(item.iconSvg),
+        iconPlacement: normalizeMenuItemIconPlacement(item.iconPlacement),
         title: normalizeString(item.title, label),
         order: normalizeNumber(item.order, index),
         disclosure: item.disclosure !== false,
@@ -284,7 +322,9 @@ export function createShellMenuManager({
 
         const label = document.createElement('span');
         label.className = 'cerebr-plugin-menu-item__label';
-        const icon = createMenuItemIconElement(item);
+        const icon = item.iconPlacement === 'disclosure'
+            ? null
+            : createMenuItemIconElement(item);
         if (icon) {
             label.appendChild(icon);
         }
@@ -294,12 +334,9 @@ export function createShellMenuManager({
         label.appendChild(text);
         element.appendChild(label);
 
-        if (item.disclosure) {
-            const chevron = document.createElement('span');
-            chevron.className = 'cerebr-plugin-menu-item__chevron';
-            chevron.setAttribute('aria-hidden', 'true');
-            chevron.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-            element.appendChild(chevron);
+        const affordance = createMenuItemAffordanceElement(item);
+        if (affordance) {
+            element.appendChild(affordance);
         }
 
         const activate = (event) => {

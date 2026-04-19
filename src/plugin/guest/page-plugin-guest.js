@@ -1,4 +1,5 @@
 import { loadScriptPluginModule } from '../dev/script-plugin-loader.js';
+import { resolvePluginLocalizedText } from '../core/plugin-i18n.js';
 import {
     createGuestMessage,
     GUEST_BOOT,
@@ -15,6 +16,8 @@ import {
 const state = {
     actionCallbacks: new Map(),
     cleanup: null,
+    currentLocale: '',
+    currentManifest: null,
     currentSelection: null,
     pendingRpc: new Map(),
     rpcCounter: 0,
@@ -55,6 +58,39 @@ function applySelectionSnapshot(snapshot) {
         } catch (error) {
             console.warn('[Cerebr] Guest page selection watcher failed', error);
         }
+    });
+}
+
+function applyLocaleSnapshot(snapshot) {
+    const locale = typeof snapshot === 'string'
+        ? snapshot
+        : String(snapshot?.locale || '');
+    state.currentLocale = locale || 'en';
+}
+
+function getGuestHostMessage(key, substitutions = [], fallback = '') {
+    try {
+        if (typeof chrome !== 'undefined' && chrome.i18n?.getMessage) {
+            return chrome.i18n.getMessage(key, substitutions) || fallback;
+        }
+        if (typeof browser !== 'undefined' && browser.i18n?.getMessage) {
+            return browser.i18n.getMessage(key, substitutions) || fallback;
+        }
+    } catch {
+        // Ignore runtime i18n errors and fall back to plugin-local messages.
+    }
+
+    return fallback;
+}
+
+function resolveGuestPluginMessage(key, substitutions = [], fallback = '') {
+    return resolvePluginLocalizedText({
+        i18n: state.currentManifest?.i18n || null,
+        locale: state.currentLocale,
+        key,
+        fallback,
+        substitutions,
+        hostGetMessage: getGuestHostMessage,
     });
 }
 
@@ -133,7 +169,7 @@ function createGuestPluginApi() {
                 return createRpcRequest('page.getSnapshot', [options]);
             },
             getMessage(key, substitutions = [], fallback = '') {
-                return createRpcRequest('page.getMessage', [key, substitutions, fallback]);
+                return resolveGuestPluginMessage(key, substitutions, fallback);
             },
             listExtractors() {
                 return createRpcRequest('page.listExtractors');
@@ -235,6 +271,8 @@ function createGuestDescriptor(manifest) {
 
 async function bootGuestPlugin(payload = {}) {
     state.sessionId = String(payload.sessionId || '');
+    state.currentManifest = cloneSimpleObject(payload.manifest, null);
+    applyLocaleSnapshot(payload.locale);
     applySelectionSnapshot(payload.selection);
 
     const descriptor = createGuestDescriptor(payload.manifest);
@@ -258,6 +296,8 @@ async function shutdownGuestPlugin() {
     }
 
     state.actionCallbacks.clear();
+    state.currentLocale = '';
+    state.currentManifest = null;
     state.selectionWatchers.clear();
 
     if (typeof cleanup === 'function') {
@@ -284,6 +324,11 @@ window.addEventListener('message', (event) => {
 
     if (kind === GUEST_EVENT && payload?.name === 'page.selection') {
         applySelectionSnapshot(payload.value);
+        return;
+    }
+
+    if (kind === GUEST_EVENT && payload?.name === 'i18n.locale') {
+        applyLocaleSnapshot(payload.value);
         return;
     }
 
