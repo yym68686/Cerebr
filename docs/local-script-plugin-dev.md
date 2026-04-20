@@ -157,6 +157,8 @@ For shell plugins, choose the first host surface that fits:
 
 For settings, dashboards, or review flows, prefer `shell.openPage({ view })` over plugin-owned modal DOM.
 
+Host-rendered lists inside `page.view` now handle inline row bodies, live drag reordering, inline drag feedback (`dragPreview: 'inline'`, the default for sortable lists), configurable drag handle sizing (`dragHandle`), sorting emphasis (`sortingStyle`), and drop indicator policy (`dropIndicator`) in both web and extension guests. Inline drag preview is host-managed pointer sorting rather than a browser drag session, so shell plugins should not reach into host DOM just to build expandable sortable editors, suppress drag-image snapback, or work around browser/OS drag badges.
+
 ## Hook lifecycle
 
 Shell plugins can implement:

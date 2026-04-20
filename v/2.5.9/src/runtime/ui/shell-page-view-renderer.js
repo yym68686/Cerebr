@@ -74,6 +74,47 @@ function createElement(tagName, className = '') {
     return element;
 }
 
+const SORTABLE_LIST_DRAG_DATA_TYPE = 'application/x-cerebr-sortable-item';
+const SORTABLE_POINTER_ACTIVATION_DISTANCE = 4;
+
+function normalizeListDragPreview(value, sortable = false) {
+    if (!sortable) {
+        return '';
+    }
+
+    const preview = normalizeString(value, 'inline').toLowerCase();
+    return preview === 'native' ? 'native' : 'inline';
+}
+
+function normalizeListDragHandle(value, sortable = false) {
+    if (!sortable) {
+        return '';
+    }
+
+    const handle = normalizeString(value, 'comfortable').toLowerCase();
+    return handle === 'compact' ? 'compact' : 'comfortable';
+}
+
+function normalizeListSortingStyle(value, sortable = false, dragPreview = '') {
+    if (!sortable) {
+        return '';
+    }
+
+    const fallback = dragPreview === 'inline' ? 'emphasized' : 'default';
+    const style = normalizeString(value, fallback).toLowerCase();
+    return style === 'emphasized' ? 'emphasized' : 'default';
+}
+
+function normalizeListDropIndicator(value, sortable = false, dragPreview = '') {
+    if (!sortable) {
+        return '';
+    }
+
+    const fallback = dragPreview === 'inline' ? 'none' : 'line';
+    const indicator = normalizeString(value, fallback).toLowerCase();
+    return indicator === 'line' ? 'line' : 'none';
+}
+
 function normalizeBadgeDescriptor(badge = {}, index = 0) {
     if (typeof badge === 'string' || typeof badge === 'number') {
         return {
@@ -362,11 +403,17 @@ function normalizeContentDescriptor(node = {}, index = 0) {
     }
 
     if (kind === 'list') {
+        const sortable = !!node?.sortable;
+        const dragPreview = normalizeListDragPreview(node?.dragPreview, sortable);
         return {
             kind,
             id: normalizeString(node?.id, `list-${index}`),
             emptyText: normalizeString(node?.emptyText),
-            sortable: !!node?.sortable,
+            sortable,
+            dragPreview,
+            dragHandle: normalizeListDragHandle(node?.dragHandle, sortable),
+            sortingStyle: normalizeListSortingStyle(node?.sortingStyle, sortable, dragPreview),
+            dropIndicator: normalizeListDropIndicator(node?.dropIndicator, sortable, dragPreview),
             items: Array.isArray(node?.items)
                 ? node.items.map((item, itemIndex) => normalizeListItemDescriptor(item, itemIndex)).filter(Boolean)
                 : [],
@@ -853,9 +900,38 @@ function applyListDropMarker(listElement, row, beforeTarget) {
     row.classList.add(beforeTarget ? 'drop-before' : 'drop-after');
 }
 
+function collectListItemIds(listElement) {
+    return Array.from(listElement?.querySelectorAll?.('.cerebr-plugin-page-list__item') || [])
+        .map((row) => normalizeString(row?.dataset?.itemId))
+        .filter(Boolean);
+}
+
+function applyListOrder(listElement, orderedItemIds = []) {
+    if (!(listElement instanceof HTMLElement) || !Array.isArray(orderedItemIds) || orderedItemIds.length === 0) {
+        return false;
+    }
+
+    const rows = Array.from(listElement.querySelectorAll('.cerebr-plugin-page-list__item'));
+    if (rows.length !== orderedItemIds.length) {
+        return false;
+    }
+
+    const rowById = new Map(rows.map((row) => [normalizeString(row.dataset?.itemId), row]));
+    if (orderedItemIds.some((itemId) => !rowById.has(normalizeString(itemId)))) {
+        return false;
+    }
+
+    const fragment = document.createDocumentFragment();
+    orderedItemIds.forEach((itemId) => {
+        fragment.appendChild(rowById.get(normalizeString(itemId)));
+    });
+    listElement.appendChild(fragment);
+    return true;
+}
+
 function moveListItems(items = [], draggedId = '', targetId = '', beforeTarget = false) {
     const orderedItemIds = Array.isArray(items)
-        ? items.map((item) => normalizeString(item?.id)).filter(Boolean)
+        ? items.map((item) => normalizeString(typeof item === 'string' ? item : item?.id)).filter(Boolean)
         : [];
     const fromIndex = orderedItemIds.indexOf(normalizeString(draggedId));
     const targetIndex = orderedItemIds.indexOf(normalizeString(targetId));
@@ -886,14 +962,58 @@ function moveListItems(items = [], draggedId = '', targetId = '', beforeTarget =
     };
 }
 
-function findListDropTarget(listElement, event, draggingId = '') {
-    const directRow = event.target?.closest?.('.cerebr-plugin-page-list__item');
-    if (directRow && normalizeString(directRow.dataset.itemId) !== normalizeString(draggingId)) {
+function describeListReorder(items = [], orderedItemIds = [], movedItemId = '') {
+    const initialOrderedItemIds = Array.isArray(items)
+        ? items.map((item) => normalizeString(typeof item === 'string' ? item : item?.id)).filter(Boolean)
+        : [];
+    const nextOrderedItemIds = Array.isArray(orderedItemIds)
+        ? orderedItemIds.map((itemId) => normalizeString(itemId)).filter(Boolean)
+        : [];
+    const normalizedMovedItemId = normalizeString(movedItemId);
+
+    if (
+        initialOrderedItemIds.length === 0
+        || initialOrderedItemIds.length !== nextOrderedItemIds.length
+        || !normalizedMovedItemId
+    ) {
+        return null;
+    }
+
+    const missingIds = initialOrderedItemIds.some((itemId) => !nextOrderedItemIds.includes(itemId));
+    if (missingIds) {
+        return null;
+    }
+
+    const fromIndex = initialOrderedItemIds.indexOf(normalizedMovedItemId);
+    const toIndex = nextOrderedItemIds.indexOf(normalizedMovedItemId);
+    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
+        return null;
+    }
+
+    return {
+        orderedItemIds: nextOrderedItemIds,
+        fromIndex,
+        toIndex,
+    };
+}
+
+function findListDropTarget(listElement, pointer = {}, draggingId = '') {
+    if (!(listElement instanceof HTMLElement)) {
+        return null;
+    }
+
+    const clientX = normalizeNumber(pointer?.clientX, 0);
+    const clientY = normalizeNumber(pointer?.clientY, 0);
+    const pointerTarget = pointer?.target instanceof Element
+        ? pointer.target
+        : listElement.ownerDocument?.elementFromPoint?.(clientX, clientY);
+    const directRow = pointerTarget?.closest?.('.cerebr-plugin-page-list__item');
+    if (directRow && listElement.contains(directRow) && normalizeString(directRow.dataset.itemId) !== normalizeString(draggingId)) {
         const rect = directRow.getBoundingClientRect();
         return {
             row: directRow,
             targetId: normalizeString(directRow.dataset.itemId),
-            beforeTarget: event.clientY < rect.top + (rect.height / 2),
+            beforeTarget: clientY < rect.top + (rect.height / 2),
         };
     }
 
@@ -903,17 +1023,24 @@ function findListDropTarget(listElement, event, draggingId = '') {
         return null;
     }
 
-    const lastRow = eligibleRows[eligibleRows.length - 1];
-    const rect = lastRow.getBoundingClientRect();
-    if (event.clientY >= rect.top) {
-        return {
-            row: lastRow,
-            targetId: normalizeString(lastRow.dataset.itemId),
-            beforeTarget: false,
-        };
+    for (const row of eligibleRows) {
+        const rect = row.getBoundingClientRect();
+        const midpoint = rect.top + (rect.height / 2);
+        if (clientY < midpoint) {
+            return {
+                row,
+                targetId: normalizeString(row.dataset.itemId),
+                beforeTarget: true,
+            };
+        }
     }
 
-    return null;
+    const lastRow = eligibleRows[eligibleRows.length - 1];
+    return {
+        row: lastRow,
+        targetId: normalizeString(lastRow.dataset.itemId),
+        beforeTarget: false,
+    };
 }
 
 function createFieldElement({
@@ -1093,8 +1220,26 @@ function renderList({
     logger,
 }) {
     const list = createElement('div', 'cerebr-plugin-page-list');
+    const usesInlineDragPreview = descriptor.sortable && descriptor.dragPreview !== 'native';
+    const usesComfortableDragHandle = descriptor.sortable && descriptor.dragHandle !== 'compact';
+    const usesEmphasizedSorting = descriptor.sortable && descriptor.sortingStyle === 'emphasized';
+    const showsDropIndicator = descriptor.sortable && descriptor.dropIndicator === 'line';
     if (descriptor.sortable) {
         list.classList.add('cerebr-plugin-page-list--sortable');
+        if (usesInlineDragPreview) {
+            list.classList.add('cerebr-plugin-page-list--drag-preview-inline');
+        }
+        if (usesComfortableDragHandle) {
+            list.classList.add('cerebr-plugin-page-list--drag-handle-comfortable');
+        } else {
+            list.classList.add('cerebr-plugin-page-list--drag-handle-compact');
+        }
+        if (usesEmphasizedSorting) {
+            list.classList.add('cerebr-plugin-page-list--sorting-emphasized');
+        }
+        if (!showsDropIndicator) {
+            list.classList.add('cerebr-plugin-page-list--drop-indicator-none');
+        }
     }
 
     if (descriptor.items.length === 0) {
@@ -1113,11 +1258,14 @@ function renderList({
         if (item.selected) {
             itemElement.classList.add('is-selected');
         }
-        if (descriptor.sortable) {
+        if (descriptor.sortable && !usesInlineDragPreview) {
             itemElement.draggable = true;
         }
 
         const hasInlineBody = item.body.length > 0;
+        if (hasInlineBody) {
+            itemElement.classList.add('cerebr-plugin-page-list__item--with-body');
+        }
         const needsStructuredRow = descriptor.sortable || hasInlineBody || !!item.token;
         const row = needsStructuredRow
             ? createElement('div', 'cerebr-plugin-page-list__row')
@@ -1128,6 +1276,7 @@ function renderList({
             dragHandle.type = 'button';
             dragHandle.title = 'Drag to reorder';
             dragHandle.setAttribute('aria-label', 'Drag to reorder');
+            dragHandle.dataset.variant = usesComfortableDragHandle ? 'comfortable' : 'compact';
             dragHandle.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">'
                 + '<circle cx="9" cy="6" r="1.5"></circle>'
                 + '<circle cx="15" cy="6" r="1.5"></circle>'
@@ -1231,91 +1380,125 @@ function renderList({
     });
 
     if (descriptor.sortable && descriptor.items.length > 1) {
+        const initialOrderedItemIds = descriptor.items
+            .map((item) => normalizeString(typeof item === 'string' ? item : item?.id))
+            .filter(Boolean);
         let armedDragId = '';
+        let committedOrderedItemIds = [];
+        let committedOrderRaf = 0;
         let draggingId = '';
         let dropTargetId = '';
         let dropBeforeTarget = false;
+        let pointerDragState = null;
 
-        list.addEventListener('pointerdown', (event) => {
-            const handle = event.target?.closest?.('.cerebr-plugin-page-list__drag-handle');
-            const itemElement = handle?.closest?.('.cerebr-plugin-page-list__item');
-            armedDragId = normalizeString(itemElement?.dataset?.itemId);
-        });
+        const cancelCommittedOrderSync = () => {
+            if (!committedOrderRaf) {
+                return;
+            }
+            cancelAnimationFrame(committedOrderRaf);
+            committedOrderRaf = 0;
+        };
 
-        list.addEventListener('pointerup', () => {
-            armedDragId = '';
-        });
-
-        list.addEventListener('dragstart', (event) => {
-            const itemElement = event.target?.closest?.('.cerebr-plugin-page-list__item');
-            const itemId = normalizeString(itemElement?.dataset?.itemId);
-            if (!itemId || itemId !== armedDragId) {
-                event.preventDefault();
+        const scheduleCommittedOrderSync = () => {
+            cancelCommittedOrderSync();
+            if (committedOrderedItemIds.length === 0) {
                 return;
             }
 
-            draggingId = itemId;
-            itemElement.classList.add('is-dragging');
-            event.dataTransfer.effectAllowed = 'move';
-            event.dataTransfer.setData('text/plain', itemId);
-        });
+            committedOrderRaf = requestAnimationFrame(() => {
+                committedOrderRaf = 0;
+                if (!list.isConnected) {
+                    return;
+                }
+                applyListOrder(list, committedOrderedItemIds);
+            });
+        };
 
-        list.addEventListener('dragover', (event) => {
-            if (!draggingId) {
-                return;
+        const restoreInitialListOrder = () => {
+            if (initialOrderedItemIds.length > 0) {
+                applyListOrder(list, initialOrderedItemIds);
             }
+        };
 
-            const target = findListDropTarget(list, event, draggingId);
-            if (!target) {
-                clearListDropMarkers(list);
-                return;
-            }
-
-            event.preventDefault();
-            event.dataTransfer.dropEffect = 'move';
-            dropTargetId = target.targetId;
-            dropBeforeTarget = target.beforeTarget;
-            applyListDropMarker(list, target.row, target.beforeTarget);
-        });
-
-        list.addEventListener('drop', (event) => {
-            if (!draggingId) {
-                return;
-            }
-
-            event.preventDefault();
-            const target = findListDropTarget(list, event, draggingId) || (
-                dropTargetId
-                    ? {
-                        targetId: dropTargetId,
-                        beforeTarget: !!dropBeforeTarget,
-                    }
-                    : null
-            );
-
+        const clearSortingPresentation = () => {
+            list.classList.remove('is-sorting');
             clearListDropMarkers(list);
-            if (!target?.targetId) {
-                draggingId = '';
-                armedDragId = '';
-                dropTargetId = '';
-                dropBeforeTarget = false;
-                return;
-            }
+            list.querySelectorAll('.is-dragging').forEach((row) => {
+                row.classList.remove('is-dragging');
+            });
+        };
 
-            const reorderResult = moveListItems(
-                descriptor.items,
-                draggingId,
-                target.targetId,
-                target.beforeTarget
-            );
-            const sourceItemId = draggingId;
+        const clearDragState = () => {
             draggingId = '';
             armedDragId = '';
             dropTargetId = '';
             dropBeforeTarget = false;
+        };
 
+        const applySortingPreview = (target) => {
+            if (!target?.targetId || !draggingId) {
+                clearListDropMarkers(list);
+                return false;
+            }
+
+            dropTargetId = target.targetId;
+            dropBeforeTarget = !!target.beforeTarget;
+            const reorderPreview = moveListItems(
+                collectListItemIds(list),
+                draggingId,
+                target.targetId,
+                target.beforeTarget
+            );
+            if (!reorderPreview) {
+                clearListDropMarkers(list);
+                return false;
+            }
+
+            applyListOrder(list, reorderPreview.orderedItemIds);
+            if (showsDropIndicator) {
+                applyListDropMarker(list, target.row, target.beforeTarget);
+            } else {
+                clearListDropMarkers(list);
+            }
+            return true;
+        };
+
+        const emitCurrentReorder = (target = null, { useCommittedSync = false } = {}) => {
+            const resolvedTarget = target?.targetId
+                ? target
+                : (dropTargetId
+                    ? {
+                        targetId: dropTargetId,
+                        beforeTarget: !!dropBeforeTarget,
+                    }
+                    : null);
+
+            clearListDropMarkers(list);
+            if (!resolvedTarget?.targetId || !draggingId) {
+                committedOrderedItemIds = [];
+                cancelCommittedOrderSync();
+                return false;
+            }
+
+            const sourceItemId = draggingId;
+            const reorderResult = describeListReorder(
+                descriptor.items,
+                collectListItemIds(list),
+                sourceItemId
+            );
             if (!reorderResult) {
-                return;
+                committedOrderedItemIds = [];
+                cancelCommittedOrderSync();
+                return false;
+            }
+
+            if (useCommittedSync) {
+                committedOrderedItemIds = [...reorderResult.orderedItemIds];
+                applyListOrder(list, committedOrderedItemIds);
+                scheduleCommittedOrderSync();
+            } else {
+                committedOrderedItemIds = [];
+                cancelCommittedOrderSync();
             }
 
             dispatchInteraction({
@@ -1325,26 +1508,218 @@ function renderList({
                     type: 'reorder',
                     listId: descriptor.id,
                     itemId: sourceItemId,
-                    targetItemId: target.targetId,
-                    beforeTarget: !!target.beforeTarget,
+                    targetItemId: resolvedTarget.targetId,
+                    beforeTarget: !!resolvedTarget.beforeTarget,
                     fromIndex: reorderResult.fromIndex,
                     toIndex: reorderResult.toIndex,
                     orderedItemIds: reorderResult.orderedItemIds,
                     values: cloneValues(session),
                 },
             });
+            return true;
+        };
+
+        const finishPointerSorting = (commit = true) => {
+            if (!pointerDragState) {
+                clearDragState();
+                clearSortingPresentation();
+                return;
+            }
+
+            const currentPointerDrag = pointerDragState;
+            pointerDragState = null;
+            currentPointerDrag.cleanup?.();
+
+            let committed = false;
+            if (currentPointerDrag.active && draggingId) {
+                committed = commit && emitCurrentReorder(null, { useCommittedSync: false });
+                if (!committed) {
+                    restoreInitialListOrder();
+                    committedOrderedItemIds = [];
+                    cancelCommittedOrderSync();
+                }
+            }
+
+            clearDragState();
+            clearSortingPresentation();
+        };
+
+        const handleInlinePointerMove = (event) => {
+            if (!usesInlineDragPreview || !pointerDragState || event.pointerId !== pointerDragState.pointerId) {
+                return;
+            }
+
+            if (!pointerDragState.active) {
+                const deltaX = normalizeNumber(event.clientX, 0) - pointerDragState.startX;
+                const deltaY = normalizeNumber(event.clientY, 0) - pointerDragState.startY;
+                if (Math.hypot(deltaX, deltaY) < SORTABLE_POINTER_ACTIVATION_DISTANCE) {
+                    return;
+                }
+
+                committedOrderedItemIds = [];
+                cancelCommittedOrderSync();
+                draggingId = pointerDragState.itemId;
+                list.classList.add('is-sorting');
+                pointerDragState.itemElement?.classList.add('is-dragging');
+                pointerDragState.active = true;
+            }
+
+            event.preventDefault();
+            const target = findListDropTarget(list, {
+                clientX: event.clientX,
+                clientY: event.clientY,
+                target: event.target,
+            }, draggingId);
+            if (!target) {
+                clearListDropMarkers(list);
+                return;
+            }
+
+            applySortingPreview(target);
+        };
+
+        const handleInlinePointerUp = (event) => {
+            if (!usesInlineDragPreview || !pointerDragState || event.pointerId !== pointerDragState.pointerId) {
+                return;
+            }
+
+            event.preventDefault();
+            finishPointerSorting(true);
+        };
+
+        const handleInlinePointerCancel = (event) => {
+            if (!usesInlineDragPreview || !pointerDragState || event.pointerId !== pointerDragState.pointerId) {
+                return;
+            }
+
+            finishPointerSorting(false);
+        };
+
+        list.addEventListener('pointerdown', (event) => {
+            const handle = event.target?.closest?.('.cerebr-plugin-page-list__drag-handle');
+            const itemElement = handle?.closest?.('.cerebr-plugin-page-list__item');
+            const itemId = normalizeString(itemElement?.dataset?.itemId);
+            if (!itemId) {
+                return;
+            }
+
+            if (!usesInlineDragPreview) {
+                armedDragId = itemId;
+                return;
+            }
+
+            event.preventDefault();
+            const ownerDocument = list.ownerDocument || document;
+            const ownerWindow = ownerDocument.defaultView || window;
+            const moveListener = (pointerEvent) => handleInlinePointerMove(pointerEvent);
+            const upListener = (pointerEvent) => handleInlinePointerUp(pointerEvent);
+            const cancelListener = (pointerEvent) => handleInlinePointerCancel(pointerEvent);
+            const blurListener = () => finishPointerSorting(false);
+            ownerDocument.addEventListener('pointermove', moveListener, true);
+            ownerDocument.addEventListener('pointerup', upListener, true);
+            ownerDocument.addEventListener('pointercancel', cancelListener, true);
+            ownerWindow.addEventListener('blur', blurListener, true);
+            pointerDragState = {
+                pointerId: event.pointerId,
+                itemId,
+                itemElement,
+                startX: normalizeNumber(event.clientX, 0),
+                startY: normalizeNumber(event.clientY, 0),
+                active: false,
+                cleanup() {
+                    ownerDocument.removeEventListener('pointermove', moveListener, true);
+                    ownerDocument.removeEventListener('pointerup', upListener, true);
+                    ownerDocument.removeEventListener('pointercancel', cancelListener, true);
+                    ownerWindow.removeEventListener('blur', blurListener, true);
+                },
+            };
         });
 
-        list.addEventListener('dragend', () => {
-            draggingId = '';
-            armedDragId = '';
-            dropTargetId = '';
-            dropBeforeTarget = false;
-            clearListDropMarkers(list);
-            list.querySelectorAll('.is-dragging').forEach((row) => {
-                row.classList.remove('is-dragging');
-            });
+        list.addEventListener('pointerup', () => {
+            if (!usesInlineDragPreview) {
+                armedDragId = '';
+            }
         });
+
+        if (!usesInlineDragPreview) {
+            list.addEventListener('dragstart', (event) => {
+                const itemElement = event.target?.closest?.('.cerebr-plugin-page-list__item');
+                const itemId = normalizeString(itemElement?.dataset?.itemId);
+                if (!itemId || itemId !== armedDragId) {
+                    event.preventDefault();
+                    return;
+                }
+
+                committedOrderedItemIds = [];
+                cancelCommittedOrderSync();
+                draggingId = itemId;
+                list.classList.add('is-sorting');
+                itemElement.classList.add('is-dragging');
+                if (event.dataTransfer) {
+                    event.dataTransfer.effectAllowed = 'move';
+                    try {
+                        event.dataTransfer.clearData();
+                    } catch {}
+                    try {
+                        // Keep sortable drags internal so the browser/OS does not decorate them as text/link drags.
+                        event.dataTransfer.setData(SORTABLE_LIST_DRAG_DATA_TYPE, itemId);
+                    } catch {}
+                }
+            });
+
+            list.addEventListener('dragover', (event) => {
+                if (!draggingId) {
+                    return;
+                }
+
+                const target = findListDropTarget(list, {
+                    clientX: event.clientX,
+                    clientY: event.clientY,
+                    target: event.target,
+                }, draggingId);
+                if (!target) {
+                    clearListDropMarkers(list);
+                    return;
+                }
+
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'move';
+                applySortingPreview(target);
+            });
+
+            list.addEventListener('drop', (event) => {
+                if (!draggingId) {
+                    return;
+                }
+
+                event.preventDefault();
+                const target = findListDropTarget(list, {
+                    clientX: event.clientX,
+                    clientY: event.clientY,
+                    target: event.target,
+                }, draggingId);
+                const committed = emitCurrentReorder(target, { useCommittedSync: true });
+                if (!committed) {
+                    restoreInitialListOrder();
+                }
+            });
+
+            list.addEventListener('dragend', () => {
+                const shouldResyncCommittedOrder = committedOrderedItemIds.length > 0;
+                if (!shouldResyncCommittedOrder) {
+                    restoreInitialListOrder();
+                }
+                clearDragState();
+                clearSortingPresentation();
+
+                if (shouldResyncCommittedOrder) {
+                    scheduleCommittedOrderSync();
+                    return;
+                }
+
+                cancelCommittedOrderSync();
+            });
+        }
     }
 
     return list;

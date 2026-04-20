@@ -884,6 +884,17 @@
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cerebr-focus-border-color) 52%, transparent);
 }
 
+.cerebr-plugin-page-list__item--with-body {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.cerebr-plugin-page-list__item--with-body > .cerebr-plugin-page-list__row,
+.cerebr-plugin-page-list__item--with-body > .cerebr-plugin-page-list__body {
+    width: 100%;
+    box-sizing: border-box;
+}
+
 .cerebr-plugin-page-list__row {
     display: flex;
     align-items: center;
@@ -938,24 +949,56 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    min-width: 24px;
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
     padding: 0;
-    border: 0;
-    background: transparent;
+    border: 1px solid color-mix(in srgb, var(--cerebr-settings-section-border) 84%, transparent);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--cerebr-settings-pill-bg) 88%, transparent);
     color: var(--cerebr-text-secondary-color);
     cursor: grab;
     user-select: none;
+    touch-action: none;
+    -webkit-user-drag: none;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.cerebr-plugin-page-list__drag-handle:hover,
+.cerebr-plugin-page-list__drag-handle:focus-visible {
+    border-color: color-mix(in srgb, var(--cerebr-focus-border-color) 46%, transparent);
+    background: color-mix(in srgb, var(--cerebr-settings-pill-bg) 64%, var(--cerebr-message-ai-bg));
+    color: var(--cerebr-text-color);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.1);
 }
 
 .cerebr-plugin-page-list__drag-handle:active {
     cursor: grabbing;
+    transform: translateY(0);
 }
 
 .cerebr-plugin-page-list__drag-handle svg {
     width: 16px;
     height: 16px;
     fill: currentColor;
+}
+
+.cerebr-plugin-page-list--drag-handle-compact .cerebr-plugin-page-list__drag-handle,
+.cerebr-plugin-page-list__drag-handle[data-variant="compact"] {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    border-radius: 10px;
+}
+
+.cerebr-plugin-page-list--drag-handle-comfortable .cerebr-plugin-page-list__drag-handle,
+.cerebr-plugin-page-list__drag-handle[data-variant="comfortable"] {
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+    border-radius: 14px;
 }
 
 .cerebr-plugin-page-list__token {
@@ -997,7 +1040,7 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
-    padding: 0 15px 15px;
+    padding: 14px 15px 15px;
     border-top: 1px solid color-mix(in srgb, var(--cerebr-settings-section-border) 76%, transparent);
 }
 
@@ -1013,8 +1056,39 @@
     padding: 12px 16px;
 }
 
+.cerebr-plugin-page-list--sortable .cerebr-plugin-page-list__body {
+    padding: 14px 16px 16px;
+}
+
+.cerebr-plugin-page-list--sortable.is-sorting .cerebr-plugin-page-list__item {
+    transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease, filter 0.18s ease, transform 0.18s ease;
+}
+
+.cerebr-plugin-page-list--sortable.is-sorting .cerebr-plugin-page-list__item:hover,
+.cerebr-plugin-page-list--sortable.is-sorting .cerebr-plugin-page-list__item:focus-within {
+    transform: none;
+}
+
 .cerebr-plugin-page-list--sortable .cerebr-plugin-page-list__item.is-dragging {
     opacity: 0.4;
+}
+
+.cerebr-plugin-page-list--sorting-emphasized.is-sorting .cerebr-plugin-page-list__item:not(.is-dragging) {
+    opacity: 0.64;
+    filter: blur(0.9px) saturate(0.84);
+    transform: scale(0.992);
+}
+
+.cerebr-plugin-page-list--drag-preview-inline .cerebr-plugin-page-list__item.is-dragging {
+    opacity: 1;
+    border-color: color-mix(in srgb, var(--cerebr-focus-border-color) 42%, transparent);
+    background: color-mix(in srgb, var(--cerebr-settings-section-bg) 74%, var(--cerebr-message-ai-bg));
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+}
+
+.cerebr-plugin-page-list--sorting-emphasized.cerebr-plugin-page-list--drag-preview-inline .cerebr-plugin-page-list__item.is-dragging {
+    transform: scale(1.01);
+    z-index: 1;
 }
 
 .cerebr-plugin-page-list--sortable .cerebr-plugin-page-list__item::before,
@@ -1026,6 +1100,11 @@
     height: 3px;
     border-radius: 999px;
     background: transparent;
+}
+
+.cerebr-plugin-page-list--drop-indicator-none .cerebr-plugin-page-list__item::before,
+.cerebr-plugin-page-list--drop-indicator-none .cerebr-plugin-page-list__item::after {
+    display: none;
 }
 
 .cerebr-plugin-page-list--sortable .cerebr-plugin-page-list__item.drop-before::before {
