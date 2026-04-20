@@ -1092,12 +1092,28 @@
 }
 
 .cerebr-plugin-page-pagination__group--center {
-    justify-content: center;
-    margin-inline: auto;
+    justify-content: flex-start;
+    flex: 1 1 auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
 }
 
 .cerebr-plugin-page-pagination__group--end {
     justify-content: flex-end;
+}
+
+.cerebr-plugin-page-pagination__group--center::-webkit-scrollbar {
+    display: none;
+}
+
+.cerebr-plugin-page-pagination__strip {
+    min-width: 100%;
+    width: max-content;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
 }
 
 .cerebr-plugin-page-pagination__control {
@@ -1129,7 +1145,13 @@
     position: relative;
     display: inline-flex;
     align-items: center;
-    min-width: 62px;
+    min-width: max(62px, calc(var(--cerebr-plugin-page-pagination-field-ch, 4) * 1ch + 24px));
+}
+
+.cerebr-plugin-page-pagination__number {
+    display: inline-flex;
+    align-items: center;
+    min-width: max(54px, calc(var(--cerebr-plugin-page-pagination-field-ch, 4) * 1ch + 22px));
 }
 
 .cerebr-plugin-page-pagination__select-input {
@@ -1148,7 +1170,30 @@
     line-height: 1.2;
 }
 
+.cerebr-plugin-page-pagination__number-input {
+    appearance: textfield;
+    min-width: 0;
+    width: 100%;
+    min-height: 28px;
+    padding: 0 8px;
+    border-radius: 9px;
+    border: 1px solid color-mix(in srgb, var(--cerebr-card-border-color) 88%, transparent);
+    background: var(--cerebr-settings-card-bg);
+    color: var(--cerebr-text-color);
+    text-align: center;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
 .cerebr-plugin-page-pagination__select-input:focus-visible {
+    outline: none;
+    border-color: var(--cerebr-highlight-border-color);
+    box-shadow: 0 0 0 1px var(--cerebr-highlight-border-color);
+}
+
+.cerebr-plugin-page-pagination__number-input:focus-visible {
     outline: none;
     border-color: var(--cerebr-highlight-border-color);
     box-shadow: 0 0 0 1px var(--cerebr-highlight-border-color);
@@ -1157,6 +1202,17 @@
 .cerebr-plugin-page-pagination__select-input:disabled {
     opacity: 0.55;
     cursor: default;
+}
+
+.cerebr-plugin-page-pagination__number-input:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.cerebr-plugin-page-pagination__number-input::-webkit-outer-spin-button,
+.cerebr-plugin-page-pagination__number-input::-webkit-inner-spin-button {
+    appearance: none;
+    margin: 0;
 }
 
 .cerebr-plugin-page-pagination__select-chevron {

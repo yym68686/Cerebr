@@ -186,22 +186,49 @@ function normalizeFieldDescriptor(field = {}, index = 0) {
     };
 }
 
+function measureTextLength(value = '') {
+    return Array.from(String(value ?? '')).length;
+}
+
 function normalizePaginationControlDescriptor(control = {}, index = 0) {
     const fieldId = normalizeString(control?.fieldId, `pagination-field-${index}`);
-    const options = Array.isArray(control?.options)
-        ? control.options.map((option, optionIndex) => normalizeFieldOption(option, optionIndex))
-        : [];
+    const type = normalizeString(control?.type, 'select').toLowerCase();
 
-    if (!fieldId || options.length === 0) {
+    if (!fieldId) {
         return null;
     }
 
-    return {
+    const baseDescriptor = {
         fieldId,
+        type: type === 'input' ? 'number' : type,
         label: normalizeString(control?.label),
         value: control?.value == null ? '' : String(control.value),
         disabled: !!control?.disabled,
         suffix: normalizeString(control?.suffix),
+    };
+
+    if (baseDescriptor.type === 'number') {
+        const min = Math.max(1, Math.floor(normalizeNumber(control?.min, 1)));
+        const normalizedMax = Math.floor(normalizeNumber(control?.max, 0));
+        return {
+            ...baseDescriptor,
+            min,
+            max: normalizedMax > 0 ? Math.max(min, normalizedMax) : 0,
+            step: Math.max(1, Math.floor(normalizeNumber(control?.step, 1))),
+            placeholder: normalizeString(control?.placeholder),
+        };
+    }
+
+    const options = Array.isArray(control?.options)
+        ? control.options.map((option, optionIndex) => normalizeFieldOption(option, optionIndex))
+        : [];
+
+    if (options.length === 0) {
+        return null;
+    }
+
+    return {
+        ...baseDescriptor,
         options,
     };
 }
@@ -1155,6 +1182,10 @@ function createPaginationSelectControl({
     }
 
     const selectWrapper = createElement('span', 'cerebr-plugin-page-pagination__select');
+    selectWrapper.style.setProperty(
+        '--cerebr-plugin-page-pagination-field-ch',
+        String(resolvePaginationControlWidthCh(descriptor))
+    );
     const select = document.createElement('select');
     select.className = 'cerebr-plugin-page-pagination__select-input';
     select.disabled = !!descriptor.disabled;
@@ -1207,6 +1238,162 @@ function createPaginationSelectControl({
 
     wrapper.appendChild(shell);
     return wrapper;
+}
+
+function resolvePaginationControlWidthCh(descriptor = {}) {
+    const lengths = [
+        measureTextLength(descriptor?.value),
+        measureTextLength(descriptor?.placeholder),
+    ];
+
+    if (Array.isArray(descriptor?.options)) {
+        descriptor.options.forEach((option) => {
+            lengths.push(measureTextLength(option?.label));
+            lengths.push(measureTextLength(option?.value));
+        });
+    }
+
+    if (descriptor?.type === 'number') {
+        lengths.push(measureTextLength(descriptor?.min));
+        lengths.push(measureTextLength(descriptor?.max));
+    }
+
+    return Math.min(10, Math.max(4, ...lengths));
+}
+
+function normalizePaginationNumberValue(rawValue, descriptor = {}, fallback = '') {
+    const min = Math.max(1, Math.floor(normalizeNumber(descriptor?.min, 1)));
+    const max = Math.floor(normalizeNumber(descriptor?.max, 0));
+    const numericValue = Number(String(rawValue ?? '').trim());
+    if (!Number.isFinite(numericValue)) {
+        return String(fallback ?? descriptor?.value ?? '');
+    }
+
+    let nextValue = Math.floor(numericValue);
+    nextValue = Math.max(min, nextValue);
+    if (max > 0) {
+        nextValue = Math.min(max, nextValue);
+    }
+    return String(nextValue);
+}
+
+function createPaginationNumberControl({
+    descriptor,
+    session,
+    dispatchEvent,
+}) {
+    const wrapper = createElement('div', 'cerebr-plugin-page-pagination__control');
+    const shell = createElement('div', 'cerebr-plugin-page-pagination__control-shell');
+
+    if (descriptor.label) {
+        const label = createElement('span', 'cerebr-plugin-page-pagination__control-label');
+        label.textContent = descriptor.label;
+        shell.appendChild(label);
+    }
+
+    const inputWrapper = createElement('span', 'cerebr-plugin-page-pagination__number');
+    inputWrapper.style.setProperty(
+        '--cerebr-plugin-page-pagination-field-ch',
+        String(resolvePaginationControlWidthCh(descriptor))
+    );
+
+    const input = document.createElement('input');
+    input.className = 'cerebr-plugin-page-pagination__number-input';
+    input.type = 'number';
+    input.inputMode = 'numeric';
+    input.disabled = !!descriptor.disabled;
+    input.step = String(descriptor.step || 1);
+    input.min = String(Math.max(1, descriptor.min || 1));
+    if (descriptor.max > 0) {
+        input.max = String(descriptor.max);
+    }
+    if (descriptor.placeholder) {
+        input.placeholder = descriptor.placeholder;
+    }
+
+    const currentValue = Object.prototype.hasOwnProperty.call(session?.fieldValues || {}, descriptor.fieldId)
+        ? String(session.fieldValues[descriptor.fieldId] ?? '')
+        : String(descriptor.value ?? '');
+    let lastCommittedValue = normalizePaginationNumberValue(
+        currentValue,
+        descriptor,
+        descriptor.value
+    );
+    input.value = lastCommittedValue;
+
+    const emitChange = () => {
+        const nextValue = normalizePaginationNumberValue(
+            input.value,
+            descriptor,
+            lastCommittedValue
+        );
+        input.value = nextValue;
+
+        if (nextValue === lastCommittedValue) {
+            updateFieldValue(session, descriptor.fieldId, nextValue);
+            return;
+        }
+
+        lastCommittedValue = nextValue;
+        updateFieldValue(session, descriptor.fieldId, nextValue);
+        dispatchInteraction({
+            session,
+            dispatchEvent,
+            payload: {
+                type: 'change',
+                fieldId: descriptor.fieldId,
+                value: cloneValue(nextValue, nextValue),
+                values: cloneValues(session),
+            },
+        });
+    };
+
+    input.addEventListener('change', emitChange);
+    input.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') {
+            return;
+        }
+        event.preventDefault();
+        emitChange();
+        input.blur();
+    });
+
+    if (!Object.prototype.hasOwnProperty.call(session.fieldValues || {}, descriptor.fieldId)) {
+        updateFieldValue(session, descriptor.fieldId, lastCommittedValue);
+    }
+    session.activeFieldIds.add(descriptor.fieldId);
+
+    inputWrapper.appendChild(input);
+    shell.appendChild(inputWrapper);
+
+    if (descriptor.suffix) {
+        const suffix = createElement('span', 'cerebr-plugin-page-pagination__control-suffix');
+        suffix.textContent = descriptor.suffix;
+        shell.appendChild(suffix);
+    }
+
+    wrapper.appendChild(shell);
+    return wrapper;
+}
+
+function createPaginationControl({
+    descriptor,
+    session,
+    dispatchEvent,
+}) {
+    if (descriptor?.type === 'number') {
+        return createPaginationNumberControl({
+            descriptor,
+            session,
+            dispatchEvent,
+        });
+    }
+
+    return createPaginationSelectControl({
+        descriptor,
+        session,
+        dispatchEvent,
+    });
 }
 
 function createPaginationButton({
@@ -1266,7 +1453,7 @@ function renderPagination({
 
     if (descriptor.pageSize) {
         const startGroup = createElement('div', 'cerebr-plugin-page-pagination__group cerebr-plugin-page-pagination__group--start');
-        startGroup.appendChild(createPaginationSelectControl({
+        startGroup.appendChild(createPaginationControl({
             descriptor: descriptor.pageSize,
             session,
             dispatchEvent,
@@ -1277,8 +1464,9 @@ function renderPagination({
     const hasCenterControls = !!descriptor.previousAction || !!descriptor.nextAction || descriptor.pages.length > 0;
     if (hasCenterControls) {
         const centerGroup = createElement('div', 'cerebr-plugin-page-pagination__group cerebr-plugin-page-pagination__group--center');
+        const centerStrip = createElement('div', 'cerebr-plugin-page-pagination__strip');
         if (descriptor.previousAction) {
-            centerGroup.appendChild(createPaginationButton({
+            centerStrip.appendChild(createPaginationButton({
                 descriptor: descriptor.previousAction,
                 session,
                 dispatchEvent,
@@ -1286,26 +1474,27 @@ function renderPagination({
             }));
         }
         descriptor.pages.forEach((page) => {
-            centerGroup.appendChild(createPaginationButton({
+            centerStrip.appendChild(createPaginationButton({
                 descriptor: page,
                 session,
                 dispatchEvent,
             }));
         });
         if (descriptor.nextAction) {
-            centerGroup.appendChild(createPaginationButton({
+            centerStrip.appendChild(createPaginationButton({
                 descriptor: descriptor.nextAction,
                 session,
                 dispatchEvent,
                 className: 'cerebr-plugin-page-pagination__button--arrow',
             }));
         }
+        centerGroup.appendChild(centerStrip);
         pagination.appendChild(centerGroup);
     }
 
     if (descriptor.jump) {
         const endGroup = createElement('div', 'cerebr-plugin-page-pagination__group cerebr-plugin-page-pagination__group--end');
-        endGroup.appendChild(createPaginationSelectControl({
+        endGroup.appendChild(createPaginationControl({
             descriptor: descriptor.jump,
             session,
             dispatchEvent,
