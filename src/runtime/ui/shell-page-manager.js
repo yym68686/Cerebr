@@ -130,6 +130,7 @@ export function createShellPageManager({
             viewStateKey: '',
             renderMode: '',
             fieldValues: {},
+            renderedFieldValues: {},
             activeFieldIds: new Set(),
         };
         sessions.set(normalizedPluginId, session);
@@ -201,6 +202,7 @@ export function createShellPageManager({
 
         if (shouldResetViewState) {
             session.fieldValues = {};
+            session.renderedFieldValues = {};
         }
 
         if (titleElement instanceof HTMLElement) {

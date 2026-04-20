@@ -40,6 +40,10 @@ function cloneValue(value, fallback = null) {
     }
 }
 
+function valuesEqual(left, right) {
+    return Object.is(left, right);
+}
+
 function cloneRect(rect = null) {
     if (!rect || typeof rect !== 'object') {
         return null;
@@ -504,6 +508,94 @@ function updateFieldValue(session, fieldId, value) {
     session.fieldValues[fieldId] = value;
 }
 
+function collectViewFieldValues(view = {}) {
+    const values = {};
+
+    function assignFieldValue(fieldId, value) {
+        const normalizedFieldId = normalizeString(fieldId);
+        if (!normalizedFieldId) {
+            return;
+        }
+        values[normalizedFieldId] = cloneValue(value, value);
+    }
+
+    function visitContentNode(node = {}) {
+        if (!node || typeof node !== 'object') {
+            return;
+        }
+
+        if (node.kind === 'form' && Array.isArray(node.fields)) {
+            node.fields.forEach((field) => {
+                assignFieldValue(field?.id, field?.value);
+            });
+            return;
+        }
+
+        if (node.kind === 'pagination') {
+            assignFieldValue(node?.pageSize?.fieldId, node?.pageSize?.value);
+            assignFieldValue(node?.jump?.fieldId, node?.jump?.value);
+            return;
+        }
+    }
+
+    function visitCard(card = {}) {
+        if (!card || typeof card !== 'object' || !Array.isArray(card.body)) {
+            return;
+        }
+        card.body.forEach(visitContentNode);
+    }
+
+    if (!Array.isArray(view?.sections)) {
+        return values;
+    }
+
+    view.sections.forEach((section) => {
+        if (!section || typeof section !== 'object') {
+            return;
+        }
+
+        if (section.kind === 'columns' && Array.isArray(section.columns)) {
+            section.columns.forEach((column) => {
+                if (!Array.isArray(column?.blocks)) {
+                    return;
+                }
+                column.blocks.forEach(visitCard);
+            });
+            return;
+        }
+
+        visitCard(section);
+    });
+
+    return values;
+}
+
+function reconcileSessionFieldValues(session, view) {
+    if (!session || typeof session !== 'object') {
+        return;
+    }
+
+    if (!session.fieldValues || typeof session.fieldValues !== 'object') {
+        session.fieldValues = {};
+    }
+
+    const nextRenderedFieldValues = collectViewFieldValues(view);
+    const previousRenderedFieldValues = session.renderedFieldValues && typeof session.renderedFieldValues === 'object'
+        ? session.renderedFieldValues
+        : {};
+
+    Object.entries(nextRenderedFieldValues).forEach(([fieldId, nextValue]) => {
+        const hasPreviousRenderedValue = Object.prototype.hasOwnProperty.call(previousRenderedFieldValues, fieldId);
+        const hasSessionValue = Object.prototype.hasOwnProperty.call(session.fieldValues, fieldId);
+        const previousRenderedValue = previousRenderedFieldValues[fieldId];
+        if (!hasSessionValue || !hasPreviousRenderedValue || !valuesEqual(previousRenderedValue, nextValue)) {
+            session.fieldValues[fieldId] = cloneValue(nextValue, nextValue);
+        }
+    });
+
+    session.renderedFieldValues = nextRenderedFieldValues;
+}
+
 function readFieldValue(session, field) {
     if (Object.prototype.hasOwnProperty.call(session?.fieldValues || {}, field.id)) {
         return session.fieldValues[field.id];
@@ -517,6 +609,92 @@ function dispatchInteraction({ session, dispatchEvent, payload }) {
         ...payload,
         page: { ...session.page },
     });
+}
+
+function captureFocusedFieldState(rootElement = null) {
+    if (!(rootElement instanceof HTMLElement)) {
+        return null;
+    }
+
+    const activeElement = document.activeElement;
+    if (!(activeElement instanceof HTMLElement) || !rootElement.contains(activeElement)) {
+        return null;
+    }
+
+    const fieldId = normalizeString(activeElement.dataset?.cerebrFieldId);
+    if (!fieldId) {
+        return null;
+    }
+
+    const state = {
+        fieldId,
+        value: typeof activeElement.value === 'string'
+            ? activeElement.value
+            : null,
+        selectionStart: null,
+        selectionEnd: null,
+        selectionDirection: 'none',
+    };
+
+    if (typeof activeElement.selectionStart === 'number' && typeof activeElement.selectionEnd === 'number') {
+        state.selectionStart = activeElement.selectionStart;
+        state.selectionEnd = activeElement.selectionEnd;
+        state.selectionDirection = activeElement.selectionDirection || 'none';
+    }
+
+    return state;
+}
+
+function findFieldControl(rootElement = null, fieldId = '') {
+    if (!(rootElement instanceof HTMLElement)) {
+        return null;
+    }
+
+    const normalizedFieldId = normalizeString(fieldId);
+    if (!normalizedFieldId) {
+        return null;
+    }
+
+    return Array.from(rootElement.querySelectorAll('[data-cerebr-field-id]')).find((element) => {
+        return normalizeString(element.dataset?.cerebrFieldId) === normalizedFieldId;
+    }) || null;
+}
+
+function restoreFocusedFieldState(rootElement = null, focusedFieldState = null) {
+    if (!(rootElement instanceof HTMLElement) || !focusedFieldState) {
+        return;
+    }
+
+    const control = findFieldControl(rootElement, focusedFieldState.fieldId);
+    if (!(control instanceof HTMLElement)) {
+        return;
+    }
+
+    try {
+        control.focus({ preventScroll: true });
+    } catch {
+        control.focus();
+    }
+
+    if (focusedFieldState.value !== null && typeof control.value === 'string' && control.value !== focusedFieldState.value) {
+        return;
+    }
+
+    if (
+        typeof focusedFieldState.selectionStart === 'number'
+        && typeof focusedFieldState.selectionEnd === 'number'
+        && typeof control.setSelectionRange === 'function'
+    ) {
+        try {
+            control.setSelectionRange(
+                focusedFieldState.selectionStart,
+                focusedFieldState.selectionEnd,
+                focusedFieldState.selectionDirection || 'none'
+            );
+        } catch {
+            // Ignore controls that do not support selection restoration.
+        }
+    }
 }
 
 function createBadgeElement(badge) {
@@ -799,6 +977,7 @@ function createFieldElement({
         toggle.appendChild(copy);
         control = document.createElement('input');
         control.id = controlId;
+        control.dataset.cerebrFieldId = field.id;
         control.className = 'cerebr-plugin-page-switch__input';
         control.type = 'checkbox';
         control.checked = !!currentValue;
@@ -812,6 +991,7 @@ function createFieldElement({
     } else if (field.type === 'textarea') {
         control = createElement('textarea', 'cerebr-plugin-page-input cerebr-plugin-page-input--textarea');
         control.id = controlId;
+        control.dataset.cerebrFieldId = field.id;
         control.rows = field.rows;
         control.value = String(currentValue ?? '');
         control.placeholder = field.placeholder;
@@ -822,6 +1002,7 @@ function createFieldElement({
         const colorField = createElement('span', 'cerebr-plugin-page-color-field');
         control = createElement('input', 'cerebr-plugin-page-input cerebr-plugin-page-input--color');
         control.id = controlId;
+        control.dataset.cerebrFieldId = field.id;
         control.type = 'color';
         control.value = String(currentValue || '#000000');
         control.disabled = !!field.disabled;
@@ -835,6 +1016,7 @@ function createFieldElement({
         const selectWrapper = createElement('span', 'cerebr-plugin-page-select');
         control = createElement('select', 'cerebr-plugin-page-input');
         control.id = controlId;
+        control.dataset.cerebrFieldId = field.id;
         field.options.forEach((option) => {
             const optionElement = document.createElement('option');
             optionElement.value = option.value;
@@ -852,6 +1034,7 @@ function createFieldElement({
     } else {
         control = createElement('input', 'cerebr-plugin-page-input');
         control.id = controlId;
+        control.dataset.cerebrFieldId = field.id;
         control.type = 'text';
         control.value = String(currentValue ?? '');
         control.placeholder = field.placeholder;
@@ -1188,6 +1371,7 @@ function createPaginationSelectControl({
     );
     const select = document.createElement('select');
     select.className = 'cerebr-plugin-page-pagination__select-input';
+    select.dataset.cerebrFieldId = descriptor.fieldId;
     select.disabled = !!descriptor.disabled;
 
     const currentValue = Object.prototype.hasOwnProperty.call(session?.fieldValues || {}, descriptor.fieldId)
@@ -1299,6 +1483,7 @@ function createPaginationNumberControl({
 
     const input = document.createElement('input');
     input.className = 'cerebr-plugin-page-pagination__number-input';
+    input.dataset.cerebrFieldId = descriptor.fieldId;
     input.type = 'number';
     input.inputMode = 'numeric';
     input.disabled = !!descriptor.disabled;
@@ -1769,7 +1954,9 @@ export function renderShellPageView({
         return false;
     }
 
+    const focusedFieldState = captureFocusedFieldState(bodyElement);
     const view = normalizeViewDescriptor(session?.view || {});
+    reconcileSessionFieldValues(session, view);
     session.activeFieldIds = new Set();
 
     bodyElement.replaceChildren();
@@ -1786,5 +1973,6 @@ export function renderShellPageView({
     });
 
     bodyElement.appendChild(root);
+    restoreFocusedFieldState(bodyElement, focusedFieldState);
     return true;
 }
