@@ -259,6 +259,89 @@ function createMainContentNode({ messageText, imageTagNodes, sender }) {
     return mainContent;
 }
 
+const REASONING_TOGGLE_DRAG_THRESHOLD_PX = 6;
+
+function selectionIntersectsElement(selection, element) {
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0 || !element) {
+        return false;
+    }
+
+    const { anchorNode, focusNode } = selection;
+    if ((anchorNode && element.contains(anchorNode)) || (focusNode && element.contains(focusNode))) {
+        return true;
+    }
+
+    for (let index = 0; index < selection.rangeCount; index += 1) {
+        const range = selection.getRangeAt(index);
+        if (!range || typeof range.intersectsNode !== 'function') continue;
+        try {
+            if (range.intersectsNode(element)) {
+                return true;
+            }
+        } catch {
+            // Detached nodes can throw here while the DOM is updating.
+        }
+    }
+
+    return false;
+}
+
+function attachReasoningToggle(reasoningDiv) {
+    if (!reasoningDiv || reasoningDiv.__cerebrReasoningToggleAttached) return;
+    reasoningDiv.__cerebrReasoningToggleAttached = true;
+
+    const pointerState = {
+        pointerId: null,
+        startX: 0,
+        startY: 0,
+        moved: false,
+    };
+
+    const resetPointerState = () => {
+        pointerState.pointerId = null;
+        pointerState.startX = 0;
+        pointerState.startY = 0;
+        pointerState.moved = false;
+    };
+
+    reasoningDiv.addEventListener('pointerdown', (event) => {
+        if (!event.isPrimary || event.button !== 0) {
+            resetPointerState();
+            return;
+        }
+
+        pointerState.pointerId = event.pointerId;
+        pointerState.startX = event.clientX;
+        pointerState.startY = event.clientY;
+        pointerState.moved = false;
+    });
+
+    reasoningDiv.addEventListener('pointermove', (event) => {
+        if (pointerState.pointerId !== event.pointerId || pointerState.moved) return;
+
+        const deltaX = Math.abs(event.clientX - pointerState.startX);
+        const deltaY = Math.abs(event.clientY - pointerState.startY);
+        if (deltaX > REASONING_TOGGLE_DRAG_THRESHOLD_PX || deltaY > REASONING_TOGGLE_DRAG_THRESHOLD_PX) {
+            pointerState.moved = true;
+        }
+    });
+
+    reasoningDiv.addEventListener('pointercancel', resetPointerState);
+
+    reasoningDiv.addEventListener('click', (event) => {
+        // 拖拽选中文本后浏览器仍可能补发 click，这里只响应真正的点击。
+        const selection = typeof window.getSelection === 'function' ? window.getSelection() : null;
+        const shouldIgnoreClick = pointerState.moved || selectionIntersectsElement(selection, reasoningDiv);
+        resetPointerState();
+
+        if (shouldIgnoreClick) {
+            return;
+        }
+
+        event.currentTarget.classList.toggle('collapsed');
+    });
+}
+
 function createReasoningWrapperNode({ reasoningContent, plainTextContent = '' }) {
     if (!reasoningContent) return null;
 
@@ -282,9 +365,7 @@ function createReasoningWrapperNode({ reasoningContent, plainTextContent = '' })
     if (plainTextContent) {
         reasoningDiv.classList.add('collapsed');
     }
-    reasoningDiv.onclick = function() {
-        this.classList.toggle('collapsed');
-    };
+    attachReasoningToggle(reasoningDiv);
 
     reasoningWrapper.appendChild(reasoningDiv);
     return reasoningWrapper;
@@ -518,9 +599,7 @@ export async function updateAIMessage({
                     reasoningDiv.appendChild(reasoningTextDiv);
 
                     // 添加点击事件处理折叠/展开
-                    reasoningDiv.onclick = function() {
-                        this.classList.toggle('collapsed');
-                    };
+                    attachReasoningToggle(reasoningDiv);
 
                     reasoningWrapper.appendChild(reasoningDiv);
 
