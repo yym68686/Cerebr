@@ -28,6 +28,7 @@ const IDB_DB_VERSION = 1;
 const IDB_STORE_NAME = 'keyValueStore';
 
 let dbPromise = null;
+let hasWarnedWebSyncLocalStorageFallback = false;
 
 const CHATS_INDEX_V2_KEY = 'cerebr_chats_index_v2';
 const CHAT_V2_PREFIX = 'cerebr_chat_v2_';
@@ -36,6 +37,15 @@ const READING_PROGRESS_V1_PREFIX = 'cerebr_reading_progress_v1_';
 function isChatStorageKey(key) {
     return key === CHATS_INDEX_V2_KEY ||
         (typeof key === 'string' && (key.startsWith(CHAT_V2_PREFIX) || key.startsWith(READING_PROGRESS_V1_PREFIX)));
+}
+
+function warnWebSyncLocalStorageFallback() {
+    if (hasWarnedWebSyncLocalStorageFallback) {
+        return;
+    }
+
+    hasWarnedWebSyncLocalStorageFallback = true;
+    console.warn('Sync storage in web environment is using localStorage fallback, which has size limitations.');
 }
 
 function getDb() {
@@ -287,7 +297,7 @@ export const syncStorageAdapter = {
             // 对于 sync，localStorage 可能是个更简单的回退，因为它本身容量就小
             // 或者您也可以为 sync 实现单独的 IndexedDB 存储（例如不同的 object store）
             // 这里暂时保持 localStorage 作为示例，但请注意其容量限制
-            console.warn("Sync storage in web environment is using localStorage fallback, which has size limitations.");
+            warnWebSyncLocalStorageFallback();
             if (Array.isArray(key)) {
                 const result = {};
                 for (const k of key) {
@@ -320,7 +330,7 @@ export const syncStorageAdapter = {
         if (isExtensionEnvironment) {
             await chrome.storage.sync.remove(keys);
         } else {
-            console.warn("Sync storage in web environment is using localStorage fallback, which has size limitations.");
+            warnWebSyncLocalStorageFallback();
             const keysArray = Array.isArray(keys) ? keys : [keys];
             for (const key of keysArray) {
                 localStorage.removeItem(`sync_${key}`);
@@ -333,7 +343,7 @@ export const syncStorageAdapter = {
         if (isExtensionEnvironment) {
             await chrome.storage.sync.set(data);
         } else {
-            console.warn("Sync storage in web environment is using localStorage fallback, which has size limitations.");
+            warnWebSyncLocalStorageFallback();
             for (const [key, value] of Object.entries(data)) {
                 try {
                     localStorage.setItem(`sync_${key}`, JSON.stringify(value));

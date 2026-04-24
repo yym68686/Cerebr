@@ -1828,6 +1828,7 @@ async function onDomReady() {
     const SYSTEM_PROMPT_LOCAL_DEBOUNCE_MS = 200;
     const SYSTEM_PROMPT_SYNC_DEBOUNCE_MS = 2000;
     const API_CONFIGS_SYNC_DEBOUNCE_MS = 800;
+    const API_CONFIG_META_KEYS = ['apiConfigs', 'selectedConfigIndex'];
 
     const getSystemPromptKey = (configId) => `${SYSTEM_PROMPT_KEY_PREFIX}${configId}`;
     const getSystemPromptLocalOnlyKey = (configId) => `${SYSTEM_PROMPT_LOCAL_ONLY_KEY_PREFIX}${configId}`;
@@ -1880,6 +1881,47 @@ async function onDomReady() {
         };
     };
 
+    const readApiConfigMeta = async () => {
+        if (isExtensionEnvironment) {
+            return syncStorageAdapter.get(API_CONFIG_META_KEYS);
+        }
+
+        const storedResult = await storageAdapter.get(API_CONFIG_META_KEYS);
+        const missingKeys = API_CONFIG_META_KEYS.filter((key) => typeof storedResult?.[key] === 'undefined');
+
+        if (missingKeys.length === 0) {
+            return storedResult;
+        }
+
+        const legacyResult = await syncStorageAdapter.get(missingKeys).catch(() => ({}));
+        const migrationPayload = {};
+
+        missingKeys.forEach((key) => {
+            if (typeof legacyResult?.[key] !== 'undefined') {
+                migrationPayload[key] = legacyResult[key];
+            }
+        });
+
+        if (Object.keys(migrationPayload).length > 0) {
+            await storageAdapter.set(migrationPayload);
+            syncStorageAdapter.remove(Object.keys(migrationPayload)).catch(() => {});
+        }
+
+        return {
+            ...legacyResult,
+            ...storedResult,
+        };
+    };
+
+    const writeApiConfigMeta = async (payload) => {
+        if (isExtensionEnvironment) {
+            await syncStorageAdapter.set(payload);
+            return;
+        }
+
+        await storageAdapter.set(payload);
+    };
+
     const systemPromptPersistStateByConfigId = new Map();
 
     const persistSystemPromptLocalNow = async ({ configId, systemPrompt }) => {
@@ -1888,6 +1930,10 @@ async function onDomReady() {
     };
 
     const persistSystemPromptSyncNow = async ({ configId, systemPrompt }) => {
+        if (!isExtensionEnvironment) {
+            return;
+        }
+
         const promptKey = getSystemPromptKey(configId);
         const localOnlyKey = getSystemPromptLocalOnlyKey(configId);
         const byteLength = getUtf8ByteLength(systemPrompt);
@@ -1914,7 +1960,9 @@ async function onDomReady() {
 
         const byteLength = getUtf8ByteLength(systemPrompt);
         if (config.advancedSettings) {
-            config.advancedSettings.systemPromptLocalOnly = byteLength > SYSTEM_PROMPT_SYNC_THRESHOLD_BYTES;
+            config.advancedSettings.systemPromptLocalOnly = isExtensionEnvironment
+                ? byteLength > SYSTEM_PROMPT_SYNC_THRESHOLD_BYTES
+                : false;
         }
 
         const prev = systemPromptPersistStateByConfigId.get(configId) || {};
@@ -2016,7 +2064,9 @@ async function onDomReady() {
                     systemPromptPersistStateByConfigId.delete(configId);
 
                     storageAdapter.remove(promptKey).catch(() => {});
-                    syncStorageAdapter.remove([promptKey, localOnlyKey]).catch(() => {});
+                    if (isExtensionEnvironment) {
+                        syncStorageAdapter.remove([promptKey, localOnlyKey]).catch(() => {});
+                    }
                 }
             }),
             selectedIndex: selectedConfigIndex
@@ -2026,8 +2076,7 @@ async function onDomReady() {
     // 从存储加载配置
     async function loadAPIConfigs() {
         try {
-            // 统一使用 syncStorageAdapter 来实现配置同步
-            const result = await syncStorageAdapter.get(['apiConfigs', 'selectedConfigIndex']);
+            const result = await readApiConfigMeta();
 
             // 分别检查每个配置项
             if (result.apiConfigs) {
@@ -2059,7 +2108,9 @@ async function onDomReady() {
             // 加载系统提示（优先本地，其次同步）
             const promptKeys = apiConfigs.map((c) => getSystemPromptKey(c.id));
             const promptLocalOnlyKeys = apiConfigs.map((c) => getSystemPromptLocalOnlyKey(c.id));
-            const promptSyncResult = await syncStorageAdapter.get([...promptKeys, ...promptLocalOnlyKeys]);
+            const promptSyncResult = isExtensionEnvironment
+                ? await syncStorageAdapter.get([...promptKeys, ...promptLocalOnlyKeys])
+                : {};
 
             const localPromptResults = await Promise.all(
                 apiConfigs.map((c) =>
@@ -2075,13 +2126,15 @@ async function onDomReady() {
                 const localOnlyKey = getSystemPromptLocalOnlyKey(config.id);
                 const localPrompt = localPromptResults[idx]?.[promptKey];
                 const syncPrompt = promptSyncResult?.[promptKey];
-                const localOnly = !!promptSyncResult?.[localOnlyKey];
+                const localOnly = isExtensionEnvironment
+                    ? !!promptSyncResult?.[localOnlyKey]
+                    : false;
                 const legacyPrompt = config.advancedSettings?.systemPrompt;
 
                 let systemPrompt = '';
                 if (typeof localPrompt === 'string') {
                     systemPrompt = localPrompt;
-                } else if (!localOnly && typeof syncPrompt === 'string' && syncPrompt.length > 0) {
+                } else if (isExtensionEnvironment && !localOnly && typeof syncPrompt === 'string' && syncPrompt.length > 0) {
                     systemPrompt = syncPrompt;
                     localPromptPayloadToCache[promptKey] = syncPrompt;
                 } else if (typeof legacyPrompt === 'string' && legacyPrompt.length > 0) {
@@ -2183,10 +2236,11 @@ async function onDomReady() {
             selectedConfigIndex = Math.max(0, Math.min(selectedConfigIndex, apiConfigs.length - 1));
 
             const localPayload = {};
-            const syncPayload = {
+            const apiConfigMetaPayload = {
                 apiConfigs: apiConfigs.map(stripApiConfigForSync),
                 selectedConfigIndex,
             };
+            const syncPromptPayload = {};
 
             for (const config of apiConfigs) {
                 const id = ensureConfigId(config);
@@ -2197,13 +2251,18 @@ async function onDomReady() {
                 localPayload[promptKey] = systemPrompt;
 
                 const byteLength = getUtf8ByteLength(systemPrompt);
+                if (!isExtensionEnvironment) {
+                    if (config.advancedSettings) config.advancedSettings.systemPromptLocalOnly = false;
+                    continue;
+                }
+
                 if (byteLength <= SYSTEM_PROMPT_SYNC_THRESHOLD_BYTES) {
-                    syncPayload[promptKey] = systemPrompt;
-                    syncPayload[localOnlyKey] = false;
+                    syncPromptPayload[promptKey] = systemPrompt;
+                    syncPromptPayload[localOnlyKey] = false;
                     if (config.advancedSettings) config.advancedSettings.systemPromptLocalOnly = false;
                 } else {
-                    syncPayload[promptKey] = '';
-                    syncPayload[localOnlyKey] = true;
+                    syncPromptPayload[promptKey] = '';
+                    syncPromptPayload[localOnlyKey] = true;
                     if (config.advancedSettings) config.advancedSettings.systemPromptLocalOnly = true;
                 }
             }
@@ -2211,14 +2270,20 @@ async function onDomReady() {
             // 先确保本地已持久化（即便同步失败也不丢数据）
             await storageAdapter.set(localPayload);
 
-            // 统一使用 syncStorageAdapter 来实现配置同步
-            await syncStorageAdapter.set(syncPayload);
+            if (isExtensionEnvironment) {
+                await syncStorageAdapter.set({
+                    ...apiConfigMetaPayload,
+                    ...syncPromptPayload,
+                });
+            } else {
+                await writeApiConfigMeta(apiConfigMetaPayload);
+            }
         } catch (error) {
             console.error('保存 API 配置失败:', error);
 
             // 如果因为 quota 限制失败，降级为“仅同步配置骨架”
             const message = String(error?.message || error);
-            if (message.includes('kQuotaBytesPerItem') || message.includes('QuotaExceeded')) {
+            if (isExtensionEnvironment && (message.includes('kQuotaBytesPerItem') || message.includes('QuotaExceeded'))) {
                 try {
                     const degradedSyncPayload = {
                         apiConfigs: apiConfigs.map(stripApiConfigForSync),
