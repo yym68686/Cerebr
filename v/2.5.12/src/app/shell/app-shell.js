@@ -199,6 +199,8 @@ async function onDomReady() {
         };
 
         let managedPlaceholderState = 'default';
+        let thinkingPlaceholderStartedAt = 0;
+        let thinkingPlaceholderTimerId = 0;
 
         const getSelectedModelName = () => {
             const configuredModelName = apiConfigs[selectedConfigIndex]?.modelName;
@@ -208,12 +210,21 @@ async function onDomReady() {
             return normalizedModelName || 'gpt-4o';
         };
 
+        const getTemporaryPlaceholderOverrideUntil = () => Number(messageInput?.__cerebrPlaceholderOverrideUntil) || 0;
+
+        const hasTemporaryPlaceholderOverride = () => getTemporaryPlaceholderOverrideUntil() > Date.now();
+
+        const getThinkingElapsedSeconds = () => {
+            if (!thinkingPlaceholderStartedAt) return 0;
+            return Math.max(0, Math.floor((Date.now() - thinkingPlaceholderStartedAt) / 1000));
+        };
+
         const getManagedPlaceholderText = (state = managedPlaceholderState) => {
             const modelName = getSelectedModelName();
 
             switch (state) {
             case 'thinking':
-                return t('message_input_placeholder_thinking');
+                return t('message_input_placeholder_thinking_with_elapsed', [getThinkingElapsedSeconds()]);
             case 'replying':
                 return t('message_input_placeholder_replying');
             default:
@@ -221,19 +232,63 @@ async function onDomReady() {
             }
         };
 
-        const applyManagedPlaceholder = (state) => {
-            managedPlaceholderState = state;
+        const syncManagedPlaceholder = (state = managedPlaceholderState) => {
             setPlaceholder({ messageInput, placeholder: getManagedPlaceholderText(state) });
         };
 
+        const stopThinkingPlaceholderTimer = ({ resetElapsed = false } = {}) => {
+            if (thinkingPlaceholderTimerId) {
+                window.clearInterval(thinkingPlaceholderTimerId);
+                thinkingPlaceholderTimerId = 0;
+            }
+            if (resetElapsed) {
+                thinkingPlaceholderStartedAt = 0;
+            }
+        };
+
+        const ensureThinkingPlaceholderTimer = ({ resetElapsed = false } = {}) => {
+            if (resetElapsed || !thinkingPlaceholderStartedAt) {
+                thinkingPlaceholderStartedAt = Date.now();
+            }
+
+            const tick = () => {
+                if (managedPlaceholderState !== 'thinking') {
+                    stopThinkingPlaceholderTimer();
+                    return;
+                }
+                if (hasTemporaryPlaceholderOverride()) return;
+                syncManagedPlaceholder('thinking');
+            };
+
+            tick();
+
+            if (thinkingPlaceholderTimerId) return;
+            thinkingPlaceholderTimerId = window.setInterval(tick, 1000);
+        };
+
+        const applyManagedPlaceholder = (state, { resetThinkingElapsed = false } = {}) => {
+            managedPlaceholderState = state;
+            if (state === 'thinking') {
+                ensureThinkingPlaceholderTimer({ resetElapsed: resetThinkingElapsed });
+                return;
+            }
+
+            stopThinkingPlaceholderTimer({ resetElapsed: true });
+            syncManagedPlaceholder(state);
+        };
+
         const refreshManagedPlaceholder = () => {
-            setPlaceholder({ messageInput, placeholder: getManagedPlaceholderText() });
+            if (managedPlaceholderState === 'thinking') {
+                ensureThinkingPlaceholderTimer();
+                return;
+            }
+            syncManagedPlaceholder();
         };
 
         setPlaceholderRestoreResolver(() => getManagedPlaceholderText());
 
         const setThinkingPlaceholder = () => {
-            applyManagedPlaceholder('thinking');
+            applyManagedPlaceholder('thinking', { resetThinkingElapsed: true });
         };
 
         const setReplyingPlaceholder = () => {

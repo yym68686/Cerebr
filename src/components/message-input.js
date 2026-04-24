@@ -1112,10 +1112,19 @@ export function setPlaceholder({ messageInput, placeholder, timeout }) {
     if (messageInput) {
         messageInput.setAttribute('placeholder', placeholder);
         if (timeout) {
+            const restoreToken = Symbol('placeholder-timeout');
+            messageInput.__cerebrPlaceholderRestoreToken = restoreToken;
+            messageInput.__cerebrPlaceholderOverrideUntil = Date.now() + timeout;
             setTimeout(() => {
+                if (messageInput.__cerebrPlaceholderRestoreToken !== restoreToken) return;
+                messageInput.__cerebrPlaceholderRestoreToken = null;
+                messageInput.__cerebrPlaceholderOverrideUntil = 0;
                 messageInput.setAttribute('placeholder', getRestorePlaceholderText());
             }, timeout);
+            return;
         }
+        messageInput.__cerebrPlaceholderRestoreToken = null;
+        messageInput.__cerebrPlaceholderOverrideUntil = 0;
     }
 }
 

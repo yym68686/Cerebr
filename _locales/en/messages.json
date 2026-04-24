@@ -29,6 +29,7 @@
   "message_input_placeholder": { "message": "Type a message..." },
   "message_input_placeholder_with_model": { "message": "Send a message to $1..." },
   "message_input_placeholder_thinking": { "message": "Thinking..." },
+  "message_input_placeholder_thinking_with_elapsed": { "message": "Thinking... $1s" },
   "message_input_placeholder_replying": { "message": "Replying..." },
   "message_input_aria": { "message": "Message input" },
   "message_edit_confirm": { "message": "Apply" },

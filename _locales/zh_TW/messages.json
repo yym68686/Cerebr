@@ -29,6 +29,7 @@
   "message_input_placeholder": { "message": "輸入訊息..." },
   "message_input_placeholder_with_model": { "message": "給$1傳送訊息..." },
   "message_input_placeholder_thinking": { "message": "正在思考..." },
+  "message_input_placeholder_thinking_with_elapsed": { "message": "正在思考... $1秒" },
   "message_input_placeholder_replying": { "message": "正在回覆..." },
   "message_input_aria": { "message": "訊息輸入框" },
   "message_edit_confirm": { "message": "確定" },
