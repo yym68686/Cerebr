@@ -137,6 +137,7 @@
   "webpage_group_default_name": { "message": "Group" },
   "webpage_group_ungrouped": { "message": "Ungrouped" },
   "youtube_transcript_prefix": { "message": "YouTube transcript:" },
+  "bilibili_subtitle_prefix": { "message": "Bilibili subtitles:" },
   "webpage_prefix_current": { "message": "Current webpage content" },
   "webpage_prefix_other": { "message": "Other open webpages" },
   "webpage_title_label": { "message": "Title" },

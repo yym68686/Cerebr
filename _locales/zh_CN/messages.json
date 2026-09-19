@@ -137,6 +137,7 @@
   "webpage_group_default_name": { "message": "分组" },
   "webpage_group_ungrouped": { "message": "未分组" },
   "youtube_transcript_prefix": { "message": "YouTube 字幕：" },
+  "bilibili_subtitle_prefix": { "message": "B站字幕：" },
   "webpage_prefix_current": { "message": "当前网页内容" },
   "webpage_prefix_other": { "message": "其他打开的网页" },
   "webpage_title_label": { "message": "标题" },

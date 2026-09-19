@@ -137,6 +137,7 @@
   "webpage_group_default_name": { "message": "群組" },
   "webpage_group_ungrouped": { "message": "未分組" },
   "youtube_transcript_prefix": { "message": "YouTube 字幕：" },
+  "bilibili_subtitle_prefix": { "message": "B站字幕：" },
   "webpage_prefix_current": { "message": "當前網頁內容" },
   "webpage_prefix_other": { "message": "其他開啟的網頁" },
   "webpage_title_label": { "message": "標題" },

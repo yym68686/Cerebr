@@ -1628,6 +1628,131 @@ async function extractYouTubeTranscriptText() {
   }
 }
 
+const BILIBILI_SUBTITLE_CACHE_TTL_MS = 5 * 60 * 1000;
+let lastBilibiliSubtitle = null;
+
+function isBilibiliVideoHost(hostname) {
+  if (!hostname) return false;
+  const host = String(hostname).toLowerCase();
+  return host === 'bilibili.com' || host.endsWith('.bilibili.com');
+}
+
+function getBilibiliVideoRefFromUrl(urlString) {
+  try {
+    const url = new URL(urlString);
+    if (!isBilibiliVideoHost(url.hostname)) return null;
+
+    // https://www.bilibili.com/video/BV1xx411c7mD/?p=2
+    const match = url.pathname.match(/^\/video\/(BV[a-zA-Z0-9]+)/);
+    if (!match) return null;
+
+    const pageParam = Number(url.searchParams.get('p'));
+    const page = Number.isFinite(pageParam) && pageParam > 0 ? Math.floor(pageParam) : 1;
+    return { bvid: match[1], page };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchBilibiliApi(url) {
+  const response = await fetch(url, { credentials: 'include' });
+  const json = await response.json().catch(() => null);
+  if (!response.ok || !json || json.code !== 0) {
+    throw new Error((json && json.message) || `HTTP ${response.status}`);
+  }
+  return json.data;
+}
+
+function pickBilibiliSubtitle(subtitles = [], preferredLang = '') {
+  const wanted = String(preferredLang || '').trim();
+  if (wanted) {
+    const exact = subtitles.find(item => item && item.lan === wanted)
+      || subtitles.find(item => String(item && item.lan || '').toLowerCase() === wanted.toLowerCase());
+    if (exact) return exact;
+  }
+
+  return subtitles.find(item => item && item.lan === 'zh-CN')
+    || subtitles.find(item => String(item && item.lan || '').startsWith('zh'))
+    || subtitles.find(item => String(item && item.lan || '').startsWith('ai-zh'))
+    || subtitles[0]
+    || null;
+}
+
+function formatBilibiliSubtitleBody(items = []) {
+  const lines = [];
+  let last = '';
+  for (const item of items) {
+    const line = String(item && item.content || '').trim();
+    if (!line) continue;
+    if (line === last) continue; // B 站 AI 字幕常出现连续重复行
+    lines.push(line);
+    last = line;
+  }
+  return lines.join('\n');
+}
+
+async function extractBilibiliSubtitleText() {
+  const ref = getBilibiliVideoRefFromUrl(window.location.href);
+  if (!ref) return null;
+
+  const refKey = `${ref.bvid}:p${ref.page}`;
+  const now = Date.now();
+  // 短 TTL 缓存，避免每轮对话都重新请求
+  if (lastBilibiliSubtitle &&
+      lastBilibiliSubtitle.refKey === refKey &&
+      now - lastBilibiliSubtitle.createdAt < BILIBILI_SUBTITLE_CACHE_TTL_MS) {
+    return lastBilibiliSubtitle.data;
+  }
+
+  try {
+    const view = await fetchBilibiliApi(
+      `https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(ref.bvid)}`
+    );
+    if (!view || !view.aid) return null;
+
+    const pageInfo = Array.isArray(view.pages)
+      ? view.pages.find(item => Number(item && item.page) === ref.page)
+      : null;
+    const cid = (pageInfo && pageInfo.cid) || view.cid;
+    if (!cid) return null;
+
+    const player = await fetchBilibiliApi(
+      `https://api.bilibili.com/x/player/wbi/v2?aid=${view.aid}&cid=${cid}`
+    );
+    const subtitles = (player && player.subtitle && player.subtitle.subtitles) || [];
+    if (!Array.isArray(subtitles) || subtitles.length === 0) return null;
+
+    const selected = pickBilibiliSubtitle(subtitles);
+    if (!selected || !selected.subtitle_url) return null;
+
+    const subtitleUrl = String(selected.subtitle_url).startsWith('//')
+      ? `https:${selected.subtitle_url}`
+      : selected.subtitle_url;
+
+    // 字幕正文在 CDN 上，响应头是 ACAO: *，带 credentials 会被浏览器拦掉
+    const response = await fetch(subtitleUrl, { credentials: 'omit' });
+    const payload = await response.json().catch(() => null);
+    const items = payload && Array.isArray(payload.body) ? payload.body : [];
+    if (items.length === 0) return null;
+
+    const text = formatBilibiliSubtitleBody(items);
+    if (!text) return null;
+
+    const data = {
+      bvid: ref.bvid,
+      page: ref.page,
+      lang: selected.lan || null,
+      langLabel: selected.lan_doc || null,
+      text
+    };
+    lastBilibiliSubtitle = { refKey, data, createdAt: now };
+    return data;
+  } catch (error) {
+    console.warn('Bilibili 字幕提取失败:', error);
+    return null;
+  }
+}
+
 async function extractPageContent(skipWaitContent = false) {
   // console.log('extractPageContent 开始提取页面内容');
 
@@ -1742,7 +1867,13 @@ async function extractPageContent(skipWaitContent = false) {
       youtubeTranscript = await extractYouTubeTranscriptText();
     }
 
-    if (mainContent.length < 40 && !youtubeTranscript?.transcript) {
+    // Bilibili：字幕单独返回
+    let bilibiliSubtitle = null;
+    if (isBilibiliVideoHost(window.location.hostname)) {
+      bilibiliSubtitle = await extractBilibiliSubtitleText();
+    }
+
+    if (mainContent.length < 40 && !youtubeTranscript?.transcript && !bilibiliSubtitle?.text) {
       console.log('提取的内容太少，返回 null');
       return null;
     }
@@ -1764,7 +1895,8 @@ async function extractPageContent(skipWaitContent = false) {
       title: document.title,
       url: currentUrl,
       content: mainContent,
-      youtubeTranscript
+      youtubeTranscript,
+      bilibiliSubtitle
     };
   }
 

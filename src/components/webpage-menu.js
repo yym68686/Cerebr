@@ -4,6 +4,7 @@ import { t } from '../utils/i18n.js';
 import { getWebpageSwitchesForChat, setWebpageSwitchesForChat } from '../utils/webpage-switches.js';
 
 const YT_TRANSCRIPT_KEY_PREFIX = 'cerebr_youtube_transcript_v1_';
+const BILI_SUBTITLE_KEY_PREFIX = 'cerebr_bilibili_subtitle_v1_';
 const collapsedGroupStates = new Map();
 const DEFAULT_WEBPAGE_MENU_SEARCH_HEIGHT = 46;
 
@@ -43,7 +44,41 @@ function makeYouTubeTranscriptKey({ videoId, lang }) {
     return `${YT_TRANSCRIPT_KEY_PREFIX}${vid}_${language}`;
 }
 
-async function loadYouTubeTranscriptText(key) {
+function isBilibiliVideoHost(hostname) {
+    if (!hostname) return false;
+    const host = String(hostname).toLowerCase();
+    return host === 'bilibili.com' || host.endsWith('.bilibili.com');
+}
+
+function getBilibiliVideoRefFromUrl(urlString) {
+    try {
+        const url = new URL(urlString);
+        if (!isBilibiliVideoHost(url.hostname)) return null;
+
+        // https://www.bilibili.com/video/BV1xx411c7mD/?p=2
+        const match = url.pathname.match(/^\/video\/(BV[a-zA-Z0-9]+)/);
+        if (!match) return null;
+
+        const pageParam = Number(url.searchParams.get('p'));
+        const page = Number.isFinite(pageParam) && pageParam > 0 ? Math.floor(pageParam) : 1;
+        return { bvid: match[1], page };
+    } catch {
+        return null;
+    }
+}
+
+function makeBilibiliSubtitleRefId({ bvid, page }) {
+    return `${bvid}:p${page || 1}`;
+}
+
+function makeBilibiliSubtitleKey({ bvid, page, lang }) {
+    const vid = sanitizeKeyPart(bvid);
+    const part = sanitizeKeyPart(`p${page || 1}`);
+    const language = sanitizeKeyPart(lang || 'und');
+    return `${BILI_SUBTITLE_KEY_PREFIX}${vid}_${part}_${language}`;
+}
+
+async function loadVideoTranscriptText(key) {
     if (!key) return null;
     const result = await storageAdapter.get(key);
     const payload = result?.[key];
@@ -52,7 +87,8 @@ async function loadYouTubeTranscriptText(key) {
     return payload?.text || null;
 }
 
-async function saveYouTubeTranscript({ key, videoId, lang, text }) {
+// 与平台无关的字幕缓存读写
+async function saveVideoTranscript({ key, videoId, lang, text }) {
     if (!key || !text) return;
     await storageAdapter.set({
         [key]: {
@@ -865,7 +901,7 @@ export async function getEnabledTabsContent() {
                 skipWaitContent: true // 明确要求立即提取
             });
 
-            if (!pageData || (!pageData.content && !pageData.youtubeTranscript?.transcript)) {
+            if (!pageData || (!pageData.content && !pageData.youtubeTranscript?.transcript && !pageData.bilibiliSubtitle?.text)) {
                 return null;
             }
 
@@ -891,18 +927,54 @@ export async function getEnabledTabsContent() {
                     : (chatManager.getYouTubeTranscriptRef(activeChatId, videoId)?.key || null);
 
                 if (transcriptText && key) {
-                    await saveYouTubeTranscript({ key, videoId, lang, text: transcriptText });
+                    await saveVideoTranscript({ key, videoId, lang, text: transcriptText });
                     if (activeChatId) {
                         chatManager.addYouTubeTranscriptRef(activeChatId, { key, videoId, lang });
                     }
                 }
 
                 if (!transcriptText && key) {
-                    transcriptText = await loadYouTubeTranscriptText(key);
+                    transcriptText = await loadVideoTranscriptText(key);
                 }
 
                 if (transcriptText) {
                     content = `${content}\n\n${t('youtube_transcript_prefix')}\n${transcriptText}`.trim();
+                }
+            }
+
+            // Bilibili 字幕：优先使用本次提取结果；失败时回退到“当前对话已缓存的字幕”
+            const bilibiliRef = tab?.url ? getBilibiliVideoRefFromUrl(tab.url) : null;
+            if (bilibiliRef) {
+                const bilibiliSubtitle = pageData.bilibiliSubtitle;
+                let bilibiliText = bilibiliSubtitle?.text || null;
+                const bilibiliLang = bilibiliSubtitle?.lang || null;
+                const bilibiliRefId = makeBilibiliSubtitleRefId(bilibiliRef);
+                const bilibiliKey = bilibiliText
+                    ? makeBilibiliSubtitleKey({ bvid: bilibiliRef.bvid, page: bilibiliRef.page, lang: bilibiliLang })
+                    : (chatManager.getVideoTranscriptRef(activeChatId, bilibiliRefId)?.key || null);
+
+                if (bilibiliText && bilibiliKey) {
+                    await saveVideoTranscript({
+                        key: bilibiliKey,
+                        videoId: bilibiliRefId,
+                        lang: bilibiliLang,
+                        text: bilibiliText
+                    });
+                    if (activeChatId) {
+                        chatManager.addVideoTranscriptRef(activeChatId, {
+                            key: bilibiliKey,
+                            videoId: bilibiliRefId,
+                            lang: bilibiliLang
+                        });
+                    }
+                }
+
+                if (!bilibiliText && bilibiliKey) {
+                    bilibiliText = await loadVideoTranscriptText(bilibiliKey);
+                }
+
+                if (bilibiliText) {
+                    content = `${content}\n\n${t('bilibili_subtitle_prefix')}\n${bilibiliText}`.trim();
                 }
             }
 

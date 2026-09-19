@@ -426,6 +426,16 @@ export class ChatManager {
         return latestMatch;
     }
 
+    // Bilibili 等复用 YouTube 那份字幕存储
+    addVideoTranscriptRef(chatId, ref) {
+        return this.addYouTubeTranscriptRef(chatId, ref);
+    }
+
+    // videoId 用 `${bvid}:p${page}`
+    getVideoTranscriptRef(chatId, videoId) {
+        return this.getYouTubeTranscriptRef(chatId, videoId);
+    }
+
     getCurrentChat() {
         return this.chats.get(this.currentChatId);
     }
