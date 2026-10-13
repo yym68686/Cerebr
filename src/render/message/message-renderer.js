@@ -2,6 +2,7 @@ import { chatManager } from '../../domain/chat/chat-store.js';
 import { showImagePreview, createImageTag, showToast } from '../../utils/ui.js';
 import { processMathAndMarkdown, renderMathInElement, textMayContainMath } from '../../../htmd/latex.js';
 import { t } from '../../utils/i18n.js';
+import { renderAssistantContent } from '../../mcp/mcp-render.js';
 
 function isNearBottom(container, thresholdPx = 120) {
     const remaining = container.scrollHeight - container.scrollTop - container.clientHeight;
@@ -219,6 +220,10 @@ function resolveMessageRenderData(text) {
         messageText,
         imageTagNodes,
         reasoningContent: typeof text === 'string' ? null : text?.reasoning_content || null,
+        toolCalls: typeof text === 'string'
+            ? null
+            : (Array.isArray(text?.toolCalls) && text.toolCalls.length > 0 ? text.toolCalls : null),
+        mcpAwaiting: typeof text === 'string' ? false : !!text?.mcpAwaiting,
         seedId: typeof text === 'string' ? null : text?.seedId || null,
         isSeedManaged: typeof text === 'string' ? false : !!text?.seedLocaleBound,
         renderContext,
@@ -241,9 +246,19 @@ function applyMessageMetadata(messageElement, { plainTextContent, seedId, isSeed
     }
 }
 
-function createMainContentNode({ messageText, imageTagNodes, sender }) {
+function createMainContentNode({ messageText, imageTagNodes, sender, toolCalls = null, mcpAwaiting = false }) {
     const mainContent = document.createElement('div');
     mainContent.className = 'main-content';
+    if (sender === 'ai' && toolCalls?.length) {
+        renderAssistantContent(mainContent, {
+            text: messageText,
+            toolCalls,
+            awaiting: mcpAwaiting,
+            renderMarkdown: processMathAndMarkdown,
+            createTypingIndicator,
+        });
+        return mainContent;
+    }
     mainContent.innerHTML = processMathAndMarkdown(messageText);
 
     if (imageTagNodes.length > 0) {
@@ -445,6 +460,8 @@ export async function appendMessage({
         messageText,
         imageTagNodes,
         reasoningContent,
+        toolCalls,
+        mcpAwaiting,
         seedId,
         isSeedManaged,
         renderContext,
@@ -466,7 +483,7 @@ export async function appendMessage({
         messageDiv.appendChild(reasoningWrapper);
     }
 
-    messageDiv.appendChild(createMainContentNode({ messageText, imageTagNodes, sender }));
+    messageDiv.appendChild(createMainContentNode({ messageText, imageTagNodes, sender, toolCalls, mcpAwaiting }));
     await finalizeRenderedMessage(messageDiv, { plainTextContent, reasoningContent, renderContext });
 
     const shouldStickToBottom = !fragment &&
@@ -508,6 +525,8 @@ export async function updateMessageElement({
         messageText,
         imageTagNodes,
         reasoningContent,
+        toolCalls,
+        mcpAwaiting,
         seedId,
         isSeedManaged,
         renderContext,
@@ -523,7 +542,9 @@ export async function updateMessageElement({
     const mainContent = createMainContentNode({
         messageText,
         imageTagNodes,
-        sender: resolvedSender
+        sender: resolvedSender,
+        toolCalls,
+        mcpAwaiting,
     });
     if (reasoningWrapper) {
         messageElement.appendChild(reasoningWrapper);
@@ -564,16 +585,21 @@ export async function updateAIMessage({
     // 处理文本内容
     const textContent = typeof text === 'string' ? text : text.content;
     const reasoningContent = typeof text === 'string' ? null : text.reasoning_content;
+    const toolCalls = typeof text === 'string'
+        ? null
+        : (Array.isArray(text?.toolCalls) && text.toolCalls.length > 0 ? text.toolCalls : null);
+    const mcpAwaiting = typeof text === 'string' ? false : !!text?.mcpAwaiting;
 
     // 如果新文本的开头与当前文本不一致，则认为消息不连续，置空lastMessage
-    if (!textContent.startsWith(currentText) && currentText !== '') {
+    // 带工具调用的更新总是属于正在生成的这条回复（内容在收尾时可能被裁掉末尾空白）
+    if (!toolCalls && !textContent.startsWith(currentText) && currentText !== '') {
         lastMessage = null;
     }
 
     if (lastMessage && lastMessage.classList.contains('ai-message')) {
         // 获取当前显示的文本
         // 如果新文本比当前文本长，说有新内容需要更新
-        if (textContent.length > currentText.length || reasoningContent) {
+        if (textContent.length > currentText.length || reasoningContent || toolCalls) {
             // 更新原始文本属性
             lastMessage.setAttribute('data-original-text', textContent);
 
@@ -639,9 +665,16 @@ export async function updateAIMessage({
             }
 
             // 处理主要内容
-            const mainContent = document.createElement('div');
-            mainContent.className = 'main-content';
-            mainContent.innerHTML = processMathAndMarkdown(textContent);
+            const mainContent = createMainContentNode({
+                messageText: textContent,
+                imageTagNodes: [],
+                sender: 'ai',
+                toolCalls,
+                mcpAwaiting,
+            });
+            if (!toolCalls && !textContent.trim()) {
+                mainContent.replaceChildren();
+            }
 
             // 清除原有的主要内容
             Array.from(lastMessage.children).forEach(child => {
@@ -682,7 +715,9 @@ export async function updateAIMessage({
         await appendMessage({
             text: {
                 content: textContent,
-                reasoning_content: reasoningContent
+                reasoning_content: reasoningContent,
+                toolCalls,
+                mcpAwaiting,
             },
             sender: 'ai',
             chatContainer

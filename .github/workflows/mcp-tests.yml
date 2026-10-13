@@ -1,0 +1,24 @@
+name: MCP proposal tests
+on:
+  push:
+    branches: [feat/mcp-responses-20261013]
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'styles/**'
+      - 'scripts/test_mcp.mjs'
+      - '.github/workflows/mcp-tests.yml'
+permissions:
+  contents: read
+jobs:
+  mcp-protocol-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --prefix "$RUNNER_TEMP/cerebr-mcp-dom" --no-save --no-package-lock linkedom@0.18.12
+      - run: node --experimental-default-type=module scripts/test_mcp.mjs
+        env:
+          CEREBR_TEST_DOM_MODULE: '${{ runner.temp }}/cerebr-mcp-dom/node_modules/linkedom/esm/index.js'

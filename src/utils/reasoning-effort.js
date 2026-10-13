@@ -9,5 +9,6 @@ export function normalizeReasoningEffort(value) {
 }
 
 export function modelSupportsReasoningEffort(modelName) {
-    return String(modelName ?? '').trim().toLowerCase().startsWith('gpt');
+    const name = String(modelName ?? '').trim().toLowerCase().split('/').pop();
+    return name.startsWith('gpt');
 }

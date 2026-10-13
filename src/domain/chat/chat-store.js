@@ -490,6 +490,12 @@ export class ChatManager {
         if (message.reasoning_content) {
             currentChat.messages[currentChat.messages.length - 1].reasoning_content = message.reasoning_content;
         }
+        if (Array.isArray(message.toolCalls)) {
+            currentChat.messages[currentChat.messages.length - 1].toolCalls = message.toolCalls.map((call) => ({
+                ...call,
+                result: call?.result ? { ...call.result } : call?.result ?? null,
+            }));
+        }
         this.markChatDirty(chatId);
         this.saveChats({ touchCurrentChat: false, throttleMs });
     }

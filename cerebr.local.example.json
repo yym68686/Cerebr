@@ -1,0 +1,22 @@
+{
+  "seedVersion": "example-1",
+  "apiConfigs": [
+    {
+      "id": "example-api",
+      "apiKey": "",
+      "baseUrl": "https://api.example.com/v1/responses",
+      "modelName": "gpt-5",
+      "advancedSettings": {
+        "systemPrompt": "你是一位准确、简洁的助手。",
+        "reasoningEffort": "high"
+      }
+    }
+  ],
+  "selectedConfigId": "example-api",
+  "mcp": {
+    "settings": {
+      "approvalMode": "confirm-write"
+    },
+    "servers": []
+  }
+}

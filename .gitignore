@@ -5,3 +5,7 @@ package-lock.json
 package.json
 _site
 pages-site
+
+cerebr.local.json
+tmp/
+scripts/__pycache__/

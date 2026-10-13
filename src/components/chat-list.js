@@ -141,7 +141,7 @@ export async function loadChatContent(chat, chatContainer) {
 
     for (let i = 0; i < messages.length; i++) {
         const message = messages[i];
-        if (message.content) {
+        if (message.content || (Array.isArray(message.toolCalls) && message.toolCalls.length > 0)) {
             await appendMessage({
                 text: message,
                 sender: message.role === 'user' ? 'user' : 'ai',
@@ -187,7 +187,7 @@ async function loadChatContentIncremental(chat, chatContainer, token) {
             if (myToken !== chatContentToken) return;
 
             const message = messages[index++];
-            if (!message?.content) continue;
+            if (!message?.content && !(Array.isArray(message?.toolCalls) && message.toolCalls.length > 0)) continue;
 
             const element = await appendMessage({
                 text: message,

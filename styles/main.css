@@ -19,6 +19,7 @@
 @import './components/preferences.css';
 @import './components/plugin-settings.css';
 @import './components/plugin-slots.css';
+@import './components/mcp.css';
 @import './components/webpage-menu.css';
 @import './components/chat-container.css';
 @import './components/toast.css';
