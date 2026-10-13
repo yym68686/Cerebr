@@ -12,6 +12,8 @@ import { initChatContainer } from '../../components/chat-container.js';
 import { showImagePreview, hideImagePreview, showToast } from '../../utils/ui.js';
 import { renderAPICards, createCardCallbacks, selectCard } from '../../components/api-card.js';
 import { initPluginSettings } from '../../components/plugin-settings.js';
+import { initMcpSettings } from '../../mcp/mcp-settings.js';
+import { applyLocalSeedIfNeeded } from './local-seed.js';
 import { storageAdapter, syncStorageAdapter, browserAdapter, isExtensionEnvironment } from '../../utils/storage-adapter.js';
 import {
     buildMessageContent,
@@ -2018,6 +2020,9 @@ async function onDomReady() {
 
     const readApiConfigMeta = async () => {
         if (isExtensionEnvironment) {
+            // Private API credentials must not be uploaded to browser account sync storage.
+            const local = await storageAdapter.get(API_CONFIG_META_KEYS);
+            if (Array.isArray(local?.apiConfigs)) return local;
             return syncStorageAdapter.get(API_CONFIG_META_KEYS);
         }
 
@@ -2049,11 +2054,6 @@ async function onDomReady() {
     };
 
     const writeApiConfigMeta = async (payload) => {
-        if (isExtensionEnvironment) {
-            await syncStorageAdapter.set(payload);
-            return;
-        }
-
         await storageAdapter.set(payload);
     };
 
@@ -2407,10 +2407,8 @@ async function onDomReady() {
             await storageAdapter.set(localPayload);
 
             if (isExtensionEnvironment) {
-                await syncStorageAdapter.set({
-                    ...apiConfigMetaPayload,
-                    ...syncPromptPayload,
-                });
+                await writeApiConfigMeta(apiConfigMetaPayload);
+                await syncStorageAdapter.set(syncPromptPayload);
             } else {
                 await writeApiConfigMeta(apiConfigMetaPayload);
             }
@@ -2421,10 +2419,7 @@ async function onDomReady() {
             const message = String(error?.message || error);
             if (isExtensionEnvironment && (message.includes('kQuotaBytesPerItem') || message.includes('QuotaExceeded'))) {
                 try {
-                    const degradedSyncPayload = {
-                        apiConfigs: apiConfigs.map(stripApiConfigForSync),
-                        selectedConfigIndex,
-                    };
+                    const degradedSyncPayload = {};
                     for (const config of apiConfigs) {
                         const id = ensureConfigId(config);
                         degradedSyncPayload[getSystemPromptKey(id)] = '';
@@ -2440,7 +2435,20 @@ async function onDomReady() {
     }
 
     // 等待 DOM 加载完成后再初始化
+    const appliedLocalSeed = await applyLocalSeedIfNeeded({
+        readApiConfigMeta, writeApiConfigMeta, normalizeApiConfig,
+        stripApiConfigForSync, getSystemPromptKey,
+    });
+    if (appliedLocalSeed) {
+        await initTheme();
+        lastAppliedThemePreference = normalizeThemePreference(preferencesTheme?.value);
+        await reloadI18n();
+        applyI18n();
+        if (preferencesLanguage) preferencesLanguage.value = await getLanguagePreference();
+        lastAppliedLanguagePreference = preferencesLanguage?.value || 'auto';
+    }
     await loadAPIConfigs();
+    initMcpSettings({ menu: settingsMenu, closeMenu: closeSettingsMenu });
     refreshManagedPlaceholder();
 
     const flushAllPersistedStateForTransfer = async () => {

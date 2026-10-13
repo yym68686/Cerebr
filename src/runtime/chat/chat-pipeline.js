@@ -9,6 +9,7 @@ import { ensureChatElementVisible } from '../../utils/scroll.js';
 import { showToast } from '../../utils/ui.js';
 import { t } from '../../utils/i18n.js';
 import { createChatError, isAbortError, normalizeChatError } from './chat-errors.js';
+import { createMcpTurn } from '../../mcp/mcp-turn.js';
 
 function cloneMessage(message) {
     if (!message || typeof message !== 'object') return message;
@@ -111,7 +112,7 @@ export function createChatPipeline({
         if (!lastMessage) return;
         lastMessage.classList.remove('updating');
         const original = lastMessage.getAttribute('data-original-text') || '';
-        if (!original.trim()) {
+        if (!original.trim() && !lastMessage.querySelector('.mcp-tool-item')) {
             lastMessage.remove();
         }
     };
@@ -190,9 +191,17 @@ export function createChatPipeline({
     }) => {
         let attempt = 0;
         let effectiveMaxAttempts = normalizeRetryLimit(maxAttempts, 20);
+        const mcpTurn = await createMcpTurn();
+        const syncMcpMessage = async (message) => {
+            await chatManager.updateLastMessage(chatId, message);
+            await chatContainerManager.syncMessage(chatId, message);
+        };
 
         while (attempt < effectiveMaxAttempts) {
             attempt += 1;
+
+            const liveMcpMessage = mcpTurn?.getLiveMessage?.() || null;
+            const requestMessages = liveMcpMessage ? [...messages, liveMcpMessage] : messages;
 
             const requestContext = {
                 mode,
@@ -200,7 +209,7 @@ export function createChatPipeline({
                 attempt,
                 maxAttempts: effectiveMaxAttempts,
                 apiConfig,
-                messages: cloneMessages(messages),
+                messages: cloneMessages(requestMessages),
                 userLanguage,
                 webpageInfo,
                 ...promptBaseContext,
@@ -211,11 +220,17 @@ export function createChatPipeline({
                 : { fragments: [] };
 
             const apiParams = {
-                messages,
+                messages: requestMessages,
                 apiConfig,
                 userLanguage,
                 webpageInfo,
-                promptFragments: pluginPromptResult?.fragments || [],
+                promptFragments: [
+                    ...(pluginPromptResult?.fragments || []),
+                    ...(mcpTurn ? mcpTurn.getPromptFragments() : []),
+                ],
+                tools: mcpTurn ? mcpTurn.getToolDefinitions() : null,
+                toolChoice: mcpTurn ? mcpTurn.getToolChoice() : null,
+                sendToolImages: mcpTurn ? mcpTurn.settings.sendToolImages : true,
             };
 
             const requestLifecycle = {
@@ -246,8 +261,9 @@ export function createChatPipeline({
                 chatId,
                 createOnMessageUpdate(requestContext),
                 {
-                    detectMisfiledThinkSilently: true,
+                    detectMisfiledThinkSilently: !mcpTurn?.hasProgress?.(),
                     lifecycle: requestLifecycle,
+                    baseMessage: mcpTurn?.getBaseMessage?.() || null,
                 }
             );
             currentController = controller;
@@ -265,9 +281,28 @@ export function createChatPipeline({
             }
 
             try {
-                const result = await processStream();
+                let result = await processStream();
                 if (!result) {
                     return result;
+                }
+
+                if (mcpTurn && Array.isArray(result.tool_calls) && result.tool_calls.length > 0) {
+                    const outcome = await mcpTurn.runToolRound(result, {
+                        signal: controller.signal,
+                        sync: syncMcpMessage,
+                    });
+                    if (outcome === 'aborted' || controller.signal.aborted) {
+                        return;
+                    }
+                    // 新一轮模型请求：重试计数从头开始
+                    attempt = 0;
+                    effectiveMaxAttempts = normalizeRetryLimit(maxAttempts, 20);
+                    continue;
+                }
+
+                if (mcpTurn?.hasProgress?.()) {
+                    result = mcpTurn.finalizeContent(result);
+                    await syncMcpMessage(result);
                 }
 
                 const resolvedContent = String(result.content || '').trim();
@@ -289,7 +324,9 @@ export function createChatPipeline({
 
                     if (resolution.shouldRetry && attempt < resolution.maxAttempts) {
                         effectiveMaxAttempts = resolution.maxAttempts;
-                        await removeLastAssistantMessage();
+                        if (!mcpTurn?.hasProgress?.()) {
+                            await removeLastAssistantMessage();
+                        }
                         continue;
                     }
 
@@ -321,7 +358,9 @@ export function createChatPipeline({
                 }
                 if (resolution.shouldRetry && attempt < resolution.maxAttempts) {
                     effectiveMaxAttempts = resolution.maxAttempts;
-                    await removeLastAssistantMessage();
+                    if (!mcpTurn?.hasProgress?.()) {
+                        await removeLastAssistantMessage();
+                    }
                     continue;
                 }
 
@@ -485,6 +524,7 @@ export function createChatPipeline({
                 initialPayload
             );
             const userMessage = resolveUserMessage(effectivePayload, initialPayload);
+            userMessage.createdAt ||= new Date().toISOString();
 
             appendMessage({
                 text: userMessage,

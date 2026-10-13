@@ -13,6 +13,10 @@ import { normalizeMessageForChatCompletions } from '../../utils/message-content.
 import { modelSupportsReasoningEffort, normalizeReasoningEffort } from '../../utils/reasoning-effort.js';
 import { sortPromptFragments } from '../../plugin/core/prompt-fragment-utils.js';
 import { createChatError } from './chat-errors.js';
+import { expandMessagesForApi } from '../../mcp/mcp-messages.js';
+import { readServerSentEvents } from '../../mcp/mcp-client.js';
+import { isResponsesUrl, toResponsesBody, adaptResponsesResponse } from './responses-adapter.js';
+import { applyAssistantMessageSettings } from './assistant-settings.js';
 
 /**
  * 网页信息接口
@@ -54,6 +58,9 @@ export async function callAPI({
     userLanguage,
     webpageInfo = null,
     promptFragments = [],
+    tools = null,
+    toolChoice = null,
+    sendToolImages = true,
 }, chatManager, chatId, onMessageUpdate, options = {}) {
     const baseUrl = normalizeChatCompletionsUrl(apiConfig?.baseUrl);
     if (!baseUrl || !apiConfig?.apiKey) {
@@ -102,12 +109,26 @@ export async function callAPI({
     };
 
     // 确保消息数组中有系统消息
-    // 删除消息列表中的reasoning_content字段
-    const processedMessages = messages
-        .map((msg) => normalizeMessageForChatCompletions({
-            role: msg?.role,
-            content: msg?.content
-        }))
+    // 删除消息列表中的reasoning_content字段；带 MCP 工具调用的助手消息展开为 tool_calls / tool 消息
+    const hasTools = Array.isArray(tools) && tools.length > 0;
+    const configuredMessages = applyAssistantMessageSettings(messages, apiConfig.advancedSettings);
+    const allowedToolNames = new Set((tools || []).map(tool => tool.function?.name).filter(Boolean));
+    const processedMessages = expandMessagesForApi(configuredMessages, { withTools: hasTools, sendToolImages, allowedToolNames })
+        .map((msg) => {
+            if (msg?.role === 'tool') {
+                return { role: 'tool', tool_call_id: msg.tool_call_id, content: String(msg.content ?? '') };
+            }
+            if (msg?.role === 'assistant' && Array.isArray(msg.tool_calls)) {
+                const assistantTurn = { role: 'assistant', content: msg.content ?? null, tool_calls: msg.tool_calls };
+                if (msg.reasoning_details) assistantTurn.reasoning_details = msg.reasoning_details;
+                if (msg.reasoning_items) assistantTurn.reasoning_items = msg.reasoning_items;
+                return assistantTurn;
+            }
+            return normalizeMessageForChatCompletions({
+                role: msg?.role,
+                content: msg?.content
+            });
+        })
         .filter((msg) => msg?.role && typeof msg?.content !== 'undefined');
 
     if (systemMessage.content.trim() && (processedMessages.length === 0 || processedMessages[0].role !== "system")) {
@@ -131,6 +152,16 @@ export async function callAPI({
             effort: reasoningEffort,
             summary: 'auto',
         };
+    }
+    if (hasTools) {
+        requestBody.tools = tools;
+        if (toolChoice) {
+            requestBody.tool_choice = toolChoice;
+        }
+    }
+    for (const [setting, field] of [['temperature', 'temperature'], ['topP', 'top_p'], ['maxTokens', 'max_tokens']]) {
+        const value = apiConfig.advancedSettings?.[setting];
+        if (typeof value === 'number' && Number.isFinite(value)) requestBody[field] = value;
     }
 
     let requestInit = {
@@ -187,7 +218,7 @@ export async function callAPI({
 
             requestInit = {
                 ...requestInit,
-                body: JSON.stringify(requestBody),
+                body: JSON.stringify(isResponsesUrl(resolvedUrl) ? toResponsesBody(requestBody) : requestBody),
                 signal,
             };
 
@@ -216,8 +247,8 @@ export async function callAPI({
             }
 
             // 处理流式响应
-            reader = response.body?.getReader?.();
-            if (!reader) {
+            const streamResponse = isResponsesUrl(resolvedUrl) ? adaptResponsesResponse(response) : response;
+            if (!streamResponse.body?.getReader) {
                 throw createChatError(
                     'RESPONSE_UNREADABLE',
                     t('error_response_unreadable'),
@@ -227,11 +258,20 @@ export async function callAPI({
                 );
             }
 
-            let buffer = '';
+            const baseMessage = options?.baseMessage && typeof options.baseMessage === 'object'
+                ? options.baseMessage
+                : null;
             let currentMessage = {
-                content: '',
-                reasoning_content: ''
+                content: baseMessage?.content || '',
+                reasoning_content: baseMessage?.reasoning_content || ''
             };
+            if (Array.isArray(baseMessage?.toolCalls)) {
+                currentMessage.toolCalls = baseMessage.toolCalls;
+            }
+            const toolCallSlots = [];
+            const reasoningDetails = [];
+            const reasoningItems = [];
+            let finishReason = null;
             let lastUpdateTime = 0;
             let updateTimeout = null;
             const UPDATE_INTERVAL = 100; // 每100ms更新一次
@@ -262,34 +302,46 @@ export async function callAPI({
                 }
             };
 
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) {
-                     // 确保最后的数据被发送
-                    if (Date.now() - lastUpdateTime > 0) {
-                        dispatchUpdate();
-                    }
-                    // console.log('[chat.js] processStream: 响应流结束');
-                    break;
-                }
-
-                const chunk = new TextDecoder().decode(value);
-                buffer += chunk;
-
-                let newlineIndex;
-                while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
-                    const line = buffer.slice(0, newlineIndex);
-                    buffer = buffer.slice(newlineIndex + 1);
-
-                    if (line.startsWith('data: ')) {
-                        const data = line.slice(6);
-                        if (data === '[DONE]') {
-                            continue;
-                        }
+            for await (const event of readServerSentEvents(streamResponse)) {
+                const data = event.data;
+                if (!data || data === '[DONE]') continue;
 
                         try {
-                            const delta = JSON.parse(data).choices[0]?.delta;
+                            const parsedChunk = JSON.parse(data);
+                            if (parsedChunk?.error) {
+                                throw createChatError('API_STREAM_ERROR', parsedChunk.error.message || '模型返回流式错误', { url: resolvedUrl });
+                            }
+                            const choice = Array.isArray(parsedChunk?.choices) ? parsedChunk.choices[0] : null;
+                            const delta = choice?.delta;
                             let hasUpdate = false;
+
+                            if (choice?.finish_reason) {
+                                finishReason = choice.finish_reason;
+                            }
+                            if (Array.isArray(delta?.tool_calls)) {
+                                delta.tool_calls.forEach((toolCallDelta, position) => {
+                                    const slotIndex = Number.isInteger(toolCallDelta?.index)
+                                        ? toolCallDelta.index
+                                        : (toolCallDelta?.id
+                                            ? toolCallSlots.length
+                                            : Math.max(0, toolCallSlots.length - 1 + position));
+                                    if (!toolCallSlots[slotIndex]) {
+                                        toolCallSlots[slotIndex] = { id: '', type: 'function', function: { name: '', arguments: '' } };
+                                    }
+                                    const slot = toolCallSlots[slotIndex];
+                                    if (toolCallDelta?.id) slot.id = toolCallDelta.id;
+                                    if (toolCallDelta?.function?.name) slot.function.name += toolCallDelta.function.name;
+                                    if (typeof toolCallDelta?.function?.arguments === 'string') {
+                                        slot.function.arguments += toolCallDelta.function.arguments;
+                                    } else if (toolCallDelta?.function?.arguments && typeof toolCallDelta.function.arguments === 'object') {
+                                        slot.function.arguments += JSON.stringify(toolCallDelta.function.arguments);
+                                    }
+                                });
+                            }
+                            if (Array.isArray(delta?.reasoning_details)) {
+                                reasoningDetails.push(...delta.reasoning_details);
+                            }
+                            if (Array.isArray(delta?.reasoning_items)) reasoningItems.push(...delta.reasoning_items);
 
                             if (delta?.content) {
                                 currentMessage.content += delta.content;
@@ -342,16 +394,22 @@ export async function callAPI({
                                 }
                             }
                         } catch (e) {
-                            if (e?.code === 'CEREBR_MISFILED_THINK_SILENTLY') {
+                            if (e?.code === 'CEREBR_MISFILED_THINK_SILENTLY' || e?.code === 'API_STREAM_ERROR') {
                                 throw e;
                             }
                             console.error('解析数据时出错:', e);
                         }
-                    }
-                }
             }
+            dispatchUpdate();
 
-            return currentMessage;
+            const toolCalls = toolCallSlots.filter((slot) => slot && slot.function.name);
+            return {
+                ...currentMessage,
+                tool_calls: toolCalls,
+                reasoning_details: reasoningDetails.length ? reasoningDetails : null,
+                reasoning_items: reasoningItems.length ? reasoningItems : null,
+                finish_reason: finishReason,
+            };
         } catch (error) {
             if (typeof lifecycle?.onRequestError === 'function' && error?.name !== 'AbortError') {
                 try {
