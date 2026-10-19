@@ -165,3 +165,13 @@ body:has(.settings-page.visible, #plugin-settings.visible, #plugin-shell-page.vi
 #message-input, #chat-navigation input { user-select: text; -webkit-user-select: text; }
 
 body[data-desktop-platform='darwin'] .navigation-window-toggle { left: 94px; }
+/* Match the 30px sidebar control at y=8: every titlebar item centers at y=23. */
+body[data-desktop-platform] :is(.settings-page-header, .settings-header) {
+    box-sizing: border-box;
+    height: 46px;
+    min-height: 46px;
+    padding-top: 0;
+    padding-bottom: 0;
+    align-items: center;
+}
+body[data-desktop-platform]:has(.settings-page.visible, #plugin-settings.visible, #plugin-shell-page.visible) .desktop-window-controls { height: 46px; }
