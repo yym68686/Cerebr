@@ -1,4 +1,4 @@
-import { publishProgress, subscribeRemoteProgress } from '../runtime/sync/ui-sync.js';
+import { publishProgress, publishLiveChat, subscribeRemoteProgress } from '../runtime/sync/ui-sync.js';
 import { createMessageActions } from './message-actions.js';
 import { chatManager } from '../domain/chat/chat-store.js';
 import { createChatPipeline } from '../runtime/chat/chat-pipeline.js';
@@ -22,9 +22,15 @@ import { createShellPluginRuntime } from '../plugin/shell/shell-plugin-runtime.j
 import { loadPreferences } from './state/preferences.js';
 import { attachSidebarDrag } from '../platform/sidebar-drag.js';
 import { t } from '../utils/i18n.js';
+import { attachDesktopUpdates } from '../platform/desktop-updates.js';
+import { attachChatSelectAll } from './chat-selection.js';
 
 export function createSession({ messageInput, chatContainer }) {
     const detachSidebarDrag = attachSidebarDrag(chatContainer);
+    const detachSelectAll = attachChatSelectAll(
+        chatContainer,
+        () => !uiStore.getSnapshot().page && !uiStore.getSnapshot().navigationOpen
+    );
     const events = new AbortController();
     const listen = (target, type, handler, options = {}) =>
         target.addEventListener(type, handler, { ...options, signal: events.signal });
@@ -125,18 +131,45 @@ export function createSession({ messageInput, chatContainer }) {
             setMessageInputContent(messageInput, snapshot.content, uiConfig, snapshot.quotes);
         }
     };
+    let liveRequest,
+        liveSequence = 0,
+        liveStartedAt = 0;
+    const sendLive = (chatId, phase, full = false) => {
+        const chat = chatManager.chats.get(chatId);
+        if (!chat || !liveRequest) return;
+        const index = chat.messages.length - 1;
+        publishLiveChat({
+            chatId,
+            requestId: liveRequest,
+            sequence: ++liveSequence,
+            phase,
+            startedAt: liveStartedAt,
+            ...(full || index < 0 ? { chat } : { index, message: chat.messages[index] }),
+        });
+    };
     const pipeline = createChatPipeline({
         chatManager,
         editor,
         getSelectedApiConfig,
-        getWebpageInfo: () => (isExtensionEnvironment || desktopBrowserStore.getSnapshot().session ? getEnabledTabsContent() : null),
+        getWebpageInfo: () =>
+            isExtensionEnvironment || desktopBrowserStore.getSnapshot().session
+                ? getEnabledTabsContent()
+                : null,
         getUserLanguage: () => navigator.language,
         pluginRuntime: runtime,
         onPhase: (phase, requestChatId) => {
             // The pipeline clears its UI request ID on idle. Publish completion
             // for the previous request before clearing it locally.
-            const progressChatId=requestChatId || uiStore.getSnapshot().requestChatId;
-            if(progressChatId)publishProgress({phase, chatId:progressChatId});
+            const progressChatId = requestChatId || uiStore.getSnapshot().requestChatId;
+            if (phase === 'thinking') {
+                liveRequest = crypto.randomUUID();
+                liveSequence = 0;
+                liveStartedAt = Date.now();
+            }
+            if (progressChatId) {
+                publishProgress({ phase, chatId: progressChatId, startedAt: liveStartedAt });
+                sendLive(progressChatId, phase, phase !== 'replying');
+            }
             uiStore.set({
                 phase,
                 requestChatId,
@@ -144,6 +177,7 @@ export function createSession({ messageInput, chatContainer }) {
             });
         },
         onSubmitted: (id, { preserveDraft = false } = {}) => {
+            sendLive(id, 'thinking', true);
             chatContainer.__cerebrUserPausedAutoScroll = false;
             requestAnimationFrame(() => {
                 chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -156,9 +190,14 @@ export function createSession({ messageInput, chatContainer }) {
     });
     const detachProgress = subscribeRemoteProgress((progress) => {
         uiStore.set((state) => {
-            const remoteProgress=progress.reset?{}:{...state.remoteProgress};
-            if(progress.chatId){if(progress.phase==='idle')delete remoteProgress[progress.chatId];else remoteProgress[progress.chatId]=progress.phase;}
-            return {...state,remoteProgress};
+            const remoteProgress = progress.reset ? {} : { ...state.remoteProgress };
+            const remoteStartedAt = progress.reset ? {} : { ...state.remoteStartedAt };
+            if (progress.chatId && progress.startedAt) remoteStartedAt[progress.chatId] = progress.startedAt;
+            if (progress.chatId) {
+                if (progress.phase === 'idle') delete remoteProgress[progress.chatId];
+                else remoteProgress[progress.chatId] = progress.phase;
+            }
+            return { ...state, remoteProgress, remoteStartedAt };
         });
     });
     runtime.attachChatRuntime(pipeline);
@@ -348,6 +387,16 @@ export function createSession({ messageInput, chatContainer }) {
         }
     });
     reading.start();
+    const detachUpdates = attachDesktopUpdates({
+        uiStore,
+        persist: async () => {
+            await saveDraft();
+            await Promise.all([...draftWrites.values()]);
+            await reading.saveNow();
+            await chatManager.flushNow();
+            await saveApiConfigs();
+        },
+    });
     void restoreDraft();
     requestAnimationFrame(() => void reading.restore(chatManager.currentChatId));
     void runtime
@@ -374,7 +423,10 @@ export function createSession({ messageInput, chatContainer }) {
         addImages: (files) => addImageFilesToDraft(messageInput, files, uiConfig),
         dispose() {
             disposed = true;
-            if(uiStore.getSnapshot().requestChatId)publishProgress({phase:'idle',chatId:uiStore.getSnapshot().requestChatId});
+            detachUpdates();
+            detachSelectAll();
+            if (uiStore.getSnapshot().requestChatId)
+                publishProgress({ phase: 'idle', chatId: uiStore.getSnapshot().requestChatId });
             flush();
             pipeline.abortActiveReply();
             events.abort();

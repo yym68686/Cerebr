@@ -20,7 +20,7 @@ body[data-desktop-platform]:has(.settings-page.visible, #plugin-settings.visible
 /* Keep native controls and the back button on the same row, including when
    the sidebar becomes a narrow rail or is hidden entirely. */
 body[data-desktop-platform='darwin'] :is(.settings-page-header, .settings-header) {
-    padding-left: max(22px, calc(100px - var(--cerebr-navigation-width, 0px)));
+    padding-left: max(22px, calc(142px - var(--cerebr-navigation-width, 0px)));
 }
 body[data-desktop-platform]:not([data-desktop-platform='darwin'])
     :is(.settings-page-header, .settings-header) {
@@ -33,9 +33,6 @@ body[data-desktop-platform] .navigation-header {
 body[data-desktop-platform] .navigation-header button {
     -webkit-app-region: no-drag;
     app-region: no-drag;
-}
-body[data-desktop-platform][data-navigation-rail='true'] .navigation-header {
-    margin-top: 34px;
 }
 body[data-desktop-platform] .chat-navigation-mobile-toggle {
     top: 48px;
@@ -75,3 +72,96 @@ body[data-desktop-platform] #chat-navigation.is-fullscreen {
     stroke: currentColor;
     stroke-width: 1;
 }
+
+body[data-desktop-platform]:not([data-desktop-platform='darwin'])
+    :is(.settings-page-header, .settings-header) {
+    padding-left: max(22px, calc(54px - var(--cerebr-navigation-width, 0px)));
+}
+.desktop-update-card {
+    border: 1px solid var(--cerebr-surface-border);
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--cerebr-surface-bg);
+}
+.desktop-update-heading {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 20px;
+}
+.desktop-update-icon {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: 11px;
+    background: var(--cerebr-hover-bg-color);
+    color: var(--cerebr-text-color-secondary);
+}
+.desktop-update-icon svg {
+    width: 21px;
+    height: 21px;
+}
+.desktop-update-heading > div {
+    flex: 1;
+    min-width: 0;
+}
+.desktop-update-heading h3 {
+    margin: 0 0 4px;
+    font-size: var(--cerebr-fs-14);
+    font-weight: 500;
+}
+.desktop-update-heading h3 span {
+    color: var(--cerebr-text-color-secondary);
+    font-weight: 400;
+    margin-left: 5px;
+}
+.desktop-update-heading p,
+.desktop-update-note {
+    margin: 0;
+    font-size: var(--cerebr-fs-12);
+    line-height: 1.6;
+    color: var(--cerebr-text-color-secondary);
+}
+.desktop-update-note {
+    border-top: 1px solid var(--cerebr-surface-border);
+    padding: 12px 20px;
+}
+.desktop-update-card progress {
+    display: block;
+    width: calc(100% - 40px);
+    height: 3px;
+    margin: 0 20px 18px;
+    border: 0;
+    border-radius: 3px;
+    overflow: hidden;
+    accent-color: var(--cerebr-text-color);
+}
+.desktop-update-card progress::-webkit-progress-bar {
+    background: var(--cerebr-hover-bg-color);
+}
+.desktop-update-card progress::-webkit-progress-value {
+    background: var(--cerebr-text-color);
+}
+@media (max-width: 520px) {
+    .desktop-update-heading {
+        flex-wrap: wrap;
+    }
+    .desktop-update-heading .settings-button {
+        margin-left: 54px;
+    }
+}
+.desktop-chat-drag-region {
+    position: fixed; top: 0; left: max(142px, var(--cerebr-navigation-width, 0px));
+    right: 12px; height: 28px; z-index: 190; background: transparent;
+    -webkit-app-region: drag; app-region: drag;
+}
+body[data-desktop-platform]:not([data-desktop-platform='darwin']) .desktop-chat-drag-region { left: max(54px, var(--cerebr-navigation-width, 0px)); right: 138px; }
+body:has(.settings-page.visible, #plugin-settings.visible, #plugin-shell-page.visible) .desktop-chat-drag-region { display: none; }
+.composer-sources-loading { pointer-events: none; }
+.composer-sources-loading .composer-source-tag { width: 140px; height: 28px; opacity: .45; }
+#chat-navigation, #input-container, .desktop-window-controls, .navigation-window-toggle { user-select: none; -webkit-user-select: none; }
+#message-input, #chat-navigation input { user-select: text; -webkit-user-select: text; }
+
+body[data-desktop-platform='darwin'] .navigation-window-toggle { left: 94px; }

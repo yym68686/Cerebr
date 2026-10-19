@@ -1,7 +1,7 @@
 body { --cerebr-navigation-width: 0px; }
 #chat-navigation {
     display: none; position: fixed; inset: 0 auto 0 0;
-    width: var(--cerebr-navigation-width); box-sizing: border-box;
+    width: 240px; box-sizing: border-box;
     background: var(--cerebr-settings-page-bg); color: var(--cerebr-text-color);
     border-right: 1px solid var(--cerebr-surface-border);
     flex-direction: column; padding: calc(12px + env(safe-area-inset-top)) 8px calc(10px + env(safe-area-inset-bottom));
@@ -44,8 +44,6 @@ body { --cerebr-navigation-width: 0px; }
 .navigation-group-label { padding: 14px 8px 4px; font-size: var(--cerebr-fs-12); color: var(--cerebr-text-color-secondary); }
 .navigation-empty, .navigation-folder-empty { padding: 12px 8px; font-size: var(--cerebr-fs-12); color: var(--cerebr-text-color-secondary); }
 .navigation-folder-empty { padding: 5px 8px 10px 28px; }
-#chat-navigation.is-rail .navigation-header { padding-inline: 3px; justify-content: center; }
-#chat-navigation.is-rail .navigation-primary-row { justify-content: center; padding-inline: 6px; }
 .chat-navigation-mobile-toggle { position: fixed; top: calc(8px + env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); z-index: 200; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--cerebr-surface-border); border-radius: 8px; background: var(--cerebr-surface-bg); color: var(--cerebr-text-color-secondary); cursor: pointer; }
 .chat-navigation-mobile-toggle[hidden] { display: none; }
 .chat-navigation-mobile-toggle svg { width: 18px; height: 18px; }
@@ -72,7 +70,7 @@ body { --cerebr-navigation-width: 0px; }
 /* Match useWideLayout.js, including the extension's 800px-wide floating panel. */
 @media (min-width: 768px) {
     body { --cerebr-navigation-width: 240px; }
-    body[data-navigation-rail="true"] { --cerebr-navigation-width: 56px; }
+    body[data-navigation-collapsed="true"] { --cerebr-navigation-width: 0px; }
     #chat-container { padding-top: calc(24px + env(safe-area-inset-top)); }
     .chat-navigation-mobile-toggle { display: none; }
     #api-settings, #preferences-settings, #plugin-settings, #plugin-shell-page { left: var(--cerebr-navigation-width); }
@@ -89,3 +87,23 @@ body { --cerebr-navigation-width: 0px; }
     .navigation-glide-highlight, .navigation-search { transition: none; animation: none; }
     .navigation-reply-spinner { animation: none; border-style: dotted; }
 }
+
+/* Hover preview floats over content; only pinning changes the chat's width. */
+#chat-navigation.is-floating {
+    width: 240px;
+    border-radius: 0 12px 12px 0;
+    box-shadow: 10px 0 32px var(--cerebr-popup-shadow);
+    animation: navigation-preview-in .16s ease-out;
+}
+.navigation-window-toggle {
+    position: fixed; top: 8px; left: 12px; z-index: 1101;
+    display: grid; place-items: center; width: 30px; height: 30px;
+    border: 0; border-radius: 7px; color: var(--cerebr-text-color-secondary);
+    background: var(--cerebr-settings-page-bg); cursor: pointer;
+    -webkit-app-region: no-drag;
+}
+.navigation-window-toggle:hover { background: var(--cerebr-hover-bg-color); color: var(--cerebr-text-color); }
+.navigation-window-toggle svg { width: 18px; height: 18px; }
+body[data-desktop-platform] .chat-navigation-mobile-toggle { display: none; }
+@keyframes navigation-preview-in { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { #chat-navigation.is-floating { animation: none; } }

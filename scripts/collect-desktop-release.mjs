@@ -13,7 +13,11 @@ const candidates = await readdir(make, { recursive: true });
 const installer =
     platform === 'darwin' ? `Cerebr-${version}-${arch}.dmg` : `Cerebr-${version}-win32-${arch}-Setup.exe`;
 const files = [];
-for (const name of [installer, `Cerebr-${platform}-${arch}-${version}.zip`]) {
+for (const name of [
+    installer,
+    `Cerebr-${platform}-${arch}-${version}.zip`,
+    ...(platform === 'win32' ? ['RELEASES', `Cerebr-${version}-full.nupkg`] : []),
+]) {
     const matches = candidates.filter(
         (file) => file.split(path.sep).includes(arch) && path.basename(file) === name
     );

@@ -1,4 +1,5 @@
 import { subscribeRemoteChanges } from '../../runtime/sync/replica.js';
+import { getLiveChat, getLiveChats, reconcileLiveChat, subscribeLiveChats } from '../../runtime/sync/live-chat.js';
 import { storageAdapter, browserAdapter, isExtensionEnvironment } from '../../utils/storage-adapter.js';
 import {
     DEFAULT_CHAT_KIND,
@@ -67,6 +68,10 @@ export class ChatManager {
         this._unverifiedLastActive = null;
         this.initialize();
         this._remoteQueue = Promise.resolve();
+        subscribeLiveChats(() => {
+            for (const chat of getLiveChats()) this.chats.set(chat.id, chat);
+            this.notify();
+        });
         subscribeRemoteChanges((keys) => {
             const chatKeys = keys.filter((key) => key.startsWith(CHAT_V2_PREFIX));
             if (!chatKeys.length) return;
@@ -76,8 +81,9 @@ export class ChatManager {
                 const records = await this.storage.get(chatKeys);
                 for (const key of chatKeys) {
                     const id = key.slice(CHAT_V2_PREFIX.length);
-                    if (records[key]) this.chats.set(id, records[key]);
-                    else this.chats.delete(id);
+                    reconcileLiveChat(id, records[key]);
+                    if (records[key]) this.chats.set(id, getLiveChat(id) || records[key]);
+                    else if (!getLiveChat(id)) this.chats.delete(id);
                 }
                 if (this._storedIndexIds) this._storedIndexIds = (await this.storage.get(CHATS_INDEX_V2_KEY))[CHATS_INDEX_V2_KEY] || [];
                 if (!this.chats.has(this.currentChatId)) {
@@ -479,6 +485,7 @@ export class ChatManager {
     }
 
     async switchChat(chatId) {
+        if (!this.chats.has(chatId) && getLiveChat(chatId)) this.chats.set(chatId, getLiveChat(chatId));
         if (!this.chats.has(chatId) && !this._allChatsLoaded) {
             await this.loadAllChats();
         }

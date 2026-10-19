@@ -9,7 +9,13 @@ import {
     subscribeLocalChanges,
 } from './replica.js';
 import { browserSummary } from './summary.js';
-export async function createSyncClient({ db, send, onStatus = () => {}, onProgress = () => {} }) {
+export async function createSyncClient({
+    db,
+    send,
+    onStatus = () => {},
+    onProgress = () => {},
+    onLive = () => {},
+}) {
     await seedReplica(db);
     let ready = false,
         timer = 0,
@@ -81,6 +87,14 @@ export async function createSyncClient({ db, send, onStatus = () => {}, onProgre
             send({ type: 'hello' });
         },
         receive(message) {
+            if (message.type === 'live-chat') {
+                if (!stopped) onLive(message.frame);
+                return Promise.resolve();
+            }
+            if (message.type === 'progress') {
+                if (!stopped) onProgress(message.progress);
+                return Promise.resolve();
+            }
             queue = queue.then(() => receive(message)).catch((e) => onStatus({ error: e.message }));
             return queue;
         },
@@ -104,6 +118,9 @@ export async function createSyncClient({ db, send, onStatus = () => {}, onProgre
         },
         progress(progress) {
             if (ready) send({ type: 'progress', progress });
+        },
+        live(frame) {
+            if (ready && !stopped) send({ type: 'live-chat', frame });
         },
         close() {
             stopped = true;

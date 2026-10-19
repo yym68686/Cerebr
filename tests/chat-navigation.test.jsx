@@ -161,20 +161,20 @@ it('keeps keyboard focus highlighting and does not create hover from touch scrol
     await act(async () => hover.rows[1].querySelector('button').focus());
     expect(hover.list.querySelector('.navigation-glide-highlight').style.transform).toBe('translateY(40px)');
 });
-it('pins the menu target highlight when focus and pointer move into its context menu', async()=>{
+it('pins the menu target highlight when focus and pointer move into its context menu', async () => {
     await render();
-    const hover=mockHoverLayout();
-    await hover.point('pointerover',hover.rows[1],20,155);
-    await act(async()=>hover.rows[1].querySelector('.navigation-item-more').click());
-    const menu=host.querySelector('.navigation-menu');
+    const hover = mockHoverLayout();
+    await hover.point('pointerover', hover.rows[1], 20, 155);
+    await act(async () => hover.rows[1].querySelector('.navigation-item-more').click());
+    const menu = host.querySelector('.navigation-menu');
     expect(menu).not.toBeNull();
-    await hover.point('pointerout',hover.rows[1],300,155,'mouse',menu);
-    await act(async()=>menu.querySelector('button').focus());
+    await hover.point('pointerout', hover.rows[1], 300, 155, 'mouse', menu);
+    await act(async () => menu.querySelector('button').focus());
     expect(hover.list.querySelector('.navigation-glide-highlight').style.transform).toBe('translateY(40px)');
     expect(hover.list.classList.contains('is-hovering')).toBe(true);
     expect(chatManager.currentChatId).toBe('a');
     expect(session.switchChat).not.toHaveBeenCalled();
-    await act(async()=>menu.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
+    await act(async () => menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
     expect(host.querySelector('.navigation-menu')).toBeNull();
 });
 it('shares the same navigation in a wide sidebar and a narrow fullscreen view', async () => {
@@ -260,13 +260,35 @@ it('supports keyboard context menus without activating or deleting a chat', asyn
     expect(host.querySelector('.navigation-menu')).toBeNull();
     expect(session.removeChat).not.toHaveBeenCalled();
 });
-it('keeps desktop rail preference separate from the narrow full screen navigation', async () => {
+it('fully hides collapsed navigation and keeps the narrow full screen navigation usable', async () => {
     await render();
     await click(button('nav_collapse_sidebar'));
-    expect(host.querySelector('#chat-navigation').classList.contains('is-rail')).toBe(true);
+    expect(host.querySelector('#chat-navigation').classList.contains('is-visible')).toBe(false);
+    expect(document.body.dataset.navigationCollapsed).toBe('true');
+    expect(host.querySelector('.navigation-window-toggle')).not.toBeNull();
     await render(false, true);
-    expect(host.querySelector('#chat-navigation').classList.contains('is-rail')).toBe(false);
+    expect(host.querySelector('#chat-navigation').classList.contains('is-fullscreen')).toBe(true);
     expect(host.querySelectorAll('[data-chat-id]')).toHaveLength(2);
     await click(button('settings_new_chat'));
     expect(session.newChat).toHaveBeenCalledOnce();
+});
+it('previews without changing the saved collapsed preference and pins only on click', async () => {
+    await render();
+    await click(button('nav_collapse_sidebar'));
+    const toggle = host.querySelector('.navigation-window-toggle');
+    await act(async () => toggle.dispatchEvent(new MouseEvent('pointerout', { bubbles: true, relatedTarget: document.body })));
+    await act(async () => toggle.dispatchEvent(new MouseEvent('pointerover', { bubbles: true })));
+    expect(host.querySelector('#chat-navigation').classList.contains('is-floating')).toBe(true);
+    expect(chatOrganization.getSnapshot().sidebarCollapsed).toBe(true);
+    expect(document.body.dataset.navigationCollapsed).toBe('true');
+    await act(async () =>
+        toggle.dispatchEvent(new MouseEvent('pointerout', { bubbles: true, relatedTarget: document.body }))
+    );
+    await act(async () => vi.advanceTimersByTimeAsync(250));
+    expect(host.querySelector('#chat-navigation').classList.contains('is-visible')).toBe(false);
+    await act(async () => toggle.dispatchEvent(new MouseEvent('pointerover', { bubbles: true })));
+    await click('.navigation-window-toggle');
+    expect(chatOrganization.getSnapshot().sidebarCollapsed).toBe(false);
+    expect(host.querySelector('#chat-navigation').classList.contains('is-floating')).toBe(false);
+    expect(host.querySelector('#chat-navigation').classList.contains('is-visible')).toBe(true);
 });

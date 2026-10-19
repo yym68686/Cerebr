@@ -24,4 +24,5 @@ for (const entry of ['main', 'preload', 'sync-service']) {
     });
 }
 await cp(path.join(root, '../dist'), path.join(root, '.vite/renderer'), { recursive: true });
+await cp(path.join(root, 'src/install-mac-update.sh'), path.join(root, '.vite/install-mac-update.sh'));
 console.log('Desktop host and shared React frontend built.');

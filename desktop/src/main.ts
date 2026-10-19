@@ -3,6 +3,7 @@ import squirrelStartup from 'electron-squirrel-startup';
 import path from 'node:path';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { DesktopUpdater } from './updater';
 
 if (squirrelStartup) app.quit();
 if (process.platform === 'win32') app.setAppUserModelId('com.squirrel.Cerebr.Cerebr');
@@ -21,6 +22,7 @@ let window: BrowserWindow | null = null;
 let worker: any;
 let workerReady = false;
 let cachedStatus: any = { connected: false, error: null };
+let updater: DesktopUpdater;
 const waiting = new Map<
     string,
     { resolve: (value: any) => void; reject: (error: Error) => void; timer: any }
@@ -86,7 +88,7 @@ function createWindow() {
     );
     window.once('ready-to-show', () => window?.show());
     window.on('closed', () => {
-        worker?.postMessage({kind:'clear-desktop-progress'});
+        worker?.postMessage({ kind: 'clear-desktop-progress' });
         window = null;
     });
     void window.loadURL('cerebr://app/index.html');
@@ -175,6 +177,36 @@ app.whenReady().then(() => {
         if (!workerReady) throw new Error('Browser extension disconnected');
         return request('browser-request', payload);
     });
+    updater = new DesktopUpdater(
+        (status) => window?.webContents.send('desktop:update-status', status),
+        async () => {
+            if (!workerReady) throw new Error('Sync service is unavailable');
+            await request('status');
+        }
+    );
+    ipcMain.handle('desktop:update-status', (event) => {
+        safeSender(event);
+        const id = process.argv.find((arg) => arg.startsWith('--cerebr-update-id='))?.split('=')[1];
+        if (id && /^download-[A-Za-z0-9]{6}$/.test(id)) {
+            const directory = path.join(app.getPath('userData'), 'updates', id);
+            if (fs.existsSync(directory))
+                fs.writeFileSync(path.join(directory, 'restarted'), app.getVersion(), { mode: 0o600 });
+        }
+        return updater.status;
+    });
+    ipcMain.handle('desktop:update-check', (event) => {
+        safeSender(event);
+        void updater.check();
+        return updater.status;
+    });
+    ipcMain.handle('desktop:update-ready', async (event) => {
+        safeSender(event);
+        await updater.install();
+    });
+    ipcMain.on('desktop:update-save-failed', (event) => {
+        safeSender(event);
+        updater.saveFailed();
+    });
     ipcMain.on('desktop:window', (event, action) => {
         safeSender(event);
         if (action === 'minimize') window?.minimize();
@@ -208,7 +240,7 @@ app.whenReady().then(() => {
                     { role: 'cut' },
                     { role: 'copy' },
                     { role: 'paste' },
-                    { role: 'selectAll' },
+                    { label: '全选', accelerator: 'CmdOrCtrl+A', click: () => window?.webContents.send('desktop:select-all') },
                 ],
             },
             {

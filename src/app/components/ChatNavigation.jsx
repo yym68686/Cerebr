@@ -16,15 +16,15 @@ import { useProgressiveCount } from '../hooks/useProgressiveCount.js';
 import { Icon } from './Icon.jsx';
 import { NavigationDialog, NavigationMenu } from './NavigationOverlays.jsx';
 
-function GlideList({ children, resetKey, scrollRef, pinnedRow=null }) {
-    const pinned=useRef(pinnedRow);
-    pinned.current=pinnedRow;
+function GlideList({ children, resetKey, scrollRef, pinnedRow = null }) {
+    const pinned = useRef(pinnedRow);
+    pinned.current = pinnedRow;
     const ref = useRef(null),
         pointer = useRef(null),
         frame = useRef(0);
     const [highlight, setHighlight] = useState(null);
     const highlightTarget = useCallback((target, instant = false) => {
-        const row = (pinned.current||target)?.closest('[data-nav-row]');
+        const row = (pinned.current || target)?.closest('[data-nav-row]');
         if (!row || !ref.current?.contains(row)) {
             setHighlight(null);
             return;
@@ -62,9 +62,9 @@ function GlideList({ children, resetKey, scrollRef, pinnedRow=null }) {
         };
     }, [scrollRef, syncPointer]);
     useLayoutEffect(() => {
-        if(pinnedRow)highlightTarget(pinnedRow,true);
+        if (pinnedRow) highlightTarget(pinnedRow, true);
         else if (pointer.current) syncPointer();
-        else if(ref.current?.contains(document.activeElement))highlightTarget(document.activeElement,true);
+        else if (ref.current?.contains(document.activeElement)) highlightTarget(document.activeElement, true);
         else setHighlight(null);
     }, [resetKey, syncPointer, pinnedRow, highlightTarget]);
     return (
@@ -86,7 +86,7 @@ function GlideList({ children, resetKey, scrollRef, pinnedRow=null }) {
                 pointer.current = null;
                 cancelAnimationFrame(frame.current);
                 frame.current = 0;
-                if(!pinned.current)setHighlight(null);
+                if (!pinned.current) setHighlight(null);
             }}
         >
             {highlight && (
@@ -119,8 +119,29 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
         listRef = useRef(null),
         longPress = useRef(null),
         pressPoint = useRef(null);
-    const visible = wide || open;
-    const rail = wide && organization.sidebarCollapsed && !open;
+    const desktop = !!globalThis.cerebrDesktop;
+    const [preview, setPreview] = useState(false);
+    const hoverTimer = useRef(null),
+        suppressHover = useRef(false),
+        hovering = useRef(false);
+    const collapsed = wide && organization.sidebarCollapsed;
+    const floating = wide && collapsed && (preview || open);
+    const visible = (wide && !collapsed) || floating || (!wide && open);
+    const showToggle = desktop || (wide && collapsed);
+    const cancelHoverClose = () => clearTimeout(hoverTimer.current);
+    const leavePreview = () => {
+        hovering.current = false;
+        suppressHover.current = false;
+        cancelHoverClose();
+        hoverTimer.current = setTimeout(() => {
+            if (!menuTarget.current && !dialog) setPreview(false);
+        }, 180);
+    };
+    const enterPreview = (event) => {
+        hovering.current = true;
+        cancelHoverClose();
+        if (wide && collapsed && !suppressHover.current && event.pointerType !== 'touch') setPreview(true);
+    };
     const menuTarget = useRef(null);
     menuTarget.current = menu;
     const query = useDeferredValue(search.trim().toLowerCase());
@@ -155,15 +176,15 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
         };
     }, [visible, run]);
     useLayoutEffect(() => {
-        document.body.dataset.navigationRail = String(rail);
+        document.body.dataset.navigationCollapsed = String(collapsed);
         return () => {
-            delete document.body.dataset.navigationRail;
+            delete document.body.dataset.navigationCollapsed;
         };
-    }, [rail]);
+    }, [collapsed]);
     useLayoutEffect(() => {
         if (!visible) return;
-        if (searchOpen && !rail) searchRef.current?.focus({ preventScroll: true });
-    }, [searchOpen, rail, visible]);
+        if (searchOpen) searchRef.current?.focus({ preventScroll: true });
+    }, [searchOpen, visible]);
     useLayoutEffect(() => {
         if (!open || wide) return;
         const before = document.activeElement;
@@ -183,7 +204,7 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
         [organization.folders]
     );
     const entries = useMemo(() => {
-        if (!loaded || rail || (organization.chatsCollapsed && !query)) return [];
+        if (!loaded || (organization.chatsCollapsed && !query)) return [];
         const byFolder = new Map(organization.folders.map((folder) => [folder.id, []]));
         const unfiled = [];
         for (const chat of chats) {
@@ -219,8 +240,8 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
         if (organization.folders.length && unfiled.length) rows.push({ kind: 'label', id: 'unfiled' });
         for (const chat of unfiled) rows.push({ kind: 'chat', id: chat.id, chat });
         return rows;
-    }, [chats, organization, query, rail, folderById, loaded]);
-    const count = useProgressiveCount(`${query}:${rail}:${organization.chatsCollapsed}`, entries.length, 50);
+    }, [chats, organization, query, folderById, loaded]);
+    const count = useProgressiveCount(`${query}:${organization.chatsCollapsed}`, entries.length, 50);
     const closeMenu = useCallback((restore = true) => {
         if (restore && menuTarget.current?.returnFocus?.isConnected)
             menuTarget.current.returnFocus.focus({ preventScroll: true });
@@ -243,14 +264,48 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
         run(async () => {
             if (chatManager.currentChatId !== chatId) await session?.switchChat(chatId);
             else onNavigate(null);
+            setPreview(false);
             onClose();
         });
     const newChat = () =>
         run(async () => {
             await session?.newChat();
+            setPreview(false);
             onClose();
         });
-    const expand = () => run(() => chatOrganization.setCollapsed('sidebar', false));
+    useEffect(() => {
+        if (!menu && !dialog && !hovering.current) leavePreview();
+        return () => clearTimeout(hoverTimer.current);
+    }, [menu, dialog]);
+    const toggleSidebar = () => {
+        cancelHoverClose();
+        suppressHover.current = true;
+        setPreview(false);
+        if (!wide) uiStore.set({ navigationOpen: !open });
+        else {
+            onClose();
+            run(() => chatOrganization.setCollapsed('sidebar', !collapsed));
+        }
+    };
+    useEffect(() => {
+        if (!wide || !collapsed) setPreview(false);
+        return () => clearTimeout(hoverTimer.current);
+    }, [wide, collapsed]);
+    useEffect(() => {
+        if (!floating) return;
+        const outside = (event) => {
+            if (
+                !event.target.closest(
+                    '#chat-navigation,.navigation-window-toggle,.navigation-menu,.navigation-dialog'
+                )
+            ) {
+                setPreview(false);
+                onClose();
+            }
+        };
+        document.addEventListener('pointerdown', outside);
+        return () => document.removeEventListener('pointerdown', outside);
+    }, [floating, onClose]);
     const rename = () =>
         setDialog({
             type: menu.kind === 'chat' ? 'renameChat' : 'renameFolder',
@@ -272,11 +327,31 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
     };
     return (
         <>
+            {showToggle && (
+                <button
+                    ref={desktop ? closeRef : undefined}
+                    type="button"
+                    className="navigation-window-toggle"
+                    aria-label={t(wide && !collapsed ? 'nav_collapse_sidebar' : 'nav_expand_sidebar')}
+                    aria-expanded={wide ? !collapsed : open}
+                    aria-controls="chat-navigation"
+                    onPointerEnter={enterPreview}
+                    onPointerLeave={leavePreview}
+                    onClick={toggleSidebar}
+                >
+                    <Icon name={wide && !collapsed ? 'sidebar-close' : 'sidebar-open'} />
+                </button>
+            )}
             <aside
                 id="chat-navigation"
-                className={`${visible ? 'is-visible' : ''}${rail ? ' is-rail' : ''}${!wide && open ? ' is-fullscreen' : ''}`}
+                className={`${visible ? 'is-visible' : ''}${floating ? ' is-floating' : ''}${!wide && open ? ' is-fullscreen' : ''}`}
                 aria-label={t('nav_chat_navigation')}
                 inert={!visible}
+                onPointerEnter={() => {
+                    hovering.current = true;
+                    cancelHoverClose();
+                }}
+                onPointerLeave={leavePreview}
                 onKeyDown={(event) => {
                     if (event.key === 'Tab' && !wide && open) {
                         const items = [...event.currentTarget.querySelectorAll('button, input')].filter(
@@ -297,35 +372,35 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                         else if (searchOpen) {
                             setSearchOpen(false);
                             setSearch('');
-                        } else if (open) onClose();
+                        } else {
+                            setPreview(false);
+                            onClose();
+                        }
                     }
                 }}
             >
                 <div className="navigation-header">
-                    {wide ? (
-                        <button
-                            type="button"
-                            className="navigation-icon-button"
-                            aria-label={t(rail ? 'nav_expand_sidebar' : 'nav_collapse_sidebar')}
-                            title={t(rail ? 'nav_expand_sidebar' : 'nav_collapse_sidebar')}
-                            onClick={() => {
-                                onClose();
-                                run(() => chatOrganization.setCollapsed('sidebar', !rail));
-                            }}
-                        >
-                            <Icon name={rail ? 'sidebar-open' : 'sidebar-close'} />
-                        </button>
-                    ) : (
-                        <button
-                            ref={closeRef}
-                            type="button"
-                            className="navigation-icon-button"
-                            aria-label={t('nav_close_navigation')}
-                            onClick={onClose}
-                        >
-                            <Icon name="close" />
-                        </button>
-                    )}
+                    {!desktop &&
+                        (wide ? (
+                            <button
+                                type="button"
+                                className="navigation-icon-button"
+                                aria-label={t(collapsed ? 'nav_expand_sidebar' : 'nav_collapse_sidebar')}
+                                onClick={toggleSidebar}
+                            >
+                                <Icon name={collapsed ? 'sidebar-open' : 'sidebar-close'} />
+                            </button>
+                        ) : (
+                            <button
+                                ref={closeRef}
+                                type="button"
+                                className="navigation-icon-button"
+                                aria-label={t('nav_close_navigation')}
+                                onClick={onClose}
+                            >
+                                <Icon name="close" />
+                            </button>
+                        ))}
                 </div>
                 <GlideList>
                     <button
@@ -333,231 +408,215 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                         type="button"
                         className="navigation-primary-row"
                         aria-label={t('settings_new_chat')}
-                        title={rail ? t('settings_new_chat') : undefined}
                         disabled={!session}
                         onClick={newChat}
                     >
                         <Icon name="compose" />
-                        {!rail && <span>{t('settings_new_chat')}</span>}
+                        <span>{t('settings_new_chat')}</span>
                     </button>
-                    {rail && (
-                        <button
-                            data-nav-row
-                            type="button"
-                            className="navigation-primary-row"
-                            aria-label={t('nav_search_chats')}
-                            title={t('nav_search_chats')}
-                            onClick={() => {
-                                expand();
-                                setSearchOpen(true);
-                            }}
-                        >
-                            <Icon name="search" />
-                        </button>
-                    )}
                 </GlideList>
-                {!rail && (
-                    <>
-                        <div className={`navigation-chats-header${searchOpen ? ' is-searching' : ''}`}>
-                            {searchOpen ? (
-                                <div className="navigation-search">
-                                    <Icon name="search" />
-                                    <input
-                                        ref={searchRef}
-                                        type="search"
-                                        aria-label={t('nav_search_chats')}
-                                        placeholder={t('nav_search_chats')}
-                                        value={search}
-                                        onChange={(event) => setSearch(event.target.value)}
-                                    />
-                                    <button
-                                        type="button"
-                                        className="navigation-icon-button"
-                                        aria-label={t('chat_clear_search_aria')}
-                                        onClick={() => {
-                                            setSearch('');
-                                            setSearchOpen(false);
-                                        }}
-                                    >
-                                        <Icon name="close" />
-                                    </button>
-                                </div>
-                            ) : (
-                                <>
-                                    <button
-                                        className="navigation-chats-toggle"
-                                        type="button"
-                                        aria-expanded={!organization.chatsCollapsed}
-                                        onClick={() =>
-                                            run(() =>
-                                                chatOrganization.setCollapsed(
-                                                    'chats',
-                                                    !organization.chatsCollapsed
-                                                )
+                <>
+                    <div className={`navigation-chats-header${searchOpen ? ' is-searching' : ''}`}>
+                        {searchOpen ? (
+                            <div className="navigation-search">
+                                <Icon name="search" />
+                                <input
+                                    ref={searchRef}
+                                    type="search"
+                                    aria-label={t('nav_search_chats')}
+                                    placeholder={t('nav_search_chats')}
+                                    value={search}
+                                    onChange={(event) => setSearch(event.target.value)}
+                                />
+                                <button
+                                    type="button"
+                                    className="navigation-icon-button"
+                                    aria-label={t('chat_clear_search_aria')}
+                                    onClick={() => {
+                                        setSearch('');
+                                        setSearchOpen(false);
+                                    }}
+                                >
+                                    <Icon name="close" />
+                                </button>
+                            </div>
+                        ) : (
+                            <>
+                                <button
+                                    className="navigation-chats-toggle"
+                                    type="button"
+                                    aria-expanded={!organization.chatsCollapsed}
+                                    onClick={() =>
+                                        run(() =>
+                                            chatOrganization.setCollapsed(
+                                                'chats',
+                                                !organization.chatsCollapsed
                                             )
-                                        }
-                                    >
-                                        <Icon name="chevron-down" />
-                                        <span>{t('nav_chats')}</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="navigation-icon-button"
-                                        aria-label={t('nav_new_folder')}
-                                        title={t('nav_new_folder')}
-                                        onClick={() => setDialog({ type: 'createFolder' })}
-                                    >
-                                        <Icon name="folder-plus" />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="navigation-icon-button"
-                                        aria-label={t('nav_search_chats')}
-                                        title={t('nav_search_chats')}
-                                        onClick={() => setSearchOpen(true)}
-                                    >
-                                        <Icon name="search" />
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                        <div className="navigation-chat-list" ref={listRef} onScroll={() => closeMenu(false)}>
-                            {loadError ? (
-                                <div className="navigation-empty" role="alert">
-                                    {t('nav_load_error')}
-                                    <button type="button" onClick={load}>
-                                        {t('composer_retry')}
-                                    </button>
-                                </div>
-                            ) : !loaded ? (
-                                <div className="navigation-empty" role="status">
-                                    {t('nav_loading')}
-                                </div>
-                            ) : null}
-                            <GlideList
-                                scrollRef={listRef}
-                                pinnedRow={menu?.returnFocus?.closest('[data-nav-row]')||null}
-                                resetKey={`${query}:${entries.length}:${count}:${organization.chatsCollapsed}`}
-                            >
-                                {entries.slice(0, count).map((entry) => {
-                                    if (entry.kind === 'label')
-                                        return (
-                                            <div className="navigation-group-label" key={entry.id}>
-                                                {t('nav_unfiled')}
-                                            </div>
-                                        );
-                                    if (entry.kind === 'empty')
-                                        return (
-                                            <div className="navigation-folder-empty" key={entry.id}>
-                                                {t('nav_folder_empty')}
-                                            </div>
-                                        );
-                                    const isChat = entry.kind === 'chat';
-                                    const active = isChat && entry.id === chatManager.currentChatId;
-                                    const running =
-                                        isChat && ((ui.phase !== 'idle' && ui.requestChatId === entry.id) || ['thinking','replying'].includes(ui.remoteProgress?.[entry.id]));
-                                    const label = isChat ? entry.chat.title : entry.folder.name;
+                                        )
+                                    }
+                                >
+                                    <Icon name="chevron-down" />
+                                    <span>{t('nav_chats')}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    className="navigation-icon-button"
+                                    aria-label={t('nav_new_folder')}
+                                    title={t('nav_new_folder')}
+                                    onClick={() => setDialog({ type: 'createFolder' })}
+                                >
+                                    <Icon name="folder-plus" />
+                                </button>
+                                <button
+                                    type="button"
+                                    className="navigation-icon-button"
+                                    aria-label={t('nav_search_chats')}
+                                    title={t('nav_search_chats')}
+                                    onClick={() => setSearchOpen(true)}
+                                >
+                                    <Icon name="search" />
+                                </button>
+                            </>
+                        )}
+                    </div>
+                    <div className="navigation-chat-list" ref={listRef} onScroll={() => closeMenu(false)}>
+                        {loadError ? (
+                            <div className="navigation-empty" role="alert">
+                                {t('nav_load_error')}
+                                <button type="button" onClick={load}>
+                                    {t('composer_retry')}
+                                </button>
+                            </div>
+                        ) : !loaded ? (
+                            <div className="navigation-empty" role="status">
+                                {t('nav_loading')}
+                            </div>
+                        ) : null}
+                        <GlideList
+                            scrollRef={listRef}
+                            pinnedRow={menu?.returnFocus?.closest('[data-nav-row]') || null}
+                            resetKey={`${query}:${entries.length}:${count}:${organization.chatsCollapsed}`}
+                        >
+                            {entries.slice(0, count).map((entry) => {
+                                if (entry.kind === 'label')
                                     return (
-                                        <div
-                                            key={`${entry.kind}:${entry.id}`}
-                                            data-nav-row
-                                            data-chat-id={isChat ? entry.id : undefined}
-                                            data-folder-id={!isChat ? entry.id : undefined}
-                                            className={`navigation-item${active ? ' is-active' : ''}${entry.nested ? ' is-nested' : ''}`}
-                                            onContextMenu={(event) => showMenu(event, entry)}
-                                            onKeyDown={(event) => {
-                                                if (
-                                                    event.key === 'ContextMenu' ||
-                                                    (event.key === 'F10' && event.shiftKey)
-                                                )
-                                                    showMenu(event, entry);
-                                            }}
-                                            onPointerDown={(event) => {
-                                                if (event.pointerType !== 'touch') return;
-                                                pressPoint.current = { x: event.clientX, y: event.clientY };
-                                                const target = {
-                                                    preventDefault() {},
-                                                    stopPropagation() {},
-                                                    currentTarget: event.currentTarget,
-                                                    clientX: event.clientX,
-                                                    clientY: event.clientY,
-                                                };
-                                                longPress.current = setTimeout(() => {
-                                                    pressPoint.current = null;
-                                                    showMenu(target, entry);
-                                                }, 500);
-                                            }}
-                                            onPointerMove={(event) => {
-                                                if (
-                                                    pressPoint.current &&
-                                                    Math.hypot(
-                                                        event.clientX - pressPoint.current.x,
-                                                        event.clientY - pressPoint.current.y
-                                                    ) > 8
-                                                )
-                                                    clearTimeout(longPress.current);
-                                            }}
-                                            onPointerUp={() => clearTimeout(longPress.current)}
-                                            onPointerCancel={() => clearTimeout(longPress.current)}
-                                        >
-                                            <button
-                                                type="button"
-                                                className="navigation-item-label"
-                                                title={label}
-                                                aria-current={active ? 'page' : undefined}
-                                                aria-expanded={
-                                                    !isChat ? !entry.folder.collapsed || !!query : undefined
-                                                }
-                                                onClick={() => {
-                                                    if (menu?.id === entry.id) return;
-                                                    if (isChat) pickChat(entry.id);
-                                                    else
-                                                        run(() =>
-                                                            chatOrganization.setCollapsed(
-                                                                entry.id,
-                                                                !entry.folder.collapsed
-                                                            )
-                                                        );
-                                                }}
-                                            >
-                                                {!isChat && (
-                                                    <>
-                                                        <Icon name="chevron-down" />
-                                                        <Icon name="folder" />
-                                                    </>
-                                                )}
-                                                <span>{label}</span>
-                                                {!isChat && (
-                                                    <span className="navigation-count">{entry.count}</span>
-                                                )}
-                                            </button>
-                                            {running && (
-                                                <span
-                                                    className="navigation-reply-spinner"
-                                                    role="status"
-                                                    aria-label={t('nav_replying')}
-                                                />
-                                            )}
-                                            <button
-                                                type="button"
-                                                className="navigation-item-more navigation-icon-button"
-                                                aria-label={t('nav_item_actions', [label])}
-                                                onClick={(event) => showMenu(event, entry)}
-                                            >
-                                                <Icon name="more" />
-                                            </button>
+                                        <div className="navigation-group-label" key={entry.id}>
+                                            {t('nav_unfiled')}
                                         </div>
                                     );
-                                })}
-                            </GlideList>
-                            {loaded && !entries.length && (!organization.chatsCollapsed || query) && (
-                                <div className="navigation-empty">
-                                    {t(query ? 'chat_list_no_match' : 'chat_list_empty')}
-                                </div>
-                            )}
-                        </div>
-                    </>
-                )}
+                                if (entry.kind === 'empty')
+                                    return (
+                                        <div className="navigation-folder-empty" key={entry.id}>
+                                            {t('nav_folder_empty')}
+                                        </div>
+                                    );
+                                const isChat = entry.kind === 'chat';
+                                const active = isChat && entry.id === chatManager.currentChatId;
+                                const running =
+                                    isChat &&
+                                    ((ui.phase !== 'idle' && ui.requestChatId === entry.id) ||
+                                        ['thinking', 'replying'].includes(ui.remoteProgress?.[entry.id]));
+                                const label = isChat ? entry.chat.title : entry.folder.name;
+                                return (
+                                    <div
+                                        key={`${entry.kind}:${entry.id}`}
+                                        data-nav-row
+                                        data-chat-id={isChat ? entry.id : undefined}
+                                        data-folder-id={!isChat ? entry.id : undefined}
+                                        className={`navigation-item${active ? ' is-active' : ''}${entry.nested ? ' is-nested' : ''}`}
+                                        onContextMenu={(event) => showMenu(event, entry)}
+                                        onKeyDown={(event) => {
+                                            if (
+                                                event.key === 'ContextMenu' ||
+                                                (event.key === 'F10' && event.shiftKey)
+                                            )
+                                                showMenu(event, entry);
+                                        }}
+                                        onPointerDown={(event) => {
+                                            if (event.pointerType !== 'touch') return;
+                                            pressPoint.current = { x: event.clientX, y: event.clientY };
+                                            const target = {
+                                                preventDefault() {},
+                                                stopPropagation() {},
+                                                currentTarget: event.currentTarget,
+                                                clientX: event.clientX,
+                                                clientY: event.clientY,
+                                            };
+                                            longPress.current = setTimeout(() => {
+                                                pressPoint.current = null;
+                                                showMenu(target, entry);
+                                            }, 500);
+                                        }}
+                                        onPointerMove={(event) => {
+                                            if (
+                                                pressPoint.current &&
+                                                Math.hypot(
+                                                    event.clientX - pressPoint.current.x,
+                                                    event.clientY - pressPoint.current.y
+                                                ) > 8
+                                            )
+                                                clearTimeout(longPress.current);
+                                        }}
+                                        onPointerUp={() => clearTimeout(longPress.current)}
+                                        onPointerCancel={() => clearTimeout(longPress.current)}
+                                    >
+                                        <button
+                                            type="button"
+                                            className="navigation-item-label"
+                                            title={label}
+                                            aria-current={active ? 'page' : undefined}
+                                            aria-expanded={
+                                                !isChat ? !entry.folder.collapsed || !!query : undefined
+                                            }
+                                            onClick={() => {
+                                                if (menu?.id === entry.id) return;
+                                                if (isChat) pickChat(entry.id);
+                                                else
+                                                    run(() =>
+                                                        chatOrganization.setCollapsed(
+                                                            entry.id,
+                                                            !entry.folder.collapsed
+                                                        )
+                                                    );
+                                            }}
+                                        >
+                                            {!isChat && (
+                                                <>
+                                                    <Icon name="chevron-down" />
+                                                    <Icon name="folder" />
+                                                </>
+                                            )}
+                                            <span>{label}</span>
+                                            {!isChat && (
+                                                <span className="navigation-count">{entry.count}</span>
+                                            )}
+                                        </button>
+                                        {running && (
+                                            <span
+                                                className="navigation-reply-spinner"
+                                                role="status"
+                                                aria-label={t('nav_replying')}
+                                            />
+                                        )}
+                                        <button
+                                            type="button"
+                                            className="navigation-item-more navigation-icon-button"
+                                            aria-label={t('nav_item_actions', [label])}
+                                            onClick={(event) => showMenu(event, entry)}
+                                        >
+                                            <Icon name="more" />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </GlideList>
+                        {loaded && !entries.length && (!organization.chatsCollapsed || query) && (
+                            <div className="navigation-empty">
+                                {t(query ? 'chat_list_no_match' : 'chat_list_empty')}
+                            </div>
+                        )}
+                    </div>
+                </>
             </aside>
             {visible && menu && (
                 <NavigationMenu

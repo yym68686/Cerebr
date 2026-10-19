@@ -59,7 +59,7 @@ function Composer({ chatId = 'a', autoAddCurrentPage = false }) {
     const sources = useWebpageSources(chatId, ui.menu, autoAddCurrentPage);
     const inputRef = useRef(null),
         rowRef = useRef(null);
-    const draft = useComposerDraft(inputRef, rowRef, sources.selected.length > 0);
+    const draft = useComposerDraft(inputRef, rowRef, sources.selected.length > 0 || sources.reserveSources);
     latest = sources;
     return (
         <div id="input-container" data-composer className={draft.expanded ? 'is-expanded' : ''}>
@@ -410,4 +410,24 @@ describe('Prompt Bar source picker', () => {
         expect(host.querySelector('.composer-source-tag')).toBeNull();
         expect(host.querySelector('.composer-menu-primary').hidden).toBe(false);
     });
+});
+
+it('keeps source geometry when switching between referenced chats, and reuses the target cache', async () => {
+    state.memory.cerebr_webpage_switches_v1_a = { 1: true };
+    state.memory.cerebr_webpage_switches_v1_b = { 2: true };
+    await render('a');
+    expect(host.querySelector('.composer-source-title').textContent).toBe('Alpha');
+    let resolve;
+    browserAdapter.getAllTabs.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
+    await render('b');
+    expect(latest.selected).toEqual([]);
+    expect(host.querySelector('#input-container').classList.contains('is-expanded')).toBe(true);
+    expect(host.querySelector('.composer-sources-loading')).not.toBeNull();
+    await act(async () => resolve(tabs));
+    await tick();
+    expect(host.querySelector('.composer-source-title').textContent).toBe('Beta');
+    browserAdapter.getAllTabs.mockReturnValueOnce(new Promise(() => {}));
+    await render('a');
+    expect(host.querySelector('.composer-source-title').textContent).toBe('Alpha');
+    expect(host.querySelector('#input-container').classList.contains('is-expanded')).toBe(true);
 });

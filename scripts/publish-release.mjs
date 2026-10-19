@@ -19,6 +19,8 @@ export async function publishRelease({
         `Cerebr-darwin-x64-${version}.zip`,
         `Cerebr-${version}-win32-x64-Setup.exe`,
         `Cerebr-win32-x64-${version}.zip`,
+        'RELEASES',
+        `Cerebr-${version}-full.nupkg`,
         ...['darwin-arm64', 'darwin-x64', 'win32-x64'].map(
             (target) => `Cerebr-${version}-${target}-SHA256SUMS.txt`
         ),

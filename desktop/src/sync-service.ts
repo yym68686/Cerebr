@@ -11,6 +11,7 @@ const db = new SyncDatabase(process.argv[2]);
 chmodSync(process.argv[2], 0o600);
 const peers = new Map<any, { origin: string; actor?: string }>();
 const activeProgress = new Map<string, { source: any; progress: any }>();
+const liveChats = new Map<string, { source: any; frame: any }>();
 let pairingCode = randomBytes(5).toString('hex').toUpperCase(),
     pairingExpires = Date.now() + 600000;
 const tokenHash = (s: string) => Buffer.from(s);
@@ -31,13 +32,19 @@ const status = () => ({
     ...db.summary(),
 });
 const publishStatus = () => parent.postMessage({ event: 'status', status: status() });
-const clearProgress=(source:any)=>{
-    for(const [chatId,active] of activeProgress)if(active.source===source){activeProgress.delete(chatId);broadcast({type:'progress',progress:{chatId,phase:'idle'}});}
+const clearProgress = (source: any) => {
+    for (const [id, view] of liveChats) if (view.source === source) liveChats.delete(id);
+    for (const [chatId, active] of activeProgress)
+        if (active.source === source) {
+            activeProgress.delete(chatId);
+            broadcast({ type: 'progress', progress: { chatId, phase: 'idle' } });
+        }
 };
 function handle(message: any, reply: (m: any) => void, source?: any) {
     if (message.type === 'hello') {
         reply({ type: 'manifest', records: db.manifest(), protocol: SYNC_PROTOCOL });
         for (const { progress } of activeProgress.values()) reply({ type: 'progress', progress });
+        for (const { frame } of liveChats.values()) reply({ type: 'live-chat', frame });
     } else if (message.type === 'get' && Array.isArray(message.keys)) {
         for (const key of message.keys) {
             const record = db.get(key);
@@ -48,27 +55,89 @@ function handle(message: any, reply: (m: any) => void, source?: any) {
         const result = db.put(message.record);
         reply({ type: 'record', record: result.record });
         if (result.changed) broadcast({ type: 'record', record: result.record }, source);
+    } else if (message.type === 'live-chat') {
+        const frame = message.frame;
+        if (
+            !frame ||
+            typeof frame.chatId !== 'string' ||
+            typeof frame.requestId !== 'string' ||
+            !Number.isSafeInteger(frame.sequence) ||
+            !Number.isFinite(frame.startedAt) ||
+            !['idle', 'thinking', 'replying'].includes(frame.phase)
+        )
+            return;
+        const previous = liveChats.get(frame.chatId);
+        if (
+            previous &&
+            (previous.frame.startedAt > frame.startedAt ||
+                (previous.frame.requestId === frame.requestId && previous.frame.sequence >= frame.sequence))
+        )
+            return;
+        let chat = frame.chat || (previous && previous.frame.requestId === frame.requestId ? previous.frame.chat : null);
+        if (
+            !chat ||
+            chat.id !== frame.chatId ||
+            typeof chat.title !== 'string' ||
+            !Array.isArray(chat.messages)
+        )
+            return;
+        if (
+            frame.message &&
+            Number.isSafeInteger(frame.index) &&
+            frame.index >= 0 &&
+            frame.index <= chat.messages.length
+        )
+            chat = { ...chat, messages: [...chat.messages.slice(0, frame.index), frame.message] };
+        const snapshot = { ...frame, chat };
+        delete snapshot.message;
+        delete snapshot.index;
+        liveChats.set(frame.chatId, { source, frame: snapshot });
+        // Avoid echoing a local stream back into its own mutable chat object.
+        if (source !== undefined) parent.postMessage({ event: 'sync-message', message });
+        for (const socket of peers.keys()) if (socket !== source) send(socket, message);
+        // Finished snapshots only bridge the short gap until durable history arrives.
+        if (frame.phase === 'idle')
+            setTimeout(() => {
+                if (liveChats.get(frame.chatId)?.frame === snapshot) liveChats.delete(frame.chatId);
+            }, 30000).unref();
     } else if (message.type === 'progress') {
         const progress = message.progress;
         // Older clients used idle with a null ID. Clear their own entries so
         // upgrading one side cannot leave a permanent activity indicator.
-        if(progress?.phase==='idle'&&progress.chatId==null){clearProgress(source);return;}
+        if (progress?.phase === 'idle' && progress.chatId == null) {
+            clearProgress(source);
+            return;
+        }
         if (
             progress &&
             typeof progress.chatId === 'string' &&
             ['idle', 'thinking', 'replying'].includes(progress.phase)
         ) {
             if (progress.phase === 'idle') {
-                if(activeProgress.has(progress.chatId)&&activeProgress.get(progress.chatId)?.source!==source)return;
+                if (
+                    activeProgress.has(progress.chatId) &&
+                    activeProgress.get(progress.chatId)?.source !== source
+                )
+                    return;
                 activeProgress.delete(progress.chatId);
-            }
-            else
+            } else
                 activeProgress.set(progress.chatId, {
                     source,
-                    progress: { chatId: progress.chatId, phase: progress.phase },
+                    progress: {
+                        chatId: progress.chatId,
+                        phase: progress.phase,
+                        startedAt: progress.startedAt,
+                    },
                 });
             broadcast(
-                { type: 'progress', progress: { chatId: progress.chatId, phase: progress.phase } },
+                {
+                    type: 'progress',
+                    progress: {
+                        chatId: progress.chatId,
+                        phase: progress.phase,
+                        startedAt: progress.startedAt,
+                    },
+                },
                 source
             );
         }
@@ -80,7 +149,7 @@ function handle(message: any, reply: (m: any) => void, source?: any) {
 }
 parent.on('message', ({ data }: any) => {
     try {
-        if(data.kind==='clear-desktop-progress')clearProgress(undefined);
+        if (data.kind === 'clear-desktop-progress') clearProgress(undefined);
         if (data.kind === 'browser-request') browserBroker.request(data.requestId, data.payload);
         if (data.kind === 'message')
             handle(data.message, (message) => parent.postMessage({ event: 'sync-message', message }));

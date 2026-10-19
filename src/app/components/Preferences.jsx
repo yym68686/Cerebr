@@ -1,4 +1,5 @@
 import { DesktopSyncSettings } from './DesktopSyncSettings.jsx';
+import { DesktopUpdateSettings } from './DesktopUpdateSettings.jsx';
 import { useRef, useState, useSyncExternalStore } from 'react';
 import { preferencesStore, changePreference } from '../state/preferences.js';
 import { t } from '../../utils/i18n.js';
@@ -221,6 +222,7 @@ export function Preferences({ visible, onBack, saveDraft }) {
                     hidden
                 />
             </section>
+            <DesktopUpdateSettings />
             <footer className="preferences-about">
                 <div className="preferences-version">
                     <strong>Cerebr</strong>

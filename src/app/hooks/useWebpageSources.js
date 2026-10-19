@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { desktopBrowserStore } from '../../platform/desktop-browser.js';
 import { browserAdapter, isExtensionEnvironment } from '../../utils/storage-adapter.js';
 import { getWebpageSourceTabs } from '../../runtime/webpage/webpage-context.js';
@@ -16,6 +16,11 @@ export function useWebpageSources(chatId, menuOpen, autoAddCurrentPage = false) 
     const browser = useSyncExternalStore(desktopBrowserStore.subscribe, desktopBrowserStore.getSnapshot);
     const available = isExtensionEnvironment || !!browser.session;
     const [data, setData] = useState(empty);
+    const cache = useRef(new Map());
+    const sourceHeight = useRef(0);
+    useLayoutEffect(() => {
+        if (data.chatId === chatId) sourceHeight.current = document.querySelector('.composer-sources')?.getBoundingClientRect().height || 0;
+    }, [data, chatId]);
     const owner = useRef(null);
     const refresh = useCallback(() => owner.current?.refresh(), []);
     useEffect(() => {
@@ -25,7 +30,7 @@ export function useWebpageSources(chatId, menuOpen, autoAddCurrentPage = false) 
         }
         const context = { chatId, active: true, load: 0, mutation: 0, pending: 0 };
         owner.current = context;
-        setData((previous) => (previous.chatId === chatId ? previous : { ...empty, chatId, loading: true }));
+        // Keep geometry until the new chat's cached or fetched sources are ready.
         context.refresh = async () => {
             const load = ++context.load,
                 mutation = context.mutation;
@@ -44,8 +49,8 @@ export function useWebpageSources(chatId, menuOpen, autoAddCurrentPage = false) 
                 const tabs = getWebpageSourceTabs(allTabs, switches);
                 const groupIds = [...new Set(tabs.map((tab) => tab.groupId).filter((id) => id >= 0))];
                 const groups = await browserAdapter.getTabGroupsByIds(groupIds).catch(() => ({}));
-                if (current())
-                    setData({
+                if (current()) {
+                    const next = {
                         chatId,
                         tabs,
                         current: tabs.find((item) => item.id === tab?.id || item.url === tab?.url) || null,
@@ -53,9 +58,12 @@ export function useWebpageSources(chatId, menuOpen, autoAddCurrentPage = false) 
                         switches,
                         loading: false,
                         error: null,
-                    });
+                    };
+                    cache.current.set(chatId, next);
+                    setData(next);
+                }
             } catch (error) {
-                if (current()) setData((previous) => ({ ...previous, loading: false, error }));
+                if (current()) setData({ ...(cache.current.get(chatId) || empty), chatId, loading: false, error });
             }
         };
         const refreshVisible = () => {
@@ -89,11 +97,12 @@ export function useWebpageSources(chatId, menuOpen, autoAddCurrentPage = false) 
             const patch = Object.fromEntries(tabs.map((tab) => [tab.id, value]));
             context.mutation++;
             context.pending++;
-            setData((previous) =>
-                previous.chatId === chatId
-                    ? { ...previous, switches: { ...previous.switches, ...patch } }
-                    : previous
-            );
+            setData((previous) => {
+                if (previous.chatId !== chatId) return previous;
+                const next = { ...previous, switches: { ...previous.switches, ...patch } };
+                cache.current.set(chatId, next);
+                return next;
+            });
             try {
                 await updateWebpageSwitchesForChat(chatId, patch, { tabs });
                 return context.active;
@@ -107,10 +116,20 @@ export function useWebpageSources(chatId, menuOpen, autoAddCurrentPage = false) 
         },
         [chatId]
     );
-    const visible = data.chatId === chatId && available ? data : empty;
+    const cached = cache.current.get(chatId);
+    const switching = available && !!chatId && data.chatId !== chatId;
+    const visible = available
+        ? data.chatId === chatId
+            ? data
+            : cached || { ...empty, loading: true }
+        : empty;
+    const previousHasSources = data.tabs.some((tab) => data.switches[tab.id] === true);
+    const reserveSources = switching && !cached && previousHasSources;
     return {
         ...visible,
         available,
+        reserveSources,
+        reserveHeight: sourceHeight.current,
         selected: visible.tabs.filter((tab) => visible.switches[tab.id] === true),
         toggle,
         refresh,

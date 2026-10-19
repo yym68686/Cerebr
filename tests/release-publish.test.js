@@ -16,6 +16,8 @@ const assets = [
     'Cerebr-darwin-x64-1.2.3.zip',
     'Cerebr-1.2.3-win32-x64-Setup.exe',
     'Cerebr-win32-x64-1.2.3.zip',
+    'RELEASES',
+    'Cerebr-1.2.3-full.nupkg',
     ...['darwin-arm64', 'darwin-x64', 'win32-x64'].map((target) => `Cerebr-1.2.3-${target}-SHA256SUMS.txt`),
 ];
 beforeEach(async () => {
@@ -47,7 +49,7 @@ it('publishes only after all installers have uploaded to a draft', async () => {
     expect(github.rest.repos.createRelease).toHaveBeenCalledWith(
         expect.objectContaining({ draft: true, tag_name: tag, target_commitish: 'current' })
     );
-    expect(github.rest.repos.uploadReleaseAsset).toHaveBeenCalledTimes(11);
+    expect(github.rest.repos.uploadReleaseAsset).toHaveBeenCalledTimes(13);
     expect(github.rest.repos.updateRelease.mock.invocationCallOrder[0]).toBeGreaterThan(
         Math.max(...github.rest.repos.uploadReleaseAsset.mock.invocationCallOrder)
     );

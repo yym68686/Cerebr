@@ -20,6 +20,7 @@ vi.mock('../src/utils/storage-adapter.js', () => ({
 vi.mock('../src/domain/chat/chat-store.js', () => ({
     chatManager: {
         currentChatId: 'old',
+        chats: new Map(),
         subscribe: () => () => {},
         getCurrentChat: () => ({ messages: [] }),
         createNewChat: vi.fn(() => ({ id: 'new' })),
@@ -58,7 +59,7 @@ vi.mock('../src/plugin/shell/shell-plugin-runtime.js', () => ({
 }));
 vi.mock('../src/utils/i18n.js', () => ({ t: (key) => key }));
 vi.mock('../src/platform/sidebar-drag.js', () => ({ attachSidebarDrag: () => () => {} }));
-vi.mock('../src/runtime/sync/ui-sync.js',()=>({publishProgress:vi.fn(),subscribeRemoteProgress:()=>()=>{}}));
+vi.mock('../src/runtime/sync/ui-sync.js',()=>({publishProgress:vi.fn(),publishLiveChat:vi.fn(),subscribeRemoteProgress:()=>()=>{}}));
 
 import { createSession } from '../src/app/session.js';
 import { chatManager } from '../src/domain/chat/chat-store.js';
@@ -183,7 +184,7 @@ describe('new chat shortcut delivery', () => {
         state.pipelineOptions.onPhase('thinking','request-chat');
         state.pipelineOptions.onPhase('replying','request-chat');
         state.pipelineOptions.onPhase('idle',null);
-        expect(publishProgress).toHaveBeenLastCalledWith({phase:'idle',chatId:'request-chat'});
+        expect(publishProgress).toHaveBeenLastCalledWith(expect.objectContaining({phase:'idle',chatId:'request-chat'}));
         expect(uiStore.getSnapshot().requestChatId).toBeNull();
         expect(uiStore.getSnapshot().phase).toBe('idle');
     });

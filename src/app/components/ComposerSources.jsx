@@ -3,7 +3,12 @@ import { Icon } from './Icon.jsx';
 import { WebpageIcon } from './WebpageIcon.jsx';
 
 export function ComposerSources({ sources, onManage }) {
-    if (!sources.selected.length) return null;
+    if (!sources.selected.length)
+        return sources.reserveSources ? (
+            <div className="composer-sources composer-sources-loading" aria-hidden="true" style={{ height: sources.reserveHeight || undefined, boxSizing: 'border-box' }}>
+                <div className="composer-source-tag" />
+            </div>
+        ) : null;
     return (
         <div className="composer-sources" aria-label={t('composer_sources')}>
             <div className="composer-source-tags">

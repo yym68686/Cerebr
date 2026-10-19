@@ -94,6 +94,24 @@ try {
     await response(m=>m.type==='progress'&&m.progress.phase==='replying');
     worker.send({kind:'clear-desktop-progress'});
     await response(m=>m.type==='progress'&&m.progress.chatId==='desktop-reply'&&m.progress.phase==='idle');
+    // A live question and partial answer must cross the bridge before any put
+    // reaches SQLite, in both directions.
+    for (const source of ['extension', 'desktop']) {
+        const frame = { chatId: 'live-' + source, requestId: source, sequence: 1, startedAt: 100,
+            phase: 'thinking', chat: { id: 'live-' + source, title: 'Live test', messages: [{ role: 'user', content: 'Question' }] } };
+        const deliver = (value) => source === 'extension'
+            ? socket.send(JSON.stringify({ type: 'live-chat', frame: value }))
+            : worker.send({ kind: 'message', message: { type: 'live-chat', frame: value } });
+        const next = (sequence) => source === 'extension'
+            ? receive((m) => m.event === 'sync-message' && m.message.type === 'live-chat' && m.message.frame.chatId === frame.chatId && m.message.frame.sequence === sequence).then((m) => m.message.frame)
+            : response((m) => m.type === 'live-chat' && m.frame.chatId === frame.chatId && m.frame.sequence === sequence).then((m) => m.frame);
+        deliver(frame);
+        assert.equal((await next(1)).chat.messages[0].content, 'Question');
+        deliver({ ...frame, chat: undefined, sequence: 2, phase: 'replying', index: 1, message: { role: 'assistant', content: 'Partial', reasoning_content: '**Reasoning**' } });
+        assert.equal((await next(2)).message.content, 'Partial');
+        deliver({ ...frame, sequence: 3, phase: 'idle' });
+        assert.equal((await next(3)).phase, 'idle');
+    }
     const record = {
         key: 'cerebr_chat_v2_smoke',
         value: {

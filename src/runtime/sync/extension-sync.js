@@ -5,6 +5,7 @@ import { BROWSER_BRIDGE_VERSION } from './browser-protocol.js';
 import { subscribeWebpageSwitches } from '../../utils/webpage-switches.js';
 import { startApiSettingsExtensionBridge } from './api-settings-extension.js';
 import { ensureApiReplica } from './api-settings.js';
+import { applyLiveChat, getLiveFrames, clearLiveChats, settleLiveChat } from './live-chat.js';
 const CONFIG = 'cerebr_desktop_pairing_v1';
 const STATUS = 'cerebr_desktop_sync_status_v1';
 export function startExtensionSync({ browserRequest } = {}) {
@@ -43,6 +44,11 @@ export function startExtensionSync({ browserRequest } = {}) {
                 )
             );
         ws.onmessage = (event) => {
+            const immediate = JSON.parse(event.data);
+            if (client && ['progress', 'live-chat'].includes(immediate.type)) {
+                void client.receive(immediate);
+                return;
+            }
             queue = queue
                 .then(async () => {
                     const message = JSON.parse(event.data);
@@ -59,8 +65,15 @@ export function startExtensionSync({ browserRequest } = {}) {
                             },
                             onStatus: publish,
                             onProgress: (progress) => {
+                                if (progress.phase === 'idle') settleLiveChat(progress.chatId);
                                 void chrome.runtime
                                     .sendMessage({ type: 'CEREBR_SYNC_PROGRESS', progress })
+                                    .catch(() => {});
+                            },
+                            onLive: (frame) => {
+                                applyLiveChat(frame);
+                                void chrome.runtime
+                                    .sendMessage({ type: 'CEREBR_SYNC_LIVE', frame })
                                     .catch(() => {});
                             },
                         });
@@ -112,6 +125,7 @@ export function startExtensionSync({ browserRequest } = {}) {
             connecting = false;
             client?.close();
             client = null;
+            clearLiveChats();
             clearInterval(heartbeat);
             publish({ connected: false });
             if (!stopped) retry = setTimeout(() => void connect(), 5000);
@@ -140,6 +154,10 @@ export function startExtensionSync({ browserRequest } = {}) {
             respond(status);
             return false;
         }
+        if (message.type === 'CEREBR_DESKTOP_LIVE') {
+            respond({ frames: getLiveFrames() });
+            return false;
+        }
         if (message.type === 'CEREBR_DESKTOP_VERIFY') {
             if (!client) {
                 respond({ error: '请先连接桌面应用。' });
@@ -153,6 +171,11 @@ export function startExtensionSync({ browserRequest } = {}) {
         }
         if (message.type === 'CEREBR_LOCAL_PROGRESS') {
             client?.progress(message.progress);
+            respond({ ok: true });
+            return false;
+        }
+        if (message.type === 'CEREBR_LOCAL_LIVE') {
+            client?.live(message.frame);
             respond({ ok: true });
             return false;
         }

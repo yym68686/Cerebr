@@ -12,6 +12,7 @@ export const uiStore = createStore({
     requestChatId: null,
     requestStartedAt: null,
     remoteProgress: {},
+    remoteStartedAt: {},
 });
 export const openPage = (page) =>
     uiStore.set({ page, menu: false, webpageMenu: false, context: null, navigationOpen: false });

@@ -55,7 +55,7 @@ export function App() {
         sessionRef = useRef(null);
     const settingsMenuEvents = useSettingsMenu();
     const sources = useWebpageSources(chat?.id, ui.menu, isNewWebpageConversation(chat));
-    const draft = useComposerDraft(inputRef, composerRowRef, sources.selected.length > 0);
+    const draft = useComposerDraft(inputRef, composerRowRef, sources.selected.length > 0 || sources.reserveSources);
     const [session, setSession] = useState(null);
     const [elapsed, setElapsed] = useState(0);
     const [showScroll, setShowScroll] = useState(false);
@@ -205,7 +205,10 @@ export function App() {
         openPage(page);
     };
     const close = () => navigate(null);
-    const requestActive = ui.requestChatId === chat?.id && ui.phase !== 'idle';
+    const localRequestActive = ui.requestChatId === chat?.id && ui.phase !== 'idle';
+    const displayedPhase = localRequestActive ? ui.phase : ui.remoteProgress[chat?.id] || 'idle';
+    const requestActive = displayedPhase !== 'idle';
+    const displayedStartedAt = localRequestActive ? ui.requestStartedAt : ui.remoteStartedAt[chat?.id];
     const messages = chat?.messages || [];
     return (
         <>
@@ -249,26 +252,26 @@ export function App() {
                         {...message}
                         updating={
                             requestActive &&
-                            ui.phase === 'replying' &&
+                            displayedPhase === 'replying' &&
                             index === messages.length - 1 &&
                             message.role === 'assistant'
                         }
                         index={index}
                         requestStartedAt={
-                            requestActive && index === messages.length - 1 ? ui.requestStartedAt : undefined
+                            requestActive && index === messages.length - 1 ? displayedStartedAt : undefined
                         }
                         onContext={context}
                         editing={ui.editing?.index === index}
                         locale={locale}
                     />
                 ))}
-                {requestActive && (ui.phase === 'thinking' || messages.at(-1)?.role !== 'assistant') && (
+                {requestActive && (displayedPhase === 'thinking' || messages.at(-1)?.role !== 'assistant') && (
                     <Message
                         role="assistant"
                         content=""
                         index={messages.length}
                         updating
-                        requestStartedAt={ui.requestStartedAt}
+                        requestStartedAt={displayedStartedAt}
                         onContext={context}
                     />
                 )}

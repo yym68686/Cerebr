@@ -1,6 +1,7 @@
 import { createStore } from '../../app/state/store.js';
 import { getDb, isExtensionEnvironment } from '../../utils/storage-adapter.js';
 import { createSyncClient } from './client.js';
+import { applyLiveChat, clearLiveChat, clearLiveChats, settleLiveChat } from './live-chat.js';
 import { updateDesktopBrowser, emitDesktopBrowserEvent } from '../../platform/desktop-browser.js';
 export const isDesktop = !!globalThis.cerebrDesktop;
 export const desktopSyncStore = createStore({
@@ -11,12 +12,27 @@ export const desktopSyncStore = createStore({
     pairingCode: null,
 });
 const progressListeners = new Set();
+const latestProgress = new Map();
+const localRequests = new Set();
 let desktopClient;
 export const subscribeRemoteProgress = (fn) => {
     progressListeners.add(fn);
+    for (const value of latestProgress.values()) fn(value);
     return () => progressListeners.delete(fn);
 };
-const progress = (value) => progressListeners.forEach((fn) => fn(value));
+const progress = (value) => {
+    if (value.reset) {
+        clearLiveChats();
+        latestProgress.clear();
+    } else if (value.phase === 'idle') { latestProgress.delete(value.chatId); settleLiveChat(value.chatId); }
+    else latestProgress.set(value.chatId, value);
+    progressListeners.forEach((fn) => fn(value));
+};
+const live = (frame) => {
+    if (localRequests.has(frame.chatId)) return;
+    if (applyLiveChat(frame))
+        progress({ chatId: frame.chatId, phase: frame.phase, startedAt: frame.startedAt });
+};
 export async function startUISync() {
     if (isDesktop) {
         const unsubscribe = globalThis.cerebrDesktop.onMessage(
@@ -27,6 +43,7 @@ export async function startUISync() {
             send: globalThis.cerebrDesktop.send,
             onStatus: (s) => desktopSyncStore.set(s),
             onProgress: progress,
+            onLive: live,
         });
         desktopClient.start();
         const status = await globalThis.cerebrDesktop.status();
@@ -35,7 +52,7 @@ export async function startUISync() {
         globalThis.cerebrDesktop.onStatus((s) => {
             desktopSyncStore.set(s);
             updateDesktopBrowser(s);
-            if(!s.connected)progress({reset:true});
+            if (!s.connected) progress({ reset: true });
         });
         globalThis.cerebrDesktop.onBrowserEvent(emitDesktopBrowserEvent);
         return unsubscribe;
@@ -46,14 +63,27 @@ export async function startUISync() {
         chrome.storage.onChanged.addListener((changes, area) => {
             if (area === 'local' && changes.cerebr_desktop_sync_status_v1) {
                 desktopSyncStore.set(changes.cerebr_desktop_sync_status_v1.newValue);
-                if(!changes.cerebr_desktop_sync_status_v1.newValue?.connected)progress({reset:true});
+                if (!changes.cerebr_desktop_sync_status_v1.newValue?.connected) progress({ reset: true });
             }
         });
         chrome.runtime.onMessage.addListener((message, sender) => {
             if (sender.id === chrome.runtime.id && message.type === 'CEREBR_SYNC_PROGRESS')
                 progress(message.progress);
+            if (sender.id === chrome.runtime.id && message.type === 'CEREBR_SYNC_LIVE') live(message.frame);
         });
+        const snapshot = await chrome.runtime.sendMessage({ type: 'CEREBR_DESKTOP_LIVE' }).catch(() => null);
+        for (const frame of snapshot?.frames || []) live(frame);
     }
+}
+export function publishLiveChat(frame) {
+    if (frame.phase === 'thinking') {
+        localRequests.add(frame.chatId);
+        clearLiveChat(frame.chatId);
+    }
+    if (frame.phase === 'idle') localRequests.delete(frame.chatId);
+    if (isDesktop) desktopClient?.live(frame);
+    else if (isExtensionEnvironment)
+        void chrome.runtime.sendMessage({ type: 'CEREBR_LOCAL_LIVE', frame }).catch(() => {});
 }
 export function publishProgress(value) {
     if (isDesktop) desktopClient?.progress(value);

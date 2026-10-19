@@ -16,7 +16,7 @@ npm run package:desktop
 
 macOS 产物在 `artifacts/desktop/`，包括 `.app`、DMG 和 ZIP。Windows 请在 Windows 上运行相同命令，Forge 会生成 ZIP 和 Squirrel 安装程序。架构默认采用构建机器的架构；Intel Mac 可在相应机器上构建或向 Forge 传入 `--arch=x64`。当前本机验证平台为 macOS arm64，Windows 尚需实机验收。
 
-当前 CI 生成未签名、未公证的安装包；正式签名需要 Apple Developer / Windows 证书，目前没有客户端自动更新服务。打包时同步维护根目录、两个扩展 manifest 和 `desktop/package.json` 的版本号。
+当前 CI 生成未签名、未公证的安装包；正式签名需要 Apple Developer / Windows 证书，偏好设置中的「检查并更新」会自动下载最新正式版，保存会话并重启安装。打包时同步维护根目录、两个扩展 manifest 和 `desktop/package.json` 的版本号。
 
 ## 与浏览器扩展配对
 
@@ -79,4 +79,18 @@ macOS 数据目录：`~/Library/Application Support/Cerebr/`。Windows 数据目
 
 也可在 Actions 手动运行，勾选 `publish` 发布所选 commit 的版本。已有同名标签必须指向该 commit；已有公开 Release 不会被覆盖。上传中断留下的草稿可重跑完成。无需额外 PAT，发布作业使用仓库的 `GITHUB_TOKEN`，只有该作业具备 `contents: write` 权限。
 
-自动发布 GitHub Release 与客户端自动下载更新是两回事；目前应用不会自行下载安装新版。
+### 客户端更新
+
+桌面偏好设置底部提供「检查并更新」。点击一次后，主进程读取本仓库最新正式 Release，比较数字版本，下载对应架构的包并验证文件长度和 SHA-256。下载期间显示进度；遇到网络、校验或保存失败时保留应用运行，可重试。下载完成后等待本机回答和消息编辑结束，保存草稿、阅读位置、聊天与 API 配置，再安装重启。当前不在启动时擅自安装更新。
+
+macOS 当前未使用 Developer ID 签名，无法使用要求签名的 Squirrel.Mac。更新器从官方 GitHub Release 下载 ZIP，在应用所在卷预备新 bundle、校验 bundle ID 和版本，退出后用独立 helper 交换目录并重新启动。新 React 会话确认启动成功后才清理旧 bundle；安装失败回滚。不会移除 quarantine、改变 Gatekeeper 或请求管理员权限。需将应用安装到当前用户可写的 Applications 目录，不能从 DMG 或 App Translocation 更新。以后配置正式签名后可切换到系统更新机制。
+
+Windows 使用 Squirrel 安装。CI 额外发布 `RELEASES` 和 `Cerebr-<version>-full.nupkg`，并将它们纳入 SHA-256 清单；客户端校验后让 Electron 内置更新器读取本地更新目录，安装并自动重启。ZIP 便携运行需先用 Setup.exe 安装。Windows 安装与实际重启仍需 Windows 实机验收。
+
+更新主机能力只通过受限 preload 暴露检查、状态和已保存确认，不接收渲染端提供的下载 URL 或命令。不改动历史数据库和配对凭据。日志在 `desktop-update.log`，临时包在用户数据目录的 `updates/`。
+
+### 实时同步与窗口交互
+
+连接期间，发送的问题、Loading State、思考 Markdown 和流式正文通过独立的临时通道立即发送，正文分片沿用 100ms 节流；不必等待历史落盘。持久化同步仍负责离线恢复、完整历史和冲突版本。实时视图带请求 ID 和序号，不让延迟的历史检查点覆盖更新的流式文本。重新连接可接收当前生成快照。
+
+折叠侧边栏后不保留窄栏。标题区按钮位于 macOS 红绿灯右侧，悬浮临时展开，点击固定展开或折叠；窄窗口继续使用全屏导航。聊天顶部有透明拖动区域，设置页使用自己的导航栏拖动窗口。聊天页面全选限定正文，编辑框仍使用原生全选。切换有网页引用的对话时，缓存标签与加载占位保持输入框高度稳定。
