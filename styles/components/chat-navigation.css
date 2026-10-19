@@ -89,6 +89,7 @@ body { --cerebr-navigation-width: 0px; }
 }
 
 /* Hover preview floats over content; only pinning changes the chat's width. */
+.navigation-hover-boundary { display: contents; }
 #chat-navigation.is-floating {
     width: 240px;
     border-radius: 0 12px 12px 0;
@@ -101,9 +102,10 @@ body { --cerebr-navigation-width: 0px; }
     border: 0; border-radius: 7px; color: var(--cerebr-text-color-secondary);
     background: var(--cerebr-settings-page-bg); cursor: pointer;
     -webkit-app-region: no-drag;
+    app-region: no-drag;
 }
 .navigation-window-toggle:hover { background: var(--cerebr-hover-bg-color); color: var(--cerebr-text-color); }
 .navigation-window-toggle svg { width: 18px; height: 18px; }
 body[data-desktop-platform] .chat-navigation-mobile-toggle { display: none; }
-@keyframes navigation-preview-in { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+@keyframes navigation-preview-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { #chat-navigation.is-floating { animation: none; } }

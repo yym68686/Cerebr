@@ -276,7 +276,9 @@ it('previews without changing the saved collapsed preference and pins only on cl
     await render();
     await click(button('nav_collapse_sidebar'));
     const toggle = host.querySelector('.navigation-window-toggle');
-    await act(async () => toggle.dispatchEvent(new MouseEvent('pointerout', { bubbles: true, relatedTarget: document.body })));
+    await act(async () =>
+        toggle.dispatchEvent(new MouseEvent('pointerout', { bubbles: true, relatedTarget: document.body }))
+    );
     await act(async () => toggle.dispatchEvent(new MouseEvent('pointerover', { bubbles: true })));
     expect(host.querySelector('#chat-navigation').classList.contains('is-floating')).toBe(true);
     expect(chatOrganization.getSnapshot().sidebarCollapsed).toBe(true);
@@ -291,4 +293,69 @@ it('previews without changing the saved collapsed preference and pins only on cl
     expect(chatOrganization.getSnapshot().sidebarCollapsed).toBe(false);
     expect(host.querySelector('#chat-navigation').classList.contains('is-floating')).toBe(false);
     expect(host.querySelector('#chat-navigation').classList.contains('is-visible')).toBe(true);
+});
+it('keeps the preview open while hovering the toggle or moving between it and the panel', async () => {
+    await act(async () => chatOrganization.setCollapsed('sidebar', true));
+    await render();
+    const toggle = host.querySelector('.navigation-window-toggle');
+    const panel = host.querySelector('#chat-navigation');
+    const move = async (from, to) => {
+        await act(async () => {
+            from.dispatchEvent(new MouseEvent('pointerout', { bubbles: true, relatedTarget: to }));
+            to.dispatchEvent(new MouseEvent('pointerover', { bubbles: true, relatedTarget: from }));
+        });
+    };
+    await move(document.body, toggle);
+    await act(async () => vi.advanceTimersByTimeAsync(3000));
+    expect(panel.classList.contains('is-floating')).toBe(true);
+    await move(toggle, panel);
+    await act(async () => vi.advanceTimersByTimeAsync(700));
+    expect(panel.classList.contains('is-floating')).toBe(true);
+    await move(panel, toggle);
+    await act(async () => vi.advanceTimersByTimeAsync(3000));
+    expect(panel.classList.contains('is-floating')).toBe(true);
+    expect(chatOrganization.getSnapshot().sidebarCollapsed).toBe(true);
+    await move(toggle, document.body);
+    await act(async () => vi.advanceTimersByTimeAsync(200));
+    expect(panel.classList.contains('is-visible')).toBe(false);
+    await act(async () => vi.advanceTimersByTimeAsync(3000));
+    expect(panel.classList.contains('is-visible')).toBe(false);
+});
+it('cancels a pending close when the pointer returns and does not reopen after click-to-collapse', async () => {
+    vi.stubGlobal('cerebrDesktop', { platform: 'darwin' });
+    try {
+        await act(async () => chatOrganization.setCollapsed('sidebar', true));
+        await render();
+        const toggle = host.querySelector('.navigation-window-toggle');
+        const panel = host.querySelector('#chat-navigation');
+        const over = () =>
+            act(async () =>
+                toggle.dispatchEvent(
+                    new MouseEvent('pointerover', { bubbles: true, relatedTarget: document.body })
+                )
+            );
+        const out = () =>
+            act(async () =>
+                toggle.dispatchEvent(
+                    new MouseEvent('pointerout', { bubbles: true, relatedTarget: document.body })
+                )
+            );
+        await over();
+        await out();
+        await act(async () => vi.advanceTimersByTimeAsync(100));
+        await over();
+        await act(async () => vi.advanceTimersByTimeAsync(1000));
+        expect(panel.classList.contains('is-floating')).toBe(true);
+        await click('.navigation-window-toggle');
+        expect(chatOrganization.getSnapshot().sidebarCollapsed).toBe(false);
+        await click('.navigation-window-toggle');
+        await over(); // Layout changes can generate another enter without movement.
+        await act(async () => vi.advanceTimersByTimeAsync(1000));
+        expect(panel.classList.contains('is-visible')).toBe(false);
+        await out();
+        await over();
+        expect(panel.classList.contains('is-floating')).toBe(true);
+    } finally {
+        vi.unstubAllGlobals();
+    }
 });

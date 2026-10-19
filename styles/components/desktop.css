@@ -34,6 +34,13 @@ body[data-desktop-platform] .navigation-header button {
     -webkit-app-region: no-drag;
     app-region: no-drag;
 }
+/* The preview appears underneath the fixed toggle. A native drag region here
+   can steal enter/leave events while the pointer is still on that toggle. */
+body[data-desktop-platform] #chat-navigation.is-floating,
+body[data-desktop-platform] #chat-navigation.is-floating .navigation-header {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+}
 body[data-desktop-platform] .chat-navigation-mobile-toggle {
     top: 48px;
 }

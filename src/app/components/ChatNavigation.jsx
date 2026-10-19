@@ -123,18 +123,25 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
     const [preview, setPreview] = useState(false);
     const hoverTimer = useRef(null),
         suppressHover = useRef(false),
-        hovering = useRef(false);
+        hovering = useRef(false),
+        hoverOverlays = useRef(null);
+    hoverOverlays.current = { menu, dialog };
     const collapsed = wide && organization.sidebarCollapsed;
     const floating = wide && collapsed && (preview || open);
     const visible = (wide && !collapsed) || floating || (!wide && open);
     const showToggle = desktop || (wide && collapsed);
-    const cancelHoverClose = () => clearTimeout(hoverTimer.current);
+    const cancelHoverClose = () => {
+        clearTimeout(hoverTimer.current);
+        hoverTimer.current = null;
+    };
     const leavePreview = () => {
         hovering.current = false;
         suppressHover.current = false;
         cancelHoverClose();
         hoverTimer.current = setTimeout(() => {
-            if (!menuTarget.current && !dialog) setPreview(false);
+            hoverTimer.current = null;
+            if (!hovering.current && !hoverOverlays.current.menu && !hoverOverlays.current.dialog)
+                setPreview(false);
         }, 180);
     };
     const enterPreview = (event) => {
@@ -326,7 +333,14 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
         }
     };
     return (
-        <>
+        <div
+            className="navigation-hover-boundary"
+            onPointerEnter={() => {
+                hovering.current = true;
+                cancelHoverClose();
+            }}
+            onPointerLeave={leavePreview}
+        >
             {showToggle && (
                 <button
                     ref={desktop ? closeRef : undefined}
@@ -336,7 +350,6 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                     aria-expanded={wide ? !collapsed : open}
                     aria-controls="chat-navigation"
                     onPointerEnter={enterPreview}
-                    onPointerLeave={leavePreview}
                     onClick={toggleSidebar}
                 >
                     <Icon name={wide && !collapsed ? 'sidebar-close' : 'sidebar-open'} />
@@ -347,11 +360,6 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                 className={`${visible ? 'is-visible' : ''}${floating ? ' is-floating' : ''}${!wide && open ? ' is-fullscreen' : ''}`}
                 aria-label={t('nav_chat_navigation')}
                 inert={!visible}
-                onPointerEnter={() => {
-                    hovering.current = true;
-                    cancelHoverClose();
-                }}
-                onPointerLeave={leavePreview}
                 onKeyDown={(event) => {
                     if (event.key === 'Tab' && !wide && open) {
                         const items = [...event.currentTarget.querySelectorAll('button, input')].filter(
@@ -644,6 +652,6 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                     onSubmit={submitDialog}
                 />
             )}
-        </>
+        </div>
     );
 }
