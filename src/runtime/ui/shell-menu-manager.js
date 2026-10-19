@@ -1,3 +1,5 @@
+import { pluginUiStore } from './plugin-ui-store.js';
+import { uiStore } from '../../app/state/ui-store.js';
 function normalizeString(value, fallback = '') {
     const normalized = String(value ?? '').trim();
     return normalized || fallback;
@@ -131,7 +133,7 @@ function cloneSafeMenuItemSvgNode(sourceNode, { isRoot = false } = {}) {
     return targetNode;
 }
 
-function createMenuItemSvgElement(source = '') {
+export function createMenuItemSvgElement(source = '') {
     const normalizedSource = normalizeString(source);
     if (!normalizedSource || typeof DOMParser !== 'function' || typeof document === 'undefined') {
         return null;
@@ -150,57 +152,6 @@ function createMenuItemSvgElement(source = '') {
     } catch {
         return null;
     }
-}
-
-function createMenuItemIconElement(item = {}, { slot = 'leading' } = {}) {
-    const iconWrapper = document.createElement('span');
-    iconWrapper.className = 'cerebr-plugin-menu-item__icon';
-    iconWrapper.setAttribute('aria-hidden', 'true');
-    if (slot === 'disclosure') {
-        iconWrapper.classList.add('cerebr-plugin-menu-item__icon--disclosure');
-    }
-
-    const svgIcon = createMenuItemSvgElement(item.iconSvg);
-    if (svgIcon) {
-        iconWrapper.appendChild(svgIcon);
-        return iconWrapper;
-    }
-
-    const iconText = normalizeString(item.icon);
-    if (!iconText) {
-        return null;
-    }
-
-    iconWrapper.classList.add('cerebr-plugin-menu-item__icon--text');
-    iconWrapper.textContent = iconText;
-    return iconWrapper;
-}
-
-function createDefaultChevronElement() {
-    const chevron = document.createElement('span');
-    chevron.className = 'cerebr-plugin-menu-item__chevron';
-    chevron.setAttribute('aria-hidden', 'true');
-    chevron.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-    return chevron;
-}
-
-function createMenuItemAffordanceElement(item = {}) {
-    if (item.iconPlacement === 'disclosure') {
-        const icon = createMenuItemIconElement(item, { slot: 'disclosure' });
-        if (icon) {
-            const affordance = document.createElement('span');
-            affordance.className = 'cerebr-plugin-menu-item__chevron';
-            affordance.setAttribute('aria-hidden', 'true');
-            affordance.appendChild(icon);
-            return affordance;
-        }
-    }
-
-    if (!item.disclosure) {
-        return null;
-    }
-
-    return createDefaultChevronElement();
 }
 
 function normalizeMenuItemDescriptor(item = {}, index = 0) {
@@ -278,13 +229,6 @@ export function createShellMenuManager({
             .filter(([, record]) => Array.isArray(record.items) && record.items.length > 0);
     }
 
-    function closeHostSettingsMenu() {
-        const menu = container?.closest?.('#settings-menu');
-        if (menu instanceof HTMLElement) {
-            menu.classList.remove('visible');
-        }
-    }
-
     function dispatch(pluginId, item, element) {
         const normalizedPluginId = normalizeString(pluginId);
         const record = pluginRecords.get(normalizedPluginId);
@@ -307,88 +251,9 @@ export function createShellMenuManager({
         return dispatched;
     }
 
-    function createMenuItemElement(pluginId, item) {
-        const element = document.createElement('div');
-        element.className = 'menu-item cerebr-plugin-menu-item';
-        element.role = 'menuitem';
-        element.tabIndex = item.disabled ? -1 : 0;
-        element.dataset.pluginId = normalizeString(pluginId);
-        element.dataset.pluginMenuItem = item.id;
-        element.setAttribute('aria-disabled', item.disabled ? 'true' : 'false');
-
-        if (item.title) {
-            element.title = item.title;
-        }
-
-        const label = document.createElement('span');
-        label.className = 'cerebr-plugin-menu-item__label';
-        const icon = item.iconPlacement === 'disclosure'
-            ? null
-            : createMenuItemIconElement(item);
-        if (icon) {
-            label.appendChild(icon);
-        }
-        const text = document.createElement('span');
-        text.className = 'cerebr-plugin-menu-item__text';
-        text.textContent = item.label;
-        label.appendChild(text);
-        element.appendChild(label);
-
-        const affordance = createMenuItemAffordanceElement(item);
-        if (affordance) {
-            element.appendChild(affordance);
-        }
-
-        const activate = (event) => {
-            if (item.disabled) {
-                return;
-            }
-
-            event.preventDefault();
-            event.stopPropagation();
-            closeHostSettingsMenu();
-            dispatch(pluginId, item, element);
-        };
-
-        element.addEventListener('click', activate);
-        element.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-                activate(event);
-            }
-        });
-
-        return element;
-    }
-
     function render() {
-        if (!(container instanceof Element)) {
-            return false;
-        }
-
-        const records = getRenderableRecords();
-        container.replaceChildren();
-        container.hidden = records.length === 0;
-
-        if (records.length === 0) {
-            return true;
-        }
-
-        const items = [];
-        records.forEach(([pluginId, record]) => {
-            record.items.forEach((item) => {
-                items.push({
-                    pluginId,
-                    item,
-                });
-            });
-        });
-
-        items
-            .sort((left, right) => left.item.order - right.item.order)
-            .forEach(({ pluginId, item }) => {
-                container.appendChild(createMenuItemElement(pluginId, item));
-            });
-
+        const menu = getRenderableRecords().flatMap(([pluginId, record]) => record.items.map(item => ({ pluginId, item, dispatch: element => { uiStore.set({ menu: false, webpageMenu: false }); dispatch(pluginId, item, element); } }))).sort((a,b) => a.item.order-b.item.order);
+        pluginUiStore.set({ menu });
         return true;
     }
 

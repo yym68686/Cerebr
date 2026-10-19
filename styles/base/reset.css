@@ -1,5 +1,6 @@
 /* 基础样式 */
 body {
+    cursor: default;
     margin: 0;
     padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) 0;
     height: 100vh;
@@ -23,6 +24,26 @@ body {
 }
 
 :focus-visible {
-    outline: 2px solid var(--cerebr-focus-border-color);
+    outline: 1px solid var(--cerebr-focus-border-color);
     outline-offset: 2px;
 }
+
+/* Text controls already show a caret. Keep their existing surface and border
+   while focusing; buttons and toggles retain a neutral keyboard focus cue. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
+textarea:focus,
+select:focus {
+    outline: none;
+}
+
+/* React contributes the same direct flex items as the original shell. */
+#root {
+    display: contents;
+}
+
+/* Keep cursor ownership on the interactive control, not its text/SVG hit boxes. */
+button, a[href], [role="button"] { cursor: pointer; }
+button:disabled, [role="button"][aria-disabled="true"] { cursor: default; }
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]),
+textarea, [contenteditable="true"] { cursor: text; }
+button svg, a[href] svg, [role="button"] svg { pointer-events: none; }

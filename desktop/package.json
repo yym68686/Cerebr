@@ -1,0 +1,31 @@
+{
+  "name": "cerebr-desktop",
+  "productName": "Cerebr",
+  "version": "2.5.15",
+  "description": "Cerebr desktop with local browser history synchronization",
+  "author": "Cerebr",
+  "private": true,
+  "main": ".vite/main.cjs",
+  "scripts": {
+    "build": "node build.mjs && node verify-build.mjs",
+    "check": "tsc -p tsconfig.json && npm run build",
+    "start": "npm run build && electron .",
+    "package": "npm run build && electron-forge package",
+    "make": "npm run build && electron-forge make"
+  },
+  "dependencies": {
+    "electron-squirrel-startup": "^1.0.1",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "^8.0.1",
+    "@electron-forge/maker-dmg": "^8.0.1",
+    "@electron-forge/maker-squirrel": "^8.0.1",
+    "@electron-forge/maker-zip": "^8.0.1",
+    "@types/electron-squirrel-startup": "^1.0.2",
+    "@types/node": "^26.6.5",
+    "@types/ws": "^8.18.2",
+    "electron": "^44.9.0",
+    "typescript": "^7.0.2"
+  }
+}

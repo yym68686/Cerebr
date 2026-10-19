@@ -1,0 +1,77 @@
+/* Settings use their own header as window chrome, directly at the window's
+   top edge. There is no separate titlebar or vertical spacer above it. */
+body[data-desktop-platform] .settings-page {
+    top: 0;
+    padding-top: 0;
+}
+body[data-desktop-platform] :is(.settings-page-header, .settings-header) {
+    -webkit-app-region: drag;
+    app-region: drag;
+    user-select: none;
+}
+body[data-desktop-platform] :is(.settings-page-header, .settings-header) :is(button, input, select, a) {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+}
+body[data-desktop-platform]:has(.settings-page.visible, #plugin-settings.visible, #plugin-shell-page.visible)
+    .desktop-window-controls {
+    height: 58px;
+}
+/* Keep native controls and the back button on the same row, including when
+   the sidebar becomes a narrow rail or is hidden entirely. */
+body[data-desktop-platform='darwin'] :is(.settings-page-header, .settings-header) {
+    padding-left: max(22px, calc(100px - var(--cerebr-navigation-width, 0px)));
+}
+body[data-desktop-platform]:not([data-desktop-platform='darwin'])
+    :is(.settings-page-header, .settings-header) {
+    padding-right: 154px;
+}
+body[data-desktop-platform] .navigation-header {
+    -webkit-app-region: drag;
+    app-region: drag;
+}
+body[data-desktop-platform] .navigation-header button {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+}
+body[data-desktop-platform][data-navigation-rail='true'] .navigation-header {
+    margin-top: 34px;
+}
+body[data-desktop-platform] .chat-navigation-mobile-toggle {
+    top: 48px;
+}
+body[data-desktop-platform] #chat-navigation.is-fullscreen {
+    padding-top: 44px;
+}
+.desktop-window-controls {
+    position: fixed;
+    top: 0;
+    right: 0;
+    z-index: 1051;
+    height: 36px;
+    display: flex;
+    justify-content: flex-end;
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+}
+.desktop-window-controls button {
+    width: 44px;
+    border: 0;
+    color: var(--cerebr-text-color-secondary);
+    background: transparent;
+    cursor: default;
+}
+.desktop-window-controls button:hover {
+    background: var(--cerebr-hover-bg-color);
+}
+.desktop-window-controls .desktop-window-close:hover {
+    background: #c42b1c;
+    color: white;
+}
+.desktop-window-controls svg {
+    width: 12px;
+    height: 12px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1;
+}

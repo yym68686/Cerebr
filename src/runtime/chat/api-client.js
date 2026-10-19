@@ -148,6 +148,11 @@ export async function callAPI({
 
     const processStream = async () => {
         let reader;
+        let updateTimeout = null;
+        let flushPendingUpdate = () => {};
+        // finally 里要能取消挂着的 rAF，但 cancelFrame 定义在 try 内部（依赖流式循环的局部
+        // 状态），所以在这里留一个可被覆盖的句柄。
+        let cancelPendingFrame = () => {};
         let resolvedUrl = baseUrl;
         try {
             if (typeof lifecycle?.beforeRequest === 'function') {
@@ -233,7 +238,7 @@ export async function callAPI({
                 reasoning_content: ''
             };
             let lastUpdateTime = 0;
-            let updateTimeout = null;
+            const decoder = new TextDecoder();
             const UPDATE_INTERVAL = 100; // 每100ms更新一次
             const detectMisfiledThinkSilently = !!options?.detectMisfiledThinkSilently;
             const misfiledThinkSilentlyPrefixesRaw = options?.misfiledThinkSilentlyPrefixes;
@@ -247,7 +252,22 @@ export async function callAPI({
             ));
             let didDispatchAnyUpdate = false;
 
-            const dispatchUpdate = () => {
+            // 100ms 的节流点和浏览器的帧边界没有对齐，所以一次分发触发的 React 渲染 + 排版
+             // 经常落在一帧的中间，下一帧开始前没做完就变成掉帧。这里把真正的写入挪到 rAF 里，
+            // 让「解析 SSE」和「渲染」各自待在自己的帧内。
+            //
+            // rAF 只做对齐，不做保证：后台标签页里 rAF 会被压到几乎不触发，而流式还在继续，
+            // 所以原来的 setTimeout 节流保持原样作为兜底 —— 谁先到就谁分发，另一边看到
+            // 已经没有待处理内容就自己退出。
+            let rafId = 0;
+            const cancelFrame = () => {
+                if (!rafId) return;
+                cancelAnimationFrame(rafId);
+                rafId = 0;
+            };
+
+            const commitUpdate = () => {
+                if (!currentMessage.content && !currentMessage.reasoning_content) return;
                 if (chatManager && chatId) {
                     // 创建一个副本以避免回调函数意外修改
                     const messageCopy = { ...currentMessage };
@@ -256,33 +276,44 @@ export async function callAPI({
                     lastUpdateTime = Date.now();
                     didDispatchAnyUpdate = true;
                 }
+            };
+
+            const dispatchUpdate = () => {
                 if (updateTimeout) {
                     clearTimeout(updateTimeout);
                     updateTimeout = null;
                 }
+                cancelFrame();
+                commitUpdate();
             };
 
+            // 帧对齐的分发：rAF 不可用（比如 Node 里跑测试）时退化成立即分发。
+            const scheduleFrameUpdate = () => {
+                if (rafId) return;
+                if (typeof requestAnimationFrame !== 'function') {
+                    dispatchUpdate();
+                    return;
+                }
+                rafId = requestAnimationFrame(() => {
+                    rafId = 0;
+                    dispatchUpdate();
+                });
+            };
+
+            flushPendingUpdate = () => { if (updateTimeout || rafId) dispatchUpdate(); };
+            cancelPendingFrame = cancelFrame;
             while (true) {
                 const { done, value } = await reader.read();
-                if (done) {
-                     // 确保最后的数据被发送
-                    if (Date.now() - lastUpdateTime > 0) {
-                        dispatchUpdate();
-                    }
-                    // console.log('[chat.js] processStream: 响应流结束');
-                    break;
-                }
-
-                const chunk = new TextDecoder().decode(value);
-                buffer += chunk;
+                buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+                if (done && buffer.trim()) buffer += '\n';
 
                 let newlineIndex;
                 while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
-                    const line = buffer.slice(0, newlineIndex);
+                    const line = buffer.slice(0, newlineIndex).replace(/\r$/, '');
                     buffer = buffer.slice(newlineIndex + 1);
 
-                    if (line.startsWith('data: ')) {
-                        const data = line.slice(6);
+                    if (line.startsWith('data:')) {
+                        const data = line.slice(5).trimStart();
                         if (data === '[DONE]') {
                             continue;
                         }
@@ -331,10 +362,11 @@ export async function callAPI({
                                     }
                                 }
 
-                                if (!updateTimeout) {
-                                     // 如果距离上次更新超过了间隔，则立即更新
+                                if (!updateTimeout && !rafId) {
+                                     // 如果距离上次更新超过了间隔，就等下一帧开头写入，而不是
+                                     // 在解析循环中间同步渲染。
                                     if (Date.now() - lastUpdateTime > UPDATE_INTERVAL) {
-                                        dispatchUpdate();
+                                        scheduleFrameUpdate();
                                     } else {
                                          // 否则，设置一个定时器，在间隔的剩余时间后更新
                                         updateTimeout = setTimeout(dispatchUpdate, UPDATE_INTERVAL - (Date.now() - lastUpdateTime));
@@ -349,6 +381,7 @@ export async function callAPI({
                         }
                     }
                 }
+                if (done) { dispatchUpdate(); break; }
             }
 
             return currentMessage;
@@ -379,6 +412,11 @@ export async function callAPI({
                 }
             );
         } finally {
+            // flushPendingUpdate 内部会同时清掉 timer 和 rAF；这里的 clearTimeout 只是
+            // 没有待分发内容时的兜底（那种情况下 flush 不做事）。
+            flushPendingUpdate();
+            clearTimeout(updateTimeout);
+            cancelPendingFrame();
             try {
                 await reader?.cancel?.();
             } catch {

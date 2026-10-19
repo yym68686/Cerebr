@@ -50,7 +50,7 @@ function createGuestFrame() {
     guestFrame.style.pointerEvents = 'none';
     guestFrame.style.border = '0';
     guestFrame.style.inset = '0 auto auto 0';
-    guestFrame.src = new URL('./page-plugin-guest.html', import.meta.url).toString();
+    guestFrame.src = new URL('./page-plugin-guest.html', document.baseURI).toString();
     document.body.appendChild(guestFrame);
 }
 

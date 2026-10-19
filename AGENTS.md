@@ -2,53 +2,48 @@
 
 本文件记录本仓库的关键架构约定与发布流程，避免在 iOS Safari、缓存与版本化资源上反复踩坑。
 
-## 架构理解（Web + Extension 共用一套前端）
+## 架构理解（React + Vite，Web 与 Extension 共用前端）
 
-- **两种运行形态**
-  - **浏览器扩展页**：直接加载未版本化的 `src/main.js` + `styles/main.css`。
-  - **Web（GitHub Pages / Vercel）**：通过 `src/boot.js` 选择并加载 **版本化资源**（见下文 `v/`）。
+- 唯一界面入口是 `src/main.jsx`，React 组件在 `src/app/components/`。不再保留原生 DOM 页面实现或第二套启动路径。
+- `src/domain/chat/chat-store.js` 提供可订阅的聊天存储；React 通过 `useSyncExternalStore` 读取状态。保留已有用户数据的存储键与导入导出能力。
+- `src/runtime/chat/` 管理真实 API 请求、流式响应、取消与插件钩子，不操作消息 DOM。
+- `src/runtime/input/native-editor.js` 是 contentEditable 的原生选区、撤销、IME、图片粘贴与触摸处理边界，由 React 会话负责订阅和清理。
+- React 管理插件的菜单、操作按钮、声明式页面与弹窗；插件提供的 DOM/iframe 节点只在 SDK 的挂载边界内由插件管理。不要直接修改宿主 React 子树。
+- 原有 CSS 继续是视觉规范。`#root { display: contents }` 保持原来的 body flex 布局。
+- `body` 仍为 fixed / overflow hidden，`#chat-container` 内部滚动，`#input-container` 底部固定；保留 visualViewport 对 iOS 键盘的适配。
 
-- **Web 的启动链路（核心）**
-  1. `index.html` 先加载默认的 `styles/main.css`（兜底）。
-  2. `src/boot.js` 以 `cache: 'no-store'` 拉取 `manifest.json` / `manifest.firefox.json`，拿到 `version`。
-  3. 若拿到 `version`：把样式切换到 `v/<version>/styles/main.css`，并 `import v/<version>/src/main.js`。
-  4. 这么做的目的：**规避 iOS Safari 对 ESM/静态资源“顽固缓存”导致的旧代码不更新问题**。
+## 开发与构建
 
-- **滚动/输入栏布局（当前实现）**
-  - 页面层面：`body` 为 `position: fixed; overflow: hidden;`（禁用页面滚动）。
-  - 真正的滚动容器：`#chat-container`（内部滚动）。
-  - 输入栏：`#input-container`（底部 `position: fixed`）。
-  - 这意味着：Safari 的地址栏自动隐藏、下拉刷新等“页面级滚动行为”可能不会出现（因为页面本身不滚动）。
+需要 Node.js 22.12+（CI 使用 24）及 htmd 子模块。
 
-## `v/` 目录（版本化 Web 资源）
+```bash
+git submodule update --init --recursive
+npm ci
+npm run dev
+npm run check
+npm run preview
+npm run package:extension
+```
 
-- **它是什么**
-  - `v/<version>/src/**`：从根目录 `src/` 拷贝出来的版本化源码。
-  - `v/<version>/styles/**`：从根目录 `styles/` 拷贝出来的版本化样式。
-  - 注意：不要直接手改 `v/<version>/...`，应修改 `src/` / `styles/` 后重新生成。
+- Vite 开发入口直接加载 React；`npm run build` 生成唯一可发布目录 `dist/`。
+- Web 与扩展都加载编译产物的 `index.html` → `boot.js` → `web-manifest.json` → `v/<version>/*-<hash>.js/css`。
+- 仓库根目录的 `manifest.json` / `manifest.firefox.json` 将 background、content scripts、sandbox 和可公开访问资源指向 `dist/`。原有根目录扩展安装可在构建后直接重新加载，保留扩展 ID 与存储。
+- 构建脚本将上述 manifest 的运行时路径转换为产物根目录相对路径，写入 `dist/`，用于独立安装包。两种安装位置加载的是同一套编译产物，没有源码运行兜底。
+- `boot.js` 以 `cache: 'no-store'` 读取清单，先加载 CSS，再导入应用。保持 Safari 缓存规避机制；没有未构建源码兜底。
+- `base: './'` 支持 GitHub Pages 项目子路径、自定义域名及扩展 URL。页面切换是 React 状态，不需要服务端路由回退。
+- 扩展 background、content 入口及 guest HTML 都由 Vite 编译；必须保留 content 入口的 `bootContentScript` 导出。`content.js` 只负责扩展模块加载与消息队列。
+- `htmd/`、`lib/` 等独立运行时资源随构建复制；不要用打包后的 `import.meta.url` 推导公开资源路径，使用 `appAssetUrl()`。扩展资源根目录由已安装 manifest 的 background 入口目录确定；`chrome.scripting.executeScript({ files })` 使用 `extensionAssetPath()`。
+- `scripts/verify-build.mjs` 必须检查 content 模块全部静态/动态依赖在两种安装位置均被 `web_accessible_resources` 覆盖，避免恢复对宿主源码路径的依赖。
+- `dist/`、`artifacts/` 均为生成物，不提交。仓库不再提交根目录 `v/`，不手改生成文件。
 
-- **如何生成**
-  - 脚本：`scripts/gen_web_versioned_src.sh`
-  - 逻辑：读取 `manifest.json` 的 `version`，生成 `v/<version>/src` 与 `v/<version>/styles`，并对少量跨目录引用做路径修正（例如 `htmd/latex.js`、`@import` 路径）。
+## 发布与缓存
 
-## 发布/升级（建议流程）
+1. 同步更新 `manifest.json`、`manifest.firefox.json` 和 `package.json` 的版本。
+2. 运行 `npm run check`（测试 + 构建），验证 `npm run preview`。
+3. GitHub Pages 使用 GitHub Actions，上传 `dist`。Cloudflare Pages / Vercel 的构建命令为 `npm run build`，输出目录为 `dist`。
+4. 运行 `npm run package:extension`，安装包在 `artifacts/`，Chrome 加载 `artifacts/chrome/`，Firefox 使用对应包。
 
-1. 修改版本号：`manifest.json` 与 `manifest.firefox.json`
-2. 生成版本化资源：运行 `bash scripts/gen_web_versioned_src.sh`
-3. 检查 Web 启动链路：
-   - `src/boot.js` 能否成功 import `v/<version>/src/main.js`
-   - CSS 是否已指向 `v/<version>/styles/main.css`
-4. 再提交/部署
-
-## `v/` 只保留一个版本（仓库策略）
-
-本仓库当前策略：**`v/` 目录只保留“最新版”的一个版本**，避免仓库膨胀与历史版本堆积。
-
-- 操作建议（发布时）：
-  - `rm -rf v/*`
-  - `bash scripts/gen_web_versioned_src.sh`
-
-注意：只保留一个版本的代价是——如果用户端极端情况下缓存了旧的 `boot.js` 或旧 `version`，可能会请求到不存在的 `v/<old>/...` 导致 404。此策略是“体积/维护成本优先”的取舍。
+构建每次清空 `dist`，只保留当前版本。清单禁缓存，哈希资源可长期缓存；旧页面跨发布请求已删除旧资源仍可能 404，重新加载会读取最新清单。没有 SSR 或本地 API 代理，模型服务仍需允许浏览器跨域访问。
 
 ## 插件模板同步
 
@@ -103,3 +98,12 @@
 - 远程 script 插件是否仍然保持“自包含”，没有错误依赖主仓库私有路径
 - GitHub Pages 或其它托管地址是否仍然能正确提供 `plugin.json` / `.js`
 - 本仓库 bundled fallback 是否需要镜像更新
+
+## 桌面宿主
+
+- Electron/TypeScript 宿主位于 `desktop/` workspace，继续复用唯一 React 构建产物，不另建桌面前端。
+- `npm run check --workspace cerebr-desktop` 校验类型并实际启动打包后的同步 worker；`npm run package:desktop` 生成本机安装包。
+- 同步只监听本机，修改协议或存储必须覆盖离线、删除、冲突和完整性校验。详情见 `docs/desktop.md`。
+- 发布版本也要同步更新 `desktop/package.json`。
+
+- `.github/workflows/release.yml` 在 main/相关 PR 构建，在 `v*` 标签或手动 publish 时发布。`scripts/release-version.mjs` 校验四个版本来源；所有平台成功后才公开 Release，不覆盖已发布版本。

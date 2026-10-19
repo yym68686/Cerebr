@@ -1,3 +1,6 @@
+import { isSyncedKey } from '../runtime/sync/protocol.js';
+import { desktopBrowserRequest, onDesktopBrowserEvent } from '../platform/desktop-browser.js';
+import { replicaRecord, upgradeReplica, writeLocal } from '../runtime/sync/replica.js';
 // 检测是否在Chrome扩展环境中
 export const isExtensionEnvironment = !!(typeof chrome !== 'undefined' && chrome.runtime);
 
@@ -24,7 +27,7 @@ export function isExtensionRuntimeAvailable() {
 }
 
 const IDB_DB_NAME = 'CerebrData';
-const IDB_DB_VERSION = 1;
+const IDB_DB_VERSION = 2;
 const IDB_STORE_NAME = 'keyValueStore';
 
 let dbPromise = null;
@@ -33,10 +36,16 @@ let hasWarnedWebSyncLocalStorageFallback = false;
 const CHATS_INDEX_V2_KEY = 'cerebr_chats_index_v2';
 const CHAT_V2_PREFIX = 'cerebr_chat_v2_';
 const READING_PROGRESS_V1_PREFIX = 'cerebr_reading_progress_v1_';
+const DRAFT_V1_PREFIX = 'cerebr_draft_v1_';
+
+function isDraftStorageKey(key) {
+    return typeof key === 'string' && key.startsWith(DRAFT_V1_PREFIX);
+}
 
 function isChatStorageKey(key) {
-    return key === CHATS_INDEX_V2_KEY ||
-        (typeof key === 'string' && (key.startsWith(CHAT_V2_PREFIX) || key.startsWith(READING_PROGRESS_V1_PREFIX)));
+    return isSyncedKey(key) || key === CHATS_INDEX_V2_KEY ||
+        (typeof key === 'string' && (key.startsWith(CHAT_V2_PREFIX) || key.startsWith(READING_PROGRESS_V1_PREFIX))) ||
+        isDraftStorageKey(key);
 }
 
 function warnWebSyncLocalStorageFallback() {
@@ -48,26 +57,42 @@ function warnWebSyncLocalStorageFallback() {
     console.warn('Sync storage in web environment is using localStorage fallback, which has size limitations.');
 }
 
-function getDb() {
+export function getDb() {
     if (!dbPromise) {
-        dbPromise = new Promise((resolve, reject) => {
+        const opening = new Promise((resolve, reject) => {
             const request = indexedDB.open(IDB_DB_NAME, IDB_DB_VERSION);
 
             request.onupgradeneeded = (event) => {
                 const db = event.target.result;
+                upgradeReplica(db);
                 if (!db.objectStoreNames.contains(IDB_STORE_NAME)) {
                     db.createObjectStore(IDB_STORE_NAME);
                 }
             };
 
             request.onsuccess = (event) => {
-                resolve(event.target.result);
+                const db = event.target.result;
+                const reset = () => {
+                    if (dbPromise === opening) dbPromise = null;
+                };
+                db.onclose = reset;
+                db.onversionchange = () => {
+                    db.close();
+                    reset();
+                };
+                resolve(db);
             };
 
             request.onerror = (event) => {
                 console.error('IndexedDB database error:', event.target.error);
                 reject(event.target.error);
             };
+        });
+        dbPromise = opening;
+        // A failed open must not poison every later save in this page. The chat
+        // store keeps failed writes queued and needs a fresh connection to retry.
+        opening.catch(() => {
+            if (dbPromise === opening) dbPromise = null;
         });
     }
     return dbPromise;
@@ -124,58 +149,25 @@ async function idbGetMany(keys) {
 
 async function idbSetMany(data) {
     const db = await getDb();
-    if (!db) throw new Error("IndexedDB not available");
-    const entries = Object.entries(data);
-    if (entries.length === 0) return;
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction([IDB_STORE_NAME], 'readwrite');
-        const store = transaction.objectStore(IDB_STORE_NAME);
-        entries.forEach(([key, value]) => {
-            const request = store.put(value, key);
-            request.onerror = (event) => {
-                console.error(`IndexedDB set error for key ${key}:`, event.target.error);
-                transaction.abort();
-                reject(event.target.error);
-            };
-        });
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = (event) => {
-            console.error('IndexedDB set transaction error:', event.target.error);
-            reject(event.target.error);
-        };
-        transaction.onabort = (event) => {
-            console.error('IndexedDB set transaction aborted:', event.target.error);
-            reject(new Error('Transaction aborted, possibly due to an earlier error.'));
-        };
-    });
+    if (!db) throw new Error('IndexedDB not available');
+    await writeLocal(db, data);
 }
-
 async function idbRemoveMany(keys) {
     const db = await getDb();
-    if (!db) throw new Error("IndexedDB not available");
-    const keysArray = Array.isArray(keys) ? keys : [keys];
-    if (keysArray.length === 0) return;
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction([IDB_STORE_NAME], 'readwrite');
-        const store = transaction.objectStore(IDB_STORE_NAME);
-        keysArray.forEach((key) => {
-            const request = store.delete(key);
-            request.onerror = (event) => {
-                console.error(`IndexedDB remove error for key ${key}:`, event.target.error);
-                transaction.abort();
-                reject(event.target.error);
-            };
-        });
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = (event) => {
-            console.error('IndexedDB remove transaction error:', event.target.error);
-            reject(event.target.error);
-        };
-        transaction.onabort = (event) => {
-            console.error('IndexedDB remove transaction aborted:', event.target.error);
-            reject(new Error('Transaction aborted, possibly due to an earlier error.'));
-        };
-    });
+    if (!db) throw new Error('IndexedDB not available');
+    await writeLocal(db, {}, Array.isArray(keys) ? keys : [keys]);
+}
+
+// Legacy extension storage is optional once chat data lives in IndexedDB.
+// Reloading the extension can invalidate it while an IDB operation is pending.
+async function withLegacyChatStorage(operation, fallback) {
+    if (!isExtensionRuntimeAvailable()) return fallback;
+    try {
+        return await operation(chrome.storage.local);
+    } catch (error) {
+        if (isExtensionContextInvalidatedError(error)) return fallback;
+        throw error;
+    }
 }
 
 // 存储适配器
@@ -195,14 +187,21 @@ export const storageAdapter = {
 
                     // 兼容迁移：chat keys 优先从 IDB 读，缺失则回退到 chrome.storage.local，再写回 IDB
                     if (idbKeys.length > 0) {
-                        const missingIdbKeys = idbKeys.filter(k => typeof idbResult[k] === 'undefined');
+                        const absent = idbKeys.filter(k => typeof idbResult[k] === 'undefined');
+                        const db=await getDb();
+                        const tombstones=await Promise.all(absent.map(k=>replicaRecord(db,k)));
+                        const missingIdbKeys = absent.filter((key,index)=>!tombstones[index]?.deleted);
                         if (missingIdbKeys.length > 0) {
-                            const chromeFallback = await chrome.storage.local.get(missingIdbKeys);
+                            const chromeFallback = await withLegacyChatStorage(
+                                (storage) => storage.get(missingIdbKeys), {}
+                            );
                             const fallbackEntries = Object.entries(chromeFallback).filter(([, v]) => typeof v !== 'undefined');
                             if (fallbackEntries.length > 0) {
                                 const fallbackPayload = Object.fromEntries(fallbackEntries);
                                 await idbSetMany(fallbackPayload);
-                                await chrome.storage.local.remove(Object.keys(fallbackPayload));
+                                await withLegacyChatStorage(
+                                    (storage) => storage.remove(Object.keys(fallbackPayload))
+                                );
                                 idbResult = { ...idbResult, ...fallbackPayload };
                             }
                         }
@@ -216,12 +215,12 @@ export const storageAdapter = {
             if (isExtensionEnvironment) {
                 if (isChatStorageKey(key)) {
                     let value = await idbGetOne(key);
-                    if (typeof value === 'undefined') {
-                        const chromeFallback = await chrome.storage.local.get(key);
+                    if (typeof value === 'undefined' && !(await replicaRecord(await getDb(),key))?.deleted) {
+                        const chromeFallback = await withLegacyChatStorage((storage) => storage.get(key), {});
                         value = chromeFallback[key];
                         if (typeof value !== 'undefined') {
                             await idbSetMany({ [key]: value });
-                            await chrome.storage.local.remove(key);
+                            await withLegacyChatStorage((storage) => storage.remove(key));
                         }
                     }
                     return { [key]: value };
@@ -246,10 +245,19 @@ export const storageAdapter = {
         const idbKeys = keysArray.filter(isChatStorageKey);
 
         if (isExtensionEnvironment) {
+            const chromeKeys = keysArray.filter(key => !isChatStorageKey(key));
             await Promise.all([
-                idbKeys.length > 0 ? idbRemoveMany(idbKeys) : Promise.resolve(),
-                chrome.storage.local.remove(keysArray)
+                // A cleared draft must not be migrated back from legacy storage
+                // if extension reload interrupts the cleanup below.
+                idbKeys.length > 0 ? Promise.all([
+                    idbRemoveMany(idbKeys.filter(key => !isDraftStorageKey(key))),
+                    idbSetMany(Object.fromEntries(idbKeys.filter(isDraftStorageKey).map(key => [key, null])))
+                ]) : Promise.resolve(),
+                chromeKeys.length > 0 ? chrome.storage.local.remove(chromeKeys) : Promise.resolve()
             ]);
+            if (idbKeys.length > 0) {
+                await withLegacyChatStorage((storage) => storage.remove(idbKeys));
+            }
             return;
         }
 
@@ -278,7 +286,7 @@ export const storageAdapter = {
             ]);
             // 迁移清理：确保 chat keys 不再残留在 chrome.storage.local
             if (Object.keys(idbPayload).length > 0) {
-                await chrome.storage.local.remove(Object.keys(idbPayload));
+                await withLegacyChatStorage((storage) => storage.remove(Object.keys(idbPayload)));
             }
             return;
         }
@@ -361,6 +369,7 @@ export const syncStorageAdapter = {
 export const browserAdapter = {
     // 获取当前标签页信息
     async getCurrentTab() {
+        if(globalThis.cerebrDesktop)return desktopBrowserRequest({type:'GET_CURRENT_TAB'});
         if (isExtensionEnvironment) {
             const tab = await chrome.runtime.sendMessage({ type: "GET_CURRENT_TAB" });
             if (!tab?.url) return null;
@@ -406,6 +415,7 @@ export const browserAdapter = {
 
     // 发送消息
     async sendMessage(message) {
+        if(globalThis.cerebrDesktop)return desktopBrowserRequest(message);
         if (isExtensionEnvironment) {
            return new Promise((resolve, reject) => {
                chrome.runtime.sendMessage(message, (response) => {
@@ -422,6 +432,7 @@ export const browserAdapter = {
     },
 
     getAllTabs: () => {
+        if(globalThis.cerebrDesktop)return desktopBrowserRequest({type:'GET_ALL_TABS'});
         if (!isExtensionEnvironment) {
             return Promise.resolve([{
                 id: 'current',
@@ -441,6 +452,7 @@ export const browserAdapter = {
     },
 
     getTabGroupsByIds: (groupIds) => {
+        if(globalThis.cerebrDesktop)return desktopBrowserRequest({type:'GET_TAB_GROUPS_BY_IDS',groupIds});
         if (!isExtensionEnvironment) return Promise.resolve({});
         return new Promise((resolve, reject) => {
             chrome.runtime.sendMessage({ type: 'GET_TAB_GROUPS_BY_IDS', groupIds }, (response) => {
@@ -480,18 +492,22 @@ export const browserAdapter = {
 
     // 添加标签页变化监听器
     onTabActivated(callback) {
-        if (isExtensionEnvironment) {
-            // In a non-background script, we can't directly access chrome.tabs.
-            // We listen for messages from the background script instead.
-            // chrome.tabs.onActivated.addListener(callback);
+        if (!isExtensionEnvironment) return () => {};
+        const listener = message => {
+            if (message.type === 'TAB_ACTIVATED') void callback(message.payload);
+        };
+        chrome.runtime.onMessage.addListener(listener);
+        return () => chrome.runtime.onMessage.removeListener(listener);
+    },
 
-            // 兼容 Firefox 需要
-            chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-                if (message.type === 'TAB_ACTIVATED') {
-                    callback(message.payload);
-                }
-            });
-        }
+    onTabsChanged(callback) {
+        if(globalThis.cerebrDesktop)return onDesktopBrowserEvent(event=>{if(event.type==='tabs-changed')callback();});
+        if (!isExtensionEnvironment) return () => {};
+        const listener = message => {
+            if (message.type === 'WEBPAGE_TABS_CHANGED') void callback();
+        };
+        chrome.runtime.onMessage.addListener(listener);
+        return () => chrome.runtime.onMessage.removeListener(listener);
     },
 
     isTabConnected: (tabId) => {

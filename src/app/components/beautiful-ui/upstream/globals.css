@@ -1,0 +1,643 @@
+@import "tailwindcss";
+/* shadow-plugin (flornkm) — smooth, layered shadow stacks. The unprefixed
+ * entry maps them onto Tailwind's --shadow-xs…2xl scale; our semantic tokens
+ * below build on those values so the whole app picks up the smooth shadows. */
+@import "shadow-plugin/unprefixed";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* GENERIC FOUNDATION — tokens, @theme, base rules, the primitive-*
+ * spacing utilities, and shared keyframes below are needed by EVERY
+ * component. Blocks tagged COMPONENT-SPECIFIC further down belong to
+ * one primitive each. */
+/* ──────────────────────────────────────────────────────────
+ * Beautiful UI — design tokens
+ * Cool near-white canvas, white cards, hairline borders, layered
+ * single-digit-opacity shadows, a neutral ink ramp, and semantic
+ * color used sparingly as a condiment.
+ * ────────────────────────────────────────────────────────── */
+
+:root {
+  /* surfaces — cool, blue-tinted neutrals */
+  --page: oklch(0.985 0.001 286.376);
+  --canvas: oklch(0.961 0.002 247.84);
+  --surface: oklch(1 0 0);
+  --inset: oklch(0.979 0.002 247.839);
+  --hover: oklch(0.97 0.002 247.839);
+  --hover-2: oklch(0.933 0.003 247.86);
+
+  /* ink ramp */
+  --ink: oklch(0.247 0.006 258.361);
+  --ink-2: oklch(0.506 0.01 264.477);
+  --ink-3: oklch(0.695 0.009 264.505);
+
+  /* borders — solid and crisp, not alpha */
+  --line: oklch(0.946 0.003 264.542);
+  --line-strong: oklch(0.912 0.005 258.326);
+  --line-soft: oklch(0.966 0.002 264.542);
+  --grid-line: color-mix(in srgb, var(--line) 78%, transparent);
+  --field: oklch(0.961 0.001 286.375);
+  --stripe: oklch(0.405 0 0 / 0.075);
+  --stripe-bg: oklch(0.97 0 0);
+
+  /* accent */
+  --accent: oklch(0.626 0.205 254.947);
+  --accent-ink: oklch(0.556 0.187 255.617);
+  --accent-tint: oklch(0.96 0.019 252.878);
+
+  /* semantic */
+  --green: oklch(0.603 0.155 150.883);
+  --green-tint: oklch(0.958 0.017 159.118);
+  --orange: oklch(0.689 0.179 49.902);
+  --orange-tint: oklch(0.964 0.021 67.581);
+  --red: oklch(0.621 0.192 23.042);
+  --red-tint: oklch(0.956 0.017 17.462);
+
+  /* chart overlays — neutral system colors with enough contrast on either theme */
+  --tooltip-bg: oklch(0.272 0.008 264.435);
+  --tooltip-fg: oklch(0.976 0.002 247.839);
+  --tooltip-muted: oklch(0.731 0.008 260.731);
+  --tooltip-border: oklch(0.356 0.007 264.474);
+
+  /* shadows — our solid hairline ring + shadow-plugin's smooth layered stacks
+   * (--shadow-xs…lg come from shadow-plugin/unprefixed) so every surface reads
+   * consistently across the app. */
+  --shadow-hairline: 0 0 0 1px var(--line);
+  --shadow-btn: 0 0 0 1px var(--line-strong), var(--shadow-xs);
+  --shadow-card: 0 0 0 1px var(--line), var(--shadow-sm);
+  --shadow-raised: 0 0 0 1px var(--line), var(--shadow-md);
+  --shadow-overlay: 0 0 0 1px var(--line), var(--shadow-lg);
+  --shadow-inset-field: inset 0 1px 2px oklch(0 0 0 / 0.12);
+}
+
+.dark {
+  --page: oklch(0.209 0.004 264.477);
+  --canvas: oklch(0.231 0.004 264.487);
+  --surface: oklch(0.26 0.006 271.191);
+  --inset: oklch(0.243 0.004 264.492);
+  --hover: oklch(0.289 0.006 271.22);
+  --hover-2: oklch(0.318 0.007 274.747);
+
+  --ink: oklch(0.964 0.002 247.839);
+  --ink-2: oklch(0.731 0.008 260.731);
+  --ink-3: oklch(0.541 0.01 264.484);
+
+  --line: oklch(0.308 0.006 258.354);
+  --line-strong: oklch(0.356 0.007 264.474);
+  --line-soft: oklch(0.278 0.006 258.354);
+  --field: oklch(0.293 0.006 271.223);
+  --stripe: oklch(1 0 0 / 0.055);
+  --stripe-bg: oklch(0.226 0.004 264.485);
+
+  --accent: oklch(0.68 0.173 253.301);
+  --accent-ink: oklch(0.788 0.113 248.33);
+  --accent-tint: oklch(0.68 0.173 253.301 / 0.16);
+
+  --green: oklch(0.705 0.154 153.814);
+  --green-tint: oklch(0.705 0.154 153.814 / 0.14);
+  --orange: oklch(0.746 0.156 55.642);
+  --orange-tint: oklch(0.746 0.156 55.642 / 0.14);
+  --red: oklch(0.666 0.18 21.433);
+  --red-tint: oklch(0.666 0.18 21.433 / 0.14);
+
+  --tooltip-bg: oklch(0.182 0.004 264.459);
+  --tooltip-fg: oklch(0.964 0.002 247.839);
+  --tooltip-muted: oklch(0.731 0.008 260.731);
+  --tooltip-border: oklch(0.308 0.006 258.354);
+
+  --shadow-hairline: 0 0 0 1px var(--line);
+  /* Elevation rings go to a subtle *light* hairline in dark mode: the ring
+   * paints over the surface behind the element, so a low-alpha white edge
+   * dissolves into the shadow as one continuous stroke (per smooth-shadow-ring),
+   * graduated by how far the surface floats. */
+  --shadow-btn: 0 0 0 1px oklch(1 0 0 / 0.1), 0 1px 2px oklch(0 0 0 / 0.3);
+  --shadow-card:
+    0 0 0 1px oklch(1 0 0 / 0.11), 0 1px 2px oklch(0 0 0 / 0.2),
+    0 2px 6px oklch(0 0 0 / 0.2);
+  --shadow-raised:
+    0 0 0 1px oklch(1 0 0 / 0.13), 0 2px 10px oklch(0 0 0 / 0.22);
+  --shadow-overlay:
+    0 0 0 1px oklch(1 0 0 / 0.15), 0 8px 28px oklch(0 0 0 / 0.34);
+  --shadow-inset-field: inset 0 1px 2px oklch(0 0 0 / 0.4);
+}
+
+@theme inline {
+  /* colors */
+  --color-page: var(--page);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-inset: var(--inset);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-hover: var(--hover);
+  --color-hover-2: var(--hover-2);
+  --color-field: var(--field);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-tint: var(--accent-tint);
+  --color-green: var(--green);
+  --color-green-tint: var(--green-tint);
+  --color-orange: var(--orange);
+  --color-orange-tint: var(--orange-tint);
+  --color-red: var(--red);
+  --color-red-tint: var(--red-tint);
+
+  /* shadows */
+  --shadow-hairline: var(--shadow-hairline);
+  --shadow-btn: var(--shadow-btn);
+  --shadow-inset-field: var(--shadow-inset-field);
+  --shadow-card: var(--shadow-card);
+  --shadow-raised: var(--shadow-raised);
+  --shadow-overlay: var(--shadow-overlay);
+
+  /* type */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-face), ui-monospace, "SF Mono", monospace;
+
+  /* radii — chips 6, controls 8, cards 10, windows 14, pills 999 */
+  --radius-chip: 6px;
+  --radius-control: 8px;
+  --radius-card: 10px;
+  --radius-window: 14px;
+
+  /* easing — strong curves; built-ins are too weak */
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-link: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── base ─────────────────────────────────────────────── */
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background-color: var(--stripe-bg);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent 0,
+    transparent 7px,
+    var(--stripe) 7px,
+    var(--stripe) 8px
+  );
+  /* Pin the stripe pattern to the viewport so it stays put on scroll. */
+  background-attachment: fixed;
+  color: var(--ink);
+  font-feature-settings: "cv11", "ss01";
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  line-height: 1.5;
+}
+
+::selection {
+  background: var(--accent-tint);
+  color: var(--ink);
+}
+
+/* ── interface hygiene (interfaces.dev cheat sheet) ────── */
+
+/* headings balance; descriptions avoid orphans (skip long-form — we have none) */
+h1,
+h2,
+h3,
+h4 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+/* underlines clear descenders */
+a {
+  text-underline-position: from-font;
+  text-decoration-skip-ink: auto;
+}
+
+/* theme switches swap every token at once — freeze transitions so the flip
+ * is one clean repaint instead of hundreds of mismatched color fades */
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
+}
+
+/* touch: :hover sticks after a tap, so neutralize row/header hovers there */
+@media (hover: none) {
+  .records-row:hover > .records-cell {
+    background: transparent;
+  }
+
+  .records-row:hover > td.is-colsel {
+    background: color-mix(in srgb, var(--accent) 4%, var(--surface));
+  }
+
+  .records-header-button:hover {
+    background: transparent;
+    color: var(--ink-2);
+  }
+}
+
+/* Keep the component nav scrollable but hide its scrollbar. */
+.component-nav-scroll {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge */
+}
+.component-nav-scroll::-webkit-scrollbar {
+  display: none; /* WebKit */
+}
+
+@media (min-width: 64rem) {
+  .component-nav-scroll {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      oklch(0 0 0) 0,
+      oklch(0 0 0) calc(100% - 6rem),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      oklch(0 0 0) 0,
+      oklch(0 0 0) calc(100% - 6rem),
+      transparent 100%
+    );
+  }
+}
+
+/* Mobile demo gestures should operate controls and visualizations rather than
+ * selecting surrounding labels. Text entry and code remain intentionally
+ * selectable. */
+@media (hover: none) and (pointer: coarse) {
+  .primitive-showcase {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .primitive-showcase :is(input, textarea, [contenteditable="true"], pre, code) {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+  }
+
+  .primitive-showcase :is(a, button, [role="button"]) {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .primitive-showcase :is(a, button, [role="button"]):focus-visible {
+    outline: none;
+  }
+
+  .primitive-showcase :is(img, svg, canvas) {
+    -webkit-user-drag: none;
+  }
+
+  .insight-chart-stage {
+    touch-action: pan-y;
+  }
+}
+
+/* Tailwind v4 resets buttons to cursor:default — anything
+ * clickable must invite the click */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+label:has(input),
+a {
+  cursor: pointer;
+}
+
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[contenteditable]:focus-visible {
+  outline: none;
+}
+
+.animated-underline {
+  position: relative;
+  display: inline-block;
+}
+
+.animated-underline::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 1px;
+  content: "";
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 280ms var(--ease-link);
+}
+
+a:hover .animated-underline::after,
+a:focus-visible .animated-underline::after {
+  transform: scaleX(1);
+}
+
+/* ══════════════════════════════════════════════════════════
+ * COMPONENT-SPECIFIC — StreamingText / ContextCards
+ * Favicon source avatars.
+ * Copy this block only alongside StreamingText / ContextCards; it is not part of the
+ * generic foundation above.
+ * ══════════════════════════════════════════════════════════ */
+.source-avatar {
+  box-shadow: 0 0 0 1px oklch(0.21 0.034 263.436 / 0.1);
+}
+
+.dark .source-avatar {
+  box-shadow: 0 0 0 1px oklch(1 0 0 / 0.08);
+}
+
+/* ── primitive spacing system ─────────────────────────────
+ * Shared optical offsets for small demo cards. Use these
+ * instead of hand-tuning 10/12/14px per component.
+ */
+
+.primitive-card-pad {
+  padding: 12px;
+}
+
+.primitive-card-bar {
+  padding: 10px 12px;
+}
+
+.primitive-card-footer {
+  padding: 10px;
+}
+
+.primitive-table-cell {
+  padding: 10px 12px;
+}
+
+.primitive-icon-button {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-control);
+}
+
+/* ── shared keyframes ─────────────────────────────────── */
+
+@keyframes shimmer-text {
+  from {
+    background-position: 150% center;
+  }
+  to {
+    background-position: -50% center;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.home-reveal {
+  will-change: opacity, transform, filter;
+}
+
+/* The sidebar is one persistent 224px tree clipped by a 52px shell.
+ * Every rail glyph remains centered at x=26 in both states. */
+  .records-footer-hint {
+    display: none;
+  }
+}
+
+/* ── filter table electric status colors ─────────────────── */
+
+/* ══════════════════════════════════════════════════════════
+ * COMPONENT-SPECIFIC — FilterTable
+ * Electric status-pill colors.
+ * Copy this block only alongside FilterTable; it is not part of the
+ * generic foundation above.
+ * ══════════════════════════════════════════════════════════ */
+.filter-status-todo,
+.filter-status-progress,
+.filter-status-done {
+  border: 1px solid transparent;
+}
+
+/* ══════════════════════════════════════════════════════════
+ * COMPONENT-SPECIFIC — InsightCards
+ * Liveline chart tooltip + cursor.
+ * Copy this block only alongside InsightCards; it is not part of the
+ * generic foundation above.
+ * ══════════════════════════════════════════════════════════ */
+.insight-chart-stage {
+  overflow: hidden;
+}
+
+.insight-chart-cursor {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--ink);
+  opacity: 0.26;
+  pointer-events: none;
+}
+
+.insight-chart-tooltip-anchor {
+  position: absolute;
+  z-index: 5;
+  top: 8px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.insight-chart-tooltip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--tooltip-fg);
+  background: var(--tooltip-bg);
+  box-shadow: var(--shadow-overlay);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.insight-chart-tooltip-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.insight-chart-tooltip-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+}
+
+/* Status pills share the same base-hue → color-mix derivation as .records-tag,
+ * so both components stay consistent across light and dark. */
+.filter-status-todo {
+  --tag-base: oklch(0.757 0.153 66.401);
+}
+.filter-status-progress {
+  --tag-base: oklch(0.671 0.118 219.351);
+}
+.filter-status-done {
+  --tag-base: oklch(0.652 0.131 162.865);
+}
+
+.filter-status-todo,
+.filter-status-progress,
+.filter-status-done {
+  color: color-mix(in srgb, var(--tag-base) 92%, var(--ink));
+  background: color-mix(in srgb, var(--tag-base) 20%, var(--surface));
+  border-color: color-mix(in srgb, var(--tag-base) 34%, var(--surface));
+}
+
+/* Dark mode — a richer, saturated same-hue fill
+ * with bright same-hue text and no visible border (light mode keeps the soft
+ * tinted pastels above). Applies to both the records grid and status pills. */
+.dark .records-tag,
+.dark .filter-status-todo,
+.dark .filter-status-progress,
+.dark .filter-status-done {
+  color: color-mix(in srgb, var(--tag-base) 86%, white);
+  background: color-mix(in srgb, var(--tag-base) 34%, var(--surface));
+  border-color: color-mix(in srgb, var(--tag-base) 34%, var(--surface));
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes eq-bounce {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+/* ── StreamText primitive ─────────────────────────────────
+ * Fast character reveal: the newest few characters carry a
+ * soft, masked blur so the leading edge resolves smoothly as
+ * text flows in. The caret holds solid while streaming, then
+ * blinks once the string settles. */
+/* ══════════════════════════════════════════════════════════
+ * COMPONENT-SPECIFIC — StreamText
+ * The streaming caret + tail.
+ * Copy this block only alongside StreamText; it is not part of the
+ * generic foundation above.
+ * ══════════════════════════════════════════════════════════ */
+.stream-tail {
+  filter: blur(1.6px);
+  -webkit-mask-image: linear-gradient(to right, oklch(0 0 0) 20%, oklch(0 0 0 / 0.2));
+  mask-image: linear-gradient(to right, oklch(0 0 0) 20%, oklch(0 0 0 / 0.2));
+}
+
+.stream-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 1.5px;
+  translate: 0 -0.5px;
+  border-radius: 1px;
+  background: var(--ink);
+  vertical-align: text-bottom;
+  animation: caret-blink 1s step-end infinite;
+}
+
+.stream-caret.is-streaming {
+  animation: none;
+}
+
+@keyframes caret-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stream-caret {
+    animation: none;
+  }
+  .stream-tail {
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* pixel-grid loader — brighten plateau, staggered per cell */
+@keyframes pixel-on {
+  0%, 100% {
+    opacity: 0.15;
+  }
+  18%, 42% {
+    opacity: 1;
+  }
+  62% {
+    opacity: 0.15;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

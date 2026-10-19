@@ -92,38 +92,11 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyym68686%2Fcerebr)
 
-3. You can deploy to Cloudflare Pages:
+3. Cloudflare Pages: connect this repository, use Node.js 24, set **Build command** to `npm run build` and **Build output directory** to `dist`. Initialize the `htmd` submodule when building outside the Git integration. No server or API proxy is required.
 
-2.1 After registering a Cloudflare account, apply for a Workers API TOKEN.
+4. GitHub Pages: fork the repository, open **Settings → Pages**, and choose **GitHub Actions** as the source. The included workflow runs the tests and Vite build and publishes `dist`. Project URLs such as `https://<username>.github.io/cerebr/` work with the relative asset base.
 
-After entering the Cloudflare homepage, select "Profile" in the upper right corner -> "My Profile" -> "API Tokens" -> "Create Token" -> "Edit Cloudflare Workers" -> You can choose the permissions for "Account Resources" and "Zone Resources" by yourself -> Continue to summary -> Create Token -> Save the token (**Note:** Save your token properly as it will only be displayed once).
-
-2.2 Return to the homepage, find "Workers" on the left -> Open "Workers & Pages" -> Click "Create" -> "Pages" -> "Import an existing Git repository" -> Find the forked repository -> Begin setup.
-
-2.3 Enter a name you like for the project, and in the "Build command" field, input:
-
-`bash scripts/prepare_pages_site.sh pages-site`
-
-2.4 In the "Build output directory" field, input:
-
-`pages-site`
-
-2.5 No additional environment variables are required for the standard Git-connected Pages deployment flow.
-
-2.6 Save and deploy.
-
-4. You can also deploy to GitHub Pages:
-
-```bash
-# Fork this repository
-# Then go to your repository's Settings -> Pages
-# In the "Build and deployment" section:
-# - Select "Deploy from a branch" as Source
-# - Choose your branch (main/master) and root (/) folder
-# - Click Save
-```
-
-The deployment will be automatically handled by GitHub Actions. You can access your site at `https://<your-username>.github.io/cerebr`
+Vercel uses the same build command and output directory via `vercel.json`. Deploy the build output, not the source tree. API keys are entered by users in the app; do not put secrets in Vite environment variables.
 
 ### Web Version Features
 - 🌐 Access Cerebr from any browser without installation
@@ -159,9 +132,20 @@ https://github.com/tw93/Pake
 
 This project is developed using Chrome Extension Manifest V3, with main tech stack:
 
-- 🎨 Native JavaScript + CSS
+- 🎨 React 19 + Vite 7 + CSS
 - 📦 Chrome Extension API
-- 🔧 PDF.js + KaTeX + Marked.js
+- 🔧 PDF.js + MathJax + Marked.js
+
+Requires Node.js 22.12+ (CI uses 24). For local development, run `npm run build` and load the repository root as an unpacked extension; its manifest runs only the compiled `dist` assets. Existing root-directory installations can keep their extension ID and data: reload Cerebr in the extension manager, then refresh the host page. For distribution, build and package, then load `artifacts/chrome` or the Firefox archive. Both Web and extension use the same compiled React UI.
+
+```bash
+git submodule update --init --recursive
+npm ci
+npm run dev                  # React + Vite development server
+npm run check                # tests and production build
+npm run preview              # serve the static dist output
+npm run package:extension    # artifacts/cerebr.zip and cerebr-firefox.zip
+```
 
 ## 🤝 Contribution Guide
 
@@ -176,3 +160,7 @@ Before submitting a bug-fix PR, please ensure:
 ## 📄 License
 
 This project is licensed under the GPLv3 License
+
+## Desktop app
+
+The Electron app lives in the `desktop/` workspace and shares the React frontend with the web app and extension. Run `npm run dev:desktop` to develop or `npm run package:desktop` to package. It supports paired local history synchronization with the browser extension. See [desktop setup, synchronization and data boundaries](docs/desktop.md).

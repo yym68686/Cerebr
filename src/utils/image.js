@@ -13,6 +13,7 @@ export async function handleImageDrop(e, config) {
     const {
         messageInput,
         createImageTag,
+        insertImage,
         onSuccess = () => {},
         onError = (error) => console.error('处理拖放事件失败:', error)
     } = config;
@@ -30,6 +31,7 @@ export async function handleImageDrop(e, config) {
                     insertImageToInput({
                         messageInput,
                         createImageTag,
+                        insertImage,
                         imageData: {
                             base64Data,
                             fileName: file.name
@@ -52,6 +54,7 @@ export async function handleImageDrop(e, config) {
                     insertImageToInput({
                         messageInput,
                         createImageTag,
+                        insertImage,
                         imageData: {
                             base64Data: imageData.data,
                             fileName: imageData.name
@@ -173,7 +176,11 @@ export async function readImageFileAsDataUrl(
  * @param {string} params.imageData.base64Data - 图片的base64数据
  * @param {string} params.imageData.fileName - 图片文件名
  */
-function insertImageToInput({ messageInput, createImageTag, imageData }) {
+function insertImageToInput({ messageInput, createImageTag, imageData, insertImage }) {
+    if (insertImage) {
+        insertImage(imageData);
+        return;
+    }
     const imageTag = createImageTag({
         base64Data: imageData.base64Data,
         fileName: imageData.fileName

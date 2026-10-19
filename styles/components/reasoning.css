@@ -1,65 +1,37 @@
-/* 深度思考模块样式 */
-.reasoning-wrapper {
-    margin: 0 0 12px 0;
-    padding: 0;
-    border: none;
+/* Pixel loader and expandable reasoning, following Beautiful UI's Loading / Thinking primitives. */
+.thinking-loader { display: flex; width: fit-content; align-items: center; gap: 10px; min-height: 28px; color: var(--cerebr-text-color-secondary); }
+.thinking-pixel-grid { display: grid; grid-template-columns: repeat(3, 4px); gap: 1.5px; flex-shrink: 0; }
+.thinking-pixel-grid > span { width: 4px; height: 4px; border-radius: 1px; background: var(--cerebr-text-color); opacity: .15; animation: thinking-pixel-on .65s ease-in-out var(--pixel-delay) infinite; }
+.thinking-shimmer { font-size: var(--cerebr-fs-13); font-weight: 500; color: var(--cerebr-text-color-secondary); }
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+    .thinking-shimmer { background-image: linear-gradient(90deg, var(--cerebr-text-color-secondary) 35%, var(--cerebr-text-color) 50%, var(--cerebr-text-color-secondary) 65%); background-size: 200% 100%; background-clip: text; -webkit-background-clip: text; color: transparent; animation: thinking-shimmer 1.4s linear infinite; }
 }
-
-.reasoning-toggle {
-    cursor: pointer;
-    background: transparent;
-    color: var(--cerebr-reasoning-text-color);
-    font-size: 0.9em;
-    padding: 6px 12px;
-    border: none;
-    border-radius: 4px;
-    user-select: none;
-    transition: all 0.2s ease;
-    width: auto;
-    display: inline-block;
-}
-
-.reasoning-toggle:hover {
-    background: var(--cerebr-toggle-hover-bg);
-    color: var(--cerebr-text-color);
-}
-
-.reasoning-content {
-    cursor: pointer;
-    background-color: var(--cerebr-reasoning-bg);
-    border-radius: 6px;
-    font-size: 0.95em;
-    color: var(--cerebr-reasoning-text-color);
-    line-height: 1.5;
-    overflow: hidden;
-    transition: all 0.2s ease;
-    padding: 8px 12px;
-}
-
-.reasoning-content:hover {
-    background-color: var(--cerebr-reasoning-hover-bg);
-}
-
-.reasoning-placeholder {
-    display: none;
-    font-size: 0.9em;
-    color: var(--cerebr-reasoning-text-color);
-}
-
-.reasoning-text {
-    word-break: break-word;
-    transition: all 0.2s ease;
-}
-
-/* 折叠状态 */
-.reasoning-content.collapsed {
-    padding: 6px 12px;
-}
-
-.reasoning-content.collapsed .reasoning-placeholder {
-    display: block;
-}
-
-.reasoning-content.collapsed .reasoning-text {
-    display: none;
+.thinking-elapsed { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: var(--cerebr-fs-12); font-variant-numeric: tabular-nums; color: var(--cerebr-text-color-secondary); white-space: nowrap; }
+.reasoning-wrapper { margin: 0 0 10px; padding: 0; min-width: 0; }
+.reasoning-toggle { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; max-width: 100%; width: fit-content; min-height: 30px; margin-left: -6px; padding: 4px 6px; border: none; border-radius: 7px; background: transparent; color: var(--cerebr-text-color-secondary); font: inherit; font-size: var(--cerebr-fs-13); font-weight: 500; cursor: pointer; text-align: left; transition: background-color .1s ease; }
+.reasoning-toggle:hover { background: var(--cerebr-hover-bg-color); }
+.reasoning-toggle > svg { width: 16px; height: 16px; flex-shrink: 0; }
+.reasoning-label { color: var(--cerebr-text-color-secondary); }
+.reasoning-chevron { display: inline-flex; align-items: center; color: var(--cerebr-text-color-secondary); transition: transform .3s ease; }
+.reasoning-chevron svg { width: 14px; height: 14px; }
+.reasoning-toggle[aria-expanded="true"] .reasoning-chevron { transform: rotate(180deg); }
+.reasoning-content { display: grid; grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows .32s cubic-bezier(.23,1,.32,1), opacity .24s ease; }
+.reasoning-content.collapsed { grid-template-rows: 0fr; opacity: 0; }
+.reasoning-clip { min-height: 0; overflow: hidden; }
+.reasoning-trace { margin: 4px 0 2px 7px; padding: 3px 0 4px 18px; border-left: 1px solid var(--cerebr-surface-border); }
+.reasoning-text { color: var(--cerebr-text-color-secondary); font-size: var(--cerebr-fs-13); line-height: 1.65; overflow-wrap: anywhere; min-width: 0; cursor: text; }
+.reasoning-text > :first-child { margin-top: 0; }
+.reasoning-text > :last-child { margin-bottom: 0; }
+.reasoning-text pre { max-width: 100%; box-sizing: border-box; }
+.reasoning-text table { display: block; max-width: 100%; overflow-x: auto; }
+.reasoning-export > summary { list-style: none; }
+.reasoning-export > summary::-webkit-details-marker { display: none; }
+.reasoning-export[open] .reasoning-chevron { transform: rotate(180deg); }
+@keyframes thinking-pixel-on { 0%, 100% { opacity: .15; } 35% { opacity: .9; } 65% { opacity: .3; } }
+@keyframes thinking-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (pointer: coarse) { .reasoning-toggle { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) {
+    .thinking-pixel-grid > span { animation: none; opacity: .35; }
+    .thinking-shimmer { animation: none; background: none; color: var(--cerebr-text-color-secondary); }
+    .reasoning-content, .reasoning-toggle, .reasoning-chevron { transition: none; }
 }

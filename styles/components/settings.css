@@ -1,84 +1,79 @@
-/* 设置按钮和菜单样式 */
+/* Prompt Bar 加号与现有菜单 */
 #settings-button {
-    padding: 12px;
-    background: transparent;
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    padding: 8px;
     border: none;
-    cursor: pointer;
+    border-radius: 9px;
+    background: transparent;
     color: var(--cerebr-icon-color);
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: color 0.2s ease;
+    cursor: pointer;
+    transition: background-color .15s ease, color .15s ease, transform .15s ease;
 }
-
-#settings-button svg {
-    width: 20px;
-    height: 20px;
-    fill: currentColor;
-    opacity: 0.6;
-    transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-                opacity 0.2s ease;
-}
-
+#settings-button svg { width: 18px; height: 18px; fill: none; }
 #settings-button:hover,
-#settings-button:focus-visible {
-    color: var(--cerebr-text-color);
-}
-
-#settings-button:focus-visible {
-    outline: none;
-}
-
-#settings-button:hover svg,
-#settings-button:focus-visible svg {
-    transform: scale(1.08);
-    opacity: 1;
-}
-
-#settings-button:active svg {
-    transform: scale(0.95);
-    opacity: 0.8;
-}
-
+#settings-button[aria-expanded="true"] { background: var(--cerebr-hover-bg-color); color: var(--cerebr-text-color); }
+#settings-button:active { transform: scale(.94); }
 #settings-menu {
     position: absolute;
-    bottom: 100%;
-    left: 8px;
-    background-color: var(--settings-bg-color);
-    border: none;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px var(--cerebr-popup-shadow);
-    padding: 8px;
+    bottom: calc(100% + 8px);
+    left: 0;
+    width: min(420px, 100%);
+    box-sizing: border-box;
+    max-height: var(--composer-menu-max-height, 360px);
+    padding: 5px;
+    border: 1px solid var(--cerebr-surface-border);
+    border-radius: 12px;
+    background: var(--cerebr-surface-bg);
+    box-shadow: 0 8px 24px var(--cerebr-popup-shadow);
     display: none;
-    min-width: 180px;
-    margin-bottom: 8px;
+    overflow: hidden;
     transform-origin: bottom left;
-    backdrop-filter: blur(var(--cerebr-blur-radius));
-    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
     z-index: 1001;
 }
-
-#settings-menu.visible {
-    display: block;
-    animation: menuAppear 0.2s ease;
-}
-
+#settings-menu.visible { display: flex; flex-direction: column; animation: composerMenuAppear .16s ease-out; }
+.composer-menu-primary { overflow-y: auto; min-height: 0; overscroll-behavior: contain; touch-action: pan-y; }
+.composer-menu-primary[hidden] { display: none; }
 .menu-item {
-    padding: 8px 12px;
+    width: 100%;
+    min-height: 38px;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: none;
+    background: transparent;
     cursor: pointer;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 10px;
     color: var(--cerebr-text-color);
-    border-radius: 6px;
-    margin: 2px 0;
+    border-radius: 7px;
+    font: inherit;
+    font-size: var(--cerebr-fs-13);
+    line-height: 20px;
+    text-align: left;
+    margin: 0;
     -webkit-user-select: none;
     user-select: none;
 }
-
-.menu-item[hidden] {
-    display: none !important;
-}
+.menu-item[hidden] { display: none !important; }
+#settings-menu .menu-item > svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--cerebr-icon-color); }
+.composer-menu-copy { display: flex; align-items: baseline; gap: 8px; flex: 1; min-width: 0; }
+.composer-menu-title { flex-shrink: 0; }
+.composer-menu-description { color: var(--cerebr-text-color-secondary); font-size: var(--cerebr-fs-12); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composer-menu-trailing { display: flex; align-items: center; color: var(--cerebr-text-color-secondary); }
+.composer-menu-trailing svg { width: 14px; height: 14px; }
+#settings-menu .menu-item:hover,
+#settings-menu .menu-item:focus-visible { background: var(--cerebr-hover-bg-color); }
+#settings-menu .menu-item:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--cerebr-focus-border-color); }
+#settings-menu .menu-item:disabled { opacity: .5; cursor: default; }
+#settings-menu .cerebr-plugin-menu-items:not([hidden]) { border-top: 1px solid var(--cerebr-surface-border); padding-top: 5px; margin-top: 5px; }
+@media (pointer: coarse) { #settings-menu .menu-item { min-height: 44px; } }
+@media (max-width: 380px) { .composer-menu-copy { display: block; } .composer-menu-description { display: block; } }
+@media (prefers-reduced-motion: reduce) { #settings-menu.visible { animation: none; } #settings-button { transition: none; } }
 
 .settings-header {
     width: 100%;
@@ -187,251 +182,4 @@ input:checked + .slider:before {
     transform: translateX(16px);
 }
 
-/* 高级设置区域样式 */
-.advanced-settings {
-    margin-top: 2px;
-    border-radius: 15px;
-    border: 1px solid var(--cerebr-settings-section-border);
-    background: var(--cerebr-settings-section-bg);
-    overflow: hidden;
-    transition: border-color 0.2s ease, background-color 0.2s ease;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-}
-
-.advanced-settings-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-    cursor: pointer;
-    gap: 12px;
-    padding: 6px 10px 6px 14px;
-    min-height: 0;
-    user-select: none;
-    background: transparent;
-    border: none;
-    color: inherit;
-    text-align: left;
-    font: inherit;
-    transition: background-color 0.2s ease, box-shadow 0.2s ease;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-}
-
-.advanced-settings-header:focus-visible {
-    outline: none;
-}
-
-.advanced-settings:hover {
-    border-color: var(--cerebr-highlight-border-color);
-}
-
-.advanced-settings:focus-within {
-    border-color: var(--cerebr-focus-border-color);
-}
-
-.advanced-settings-copy {
-    display: flex;
-    flex: 1;
-    flex-direction: row;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-    min-height: 30px;
-    transform: translateY(-1px);
-}
-
-.advanced-settings-title {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    min-height: 30px;
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 1;
-    color: var(--cerebr-text-color);
-}
-
-.advanced-settings-inline-summary {
-    min-width: 0;
-    flex: 1;
-    display: flex;
-    align-items: center;
-    min-height: 30px;
-    font-size: 12px;
-    line-height: 1;
-    color: var(--cerebr-text-secondary-color);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.advanced-settings-indicator {
-    flex: 0 0 auto;
-    width: 30px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 10px;
-    border: 1px solid var(--cerebr-settings-section-border);
-    background: var(--cerebr-input-bg);
-    color: var(--cerebr-text-secondary-color);
-    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-.advanced-settings-header:hover .advanced-settings-indicator,
-.advanced-settings-header:focus-visible .advanced-settings-indicator {
-    background: var(--cerebr-settings-accent-bg);
-    border-color: var(--cerebr-highlight-border-color);
-    color: var(--cerebr-settings-accent-text);
-}
-
-.advanced-settings-header:focus-visible .advanced-settings-indicator {
-    border-color: var(--cerebr-focus-border-color);
-    box-shadow: 0 0 0 1px var(--cerebr-focus-border-color);
-}
-
-.toggle-icon {
-    display: block;
-    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.advanced-settings-content {
-    display: grid;
-    grid-template-rows: 0fr;
-    overflow: hidden;
-    opacity: 0;
-    pointer-events: none;
-    transition: grid-template-rows 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-.advanced-settings[data-expanded="true"] .advanced-settings-content {
-    grid-template-rows: 1fr;
-    opacity: 1;
-    pointer-events: auto;
-}
-
-.advanced-settings[data-expanded="true"] .advanced-settings-indicator {
-    background: var(--cerebr-settings-accent-bg);
-    border-color: var(--cerebr-highlight-border-color);
-    color: var(--cerebr-settings-accent-text);
-}
-
-.advanced-settings[data-expanded="true"] .toggle-icon {
-    transform: rotate(180deg);
-}
-
-.advanced-settings-body {
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    padding: 0 14px 0;
-    box-sizing: border-box;
-    overflow: hidden;
-}
-
-.advanced-settings-body::before {
-    content: "";
-    width: 100%;
-    height: 1px;
-    display: none;
-    background: var(--cerebr-settings-section-divider);
-    margin-bottom: 0;
-}
-
-.advanced-settings[data-expanded="true"] .advanced-settings-body {
-    gap: 10px;
-    padding-bottom: 12px;
-}
-
-.advanced-settings[data-expanded="true"] .advanced-settings-body::before {
-    display: block;
-    margin-bottom: 2px;
-}
-
-.setting-item {
-    margin-top: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.setting-label {
-    display: block;
-    font-size: 11px;
-    margin-bottom: 0;
-    color: var(--cerebr-text-color);
-    font-weight: 600;
-    letter-spacing: 0.02em;
-}
-
-.setting-description {
-    margin: 0;
-    font-size: 11px;
-    line-height: 1.4;
-    color: var(--cerebr-text-secondary-color);
-}
-
-.system-prompt {
-    width: 100%;
-    min-height: 88px;
-    padding: 10px 12px;
-    border: 1px solid var(--cerebr-input-border-color);
-    border-radius: 14px;
-    background: var(--cerebr-input-bg);
-    color: var(--cerebr-text-color);
-    font-size: var(--cerebr-fs-14);
-    line-height: 1.5;
-    resize: vertical;
-    font-family: inherit;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
-}
-
-.system-prompt:focus {
-    outline: none;
-    border-color: var(--cerebr-highlight-border-color);
-    box-shadow: 0 0 0 1px var(--cerebr-highlight-border-color);
-    background: var(--cerebr-message-ai-bg);
-}
-
-.reasoning-effort-setting[hidden] {
-    display: none !important;
-}
-
-@media (max-width: 560px) {
-    .settings-header {
-        padding: 16px 14px 6px;
-    }
-
-    .advanced-settings-header {
-        padding: 6px 8px 6px 12px;
-        gap: 10px;
-    }
-
-    .advanced-settings-indicator {
-        width: 28px;
-        height: 28px;
-        border-radius: 9px;
-    }
-
-    .advanced-settings-body {
-        padding: 0 12px 0;
-    }
-
-    .advanced-settings[data-expanded="true"] .advanced-settings-body {
-        padding-bottom: 12px;
-    }
-
-    .system-prompt {
-        min-height: 84px;
-    }
-
-    .advanced-settings-inline-summary {
-        font-size: 11px;
-    }
-}
+@media (max-width: 560px) { .settings-header { padding: 16px 14px 6px; } }

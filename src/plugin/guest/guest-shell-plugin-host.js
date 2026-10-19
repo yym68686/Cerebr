@@ -1,3 +1,5 @@
+import { serializeDraftSnapshot } from '../../runtime/input/draft-snapshot.js';
+import { appAssetUrl } from '../../platform/assets.js';
 import { normalizeString } from '../core/runtime-utils.js';
 import {
     createGuestMessage,
@@ -45,7 +47,7 @@ const LEGACY_GUEST_OVERLAY_OPTIONS = Object.freeze({
 });
 
 function getGuestPageUrl() {
-    return new URL('./shell-plugin-guest.html', import.meta.url).toString();
+    return appAssetUrl('src/plugin/guest/shell-plugin-guest.html');
 }
 
 function hasCallableMethod(target, methodNames = []) {
@@ -633,11 +635,7 @@ function createGuestShellPluginHost({
         case 'editor.getDraft':
             return api.editor?.getDraft?.() ?? '';
         case 'editor.getDraftSnapshot':
-            return api.editor?.getDraftSnapshot?.() || {
-                text: '',
-                imageTags: [],
-                empty: true,
-            };
+            return serializeDraftSnapshot(api.editor?.getDraftSnapshot?.());
         case 'editor.hasDraft':
             return api.editor?.hasDraft?.() ?? false;
         case 'editor.importText':

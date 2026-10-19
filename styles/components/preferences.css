@@ -1,310 +1,59 @@
-/* 偏好设置页面样式 */
-#preferences-settings {
-    --cerebr-settings-shell-width: 760px;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 1000;
-    display: none;
-    overflow-y: auto;
-    flex-direction: column;
-    background: var(--cerebr-settings-page-bg);
+#preferences-settings .settings-page-content { max-width: 700px; }
+.preferences-section { padding: 0 0 28px; margin-bottom: 28px; border-bottom: 1px solid var(--cerebr-surface-border); }
+.theme-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 22px; }
+.theme-choice { border: 0; background: transparent; padding: 0; cursor: pointer; color: var(--cerebr-text-color-secondary); text-align: left; min-width: 0; border-radius: 9px; }
+.theme-preview { display: flex; height: 88px; border-radius: 9px; border: 1px solid var(--cerebr-surface-border); overflow: hidden; background: #f8f8f8; padding: 7px; gap: 8px; box-sizing: border-box; }
+.theme-preview-sidebar { width: 26%; border-radius: 4px; background: #e8e8eb; }
+.theme-preview-content { display: flex; flex: 1; flex-direction: column; gap: 6px; padding: 8px 1px 1px; }
+.theme-preview-content i { display: block; border-radius: 2px; background: #d9d9de; height: 4px; width: 76%; }
+.theme-preview-content i:nth-child(2) { width: 94%; }
+.theme-preview-content i:nth-child(3) { width: 55%; }
+.theme-preview-content b { margin-top: auto; height: 12px; border: 1px solid #dddde1; border-radius: 4px; background: #eeeef0; }
+.theme-preview--dark { background: #202023; }
+.theme-preview--dark .theme-preview-sidebar { background: #2e2e33; }
+.theme-preview--dark i { background: #494950; }
+.theme-preview--dark b { border-color: #414148; background: #303035; }
+.theme-preview--system { background: linear-gradient(120deg, #f8f8f8 50%, #202023 50%); }
+.theme-preview--system .theme-preview-content { opacity: .55; }
+.theme-choice-label { display: flex; align-items: center; gap: 6px; padding: 10px 1px 0; font-size: var(--cerebr-fs-12); }
+.theme-choice-label svg { width: 14px; height: 14px; }
+.theme-choice-label svg:last-child:not(:first-child) { margin-left: auto; }
+.theme-choice.is-selected { color: var(--cerebr-text-color); }
+.theme-choice.is-selected .theme-preview { border-color: var(--cerebr-text-color-secondary); }
+.theme-choice:hover .theme-preview { filter: brightness(.96); }
+.preference-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 54px; font-size: var(--cerebr-fs-13); }
+.preference-setting-copy { flex: 1; }
+.preference-setting-copy p { margin-top: 5px; font-size: var(--cerebr-fs-12); }
+.settings-segmented { display: inline-flex; padding: 3px; border-radius: 8px; background: var(--cerebr-hover-bg-color); gap: 2px; flex-shrink: 0; }
+.settings-segmented button { font: inherit; font-size: var(--cerebr-fs-12); color: var(--cerebr-text-color-secondary); background: transparent; border: 0; border-radius: 5px; min-width: 40px; padding: 6px 8px; cursor: pointer; }
+.settings-segmented button[aria-pressed="true"] { background: var(--cerebr-surface-bg); color: var(--cerebr-text-color); box-shadow: 0 1px 3px var(--cerebr-popup-shadow); }
+.settings-select-wrap { width: 174px; position: relative; }
+.settings-select-wrap select { appearance: none; padding-right: 30px; height: 34px; padding-block: 5px; }
+.settings-select-wrap > svg { position: absolute; pointer-events: none; right: 10px; top: 10px; width: 13px; height: 13px; color: var(--cerebr-text-color-secondary); }
+.settings-toggle { position: relative; display: block; width: 32px; height: 18px; flex-shrink: 0; cursor: pointer; }
+.settings-toggle input { position: absolute; inset: 0; opacity: 0; margin: 0; width: 100%; height: 100%; cursor: pointer; }
+.settings-toggle span { display: block; width: 100%; height: 100%; background: var(--cerebr-surface-border); border-radius: 20px; pointer-events: none; }
+.settings-toggle span::before { content: ''; position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; border-radius: 50%; background: var(--cerebr-text-color-secondary); transition: transform .15s ease; }
+.settings-toggle input:checked + span { background: var(--cerebr-text-color); }
+.settings-toggle input:checked + span::before { transform: translateX(14px); background: var(--cerebr-surface-bg); }
+.settings-toggle input:focus-visible + span { outline: 1px solid var(--cerebr-focus-border-color); outline-offset: 3px; }
+.preferences-about { display: flex; flex-direction: column; gap: 14px; color: var(--cerebr-text-color-secondary); font-size: var(--cerebr-fs-12); }
+.preferences-version { display: flex; align-items: center; gap: 10px; }
+.preferences-version strong { font-weight: 500; color: var(--cerebr-text-color); }
+.preferences-links { display: flex; align-items: center; flex-wrap: wrap; gap: 18px; }
+.preferences-links a { display: inline-flex; align-items: center; gap: 4px; color: inherit; text-decoration: none; }
+.preferences-links a:hover { color: var(--cerebr-text-color); }
+.preferences-links svg { width: 12px; height: 12px; }
+@container (max-width: 380px) {
+    .theme-choices { gap: 8px; }
+    .theme-preview { height: 70px; gap: 5px; }
+    .preference-setting-row { gap: 12px; }
+    .settings-segmented button { min-width: 32px; padding-inline: 6px; }
+    .settings-select-wrap { width: 155px; }
 }
-
-#preferences-settings.visible {
-    display: flex;
+@media (pointer: coarse) {
+    .settings-segmented button { min-height: 38px; }
+    .settings-toggle { height: 26px; width: 40px; }
+    .settings-toggle span::before { width: 20px; height: 20px; }
 }
-
-.preferences-content {
-    padding: 8px 20px calc(20px + env(safe-area-inset-bottom));
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    max-width: var(--cerebr-settings-shell-width);
-    margin: 0 auto;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-.preferences-content > * {
-    flex-shrink: 0;
-}
-
-.preferences-card {
-    background: var(--cerebr-message-ai-bg);
-    border: 1px solid var(--cerebr-card-border-color);
-    border-radius: var(--cerebr-settings-card-radius);
-    overflow: hidden;
-    box-shadow: var(--cerebr-settings-card-shadow);
-}
-
-.preferences-section {
-    padding: 18px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-}
-
-.preferences-section-title {
-    font-weight: 600;
-    font-size: var(--cerebr-fs-14);
-    color: var(--cerebr-text-color);
-    letter-spacing: -0.01em;
-}
-
-.preferences-section-description {
-    margin: 0;
-    font-size: var(--cerebr-fs-13);
-    line-height: 1.5;
-    color: var(--cerebr-text-secondary-color);
-}
-
-.preferences-action-group {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-
-.preference-button {
-    min-height: 44px;
-    padding: 10px 16px;
-    border-radius: 14px;
-    border: 1px solid var(--cerebr-settings-pill-border);
-    background: var(--cerebr-settings-pill-bg);
-    color: var(--cerebr-text-color);
-    font: inherit;
-    font-size: var(--cerebr-fs-14);
-    font-weight: 600;
-    line-height: 1.2;
-    cursor: pointer;
-    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
-}
-
-.preference-button:hover {
-    background-color: var(--cerebr-message-user-bg);
-    border-color: var(--cerebr-focus-border-color);
-}
-
-.preference-button:active {
-    transform: translateY(1px);
-}
-
-.preference-button:focus-visible {
-    outline: none;
-    border-color: var(--cerebr-focus-border-color);
-    box-shadow: 0 0 0 2px var(--cerebr-focus-border-color);
-}
-
-.preference-button--primary {
-    background: var(--cerebr-settings-accent-bg);
-    border-color: var(--cerebr-highlight-border-color);
-    color: var(--cerebr-settings-accent-text);
-}
-
-.preference-button--primary:hover {
-    background: var(--cerebr-settings-accent-bg);
-    border-color: var(--cerebr-focus-border-color);
-}
-
-.preference-row {
-    width: 100%;
-    padding: 16px 18px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 18px;
-    color: var(--cerebr-text-color);
-    background: transparent;
-    border: none;
-    text-align: left;
-    box-sizing: border-box;
-    transition: background-color 0.2s ease;
-}
-
-.preference-row + .preference-row {
-    border-top: 1px solid var(--cerebr-card-border-color);
-}
-
-.preference-row--select {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(136px, 168px);
-    align-items: center;
-    gap: 14px;
-}
-
-.preference-row--toggle {
-    min-height: 60px;
-}
-
-.preference-action,
-.preference-link {
-    cursor: pointer;
-    text-decoration: none;
-    position: relative;
-}
-
-.preference-action:hover,
-.preference-link:hover {
-    background-color: var(--cerebr-message-user-bg);
-}
-
-.preference-action:active,
-.preference-link:active {
-    background-color: var(--cerebr-hover-bg-color);
-}
-
-.preference-action:focus-visible,
-.preference-link:focus-visible,
-.preference-select:focus-visible {
-    outline: none;
-    box-shadow: inset 0 0 0 2px var(--cerebr-focus-border-color);
-    z-index: 1;
-}
-
-.preference-label {
-    font-weight: 600;
-    font-size: var(--cerebr-fs-14);
-    color: var(--cerebr-text-color);
-    letter-spacing: -0.01em;
-    min-width: 0;
-}
-
-.preference-value {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: var(--cerebr-fs-14);
-    color: var(--cerebr-text-secondary-color);
-    opacity: 0.8;
-}
-
-.preference-value svg {
-    width: 16px;
-    height: 16px;
-    opacity: 0.6;
-}
-
-.preference-control {
-    position: relative;
-    width: 100%;
-    max-width: 168px;
-    justify-self: end;
-}
-
-.preference-select {
-    width: 100%;
-    min-height: 44px;
-    background: var(--cerebr-settings-pill-bg);
-    border: 1px solid var(--cerebr-settings-pill-border);
-    color: var(--cerebr-text-color);
-    border-radius: 14px;
-    padding: 0 40px 0 14px;
-    font-size: var(--cerebr-fs-14);
-    font-weight: 600;
-    line-height: 1.2;
-    cursor: pointer;
-    text-align: left;
-    text-align-last: left;
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    font-family: inherit;
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.04),
-        0 1px 2px rgba(0, 0, 0, 0.12);
-    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.preference-select:hover {
-    background-color: var(--cerebr-message-user-bg);
-    border-color: var(--cerebr-focus-border-color);
-}
-
-.preference-select-icon {
-    position: absolute;
-    top: 50%;
-    right: 12px;
-    width: 16px;
-    height: 16px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--cerebr-text-secondary-color);
-    opacity: 0.72;
-    transform: translateY(-50%);
-    pointer-events: none;
-    transition: color 0.2s ease, opacity 0.2s ease;
-}
-
-.preference-control:hover .preference-select-icon,
-.preference-control:focus-within .preference-select-icon {
-    color: var(--cerebr-text-color);
-    opacity: 1;
-}
-
-.preference-select option {
-    background-color: var(--cerebr-bg-color);
-    color: var(--cerebr-text-color);
-    text-align: left;
-}
-
-.preference-select:focus-visible {
-    border-color: var(--cerebr-highlight-border-color);
-    box-shadow:
-        0 0 0 1px var(--cerebr-highlight-border-color),
-        0 10px 24px rgba(0, 0, 0, 0.12);
-}
-
-.preference-switch {
-    flex: 0 0 auto;
-    justify-self: end;
-}
-
-.preference-switch input:focus-visible + .slider {
-    box-shadow: 0 0 0 2px var(--cerebr-focus-border-color);
-}
-
-@media (max-width: 640px) {
-    .preferences-content {
-        padding: 6px 14px calc(18px + env(safe-area-inset-bottom));
-        gap: 12px;
-    }
-
-    .preference-row {
-        padding: 14px 16px;
-        gap: 12px;
-    }
-
-    .preference-row--select {
-        grid-template-columns: 1fr;
-        align-items: stretch;
-    }
-
-    .preference-control {
-        max-width: none;
-        justify-self: stretch;
-    }
-
-    .preferences-section {
-        padding: 16px;
-    }
-
-    .preferences-action-group {
-        flex-direction: column;
-    }
-
-    .preference-button {
-        width: 100%;
-    }
-
-    .preference-select {
-        min-height: 46px;
-    }
-}
+@media (prefers-reduced-motion: reduce) { .settings-toggle span::before { transition: none; } }

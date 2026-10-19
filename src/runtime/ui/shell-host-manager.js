@@ -49,6 +49,7 @@ export function createShellHostManager({
     };
 
     return {
+        dispose() { slashCommandManager.dispose(); pageManager.dismissActive("host-stop"); },
         setInputActions(pluginId, actions = []) {
             const nextActions = inputActionManager.setActions(pluginId, actions);
             syncLayout();

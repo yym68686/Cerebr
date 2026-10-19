@@ -9,7 +9,6 @@
 @import './components/image-tag.css';
 @import './components/settings.css';
 @import './components/reasoning.css';
-@import './components/chat-list.css';
 @import './components/message.css';
 @import './components/code.css';
 @import './components/context-menu.css';
@@ -22,6 +21,10 @@
 @import './components/webpage-menu.css';
 @import './components/chat-container.css';
 @import './components/toast.css';
+@import './components/chat-navigation.css';
+@import './components/selection-actions.css';
+@import './components/desktop.css';
+@import './components/desktop-sync.css';
 
 @import '../htmd/styles/math.css';
 @import '../htmd/styles/table.css';

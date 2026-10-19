@@ -71,6 +71,6 @@ export function applyThemePreference(themePreference, { root, themeSelect } = {}
 function updateThemeColor(isDark) {
     const themeColorMeta = document.getElementById('theme-color-meta');
     if (themeColorMeta) {
-        themeColorMeta.content = isDark ? '#262B33' : '#f5f1ea';
+        themeColorMeta.content = isDark ? '#1f1f22' : '#fafafa';
     }
 }

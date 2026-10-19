@@ -1,11 +1,6 @@
 import { callAPI } from './api-client.js';
-import { appendMessage } from '../../render/message/message-renderer.js';
-import {
-    buildMessageContent,
-    clearMessageInput,
-    getFormattedMessageContent,
-} from '../../components/message-input.js';
-import { ensureChatElementVisible } from '../../utils/scroll.js';
+import { buildMessageContent } from '../input/native-editor.js';
+import { quotedText } from '../input/draft-quotes.js';
 import { showToast } from '../../utils/ui.js';
 import { t } from '../../utils/i18n.js';
 import { createChatError, isAbortError, normalizeChatError } from './chat-errors.js';
@@ -23,16 +18,27 @@ function cloneMessage(message) {
 }
 
 function cloneMessages(messages) {
-    return Array.isArray(messages)
-        ? messages.map(cloneMessage).filter(Boolean)
-        : [];
+    return Array.isArray(messages) ? messages.map(cloneMessage).filter(Boolean) : [];
 }
 
 function normalizeRetryLimit(value, fallback = 20) {
     const numeric = Number(value);
-    return Number.isFinite(numeric) && numeric > 0
-        ? Math.max(1, Math.floor(numeric))
-        : fallback;
+    return Number.isFinite(numeric) && numeric > 0 ? Math.max(1, Math.floor(numeric)) : fallback;
+}
+
+const ABORTED = Symbol('cerebr.prelude.aborted');
+
+// 「首 token 之前」的中止闩。callAPI 之后有 AbortController 能直接 abort fetch，但在那之前
+// run() 还要 await 取网页上下文、跑 beforeSend 插件。扩展里取正文要跨标签页发消息，而
+// chrome.tabs.sendMessage 这一跳没有超时，个别页面（大 PDF、抓不到字幕的视频页）可以挂很久。
+// 没有这个闩的话，点「停止更新」只是置一个 pendingAbort 标记，要等这段 await 自己结束才被
+// 读到，界面就一直停在「正在思考 N 秒」上，看起来像按钮没反应。
+function createPreludeLatch() {
+    let release = () => {};
+    const aborted = new Promise((resolve) => {
+        release = () => resolve(ABORTED);
+    });
+    return { aborted, release };
 }
 
 function normalizeWaterfallPayload(payload, fallbackPayload) {
@@ -43,12 +49,13 @@ function normalizeWaterfallPayload(payload, fallbackPayload) {
     return {
         ...fallbackPayload,
         ...payload,
-        draft: payload.draft && typeof payload.draft === 'object'
-            ? {
-                ...fallbackPayload.draft,
-                ...payload.draft,
-            }
-            : fallbackPayload.draft,
+        draft:
+            payload.draft && typeof payload.draft === 'object'
+                ? {
+                      ...fallbackPayload.draft,
+                      ...payload.draft,
+                  }
+                : fallbackPayload.draft,
     };
 }
 
@@ -60,10 +67,7 @@ function resolveUserMessage(payload, fallbackPayload) {
     if (payload?.draft && typeof payload.draft === 'object') {
         return {
             role: 'user',
-            content: buildMessageContent(
-                payload.draft.message || '',
-                payload.draft.imageTags || []
-            ),
+            content: buildMessageContent(payload.draft.message || '', payload.draft.imageTags || []),
         };
     }
 
@@ -71,92 +75,70 @@ function resolveUserMessage(payload, fallbackPayload) {
 }
 
 export function createChatPipeline({
-    chatContainer,
-    messageInput,
-    uiConfig,
-    chatContainerManager,
     chatManager,
-    getReadingProgressManager,
+    editor,
     getSelectedApiConfig,
     getWebpageInfo,
     getUserLanguage,
-    getDraftKeyForChatId,
-    storageAdapter,
-    shouldStickToBottom,
-    setThinkingPlaceholder,
-    setReplyingPlaceholder,
-    restoreDefaultPlaceholder,
-    pluginRuntime = null,
+    pluginRuntime,
+    onPhase = () => {},
+    onSubmitted = () => {},
+    onSettled = () => {},
 }) {
     const abortControllerRef = { current: null, pendingAbort: false };
     let currentController = null;
-
-    const abortActiveReply = () => {
-        const updatingMessage = chatContainer.querySelector('.ai-message.updating');
-        if (updatingMessage && currentController) {
-            currentController.abort();
-            currentController = null;
-            abortControllerRef.current = null;
-            updatingMessage.classList.remove('updating');
-        }
-    };
-
-    const flushSessionState = async () => {
-        await chatManager.flushNow().catch(() => {});
-        await getReadingProgressManager()?.saveNow().catch(() => {});
-    };
-
-    const cleanupLastAssistantPlaceholder = () => {
-        const lastMessage = chatContainer.querySelector('.ai-message:last-child');
-        if (!lastMessage) return;
-        lastMessage.classList.remove('updating');
-        const original = lastMessage.getAttribute('data-original-text') || '';
-        if (!original.trim()) {
-            lastMessage.remove();
-        }
-    };
-
-    const createReplyPlaceholder = (stickToBottom) => {
-        void appendMessage({
-            text: '',
-            sender: 'ai',
-            chatContainer,
-        }).then((element) => {
-            if (!stickToBottom) return;
-            ensureChatElementVisible({ chatContainer, element, behavior: 'smooth' });
-        });
-    };
-
-    const createOnMessageUpdate = (requestContext) => {
-        let didStartReplying = false;
-
-        return async (updatedChatId, message) => {
-            if (!didStartReplying) {
-                didStartReplying = true;
-                setReplyingPlaceholder();
+    let running = null;
+    let releasePrelude = null;
+    let persistenceWarningShown = false;
+    const persistChat = () => {
+        const report = (error) => {
+            console.error('[Cerebr] Failed to persist chat after reply settled', error);
+            if (!persistenceWarningShown) {
+                persistenceWarningShown = true;
+                showToast(t('error_chat_persistence'), { type: 'error', durationMs: 6000 });
             }
-
-            if (pluginRuntime?.handleStreamChunk) {
-                void pluginRuntime.handleStreamChunk({
-                    chatId: updatedChatId,
-                    message: cloneMessage(message),
-                    mode: requestContext.mode,
-                    attempt: requestContext.attempt,
-                }, requestContext);
-            }
-
-            return chatContainerManager.syncMessage(updatedChatId, message);
         };
-    };
-
-    const removeLastAssistantMessage = async () => {
-        const currentChat = chatManager.getCurrentChat?.();
-        const lastMessage = currentChat?.messages?.[currentChat.messages.length - 1];
-        if (lastMessage?.role === 'assistant') {
-            await chatManager.popMessage();
+        try {
+            // Start the flush before awaiting the idle-scheduled save. Persistence
+            // must not keep `running` alive after the model request has settled.
+            const saved = chatManager.saveChats({ touchCurrentChat: false });
+            const flushed = chatManager.flushNow();
+            void Promise.all([saved, flushed])
+                .then(() => {
+                    persistenceWarningShown = false;
+                })
+                .catch(report);
+        } catch (error) {
+            report(error);
         }
     };
-
+    const abortActiveReply = () => {
+        // schedule() 里 running 和 run() 的 onPhase('thinking') 在同一段同步代码里完成，run() 的
+        // finally 又先回到 idle 再清 running；所以界面上能点到「停止更新」时 running 一定有值。
+        if (!running) return Promise.resolve();
+        abortControllerRef.pendingAbort = true;
+        currentController?.abort();
+        releasePrelude?.();
+        return running;
+    };
+    const createOnMessageUpdate = (context) => async (chatId, message) => {
+        onPhase('replying', chatId);
+        // 不再 cloneMessage：api-client 的 dispatchUpdate 每次已经传进来一个新副本
+        // （`{ ...currentMessage }`），插件拿到的就是只属于这一帧的对象。流式期间这个回调每
+        // 100ms 触发一次，长回复下白拷一份整条消息不便宜。
+        void pluginRuntime?.handleStreamChunk?.(
+            { chatId, message, mode: context.mode, attempt: context.attempt },
+            context
+        );
+    };
+    const removeLastAssistantMessage = async (chatId) => {
+        const chat = chatManager.chats.get(chatId);
+        if (chat?.messages.at(-1)?.role === 'assistant') {
+            chat.messages.pop();
+            chatManager.markChatDirty(chatId);
+            persistChat();
+        }
+    };
     const runResponseErrorHooks = async (error, requestContext) => {
         if (!pluginRuntime?.handleResponseError) {
             return {
@@ -165,10 +147,7 @@ export function createChatPipeline({
         }
 
         const result = await pluginRuntime.handleResponseError(error, requestContext);
-        const retryLimit = normalizeRetryLimit(
-            result?.retry?.maxAttempts,
-            requestContext.maxAttempts
-        );
+        const retryLimit = normalizeRetryLimit(result?.retry?.maxAttempts, requestContext.maxAttempts);
 
         return {
             shouldRetry: !!result?.retry,
@@ -220,23 +199,26 @@ export function createChatPipeline({
 
             const requestLifecycle = {
                 beforeRequest: pluginRuntime?.transformRequest
-                    ? async (requestDescriptor) => pluginRuntime.transformRequest(requestDescriptor, {
-                        ...requestContext,
-                        apiParams,
-                    })
+                    ? async (requestDescriptor) =>
+                          pluginRuntime.transformRequest(requestDescriptor, {
+                              ...requestContext,
+                              apiParams,
+                          })
                     : null,
                 onResponse: pluginRuntime?.handleResponse
-                    ? async (responseDescriptor) => pluginRuntime.handleResponse(responseDescriptor, {
-                        ...requestContext,
-                        apiParams,
-                    })
+                    ? async (responseDescriptor) =>
+                          pluginRuntime.handleResponse(responseDescriptor, {
+                              ...requestContext,
+                              apiParams,
+                          })
                     : null,
                 onStreamMessage: null,
                 onRequestError: pluginRuntime?.handleRequestError
-                    ? async (requestError, requestDescriptor) => pluginRuntime.handleRequestError(requestError, requestDescriptor, {
-                        ...requestContext,
-                        apiParams,
-                    })
+                    ? async (requestError, requestDescriptor) =>
+                          pluginRuntime.handleRequestError(requestError, requestDescriptor, {
+                              ...requestContext,
+                              apiParams,
+                          })
                     : null,
             };
 
@@ -289,7 +271,7 @@ export function createChatPipeline({
 
                     if (resolution.shouldRetry && attempt < resolution.maxAttempts) {
                         effectiveMaxAttempts = resolution.maxAttempts;
-                        await removeLastAssistantMessage();
+                        await removeLastAssistantMessage(chatId);
                         continue;
                     }
 
@@ -321,7 +303,7 @@ export function createChatPipeline({
                 }
                 if (resolution.shouldRetry && attempt < resolution.maxAttempts) {
                     effectiveMaxAttempts = resolution.maxAttempts;
-                    await removeLastAssistantMessage();
+                    await removeLastAssistantMessage(chatId);
                     continue;
                 }
 
@@ -330,219 +312,151 @@ export function createChatPipeline({
         }
     };
 
-    async function regenerateMessage(messageElement) {
-        if (!messageElement) return;
-        abortActiveReply();
-
-        let userMessageElement = null;
-        let aiMessageElement = null;
-        if (messageElement.classList.contains('user-message')) {
-            userMessageElement = messageElement;
-            aiMessageElement = messageElement.nextElementSibling;
-        } else {
-            userMessageElement = messageElement.previousElementSibling;
-            aiMessageElement = messageElement;
+    async function run(mode, messageIndex, directDraft) {
+        const chat = chatManager.getCurrentChat();
+        if (!chat) return false;
+        const draft = directDraft || editor.getDraftSnapshot();
+        if (mode === 'send' && draft.empty) return false;
+        const config = getSelectedApiConfig();
+        if (!config?.baseUrl || !config?.apiKey || !config?.modelName) {
+            showToast(t('error_send_failed', ['Please configure the API URL and model.']), { type: 'error' });
+            return false;
         }
-
-        if (!userMessageElement || !userMessageElement.classList.contains('user-message')) {
-            console.error('无法找到对应的用户消息');
-            return;
-        }
-
+        abortControllerRef.pendingAbort = false;
+        const prelude = createPreludeLatch();
+        releasePrelude = prelude.release;
+        // 用 race 把「等这一步做完」变成「等这一步做完，或者用户点了停止」。abort 后原来的
+        // await 仍在后台跑到底（没法真正取消跨标签页取正文），但不再挡着界面复位。
+        const raceAbort = async (promise) => Promise.race([promise, prelude.aborted]);
+        onPhase('thinking', chat.id);
         try {
-            const currentChat = chatManager.getCurrentChat();
-            if (!currentChat) return;
-
-            const stickToBottomOnStart = shouldStickToBottom(chatContainer);
-            setThinkingPlaceholder();
-
-            chatContainer.querySelectorAll('.ai-message').forEach((element) => {
-                const original = element.getAttribute('data-original-text') || '';
-                if (!original.trim() && element.querySelector('.typing-indicator')) {
-                    element.remove();
-                }
-            });
-
-            const domMessages = Array.from(chatContainer.querySelectorAll('.user-message, .ai-message'));
-            const userMessageDomIndex = domMessages.indexOf(userMessageElement);
-            const aiMessageDomIndex = aiMessageElement ? domMessages.indexOf(aiMessageElement) : -1;
-
-            const truncateFromIndex = aiMessageDomIndex !== -1
-                ? aiMessageDomIndex
-                : (userMessageDomIndex !== -1 ? userMessageDomIndex + 1 : currentChat.messages.length);
-
-            if (currentChat.messages.length < truncateFromIndex) {
-                for (let index = currentChat.messages.length; index < truncateFromIndex && index < domMessages.length; index++) {
-                    const element = domMessages[index];
-                    const original = element.getAttribute('data-original-text');
-                    const content = (original && original.trim()) ? original : (element.textContent || '');
-                    const role = element.classList.contains('user-message') ? 'user' : 'assistant';
-                    currentChat.messages.push({ role, content });
-                }
+            let messages = cloneMessages(chat.messages);
+            if (mode === 'regenerate') {
+                let index = Number(messageIndex);
+                if (!Number.isInteger(index) || index < 0 || index >= messages.length) return false;
+                if (messages[index].seedLocaleBound) return false;
+                if (messages[index].role === 'assistant') index -= 1;
+                if (messages[index]?.role !== 'user') return false;
+                messages = messages.slice(0, index + 1);
             }
-
-            currentChat.messages.splice(truncateFromIndex);
-            chatManager.saveChats();
-            await chatManager.flushNow().catch(() => {});
-            domMessages.slice(truncateFromIndex).forEach((element) => element.remove());
-
-            const initialPayload = {
-                mode: 'regenerate',
-                draft: null,
-                userMessage: null,
-                messages: cloneMessages(currentChat.messages),
-                apiConfig: getSelectedApiConfig(),
+            const webpageInfo = await raceAbort(Promise.resolve(getWebpageInfo()));
+            if (webpageInfo === ABORTED) return false;
+            const initial = {
+                mode,
+                draft: mode === 'send' ? { message: draft.text, imageTags: draft.imageTags } : null,
+                userMessage:
+                    mode === 'send'
+                        ? {
+                              role: 'user',
+                              content: buildMessageContent(
+                                  quotedText(draft.text, draft.quotes),
+                                  draft.imageTags
+                              ),
+                              ...(draft.quotes?.length
+                                  ? { selectionQuotes: [...draft.quotes], selectionQuestion: draft.text }
+                                  : {}),
+                          }
+                        : null,
+                messages,
+                apiConfig: config,
                 userLanguage: getUserLanguage(),
-                webpageInfo: await getWebpageInfo(),
+                webpageInfo,
             };
-
-            const beforeSendResult = pluginRuntime?.runBeforeSend
-                ? await pluginRuntime.runBeforeSend(initialPayload, {
-                    mode: 'regenerate',
-                    chatId: currentChat.id,
-                    trigger: 'message.regenerate',
-                })
-                : { payload: initialPayload, cancel: false };
-            if (beforeSendResult?.cancel) {
-                return;
+            const before = (await raceAbort(
+                Promise.resolve(
+                    pluginRuntime?.runBeforeSend?.(initial, {
+                        mode,
+                        chatId: chat.id,
+                        trigger: mode === 'send' ? 'draft.submit' : 'message.regenerate',
+                    })
+                )
+            )) || { payload: initial };
+            if (before === ABORTED) return false;
+            if (
+                before.cancel ||
+                abortControllerRef.pendingAbort ||
+                chatManager.getCurrentChat()?.id !== chat.id
+            )
+                return false;
+            const payload = normalizeWaterfallPayload(before.payload, initial);
+            if (mode === 'send') {
+                const userMessage = resolveUserMessage(payload, initial);
+                if (!chat.messages.length) chat.title = draft.text || t('label_image');
+                await chatManager.addMessageToCurrentChat(userMessage);
+                if (!directDraft) {
+                    editor.clear();
+                    editor.focus();
+                }
+                await onSubmitted(chat.id, { preserveDraft: !!directDraft });
+                payload.messages = [...payload.messages, userMessage];
+            } else {
+                chat.messages = messages;
+                chatManager.markChatDirty(chat.id);
+                persistChat();
             }
-
-            const effectivePayload = normalizeWaterfallPayload(
-                beforeSendResult?.payload,
-                initialPayload
-            );
-
-            createReplyPlaceholder(stickToBottomOnStart);
-
             await executeRequestAttempts({
-                mode: 'regenerate',
-                chatId: currentChat.id,
-                apiConfig: effectivePayload.apiConfig,
-                messages: effectivePayload.messages,
-                userLanguage: effectivePayload.userLanguage,
-                webpageInfo: effectivePayload.webpageInfo,
-                promptBaseContext: {
-                    trigger: 'message.regenerate',
-                },
+                mode,
+                chatId: chat.id,
+                apiConfig: payload.apiConfig,
+                messages: payload.messages,
+                userLanguage: payload.userLanguage,
+                webpageInfo: payload.webpageInfo,
+                promptBaseContext: { trigger: mode === 'send' ? 'draft.submit' : 'message.regenerate' },
             });
-            await flushSessionState();
+            return true;
         } catch (error) {
-            if (isAbortError(error)) {
-                console.log('用户手动停止更新');
-                return;
+            if (!isAbortError(error)) {
+                console.error('[Cerebr] Request failed', error);
+                showToast(
+                    t(mode === 'send' ? 'error_send_failed' : 'error_regenerate_failed', [error.message]),
+                    { type: 'error', durationMs: 3500 }
+                );
             }
-            console.error('重新生成消息失败:', error);
-            showToast(t('error_regenerate_failed', [error.message]), { type: 'error', durationMs: 2200 });
+            return false;
         } finally {
-            await flushSessionState();
-            restoreDefaultPlaceholder();
-            cleanupLastAssistantPlaceholder();
+            currentController = null;
+            abortControllerRef.current = null;
+            if (releasePrelude === prelude.release) releasePrelude = null;
+            for (const message of chat.messages) message.updating = false;
+            // Restore both the visible phase and the request lock independently
+            // of storage. Send/new-chat/switch-chat all wait for this run.
+            onPhase('idle', null);
+            chatManager.markChatDirty(chat.id);
+            persistChat();
+            onSettled(chat.id);
         }
     }
-
-    async function sendMessage() {
-        abortActiveReply();
-
-        const { message, imageTags } = getFormattedMessageContent(messageInput);
-        if (!message.trim() && imageTags.length === 0) return;
-
+    async function schedule(mode, index, directDraft) {
+        while (running) {
+            abortActiveReply();
+            await running;
+        }
+        const promise = run(mode, index, directDraft);
+        running = promise;
         try {
-            const currentChat = chatManager.getCurrentChat();
-            if (!currentChat?.id) {
-                throw createChatError('CHAT_NOT_READY', 'Current chat is not ready');
-            }
-
-            const stickToBottomOnSend = shouldStickToBottom(chatContainer);
-            const initialPayload = {
-                mode: 'send',
-                draft: {
-                    message,
-                    imageTags,
-                },
-                userMessage: {
-                    role: 'user',
-                    content: buildMessageContent(message, imageTags),
-                },
-                messages: cloneMessages(currentChat.messages),
-                apiConfig: getSelectedApiConfig(),
-                userLanguage: getUserLanguage(),
-                webpageInfo: await getWebpageInfo(),
-            };
-
-            const beforeSendResult = pluginRuntime?.runBeforeSend
-                ? await pluginRuntime.runBeforeSend(initialPayload, {
-                    mode: 'send',
-                    chatId: currentChat.id,
-                    trigger: 'draft.submit',
-                })
-                : { payload: initialPayload, cancel: false };
-            if (beforeSendResult?.cancel) {
-                return;
-            }
-
-            const effectivePayload = normalizeWaterfallPayload(
-                beforeSendResult?.payload,
-                initialPayload
-            );
-            const userMessage = resolveUserMessage(effectivePayload, initialPayload);
-
-            appendMessage({
-                text: userMessage,
-                sender: 'user',
-                chatContainer,
-            });
-
-            clearMessageInput(messageInput, uiConfig);
-            messageInput.focus();
-            setThinkingPlaceholder();
-
-            if (currentChat.id) {
-                await storageAdapter.remove(getDraftKeyForChatId(currentChat.id));
-            }
-
-            await chatManager.addMessageToCurrentChat(userMessage);
-            await chatManager.flushNow().catch(() => {});
-
-            createReplyPlaceholder(stickToBottomOnSend);
-
-            await executeRequestAttempts({
-                mode: 'send',
-                chatId: currentChat.id,
-                apiConfig: effectivePayload.apiConfig,
-                messages: [...effectivePayload.messages, userMessage],
-                userLanguage: effectivePayload.userLanguage,
-                webpageInfo: effectivePayload.webpageInfo,
-                promptBaseContext: {
-                    trigger: 'draft.submit',
-                    userMessage: cloneMessage(userMessage),
-                },
-            });
-            await flushSessionState();
-        } catch (error) {
-            if (isAbortError(error)) {
-                console.log('用户手动停止更新');
-                return;
-            }
-            console.error('发送消息失败:', error);
-            showToast(t('error_send_failed', [error.message]), { type: 'error', durationMs: 2200 });
+            return await promise;
         } finally {
-            await flushSessionState();
-            restoreDefaultPlaceholder();
-            cleanupLastAssistantPlaceholder();
+            if (running === promise) running = null;
         }
     }
-
     return {
         abortControllerRef,
-        sendMessage,
-        regenerateMessage,
         abortActiveReply,
-        getCurrentChat() {
-            return chatManager.getCurrentChat?.() || null;
-        },
-        getMessages() {
-            return cloneMessages(chatManager.getCurrentChat?.()?.messages || []);
-        },
+        sendMessage: () => schedule('send'),
+        sendSelection: (text, question) =>
+            schedule('send', undefined, {
+                text: String(question || '').trim(),
+                quotes: [String(text || '').trim()],
+                imageTags: [],
+                empty: !String(text || '').trim() || !String(question || '').trim(),
+            }),
+        regenerateMessage: (target) =>
+            schedule(
+                'regenerate',
+                typeof target === 'number' ? target : Number(target?.dataset?.messageIndex)
+            ),
+        getCurrentChat: () => chatManager.getCurrentChat() || null,
+        getMessages: () => cloneMessages(chatManager.getCurrentChat()?.messages || []),
         showToast,
     };
 }

@@ -1,19 +1,22 @@
 /* 右键菜单样式 */
 #context-menu {
     position: fixed;
-    background: var(--cerebr-surface-bg);
-    border-radius: 8px;
-    padding: 6px;
-    min-width: 140px;
-    box-shadow: 0 4px 20px var(--cerebr-popup-shadow);
+    /* 使用不透明表面，避免菜单文字与下方正文叠在一起。 */
+    background: var(--cerebr-message-ai-bg);
+    border-radius: 10px;
+    padding: 5px;
+    min-width: 176px;
+    box-shadow: 0 8px 24px var(--cerebr-popup-shadow);
     z-index: 2147483647;
     display: none;
-    backdrop-filter: var(--cerebr-surface-backdrop-filter);
-    -webkit-backdrop-filter: var(--cerebr-surface-backdrop-filter);
     border: 1px solid var(--cerebr-surface-border);
     touch-action: none;
     -webkit-user-select: none;
     user-select: none;
+}
+
+#context-menu:focus {
+    outline: none;
 }
 
 #context-menu.visible {
@@ -23,29 +26,48 @@
 }
 
 .context-menu-item {
-    padding: 8px 12px;
+    padding: 7px 10px;
     cursor: pointer;
     display: flex;
     align-items: center;
     gap: 8px;
     color: var(--cerebr-text-color);
     font-size: var(--cerebr-fs-13);
+    font-weight: 400;
+    line-height: 20px;
     border-radius: 6px;
-    margin: 2px 0;
-    transition: background-color 0.2s ease;
+    margin: 0;
+    transition: background-color 0.12s ease, color 0.12s ease;
     white-space: nowrap;
     -webkit-user-select: none;
     user-select: none;
 }
 
-.context-menu-item:hover {
-    background-color: var(--cerebr-message-user-bg);
+@media (hover: hover) {
+    .context-menu-item:hover {
+        background-color: var(--cerebr-hover-bg-color);
+    }
+    #stop-update:hover,
+    #delete-message:hover {
+        background-color: color-mix(in srgb, var(--cerebr-danger-color) 10%, transparent);
+        color: var(--cerebr-danger-color);
+    }
 }
 
 .context-menu-item:focus-visible {
     outline: none;
-    background-color: var(--cerebr-message-user-bg);
-    box-shadow: 0 0 0 2px var(--cerebr-focus-border-color);
+    background-color: var(--cerebr-hover-bg-color);
+    box-shadow: inset 0 0 0 1px var(--cerebr-surface-border);
+}
+
+.context-menu-separator {
+    height: 1px;
+    margin: 5px 6px;
+    background: var(--cerebr-surface-border);
+}
+
+#delete-message {
+    color: var(--cerebr-text-color-secondary);
 }
 
 .context-menu-item svg {
@@ -62,18 +84,10 @@
     stroke: none;
 }
 
-#stop-update:hover {
-    background-color: var(--cerebr-message-user-bg);
+#stop-update:focus-visible,
+#delete-message:focus-visible {
+    background-color: color-mix(in srgb, var(--cerebr-danger-color) 10%, transparent);
     color: var(--cerebr-danger-color);
-}
-
-#delete-message:hover {
-    background-color: var(--cerebr-message-user-bg);
-    color: var(--cerebr-danger-color);
-}
-
-#regenerate-message:hover {
-    background-color: var(--cerebr-message-user-bg);
 }
 
 #regenerate-message svg {
@@ -81,8 +95,17 @@
     stroke: none;
 }
 
+@media (pointer: coarse) {
+    .context-menu-item {
+        padding-block: 12px;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     #context-menu.visible {
         animation: none;
+    }
+    .context-menu-item {
+        transition: none;
     }
 }

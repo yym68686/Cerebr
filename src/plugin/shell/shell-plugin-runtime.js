@@ -1,3 +1,4 @@
+import { appAssetUrl } from '../../platform/assets.js';
 import { createPluginBridgeMessage, isPluginBridgeMessage } from '../bridge/plugin-bridge.js';
 import { createHostedPluginRuntime } from '../core/hosted-plugin-runtime.js';
 import { createPermissionController } from '../core/plugin-permissions.js';
@@ -36,20 +37,22 @@ import {
     t as getI18nMessage,
 } from '../../utils/i18n.js';
 
+import { prepareReasoningForExport } from '../../render/message/reasoning-export.js';
+
 const SHELL_PLUGIN_API_FACTORY_KEY = '__CEREBR_SHELL_PLUGIN_API_FACTORY__';
 const SHELL_GUEST_HOST_API_FACTORY_KEY = '__CEREBR_SHELL_GUEST_HOST_API_FACTORY__';
 const CHAT_RENDER_SNAPSHOT_STYLE_URLS = Object.freeze([
-    '../../../styles/base/variables.css',
-    '../../../styles/base/reset.css',
-    '../../../styles/utils/animations.css',
-    '../../../styles/components/chat-container.css',
-    '../../../styles/components/message.css',
-    '../../../styles/components/reasoning.css',
-    '../../../styles/components/image-tag.css',
-    '../../../styles/components/code.css',
-    '../../../../../htmd/styles/code.css',
-    '../../../../../htmd/styles/math.css',
-    '../../../../../htmd/styles/table.css',
+    'styles/base/variables.css',
+    'styles/base/reset.css',
+    'styles/utils/animations.css',
+    'styles/components/chat-container.css',
+    'styles/components/message.css',
+    'styles/components/reasoning.css',
+    'styles/components/image-tag.css',
+    'styles/components/code.css',
+    'htmd/styles/code.css',
+    'htmd/styles/math.css',
+    'htmd/styles/table.css',
 ]);
 
 let chatRenderSnapshotStyleTextPromise = null;
@@ -116,7 +119,7 @@ async function loadChatRenderSnapshotStyleText() {
 
     chatRenderSnapshotStyleTextPromise = Promise.all(
         CHAT_RENDER_SNAPSHOT_STYLE_URLS.map(async (relativeUrl) => {
-            const response = await fetch(new URL(relativeUrl, import.meta.url), {
+            const response = await fetch(appAssetUrl(relativeUrl), {
                 cache: 'no-store',
             });
             if (!response.ok) {
@@ -147,6 +150,7 @@ function sanitizeRenderedTranscriptMessageNode(messageNode) {
 
     clone.querySelectorAll('.delete-btn').forEach((button) => button.remove());
     clone.querySelectorAll('.typing-indicator').forEach((indicator) => indicator.remove());
+    prepareReasoningForExport(clone);
     clone.querySelectorAll('[data-original-text]').forEach((element) => {
         element.removeAttribute('data-original-text');
     });
@@ -1141,6 +1145,7 @@ export function createShellPluginRuntime({
 
             await runtimeController.stop();
             pluginResources.cleanupAll();
+            shellHostManager.dispose();
             if (globalThis[SHELL_PLUGIN_API_FACTORY_KEY] === createPluginApi) {
                 delete globalThis[SHELL_PLUGIN_API_FACTORY_KEY];
             }

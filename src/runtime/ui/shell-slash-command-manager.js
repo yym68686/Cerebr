@@ -1,3 +1,4 @@
+import { pluginUiStore } from './plugin-ui-store.js';
 function normalizeString(value, fallback = '') {
     const normalized = String(value ?? '').trim();
     return normalized || fallback;
@@ -120,6 +121,8 @@ export function createShellSlashCommandManager({
     logger = console,
     onLayoutSync = null,
 } = {}) {
+    const subscriptions = new AbortController();
+    const listen = (target, type, listener, capture = false) => target.addEventListener(type, listener, { capture, signal: subscriptions.signal });
     const pluginRecords = new Map();
     const listeners = new Set();
     const runtimeState = {
@@ -219,14 +222,15 @@ export function createShellSlashCommandManager({
             return;
         }
 
-        const nextDraft = buildExpandedDraft(record.command, runtimeState.openState?.trailingText);
+        const trailingText = runtimeState.openState?.trailingText;
+        const nextDraft = buildExpandedDraft(record.command, trailingText);
         hide();
         editor?.setDraft?.(nextDraft);
         editor?.focus?.();
 
         dispatch({
             type: 'select',
-            trailingText: normalizeString(runtimeState.openState?.trailingText),
+            trailingText: normalizeString(trailingText),
             ...createCommandPayload(record),
         });
     }
@@ -270,84 +274,9 @@ export function createShellSlashCommandManager({
         };
     }
 
-    function createCommandButton(record, index) {
-        const item = document.createElement('button');
-        item.type = 'button';
-        item.className = 'cerebr-plugin-slash-command__item';
-        item.dataset.commandId = record.command.id;
-        item.dataset.active = index === runtimeState.activeIndex ? 'true' : 'false';
-
-        item.addEventListener('mousedown', (event) => {
-            event.preventDefault();
-        });
-        item.addEventListener('mouseenter', () => {
-            runtimeState.activeIndex = index;
-            render();
-        });
-        item.addEventListener('click', (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            applySelection(record);
-        });
-
-        const tokenRow = document.createElement('div');
-        tokenRow.className = 'cerebr-plugin-slash-command__token-row';
-
-        const token = document.createElement('span');
-        token.className = 'cerebr-plugin-slash-command__token';
-        token.textContent = `/${record.command.name}`;
-        tokenRow.appendChild(token);
-
-        const label = document.createElement('span');
-        label.className = 'cerebr-plugin-slash-command__label';
-        label.textContent = record.command.label;
-        tokenRow.appendChild(label);
-
-        item.appendChild(tokenRow);
-
-        if (record.command.description) {
-            const description = document.createElement('span');
-            description.className = 'cerebr-plugin-slash-command__description';
-            description.textContent = record.command.description;
-            item.appendChild(description);
-        }
-
-        return item;
-    }
-
     function render() {
-        if (!(container instanceof HTMLElement)) {
-            return false;
-        }
-
-        const openState = runtimeState.openState;
-        container.replaceChildren();
-        container.hidden = !openState;
-        container.dataset.open = openState ? 'true' : 'false';
-
-        if (!openState) {
-            syncLayout();
-            return true;
-        }
-
-        const panel = document.createElement('div');
-        panel.className = 'cerebr-plugin-slash-command';
-
-        if (openState.matches.length === 0) {
-            const empty = document.createElement('div');
-            empty.className = 'cerebr-plugin-slash-command__empty';
-            empty.textContent = openState.emptyText;
-            panel.appendChild(empty);
-        } else {
-            const list = document.createElement('div');
-            list.className = 'cerebr-plugin-slash-command__list';
-            openState.matches.forEach((record, index) => {
-                list.appendChild(createCommandButton(record, index));
-            });
-            panel.appendChild(list);
-        }
-
-        container.appendChild(panel);
+        const open = runtimeState.openState;
+        pluginUiStore.set({ commands: open ? { ...open, activeIndex: runtimeState.activeIndex, select: applySelection, activate: index => { runtimeState.activeIndex = index; render(); } } : null });
         syncLayout();
         return true;
     }
@@ -414,24 +343,24 @@ export function createShellSlashCommandManager({
     }
 
     if (messageInput instanceof HTMLElement) {
-        messageInput.addEventListener('input', () => {
+        listen(messageInput, 'input', () => {
             refreshFromEditor();
         });
-        messageInput.addEventListener('compositionstart', () => {
+        listen(messageInput, 'compositionstart', () => {
             runtimeState.isComposing = true;
             hide();
         });
-        messageInput.addEventListener('compositionend', () => {
+        listen(messageInput, 'compositionend', () => {
             runtimeState.isComposing = false;
             refreshFromEditor();
         });
-        messageInput.addEventListener('keydown', handleComposerKeydown, true);
-        messageInput.addEventListener('blur', () => {
+        listen(messageInput, 'keydown', handleComposerKeydown, true);
+        listen(messageInput, 'blur', () => {
             hide();
         });
     }
 
-    document.addEventListener('pointerdown', (event) => {
+    listen(document, 'pointerdown', (event) => {
         const target = event.target;
         if (inputContainer instanceof HTMLElement && inputContainer.contains(target)) {
             return;
@@ -440,6 +369,7 @@ export function createShellSlashCommandManager({
     }, true);
 
     return {
+        dispose() { subscriptions.abort(); hide(); },
         setCommands(pluginId, commands = [], options = {}) {
             const record = ensurePluginRecord(pluginId);
             if (!record) {

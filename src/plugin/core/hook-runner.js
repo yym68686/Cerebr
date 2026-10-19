@@ -140,6 +140,12 @@ export function createHookRunner({
 
     const invokeHook = async (hookName, args = [], options = {}) => {
         const entries = resolveEntries();
+        // 没有任何已激活插件实现这个 hook 时直接返回。流式回复期间 onStreamChunk 每 100ms 就
+        // 要走一遍这条链路，而绝大多数用户一个插件都没装。返回值和原来一致：callPluginHook 对
+        // 未实现的 hook 返回 {called:false}，最终也会被 filter 掉成空数组。
+        if (!entries.some((entry) => typeof entry?.plugin?.[hookName] === 'function')) {
+            return [];
+        }
         const results = await Promise.all(
             entries.map(async (entry) => {
                 const result = await callPluginHook(entry, hookName, resolveHookArgs(entry, args), {

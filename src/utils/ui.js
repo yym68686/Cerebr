@@ -5,6 +5,7 @@
  */
 
 import { t } from './i18n.js';
+import { uiStore, notify } from '../app/state/ui-store.js';
 
 /**
  * 图片预览配置接口
@@ -30,8 +31,21 @@ export function adjustTextareaHeight({
     config = { maxHeight: 200 }
 }) {
     textarea.style.height = 'auto';
-    textarea.style.height = Math.min(textarea.scrollHeight, config.maxHeight) + 'px';
-    if (textarea.scrollHeight > config.maxHeight) {
+    // Browsers can retain empty <br>/<div> nodes after deletion or undo. They
+    // must not keep a visually empty editor taller than one line.
+    const empty = !(textarea.textContent || '').trim() && !textarea.querySelector('.image-tag');
+    let height = textarea.scrollHeight;
+    if (empty) {
+        const style = getComputedStyle(textarea);
+        height = Math.max(
+            parseFloat(style.minHeight) || 0,
+            (parseFloat(style.lineHeight) || (parseFloat(style.fontSize) || 14) * 1.5) +
+                (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0)
+        );
+    }
+    textarea.style.height = Math.min(height, config.maxHeight) + 'px';
+    // CSS also caps the editor against the visual viewport when the keyboard is open.
+    if (!empty && textarea.scrollHeight > textarea.clientHeight + 1) {
         textarea.style.overflowY = 'auto';
     } else {
         textarea.style.overflowY = 'hidden';
@@ -43,37 +57,10 @@ export function adjustTextareaHeight({
  * @param {Object} params - 参数对象
  * @param {string} params.base64Data - 图片base64数据
  */
-export function showImagePreview({
-    base64Data,
-    config
-}) {
-    try {
-        config.previewModal.__cerebrReturnFocusEl = document.activeElement;
-    } catch {
-        // ignore
-    }
-    config.previewImage.src = base64Data;
-    config.previewModal.classList.add('visible');
-    const closeButton = config.previewModal.querySelector?.('.image-preview-close');
-    closeButton?.focus?.({ preventScroll: true });
+export function showImagePreview({ base64Data }) {
+    uiStore.set({ image: base64Data });
 }
-
-/**
- * 隐藏图片预览
- * @param {Object} params - 参数对象
- */
-export function hideImagePreview({
-    config
-}) {
-    config.previewModal.classList.remove('visible');
-    config.previewImage.src = '';
-
-    const returnFocusEl = config.previewModal.__cerebrReturnFocusEl;
-    config.previewModal.__cerebrReturnFocusEl = null;
-    if (returnFocusEl?.isConnected) {
-        returnFocusEl.focus?.({ preventScroll: true });
-    }
-}
+export function hideImagePreview() { uiStore.set({ image: null }); }
 
 /**
  * 创建图片标签
@@ -115,6 +102,8 @@ export function createImageTag({
     deleteBtn.className = 'delete-btn';
     deleteBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-linecap="round"/></svg>';
     deleteBtn.title = t('label_delete_image');
+    deleteBtn.type = 'button';
+    deleteBtn.setAttribute('aria-label', `${t('label_delete_image')}: ${resolvedFileName}`);
 
     // 点击删除按钮时删除整个标签
     deleteBtn.addEventListener('click', (e) => {
@@ -125,7 +114,24 @@ export function createImageTag({
         }
     });
 
-    container.appendChild(thumbnail);
+    if (safeConfig.attachment) {
+        container.classList.add('composer-attachment');
+        const preview = document.createElement('button');
+        preview.type = 'button';
+        preview.className = 'composer-attachment__preview';
+        preview.setAttribute('aria-label', `${t('label_image')}: ${resolvedFileName}`);
+        preview.append(thumbnail);
+        const name = document.createElement('span');
+        name.className = 'composer-attachment__name';
+        name.textContent = resolvedFileName;
+        preview.append(name);
+        preview.addEventListener('click', (event) => {
+            if (event.target !== thumbnail) safeConfig.onImageClick?.(base64Data);
+        });
+        container.append(preview);
+    } else {
+        container.appendChild(thumbnail);
+    }
     container.appendChild(deleteBtn);
 
     // 点击图片区域预览图片
@@ -140,33 +146,4 @@ export function createImageTag({
     return container;
 }
 
-function ensureToastContainer() {
-    let container = document.getElementById('toast-container');
-    if (container) return container;
-    container = document.createElement('div');
-    container.id = 'toast-container';
-    container.className = 'toast-container';
-    container.setAttribute('role', 'status');
-    container.setAttribute('aria-live', 'polite');
-    container.setAttribute('aria-atomic', 'true');
-    document.body.appendChild(container);
-    return container;
-}
-
-export function showToast(message, { type = 'info', durationMs = 1600 } = {}) {
-    if (!message) return;
-    const container = ensureToastContainer();
-
-    const toast = document.createElement('div');
-    const typeClass = type ? ` toast--${type}` : '';
-    toast.className = `toast${typeClass}`;
-    toast.textContent = message;
-    container.appendChild(toast);
-
-    const hide = () => {
-        toast.classList.add('toast--hide');
-        setTimeout(() => toast.remove(), 180);
-    };
-
-    setTimeout(hide, durationMs);
-}
+export function showToast(message, options) { return notify(message, options); }

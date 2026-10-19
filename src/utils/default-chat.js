@@ -18,7 +18,7 @@ const DEFAULT_CHAT_CONTENT = {
             {
                 id: 'usage_answer',
                 role: 'assistant',
-                content: 'Open **Settings -> API settings** first and add an API key, base URL, and model name. After that, you can chat normally, paste text or images, and continue asking follow-up questions in this default chat.'
+                content: 'Open **+ -> API settings** first and add an API key, base URL, and model name. After that, you can chat normally, paste text or images, and continue asking follow-up questions in this default chat.'
             },
             {
                 id: 'webpage_question',
@@ -28,7 +28,7 @@ const DEFAULT_CHAT_CONTENT = {
             {
                 id: 'webpage_answer',
                 role: 'assistant',
-                content: 'Yes. In the extension, open **Settings -> Webpage content** and keep the current tab enabled. Then ask me to summarize the page, extract key points, explain a paragraph, or draft something based on the page.'
+                content: 'Yes. In the extension, choose **+ -> Current webpage**, or select several pages with **Choose other webpages**. Selected sources appear above the input and stay available in this chat. Then ask me to summarize the page, extract key points, explain a paragraph, or draft something based on the page.'
             },
             {
                 id: 'starter_question',
@@ -53,7 +53,7 @@ const DEFAULT_CHAT_CONTENT = {
             {
                 id: 'usage_answer',
                 role: 'assistant',
-                content: '先打开 **设置 -> API 设置**，填入 API Key、Base URL 和模型名称。完成后你就可以像普通聊天一样提问，也可以粘贴文字、图片，并且继续在这个默认对话里追问。'
+                content: '先打开 **+ -> API 设置**，填入 API Key、Base URL 和模型名称。完成后你就可以像普通聊天一样提问，也可以粘贴文字、图片，并且继续在这个默认对话里追问。'
             },
             {
                 id: 'webpage_question',
@@ -63,7 +63,7 @@ const DEFAULT_CHAT_CONTENT = {
             {
                 id: 'webpage_answer',
                 role: 'assistant',
-                content: '可以。在扩展里打开 **设置 -> 网页内容**，确保当前标签页保持启用。之后你可以让我总结页面、提取重点、解释某一段，或者基于当前网页内容帮你起草回复。'
+                content: '可以。在扩展里点击 **+ -> 当前网页**，或通过 **选择其他网页** 添加多个页面。选中的来源会显示在输入框上方，并在本对话中保留。之后你可以让我总结页面、提取重点、解释某一段，或者基于当前网页内容帮你起草回复。'
             },
             {
                 id: 'starter_question',
@@ -88,7 +88,7 @@ const DEFAULT_CHAT_CONTENT = {
             {
                 id: 'usage_answer',
                 role: 'assistant',
-                content: '先打開 **設定 -> API 設定**，填入 API Key、Base URL 和模型名稱。完成後你就可以像一般聊天一樣提問，也可以貼上文字、圖片，並繼續在這個預設對話裡追問。'
+                content: '先打開 **+ -> API 設定**，填入 API Key、Base URL 和模型名稱。完成後你就可以像一般聊天一樣提問，也可以貼上文字、圖片，並繼續在這個預設對話裡追問。'
             },
             {
                 id: 'webpage_question',
@@ -98,7 +98,7 @@ const DEFAULT_CHAT_CONTENT = {
             {
                 id: 'webpage_answer',
                 role: 'assistant',
-                content: '可以。在擴充功能裡打開 **設定 -> 網頁內容**，確認目前分頁保持啟用。之後你可以要我總結頁面、提取重點、解釋某一段，或根據目前網頁內容幫你起草回覆。'
+                content: '可以。在擴充功能裡點選 **+ -> 目前網頁**，或透過 **選擇其他網頁** 加入多個頁面。選取的來源會顯示在輸入框上方，並在本對話中保留。之後你可以要我總結頁面、提取重點、解釋某一段，或根據目前網頁內容幫你起草回覆。'
             },
             {
                 id: 'starter_question',
@@ -191,7 +191,7 @@ export function syncDefaultChatForLocale(chat, locale, { insertSeedsWhenEmpty = 
     const hasManagedSeedMessages = currentMessages.some(isSeedManagedMessage);
 
     if (!hasManagedSeedMessages) {
-        if (insertSeedsWhenEmpty && currentMessages.length === 0) {
+        if (insertSeedsWhenEmpty && !chat.seedMessagesDismissed && currentMessages.length === 0) {
             chat.messages = localizedSeeds;
             changed = true;
         }

@@ -1,5 +1,6 @@
 /* 消息基础样式 */
 .message {
+    cursor: text;
     margin: 8px 0;
     padding: 12px 16px;
     border: 1px solid transparent;
@@ -10,13 +11,12 @@
     font-size: var(--cerebr-fs-14);
     line-height: 1.5;
     position: relative;
-    opacity: 0;
-    transform: translateY(8px) scale(0.98) translateZ(0);
-    animation: messageAppear 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-    will-change: transform, opacity;
+    opacity: 1;
+    transform: none;
+    /* Existing messages stay still when the extension iframe is shown again. */
+    animation: none;
     box-shadow: 0 2px 6px var(--cerebr-message-shadow);
-    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: box-shadow 0.2s ease;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     backface-visibility: hidden;
@@ -41,12 +41,17 @@
 }
 
 .user-message {
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 12px;
+    line-height: 1.4;
+    box-shadow: none;
     background-color: var(--cerebr-message-user-bg);
     border-color: var(--cerebr-message-user-border);
     margin-left: auto;
     margin-right: 0;
-    border-bottom-right-radius: 4px;
 }
+.user-message p { line-height: 1.4; }
 
 .message.is-editing {
     border-color: var(--cerebr-highlight-border-color);
@@ -54,11 +59,18 @@
 }
 
 .ai-message {
-    background-color: var(--cerebr-message-ai-bg);
-    border-color: var(--cerebr-message-ai-border);
+    /* AI 正文沿聊天内容区排版，内部代码、引用和思考区块保留各自样式。 */
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    padding: 12px 0;
+    background: transparent;
+    border: 0;
     margin-right: auto;
     margin-left: 0;
-    border-bottom-left-radius: 4px;
+    border-radius: 0;
+    box-shadow: none;
+    transition: none;
     -webkit-touch-callout: none; /* iOS Safari */
 }
 
@@ -76,37 +88,9 @@
     padding-left: 24px;
 }
 
-.typing-indicator {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 2px 0;
-}
-
-.typing-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 999px;
-    background: currentColor;
-    opacity: 0.45;
-    animation: cerebrTyping 1.1s ease-in-out infinite;
-}
-
-.typing-dot:nth-child(2) {
-    animation-delay: 0.12s;
-}
-
-.typing-dot:nth-child(3) {
-    animation-delay: 0.24s;
-}
-
-@keyframes cerebrTyping {
-    0%, 100% { transform: translateY(0); opacity: 0.35; }
-    50% { transform: translateY(-2px); opacity: 0.8; }
-}
-
 /* 链接样式 */
 .message a {
+    cursor: pointer;
     color: var(--cerebr-link-color);
     text-decoration: none;
 }
@@ -122,22 +106,8 @@
     color: var(--cerebr-blockquote-text-color);
 }
 
-.message:hover {
-    transform: translateY(-1px) translateZ(0);
-    box-shadow: 0 4px 12px var(--cerebr-message-hover-shadow);
-}
-
-/* 批量加载时的消息样式 */
-.message.batch-load {
-    animation: none;
-    opacity: 0;
-    transform: translateY(16px) scale(0.98);
-}
-
-.message.batch-load.show {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-    transition: opacity 0.3s ease, transform 0.3s ease;
+.user-message:hover {
+    box-shadow: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -147,11 +117,45 @@
         transform: none;
         transition: none;
     }
-    .message.batch-load {
-        opacity: 1;
-        transform: none;
-    }
-    .typing-dot {
-        animation: none;
-    }
 }
+
+/* 已发送的附件独立于文字气泡，上方展示缩略图。 */
+.message.has-attachments { display: flex; flex-direction: column; gap: 8px; }
+.user-message.has-attachments {
+    box-sizing: border-box;
+    max-width: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    align-items: flex-end;
+}
+.user-message.has-attachments:hover { box-shadow: none; transform: none; }
+.user-message.has-attachments > .main-content {
+    box-sizing: border-box;
+    max-width: 100%;
+    padding: 6px 12px;
+    background: var(--cerebr-message-user-bg);
+    border: 0;
+    border-radius: 12px;
+    box-shadow: none;
+}
+.message-attachments { display: flex; flex-wrap: wrap; gap: 8px; max-width: min(520px, 100%); }
+.user-message .message-attachments { justify-content: flex-end; }
+.message-attachment { position: relative; width: 176px; max-width: 100%; flex-shrink: 1; }
+.message-attachment:only-child { width: 240px; }
+.message-attachment-preview {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 1px solid var(--cerebr-surface-border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--cerebr-surface-bg);
+    cursor: zoom-in;
+}
+.message .message-attachment-preview img { width: 100%; height: 132px; object-fit: cover; object-position: top; margin: 0; border-radius: 0; }
+.message .message-attachment:only-child img { height: 180px; }
+.user-message.has-attachments.is-editing > .main-content,
+.user-message.has-attachments.is-editing .message-attachment-preview { border-color: var(--cerebr-highlight-border-color); box-shadow: 0 0 0 1px var(--cerebr-highlight-border-color); }

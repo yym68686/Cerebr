@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "default_locale": "en",
   "name": "__MSG_extension_name__",
-  "version": "2.5.14",
+  "version": "2.5.15",
   "description": "__MSG_extension_description__",
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
@@ -24,7 +24,10 @@
     "tabGroups",
     "unlimitedStorage"
   ],
-  "host_permissions": ["<all_urls>", "file:///*"],
+  "host_permissions": [
+    "<all_urls>",
+    "file:///*"
+  ],
   "action": {
     "default_title": "__MSG_action_open_sidebar__",
     "default_icon": {
@@ -52,111 +55,47 @@
     }
   },
   "background": {
-    "scripts": ["background.js"],
+    "scripts": [
+      "dist/background.js"
+    ],
     "type": "module"
   },
   "sandbox": {
     "pages": [
-      "src/plugin/guest/shell-plugin-guest.html",
-      "src/plugin/guest/page-plugin-guest.html"
+      "dist/src/plugin/guest/shell-plugin-guest.html",
+      "dist/src/plugin/guest/page-plugin-guest.html"
     ]
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "dist/content.js"
+      ],
       "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [
     {
       "resources": [
-        "index.html",
-        "src/boot.js",
-        "src/main.js",
-        "src/host/content/content-script.js",
-        "src/platform/site-key.js",
-        "src/plugin/bridge/plugin-bridge.js",
-        "src/plugin/page/page-plugin-runtime.js",
-        "src/plugin/page/page-plugin-registry.js",
-        "src/plugin/page/page-user-script-support.js",
-        "src/plugin/page/user-script-page-plugin-host.js",
-        "src/plugin/builtins/page/selection-action-plugin.js",
-        "src/plugin/dev/developer-mode.js",
-        "src/plugin/dev/local-plugin-bundle.js",
-        "src/plugin/dev/local-plugin-service.js",
-        "src/plugin/dev/local-plugin-source.js",
-        "src/plugin/dev/script-plugin-loader.js",
-        "src/plugin/guest/guest-protocol.js",
-        "src/plugin/guest/guest-page-plugin-host.js",
-        "src/plugin/guest/guest-shell-plugin-host.js",
-        "src/plugin/guest/page-plugin-guest.html",
-        "src/plugin/guest/page-plugin-guest.js",
-        "src/plugin/guest/page-plugin-proxy.html",
-        "src/plugin/guest/page-plugin-proxy.js",
-        "src/plugin/guest/shell-plugin-guest.html",
-        "src/plugin/guest/shell-plugin-guest.js",
-        "src/plugin/market/plugin-schema.js",
-        "src/plugin/market/version-utils.js",
-        "src/plugin/shared/plugin-catalog.js",
-        "src/plugin/shared/plugin-manager.js",
-        "src/plugin/shared/plugin-package-store.js",
-        "src/plugin/shared/reviewed-script-package.js",
-        "src/plugin/shared/plugin-store.js",
-        "src/plugin/shared/declarative-plugin-entry.js",
-        "src/plugin/shared/declarative-plugin-service.js",
-        "src/plugin/core/hook-runner.js",
-        "src/plugin/core/hosted-plugin-runtime.js",
-        "src/plugin/core/plugin-i18n.js",
-        "src/plugin/core/page-extractor-utils.js",
-        "src/plugin/core/plugin-capabilities.js",
-        "src/plugin/core/plugin-permissions.js",
-        "src/plugin/core/plugin-preflight.js",
-        "src/plugin/core/plugin-resource-store.js",
-        "src/plugin/core/plugin-runtime-context.js",
-        "src/plugin/core/prompt-fragment-utils.js",
-        "src/plugin/core/runtime-utils.js",
-        "src/plugin/core/url-pattern-utils.js",
-        "src/plugin/compiler/plugin-entry-compiler.js",
-        "src/plugin/kernel/plugin-kernel.js",
-        "src/plugin/services/host-service-registry.js",
-        "src/plugin/shared/define-plugin.js",
-        "src/runtime/ui/slot-registry.js",
-        "src/utils/app-version.js",
-        "src/utils/i18n.js",
-        "src/utils/storage-adapter.js",
-        "src/utils/theme.js",
-        "statics/plugins/*/*/*",
-        "statics/runtime/*",
-        "styles/main.css",
-        "styles/components/sidebar.css",
-        "htmd/marked.min.js",
-        "htmd/highlight.min.js",
-        "htmd/mathjax-config.js",
-        "htmd/tex-chtml-full.js",
-        "lib/pdf.js",
-        "lib/pdf.worker.js",
-        "htmd/mermaid.min.js",
-        "htmd/mermaid-init.js",
-        "htmd/fonts/woff-v2/MathJax_AMS-Regular.woff",
-        "htmd/fonts/woff-v2/MathJax_Calligraphic-Regular.woff",
-        "htmd/fonts/woff-v2/MathJax_Fraktur-Bold.woff",
-        "htmd/fonts/woff-v2/MathJax_Fraktur-Regular.woff",
-        "htmd/fonts/woff-v2/MathJax_Main-Bold.woff",
-        "htmd/fonts/woff-v2/MathJax_Main-Regular.woff",
-        "htmd/fonts/woff-v2/MathJax_Math-BoldItalic.woff",
-        "htmd/fonts/woff-v2/MathJax_Math-Italic.woff",
-        "htmd/fonts/woff-v2/MathJax_Size1-Regular.woff",
-        "htmd/fonts/woff-v2/MathJax_Size2-Regular.woff",
-        "htmd/fonts/woff-v2/MathJax_Size3-Regular.woff",
-        "htmd/fonts/woff-v2/MathJax_Size4-Regular.woff",
-        "htmd/fonts/woff-v2/MathJax_Typewriter-Regular.woff",
-        "htmd/fonts/woff-v2/MathJax_Vector-Bold.woff",
-        "htmd/fonts/woff-v2/MathJax_Vector-Regular.woff",
-        "htmd/fonts/woff-v2/MathJax_Zero.woff",
-        "statics/image.png"
+        "dist/index.html",
+        "dist/boot.js",
+        "dist/web-manifest.json",
+        "dist/v/*",
+        "dist/src/host/content/content-script.js",
+        "dist/src/plugin/guest/*",
+        "dist/styles/*",
+        "dist/htmd/*",
+        "dist/lib/*",
+        "dist/statics/*",
+        "dist/icons/*",
+        "dist/_locales/*"
       ],
-      "matches": ["<all_urls>"]
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ],
   "browser_specific_settings": {

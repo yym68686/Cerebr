@@ -92,38 +92,11 @@ Cerebr 是一款强大的浏览器 AI 助手扩展，现已支持 Chrome、Firef
 
 [![使用 Vercel 部署](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyym68686%2Fcerebr)
 
-3. 你可以部署到 Cloudflare Pages：
+3. Cloudflare Pages：连接本仓库，使用 Node.js 24，将**构建命令**设为 `npm run build`，**构建输出目录**设为 `dist`。非 Git 集成构建时需先初始化 `htmd` 子模块。无需服务器或 API 代理。
 
-2.1 注册好 CF 账号后，申请 Workers API TOKEN。
+4. GitHub Pages：Fork 仓库后，在 **Settings → Pages** 中将 Source 设为 **GitHub Actions**。仓库自带工作流会运行测试、Vite 构建并发布 `dist`。相对资源路径支持 `https://<用户名>.github.io/cerebr/` 项目地址。
 
-进入 CF 首页后，右上角选择配置文件 -> 我的个人资料 -> API 令牌 -> 创建令牌 -> 编辑 Cloudflare Workers -> `账户资源`和`区域资源`可以自己选择授予权限 -> 继续以显示摘要 -> 创建令牌 -> 保存令牌（**注意：** 保存好自己的令牌，因为只显示一次）
-
-2.2 回到首页，左侧找到 Workers -> 打开 `Worker 和 Pages` -> 点击`创建` -> `Pages` -> 导入现有 Git 存储库 -> 找到 Fork 的存储库 -> 开始部署
-
-2.3 项目名称写上自己喜欢的名字，在`构建命令`项输入：
-
-`bash scripts/prepare_pages_site.sh pages-site`
-
-2.4 在`构建输出目录`项输入：
-
-`pages-site`
-
-2.5 使用 Git 直连的 Pages 部署时，不需要额外配置环境变量。
-
-2.6 保存并部署。
-
-4. 你也可以部署到 GitHub Pages：
-
-```bash
-# Fork 这个仓库
-# 然后进入你的仓库的 Settings -> Pages
-# 在"构建和部署"部分：
-# - 将"Source"选择为"Deploy from a branch"
-# - 选择你的分支（main/master）和根目录（/）
-# - 点击保存
-```
-
-部署将由 GitHub Actions 自动处理。你可以通过 `https://<你的用户名>.github.io/cerebr` 访问你的站点
+Vercel 通过 `vercel.json` 使用相同的构建命令与输出目录。发布构建产物，不再直接发布源码目录。API Key 由用户在应用中填写，不应放入 Vite 环境变量。
 
 ### Web 版本特点
 - 🌐 无需安装，通过任何浏览器访问
@@ -159,9 +132,20 @@ https://github.com/tw93/Pake
 
 本项目采用 Chrome Extension Manifest V3 开发,主要技术栈:
 
-- 🎨 原生 JavaScript + CSS
+- 🎨 React 19 + Vite 7 + CSS
 - 📦 Chrome Extension API
-- 🔧 PDF.js + KaTeX + Marked.js
+- 🔧 PDF.js + MathJax + Marked.js
+
+需要 Node.js 22.12+（CI 使用 24）。本地开发先运行 `npm run build`，然后可以在 Chrome「加载已解压的扩展程序」选择仓库根目录；根目录 manifest 只加载 `dist` 内的编译产物。原来已安装根目录的用户，只需在扩展管理页重新加载 Cerebr，再刷新网页，无需卸载或更换目录。独立分发时构建并打包，安装 `artifacts/chrome` 或 Firefox 对应包。Web 与扩展使用同一套编译后的 React 界面。
+
+```bash
+git submodule update --init --recursive
+npm ci
+npm run dev                  # React + Vite development server
+npm run check                # tests and production build
+npm run preview              # serve the static dist output
+npm run package:extension    # artifacts/cerebr.zip and cerebr-firefox.zip
+```
 
 ## 🤝 贡献指南
 
@@ -176,3 +160,7 @@ https://github.com/tw93/Pake
 ## 📄 许可证
 
 本项目采用 GPLv3 许可证
+
+## 桌面应用
+
+Electron 桌面端位于 `desktop/`，与 Web 和扩展共用 React 界面，支持同机浏览器扩展历史双向同步。开发运行 `npm run dev:desktop`，打包运行 `npm run package:desktop`。详见 [桌面开发、配对和数据说明](docs/desktop.md)。

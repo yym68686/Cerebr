@@ -1,17 +1,6 @@
 import { validatePluginManifest, validatePluginRegistry } from './plugin-schema.js';
+import { appAssetUrl } from '../../platform/assets.js';
 export { DEFAULT_PLUGIN_REGISTRY_SOURCES } from './plugin-registry-sources.js';
-
-function getResourceUrl(path) {
-    try {
-        if (typeof chrome !== 'undefined' && chrome.runtime?.getURL) {
-            return chrome.runtime.getURL(path);
-        }
-    } catch {
-        // ignore
-    }
-
-    return new URL(path, window.location.href).toString();
-}
 
 function isAbsoluteUrl(url) {
     return /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(url || '');
@@ -26,18 +15,14 @@ async function fetchJson(url) {
 }
 
 export async function fetchPluginRegistrySource(source) {
-    const resolvedUrl = isAbsoluteUrl(source?.url || '')
-        ? source.url
-        : getResourceUrl(source?.url || '');
+    const resolvedUrl = isAbsoluteUrl(source?.url || '') ? source.url : appAssetUrl(source?.url || '');
 
     const payload = await fetchJson(resolvedUrl);
     return validatePluginRegistry(payload, resolvedUrl);
 }
 
 export async function fetchPluginManifestFromUrl(url) {
-    const resolvedUrl = isAbsoluteUrl(url || '')
-        ? url
-        : getResourceUrl(url || '');
+    const resolvedUrl = isAbsoluteUrl(url || '') ? url : appAssetUrl(url || '');
     const payload = await fetchJson(resolvedUrl);
     return validatePluginManifest(payload, resolvedUrl);
 }

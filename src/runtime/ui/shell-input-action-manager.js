@@ -1,3 +1,4 @@
+import { pluginUiStore } from './plugin-ui-store.js';
 function normalizeString(value, fallback = '') {
     const normalized = String(value ?? '').trim();
     return normalized || fallback;
@@ -142,89 +143,8 @@ export function createShellInputActionManager({
         return dispatched;
     }
 
-    function createActionButton(pluginId, action) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'cerebr-plugin-input-action';
-        button.dataset.pluginId = normalizeString(pluginId);
-        button.dataset.actionId = action.id;
-        button.dataset.variant = action.variant;
-
-        if (action.iconOnly) {
-            button.classList.add('cerebr-plugin-input-action--icon-only');
-        }
-        if (action.disabled) {
-            button.disabled = true;
-        }
-        if (action.background) {
-            button.style.setProperty('--cerebr-plugin-input-action-bg-custom', action.background);
-            button.classList.add('cerebr-plugin-input-action--custom-bg');
-        }
-        if (action.color) {
-            button.style.setProperty('--cerebr-plugin-input-action-text-custom', action.color);
-            button.classList.add('cerebr-plugin-input-action--custom-text');
-        }
-
-        if (action.title) {
-            button.title = action.title;
-            button.setAttribute('aria-label', action.title);
-        }
-
-        if (action.icon) {
-            const icon = document.createElement('span');
-            icon.className = 'cerebr-plugin-input-action__icon';
-            icon.textContent = action.icon;
-            button.appendChild(icon);
-        }
-
-        if (action.label) {
-            const label = document.createElement('span');
-            label.className = 'cerebr-plugin-input-action__label';
-            label.textContent = action.label;
-            button.appendChild(label);
-        }
-
-        button.addEventListener('click', (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            dispatch(pluginId, action, button);
-        });
-
-        return button;
-    }
-
     function render() {
-        if (!(container instanceof Element)) {
-            return false;
-        }
-
-        const records = getRenderableRecords();
-        container.replaceChildren();
-        container.hidden = records.length === 0;
-
-        if (records.length === 0) {
-            return true;
-        }
-
-        const list = document.createElement('div');
-        list.className = 'cerebr-plugin-input-actions__list';
-
-        records.forEach(([pluginId, record]) => {
-            const group = document.createElement('div');
-            group.className = 'cerebr-plugin-input-actions__group';
-            group.dataset.pluginId = pluginId;
-
-            record.actions
-                .slice()
-                .sort((left, right) => left.order - right.order)
-                .forEach((action) => {
-                    group.appendChild(createActionButton(pluginId, action));
-                });
-
-            list.appendChild(group);
-        });
-
-        container.appendChild(list);
+        pluginUiStore.set({ actions: getRenderableRecords().map(([pluginId, record]) => ({ pluginId, actions: [...record.actions].sort((a,b) => a.order-b.order), dispatch: (action, button) => dispatch(pluginId, action, button) })) });
         return true;
     }
 

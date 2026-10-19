@@ -1,57 +1,133 @@
-name: Build and Release Extension
+name: Build and Release Cerebr
 
 on:
-  workflow_dispatch:
-  push:
-    tags:
-      - 'v*' # 当推送新的版本标签时触发
+    push:
+        branches: [main]
+        tags: ['v*']
+    pull_request:
+        paths:
+            - '.github/workflows/release.yml'
+            - 'desktop/**'
+            - 'scripts/**'
+            - 'package*.json'
+            - 'manifest*.json'
+            - 'src/**'
+            - 'styles/**'
+            - 'tests/**'
+            - 'htmd'
+            - 'vite.config.js'
+    workflow_dispatch:
+        inputs:
+            publish:
+                description: Publish the checked-out version to GitHub Releases
+                type: boolean
+                default: false
+
+permissions:
+    contents: read
+
+concurrency:
+    group: cerebr-release-${{ github.ref }}
+    cancel-in-progress: false
 
 jobs:
-  build-and-release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: 'recursive'
+    validate:
+        name: Validate and package extensions
+        runs-on: ubuntu-24.04
+        timeout-minutes: 20
+        outputs:
+            tag: ${{ steps.version.outputs.tag }}
+            version: ${{ steps.version.outputs.version }}
+        steps:
+            - uses: actions/checkout@v6
+              with:
+                  submodules: recursive
+                  persist-credentials: false
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '24'
+                  cache: npm
+            - name: Validate release versions
+              id: version
+              run: node scripts/release-version.mjs
+            - run: npm ci
+            - run: npm run check
+            - run: npm run package:extension
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: release-extensions
+                  path: |
+                      artifacts/cerebr.zip
+                      artifacts/cerebr-firefox.zip
+                  if-no-files-found: error
+                  retention-days: 14
+                  compression-level: 0
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '16'
+    desktop:
+        name: Desktop (${{ matrix.platform }}-${{ matrix.arch }})
+        needs: validate
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - os: macos-15
+                      platform: darwin
+                      arch: arm64
+                    - os: macos-15-intel
+                      platform: darwin
+                      arch: x64
+                    - os: windows-2025
+                      platform: win32
+                      arch: x64
+        runs-on: ${{ matrix.os }}
+        timeout-minutes: 40
+        steps:
+            - uses: actions/checkout@v6
+              with:
+                  submodules: recursive
+                  persist-credentials: false
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '24'
+                  cache: npm
+            - run: npm ci
+            - run: npm run build
+            - run: npm run check --workspace cerebr-desktop
+            - name: Make desktop installers
+              run: npm run make --workspace cerebr-desktop -- --platform=${{ matrix.platform }} --arch=${{ matrix.arch }}
+            - name: Collect installers and checksums
+              run: node scripts/collect-desktop-release.mjs ${{ matrix.platform }} ${{ matrix.arch }}
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: release-desktop-${{ matrix.platform }}-${{ matrix.arch }}
+                  path: artifacts/release/${{ matrix.platform }}-${{ matrix.arch }}/*
+                  if-no-files-found: error
+                  retention-days: 14
+                  compression-level: 0
 
-      - name: Create Chrome ZIP file
-        run: |
-          zip -r cerebr.zip . \
-            -x "*.git*" \
-            -x "*.github*" \
-            -x "*.DS_Store" \
-            -x "README*" \
-            -x "manifest.firefox.json"
-
-      - name: Create Firefox ZIP file
-        run: |
-          mv manifest.json manifest.json.bak
-          cp manifest.firefox.json manifest.json
-          zip -r cerebr-firefox.zip . \
-            -x "*.git*" \
-            -x "*.github*" \
-            -x "*.DS_Store" \
-            -x "README*" \
-            -x "manifest.firefox.json" \
-            -x "manifest.json.bak" \
-            -x "cerebr.zip"
-          # Restore original manifest
-          mv manifest.json.bak manifest.json
-
-      - name: Create Release
-        id: create_release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            cerebr.zip
-            cerebr-firefox.zip
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    publish:
+        name: Publish complete GitHub Release
+        needs: [validate, desktop]
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish)
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@v6
+              with:
+                  persist-credentials: false
+            - uses: actions/download-artifact@v4
+              with:
+                  pattern: release-*
+                  path: artifacts/release-all
+                  merge-multiple: true
+            - name: Publish installers only after all platforms succeed
+              uses: actions/github-script@v7
+              env:
+                  RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+                  RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+              with:
+                  script: |
+                      const { publishRelease } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/publish-release.mjs`);
+                      await publishRelease({ github, context, core });

@@ -1,0 +1,316 @@
+import { describe, it, expect, vi } from 'vitest';
+vi.mock('../src/runtime/chat/api-client.js', () => ({ callAPI: vi.fn() }));
+vi.mock('../src/utils/ui.js', () => ({ showToast: vi.fn() }));
+import { callAPI } from '../src/runtime/chat/api-client.js';
+import { createChatPipeline } from '../src/runtime/chat/chat-pipeline.js';
+import { showToast } from '../src/utils/ui.js';
+
+function setup(plugins = {}, getWebpageInfo = async () => null, managerOverrides = {}) {
+    const chat = { id: 'a', title: '', messages: [] };
+    const manager = {
+        chats: new Map([['a', chat]]),
+        getCurrentChat: () => chat,
+        addMessageToCurrentChat: async (m) => chat.messages.push(m),
+        markChatDirty: vi.fn(),
+        saveChats: async () => {},
+        flushNow: async () => {},
+        ...managerOverrides,
+    };
+    const editor = {
+        getDraftSnapshot: () => ({ text: 'hello', imageTags: [], empty: false }),
+        clear: vi.fn(),
+        focus: vi.fn(),
+    };
+    const phase = vi.fn();
+    const pipeline = createChatPipeline({
+        chatManager: manager,
+        editor,
+        getSelectedApiConfig: () => ({
+            baseUrl: 'https://test.invalid/v1',
+            apiKey: 'test-only',
+            modelName: 'test',
+        }),
+        getWebpageInfo,
+        getUserLanguage: () => 'zh-CN',
+        pluginRuntime: plugins,
+        onPhase: phase,
+    });
+    return { pipeline, chat, editor, phase, manager };
+}
+describe('React chat session pipeline', () => {
+    it('sends a selection as a new quoted question and preserves the existing composer draft', async () => {
+        const { pipeline, chat, editor } = setup();
+        chat.messages.push({ role: 'assistant', content: 'Old answer' });
+        callAPI
+            .mockReset()
+            .mockResolvedValue({
+                controller: new AbortController(),
+                processStream: async () => ({ content: 'Explanation' }),
+            });
+        expect(await pipeline.sendSelection('Quoted passage\nSecond line', 'Why?')).toBe(true);
+        expect(chat.messages[1]).toMatchObject({
+            role: 'user',
+            content: '> Quoted passage\n> Second line\n\nWhy?',
+            selectionQuotes: ['Quoted passage\nSecond line'],
+            selectionQuestion: 'Why?',
+        });
+        expect(callAPI.mock.calls[0][0].messages.at(-1).content).toBe(
+            '> Quoted passage\n> Second line\n\nWhy?'
+        );
+        expect(editor.clear).not.toHaveBeenCalled();
+        expect(editor.getDraftSnapshot().text).toBe('hello');
+    });
+    it('sends composer quotes together with images and text', async () => {
+        const { pipeline, chat, editor } = setup();
+        const tag = document.createElement('span');
+        tag.setAttribute('data-image', 'data:image/png;base64,AQ==');
+        editor.getDraftSnapshot = () => ({
+            text: 'Compare',
+            quotes: ['A passage'],
+            imageTags: [tag],
+            empty: false,
+        });
+        callAPI
+            .mockReset()
+            .mockResolvedValue({
+                controller: new AbortController(),
+                processStream: async () => ({ content: 'Answer' }),
+            });
+        await pipeline.sendMessage();
+        expect(chat.messages[0].content).toEqual([
+            { type: 'text', text: '> A passage\n\nCompare' },
+            { type: 'image_url', image_url: { url: 'data:image/png;base64,AQ==' } },
+        ]);
+        expect(editor.clear).toHaveBeenCalledOnce();
+    });
+    it('starts an immediate flush before waiting for an idle-scheduled save', async () => {
+        let complete;
+        const saved = new Promise((resolve) => {
+            complete = resolve;
+        });
+        const flushNow = vi.fn(async () => complete());
+        callAPI.mockReset().mockResolvedValue({
+            controller: new AbortController(),
+            processStream: async () => ({ content: 'answer' }),
+        });
+        const { pipeline } = setup({}, async () => null, { saveChats: () => saved, flushNow });
+        const request = pipeline.sendMessage();
+        try {
+            await vi.waitFor(() => expect(flushNow).toHaveBeenCalled(), { timeout: 100 });
+        } finally {
+            complete();
+            await request;
+        }
+    });
+
+    it('allows another send and chat switching while persistence is still pending', async () => {
+        let complete;
+        const saved = new Promise((resolve) => {
+            complete = resolve;
+        });
+        callAPI.mockReset().mockResolvedValue({
+            controller: new AbortController(),
+            processStream: async () => ({ content: 'answer' }),
+        });
+        const { pipeline, phase } = setup({}, async () => null, {
+            saveChats: () => saved,
+            flushNow: () => saved,
+        });
+        let finished = false;
+        const first = pipeline.sendMessage().then(() => {
+            finished = true;
+        });
+        try {
+            await vi.waitFor(() => expect(finished).toBe(true), { timeout: 100 });
+            await pipeline.abortActiveReply();
+            await pipeline.sendMessage();
+            expect(callAPI).toHaveBeenCalledTimes(2);
+            expect(phase).toHaveBeenLastCalledWith('idle', null);
+        } finally {
+            complete();
+            await first;
+        }
+    });
+    it('preserves the draft and does not call the model when a selected PDF is missing', async () => {
+        callAPI.mockClear();
+        const failure = new Error('Could not read selected PDF: missing.pdf');
+        const { pipeline, editor, chat, phase } = setup({}, async () => {
+            throw failure;
+        });
+        const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+        try {
+            expect(await pipeline.sendMessage()).toBe(false);
+            expect(callAPI).not.toHaveBeenCalled();
+            expect(editor.clear).not.toHaveBeenCalled();
+            expect(chat.messages).toEqual([]);
+            expect(showToast).toHaveBeenCalledWith(
+                expect.any(String),
+                expect.objectContaining({ type: 'error' })
+            );
+            expect(phase).toHaveBeenLastCalledWith('idle', null);
+        } finally {
+            errors.mockRestore();
+        }
+    });
+    it('uses transformed drafts and the full request/plugin lifecycle', async () => {
+        const plugins = {
+            runBeforeSend: vi.fn(async (p) => ({
+                payload: { ...p, userMessage: { role: 'user', content: 'transformed' } },
+            })),
+            buildPromptFragments: vi.fn(async () => ({ fragments: [{ content: 'extra' }] })),
+            transformRequest: vi.fn(),
+            handleAfterResponse: vi.fn(),
+            handleStreamChunk: vi.fn(),
+        };
+        const { pipeline, chat, editor, phase } = setup(plugins);
+        callAPI.mockImplementation(async (params, manager, id, onUpdate, options) => ({
+            controller: new AbortController(),
+            processStream: async () => {
+                expect(params.messages.at(-1).content).toBe('transformed');
+                expect(params.promptFragments).toEqual([{ content: 'extra' }]);
+                expect(options.lifecycle.beforeRequest).toBeTypeOf('function');
+                await onUpdate(id, { content: 'reply' });
+                return { content: 'reply' };
+            },
+        }));
+        expect(await pipeline.sendMessage()).toBe(true);
+        expect(chat.messages[0].content).toBe('transformed');
+        expect(editor.clear).toHaveBeenCalledOnce();
+        expect(plugins.handleAfterResponse).toHaveBeenCalledOnce();
+        expect(phase).toHaveBeenLastCalledWith('idle', null);
+    });
+    it('keeps the draft and history when a plugin cancels sending', async () => {
+        callAPI.mockClear();
+        const { pipeline, editor, chat } = setup({ runBeforeSend: async () => ({ cancel: true }) });
+        expect(await pipeline.sendMessage()).toBe(false);
+        expect(editor.clear).not.toHaveBeenCalled();
+        expect(chat.messages).toEqual([]);
+        expect(callAPI).not.toHaveBeenCalled();
+    });
+    it('can abort before receiving a first token and always returns to idle', async () => {
+        let started;
+        const ready = new Promise((r) => {
+            started = r;
+        });
+        callAPI.mockImplementation(async () => {
+            const controller = new AbortController();
+            return {
+                controller,
+                processStream: () =>
+                    new Promise((resolve) => {
+                        controller.signal.addEventListener('abort', () => resolve(undefined));
+                        started();
+                    }),
+            };
+        });
+        const { pipeline, phase } = setup();
+        const request = pipeline.sendMessage();
+        await ready;
+        pipeline.abortActiveReply();
+        await request;
+        expect(phase).toHaveBeenLastCalledWith('idle', null);
+        expect(pipeline.abortControllerRef.current).toBe(null);
+    });
+    it('leaves thinking for idle even when saving the chat fails', async () => {
+        // phase 是唯一驱动「正在思考 N 秒」的状态，而 onPhase('idle') 只有一处写入。以前它排在
+        // 两个 await 的持久化后面，写盘一 reject 就跳出 finally，界面永远停在 thinking。
+        const boom = new Error('QuotaExceededError');
+        callAPI.mockReset().mockResolvedValue({
+            controller: new AbortController(),
+            processStream: async () => ({ content: 'answer' }),
+        });
+        const { pipeline, phase } = setup({}, async () => null, {
+            saveChats: async () => {
+                throw boom;
+            },
+        });
+        const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+        try {
+            await pipeline.sendMessage();
+            expect(phase).toHaveBeenLastCalledWith('idle', null);
+            await vi.waitFor(() =>
+                expect(errors).toHaveBeenCalledWith(expect.stringContaining('persist'), boom)
+            );
+        } finally {
+            errors.mockRestore();
+        }
+    });
+    it('stops a reply that is still waiting on page context, before any controller exists', async () => {
+        // 扩展里取网页正文要跨标签页发消息，这一跳没有超时。停止更新必须能打断这段等待，
+        // 而不是等它自己结束才被 pendingAbort 读到。
+        callAPI.mockReset();
+        let contextRequested;
+        const asked = new Promise((r) => {
+            contextRequested = r;
+        });
+        const { pipeline, phase } = setup({}, () => {
+            contextRequested();
+            return new Promise(() => {}); // 永不 resolve：模拟挂死的标签页
+        });
+        const request = pipeline.sendMessage();
+        await asked;
+        await pipeline.abortActiveReply();
+        expect(await request).toBe(false);
+        expect(phase).toHaveBeenLastCalledWith('idle', null);
+        expect(callAPI).not.toHaveBeenCalled();
+    });
+    it('tracks the run before sendMessage() returns, so a stop in the same tick is honored', async () => {
+        // abortActiveReply 在 running 为空时直接返回，这只在 running 与 onPhase('thinking') 同步
+        // 赋值时才安全。以后若在 schedule() 里 run() 之前加 await，这里的停止会被丢掉、请求挂死。
+        callAPI.mockReset();
+        const { pipeline, phase } = setup({}, () => new Promise(() => {}));
+        const request = pipeline.sendMessage();
+        pipeline.abortActiveReply(); // 与 sendMessage() 同一个同步段，中间没有让出事件循环
+        expect(await request).toBe(false);
+        expect(phase).toHaveBeenLastCalledWith('idle', null);
+        expect(callAPI).not.toHaveBeenCalled();
+    });
+    it('regenerates from a selected question and truncates later messages', async () => {
+        const { pipeline, chat } = setup();
+        chat.messages.push(
+            { role: 'user', content: 'one' },
+            { role: 'assistant', content: 'old' },
+            { role: 'user', content: 'later' }
+        );
+        callAPI.mockImplementation(async (params) => ({
+            controller: new AbortController(),
+            processStream: async () => {
+                expect(params.messages).toEqual([{ role: 'user', content: 'one' }]);
+                return { content: 'new' };
+            },
+        }));
+        await pipeline.regenerateMessage(1);
+        expect(chat.messages).toEqual([{ role: 'user', content: 'one', updating: false }]);
+    });
+    it('regenerates an edited tutorial answer even if its question is still localized', async () => {
+        const { pipeline, chat } = setup();
+        chat.messages.push(
+            { role: 'user', content: 'example question', seedLocaleBound: true },
+            { role: 'assistant', content: 'edited answer' }
+        );
+        callAPI.mockReset().mockResolvedValue({
+            controller: new AbortController(),
+            processStream: async () => ({ content: 'new answer' }),
+        });
+        expect(await pipeline.regenerateMessage(1)).toBe(true);
+        expect(callAPI).toHaveBeenCalledOnce();
+        expect(callAPI.mock.calls[0][0].messages).toMatchObject([
+            { role: 'user', content: 'example question', seedLocaleBound: true },
+        ]);
+    });
+    it('retries reasoning-only responses using the plugin retry policy', async () => {
+        const { pipeline } = setup({ handleResponseError: async () => ({ retry: { maxAttempts: 2 } }) });
+        callAPI
+            .mockReset()
+            .mockResolvedValueOnce({
+                controller: new AbortController(),
+                processStream: async () => ({ content: '', reasoning_content: 'thought' }),
+            })
+            .mockResolvedValueOnce({
+                controller: new AbortController(),
+                processStream: async () => ({ content: 'answer' }),
+            });
+        expect(await pipeline.sendMessage()).toBe(true);
+        expect(callAPI).toHaveBeenCalledTimes(2);
+    });
+});

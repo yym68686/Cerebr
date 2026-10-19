@@ -10,8 +10,8 @@
     right: 20px;
     width: 430px;
     height: calc(100vh - 40px);
-    background: var(--cerebr-bg-color, #ffffff);
-    color: var(--cerebr-text-color, #000000);
+    background: var(--cerebr-bg-color, #fafafa);
+    color: var(--cerebr-text-color, #27272a);
     --cerebr-sidebar-box-shadow: -2px 0 15px rgba(0, 0, 0, 0.1);
     box-shadow: none;
     z-index: 2147483647;
@@ -19,30 +19,29 @@
     overflow: hidden;
     visibility: hidden;
     opacity: 0;
-    transform: translate3d(0, 8px, 0) scale(0.98);
+    transform: none;
     transform-origin: 50% 50%;
     pointer-events: none;
     contain: style layout size;
     isolation: isolate;
-    will-change: transform, opacity;
 }
 
 .cerebr-sidebar.initialized {
     visibility: visible;
-    transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.18s ease, box-shadow 0.22s ease;
+    transition: none;
 }
 
 @media (prefers-color-scheme: dark) {
     .cerebr-sidebar {
-        --cerebr-bg-color: #282c34;
-        --cerebr-text-color: #abb2bf;
+        --cerebr-bg-color: #1f1f22;
+        --cerebr-text-color: #e4e4e7;
         --cerebr-sidebar-box-shadow: -2px 0 20px rgba(0, 0, 0, 0.3);
     }
 }
 
 .cerebr-sidebar.visible {
     opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: none;
     box-shadow: var(--cerebr-sidebar-box-shadow, -2px 0 15px rgba(0, 0, 0, 0.1));
     pointer-events: auto;
 }
@@ -129,7 +128,7 @@
     width: 100%;
     height: 100%;
     border: none;
-    background: var(--cerebr-bg-color, #ffffff);
+    background: var(--cerebr-bg-color, #fafafa);
     contain: strict;
 }
 
@@ -162,8 +161,8 @@
     padding: 0;
     border: none;
     border-radius: 999px;
-    background: #111827;
-    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
+    background: #27272a;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
     cursor: pointer;
     pointer-events: auto;
     opacity: 0.92;
@@ -173,11 +172,11 @@
 
 .cerebr-plugin-action:hover {
     transform: scale(1.08);
-    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.22);
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22);
 }
 
 .cerebr-plugin-action:focus-visible {
-    outline: 2px solid #2563eb;
+    outline: 1px solid #85858e;
     outline-offset: 2px;
 }
 
@@ -194,10 +193,14 @@
 
 @media (prefers-color-scheme: dark) {
     .cerebr-plugin-action {
-        background: #f8fafc;
+        background: #e4e4e7;
+    }
+
+    .cerebr-plugin-action:focus-visible {
+        outline-color: #85858e;
     }
 
     .cerebr-plugin-action__icon--dot {
-        background: #0f172a;
+        background: #27272a;
     }
 }

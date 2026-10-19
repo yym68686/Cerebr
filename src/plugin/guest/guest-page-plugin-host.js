@@ -1,3 +1,4 @@
+import { appAssetUrl } from '../../platform/assets.js';
 import { normalizeString } from '../core/runtime-utils.js';
 import {
     getActiveLocale as getHostLocale,
@@ -19,7 +20,7 @@ import {
 const GUEST_BOOT_TIMEOUT_MS = 8000;
 
 function getGuestPageUrl() {
-    return new URL('./page-plugin-guest.html', import.meta.url).toString();
+    return appAssetUrl('src/plugin/guest/page-plugin-guest.html');
 }
 
 function normalizeSerializableError(error) {

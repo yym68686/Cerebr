@@ -1,356 +1,130 @@
-import { renderShellPageView } from './shell-page-view-renderer.js';
-
-function normalizeString(value, fallback = '') {
-    const normalized = String(value ?? '').trim();
-    return normalized || fallback;
-}
-
-function cloneValue(value, fallback = null) {
-    if (value == null) {
-        return fallback;
-    }
-
-    try {
-        if (typeof structuredClone === 'function') {
-            return structuredClone(value);
-        }
-        return JSON.parse(JSON.stringify(value));
-    } catch {
-        return fallback;
-    }
-}
-
-function restoreMount(session) {
-    const mountElement = session?.mountElement instanceof HTMLElement
-        ? session.mountElement
-        : null;
-    const restoreParent = session?.restoreParent instanceof Node
-        ? session.restoreParent
-        : null;
-
-    if (!mountElement || !restoreParent) {
-        return;
-    }
-
-    if (session.restoreNextSibling?.parentNode === restoreParent) {
-        restoreParent.insertBefore(mountElement, session.restoreNextSibling);
-        return;
-    }
-
-    restoreParent.appendChild(mountElement);
-}
-
-function createSessionPage(page = {}) {
-    return {
-        id: normalizeString(page.id),
-        title: normalizeString(page.title, 'Plugin'),
-        subtitle: normalizeString(page.subtitle),
-    };
-}
-
-function createSessionEvent(type, page, extras = {}) {
-    return {
-        type,
-        page: { ...page },
-        ...extras,
-    };
-}
-
-function normalizeViewStateKey(page = {}) {
-    return normalizeString(page?.viewStateKey);
-}
-
-function shouldUseViewMode(page = {}) {
-    return !!(page && typeof page.view === 'object' && !Array.isArray(page.view));
-}
-
-export function createShellPageManager({
-    root = null,
-    titleElement = null,
-    subtitleElement = null,
-    bodyElement = null,
-    backButton = null,
-    logger = console,
-} = {}) {
-    const pluginListeners = new Map();
-    const sessions = new Map();
-    let activePluginId = '';
-
-    function notify(pluginId, event) {
-        const listeners = pluginListeners.get(pluginId);
-        if (!listeners || listeners.size === 0) {
-            return;
-        }
-
-        listeners.forEach((listener) => {
+import { flushSync } from 'react-dom';
+import { pluginUiStore } from './plugin-ui-store.js';
+import { uiStore } from '../../app/state/ui-store.js';
+import {
+    normalizeViewDescriptor,
+    reconcileSessionFieldValues,
+    collectViewFieldValues,
+} from './page-view-model.js';
+const text = (value, fallback = '') => String(value ?? '').trim() || fallback;
+export function createShellPageManager({ logger = console } = {}) {
+    const sessions = new Map(),
+        listeners = new Map();
+    let activeId = '';
+    const notify = (id, event) =>
+        listeners.get(id)?.forEach((listener) => {
             try {
-                listener(cloneValue(event, event) || event);
+                listener(structuredClone(event));
             } catch (error) {
-                logger?.error?.('[Cerebr] Failed to notify shell page listener', error);
+                logger.error(error);
             }
         });
-    }
-
-    function hideRoot() {
-        if (!(root instanceof HTMLElement)) {
-            return;
-        }
-
-        root.classList.remove('visible');
-        root.hidden = true;
-    }
-
-    function showRoot() {
-        if (!(root instanceof HTMLElement)) {
-            return;
-        }
-
-        root.hidden = false;
-        root.classList.add('visible');
-    }
-
-    function ensureSession(pluginId, mountElement = null) {
-        const normalizedPluginId = normalizeString(pluginId);
-        if (!normalizedPluginId) {
-            return null;
-        }
-
-        let session = sessions.get(normalizedPluginId);
-        if (session) {
-            return session;
-        }
-
-        session = {
-            pluginId: normalizedPluginId,
-            mountElement: mountElement instanceof HTMLElement ? mountElement : null,
-            restoreParent: mountElement instanceof HTMLElement ? mountElement.parentElement : null,
-            restoreNextSibling: mountElement instanceof HTMLElement ? mountElement.nextSibling : null,
-            page: createSessionPage({}),
-            view: null,
-            viewStateKey: '',
-            renderMode: '',
-            fieldValues: {},
-            renderedFieldValues: {},
-            activeFieldIds: new Set(),
-        };
-        sessions.set(normalizedPluginId, session);
-        return session;
-    }
-
-    function teardownRenderedContent(session) {
-        if (bodyElement instanceof HTMLElement) {
-            bodyElement.replaceChildren();
-        }
-
-        if (session?.renderMode === 'mount') {
-            session.mountElement?.classList?.remove?.('cerebr-plugin-slot-item--shell-input-addon-page');
-            restoreMount(session);
-        }
-
-        session.renderMode = '';
-    }
-
-    function dispatchInteraction(pluginId, session, payload = {}) {
-        notify(pluginId, {
-            ...payload,
-            page: { ...session.page },
-        });
-    }
-
-    function renderSession(session) {
-        if (!(bodyElement instanceof HTMLElement)) {
-            throw new Error('shell.openPage() requires a page body element');
-        }
-
-        teardownRenderedContent(session);
-
-        if (session.view) {
-            renderShellPageView({
-                bodyElement,
-                session,
-                dispatchEvent: (payload) => dispatchInteraction(session.pluginId, session, payload),
-                logger,
-            });
-            session.renderMode = 'view';
-            return;
-        }
-
-        if (!(session.mountElement instanceof HTMLElement)) {
-            throw new Error('shell.openPage() requires a mounted shell addon element when page.view is not provided');
-        }
-
-        session.mountElement.classList.add('cerebr-plugin-slot-item--shell-input-addon-page');
-        bodyElement.replaceChildren(session.mountElement);
-        session.renderMode = 'mount';
-    }
-
-    function applyPageDescriptor(session, page = {}) {
-        const nextPage = createSessionPage(page);
-        const nextView = shouldUseViewMode(page)
-            ? cloneValue(page.view, {}) || {}
-            : null;
-        const nextViewStateKey = normalizeViewStateKey(page);
-        const nextRenderMode = nextView ? 'view' : 'mount';
-        const shouldResetViewState = !!page?.resetViewState
-            || session.page?.id !== nextPage.id
-            || session.viewStateKey !== nextViewStateKey
-            || session.renderMode !== nextRenderMode;
-
-        session.page = nextPage;
-        session.view = nextView;
-        session.viewStateKey = nextViewStateKey;
-
-        if (shouldResetViewState) {
+    const publish = (session) => {
+        flushSync(() =>
+            pluginUiStore.set({
+                page: session
+                    ? {
+                          ...session,
+                          dispatch: (payload) =>
+                              notify(session.pluginId, { ...payload, page: { ...session.page } }),
+                          dismiss: (reason) => dismiss(session.pluginId, reason),
+                      }
+                    : null,
+            })
+        );
+        if (session) uiStore.set({ menu: false, webpageMenu: false });
+    };
+    const apply = (session, page) => {
+        const next = { id: text(page.id), title: text(page.title, 'Plugin'), subtitle: text(page.subtitle) };
+        const view =
+            page.view && typeof page.view === 'object' && !Array.isArray(page.view)
+                ? structuredClone(page.view)
+                : null;
+        const viewStateKey = text(page.viewStateKey);
+        if (
+            page.resetViewState ||
+            session.page?.id !== next.id ||
+            session.viewStateKey !== viewStateKey ||
+            !!session.view !== !!view
+        ) {
             session.fieldValues = {};
             session.renderedFieldValues = {};
+            session.generation++;
         }
-
-        if (titleElement instanceof HTMLElement) {
-            titleElement.textContent = nextPage.title;
+        Object.assign(session, { page: next, view, viewStateKey });
+        if (view) {
+            session.renderView = normalizeViewDescriptor(view);
+            reconcileSessionFieldValues(session, session.renderView);
+            session.activeFieldIds = new Set(Object.keys(collectViewFieldValues(session.renderView)));
         }
-
-        if (subtitleElement instanceof HTMLElement) {
-            subtitleElement.textContent = nextPage.subtitle;
-            subtitleElement.hidden = !nextPage.subtitle;
+    };
+    function dismiss(id, reason = 'programmatic') {
+        const session = sessions.get(id);
+        if (!session) return false;
+        sessions.delete(id);
+        if (activeId === id) {
+            activeId = '';
+            publish(null);
         }
-    }
-
-    function present(pluginId, mountElement, page = {}) {
-        const normalizedPluginId = normalizeString(pluginId);
-        if (!normalizedPluginId) {
-            throw new Error('shell.openPage() requires a plugin id');
-        }
-
-        const viewMode = shouldUseViewMode(page);
-        if (!viewMode && !(mountElement instanceof HTMLElement)) {
-            throw new Error('shell.openPage() requires a mounted shell addon element');
-        }
-
-        if (activePluginId && activePluginId !== normalizedPluginId) {
-            dismiss(activePluginId, 'replaced');
-        }
-
-        const session = ensureSession(normalizedPluginId, mountElement);
-        if (!session) {
-            throw new Error('shell.openPage() requires a plugin id');
-        }
-
-        if (mountElement instanceof HTMLElement && !session.mountElement) {
-            session.mountElement = mountElement;
-            session.restoreParent = mountElement.parentElement;
-            session.restoreNextSibling = mountElement.nextSibling;
-        } else if (!viewMode && session.mountElement !== mountElement) {
-            dismiss(normalizedPluginId, 'replaced');
-            return present(normalizedPluginId, mountElement, page);
-        }
-
-        applyPageDescriptor(session, page);
-        renderSession(session);
-        activePluginId = normalizedPluginId;
-        showRoot();
-        notify(normalizedPluginId, createSessionEvent('open', session.page));
-
-        return {
-            page: { ...session.page },
-            dismiss(reason = 'programmatic') {
-                dismiss(normalizedPluginId, reason);
-            },
-        };
-    }
-
-    function update(pluginId, page = {}) {
-        const normalizedPluginId = normalizeString(pluginId);
-        const session = sessions.get(normalizedPluginId);
-        if (!session) {
-            return null;
-        }
-
-        applyPageDescriptor(session, {
-            ...session.page,
-            view: session.view,
-            viewStateKey: session.viewStateKey,
-            ...(page && typeof page === 'object' ? page : {}),
-        });
-        renderSession(session);
-        if (activePluginId === normalizedPluginId) {
-            showRoot();
-        }
-        return { ...session.page };
-    }
-
-    function dismiss(pluginId, reason = 'programmatic') {
-        const normalizedPluginId = normalizeString(pluginId);
-        const session = sessions.get(normalizedPluginId);
-        if (!session) {
-            return false;
-        }
-
-        sessions.delete(normalizedPluginId);
-        teardownRenderedContent(session);
-
-        if (activePluginId === normalizedPluginId) {
-            activePluginId = '';
-            hideRoot();
-        }
-
-        notify(normalizedPluginId, createSessionEvent('close', session.page, { reason }));
+        notify(id, { type: 'close', page: { ...session.page }, reason });
         return true;
     }
-
-    function dismissActive(reason = 'programmatic') {
-        if (!activePluginId) {
-            return false;
-        }
-
-        return dismiss(activePluginId, reason);
-    }
-
-    if (backButton instanceof HTMLElement) {
-        backButton.addEventListener('click', () => {
-            dismissActive('back');
-        });
-    }
-
-    hideRoot();
-
     return {
-        present,
-        update,
+        present(pluginId, mountElement, page = {}) {
+            const id = text(pluginId);
+            if (!id) throw new Error('shell.openPage() requires a plugin id');
+            if (!page.view && !(mountElement instanceof HTMLElement))
+                throw new Error('shell.openPage() requires a mounted shell addon element or page.view');
+            if (activeId && activeId !== id) dismiss(activeId, 'replaced');
+            let session = sessions.get(id);
+            if (session && !page.view && session.mountElement !== mountElement) {
+                dismiss(id, 'replaced');
+                session = null;
+            }
+            session ||= {
+                pluginId: id,
+                mountElement,
+                page: {},
+                fieldValues: {},
+                renderedFieldValues: {},
+                generation: 0,
+            };
+            if (mountElement && !session.mountElement) session.mountElement = mountElement;
+            apply(session, page);
+            sessions.set(id, session);
+            activeId = id;
+            publish(session);
+            notify(id, { type: 'open', page: { ...session.page } });
+            return { page: { ...session.page }, dismiss: (reason) => dismiss(id, reason) };
+        },
+        update(id, page = {}) {
+            const session = sessions.get(text(id));
+            if (!session) return null;
+            apply(session, {
+                ...session.page,
+                view: session.view,
+                viewStateKey: session.viewStateKey,
+                ...page,
+            });
+            if (activeId === text(id)) publish(session);
+            return { ...session.page };
+        },
         dismiss,
-        dismissActive,
-        addListener(pluginId, listener) {
-            const normalizedPluginId = normalizeString(pluginId);
-            if (!normalizedPluginId || typeof listener !== 'function') {
-                return () => {};
-            }
-
-            let listeners = pluginListeners.get(normalizedPluginId);
-            if (!listeners) {
-                listeners = new Set();
-                pluginListeners.set(normalizedPluginId, listeners);
-            }
-
-            listeners.add(listener);
+        dismissActive: (reason) => (activeId ? dismiss(activeId, reason) : false),
+        isOpen: (id) => (id ? sessions.has(text(id)) : !!activeId),
+        getActivePluginId: () => activeId,
+        addListener(id, listener) {
+            id = text(id);
+            if (!id || typeof listener !== 'function') return () => {};
+            if (!listeners.has(id)) listeners.set(id, new Set());
+            listeners.get(id).add(listener);
             return () => {
-                listeners.delete(listener);
-                if (listeners.size === 0) {
-                    pluginListeners.delete(normalizedPluginId);
-                }
+                listeners.get(id)?.delete(listener);
             };
         },
-        removePlugin(pluginId) {
-            const normalizedPluginId = normalizeString(pluginId);
-            pluginListeners.delete(normalizedPluginId);
-            return dismiss(normalizedPluginId, 'plugin-stop');
-        },
-        isOpen(pluginId = '') {
-            if (pluginId) {
-                return sessions.has(normalizeString(pluginId));
-            }
-            return !!activePluginId;
-        },
-        getActivePluginId() {
-            return activePluginId;
+        removePlugin(id) {
+            listeners.delete(text(id));
+            return dismiss(text(id), 'plugin-stop');
         },
     };
 }

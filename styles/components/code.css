@@ -1,5 +1,25 @@
 @import '../../htmd/styles/code.css';
 
+/* 代码与表格表面跟随宿主配色，覆盖 htmd 的浅色、显式深色和系统深色默认值。 */
+:root,
+:root.dark-theme,
+:root:not(.light-theme) {
+    --cerebr-table-border-color: var(--cerebr-surface-border);
+    --cerebr-code-block-bg: var(--cerebr-reasoning-bg);
+    --cerebr-code-block-color: var(--cerebr-text-color);
+    --cerebr-code-block-border: var(--cerebr-surface-border);
+    --cerebr-code-scrollbar-bg: var(--cerebr-reasoning-bg);
+    --cerebr-code-scrollbar-thumb: var(--cerebr-toggle-bg-off);
+    --cerebr-code-scrollbar-thumb-hover: var(--cerebr-text-color-secondary);
+    --cerebr-code-tag-bg: var(--cerebr-surface-bg);
+    --cerebr-code-tag-color: var(--cerebr-text-color-secondary);
+    --cerebr-pre-bg: var(--cerebr-reasoning-bg);
+    --cerebr-hljs-comment: var(--cerebr-text-color-secondary);
+    --cerebr-hljs-meta: var(--cerebr-text-color-secondary);
+    --cerebr-hljs-emphasis: var(--cerebr-text-color);
+    --cerebr-hljs-strong: var(--cerebr-text-color);
+}
+
 /* 允许代码块内的文本选择 */
 .ai-message pre,
 .ai-message code {

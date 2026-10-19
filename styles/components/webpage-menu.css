@@ -1,251 +1,43 @@
-#webpage-content-menu {
-    position: fixed;
-    min-width: 180px;
-    max-width: 200px;
-    background-color: var(--settings-bg-color);
-    border: 1px solid var(--settings-border-color);
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    padding: 8px;
-    z-index: 1001;
-    display: none;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    max-height: 300px;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
-    touch-action: pan-y;
-    overflow-anchor: none;
-}
-
-#webpage-content-menu.visible {
-    display: block;
-}
-
-.webpage-menu-search {
-    position: sticky;
-    top: -8px;
-    margin: -8px -8px 4px;
-    padding: 8px 8px 4px;
-    background-color: var(--settings-bg-color);
-    z-index: 1;
-    opacity: 1;
-    transform: translateY(0);
-    transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease-out;
-    will-change: transform, opacity;
-}
-
-#webpage-content-menu.is-search-booting .webpage-menu-search,
-#webpage-content-menu.is-search-booting .webpage-menu-results {
-    transition: none;
-}
-
-#webpage-content-menu.search-visibility-ready:not(.is-search-visible):not(.has-active-search):not(.is-search-focused) .webpage-menu-search {
-    opacity: 0;
-    pointer-events: none;
-    transform: translateY(calc(-1 * var(--webpage-menu-search-height, 0px)));
-}
-
-.webpage-menu-search-input {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 100%;
-    box-sizing: border-box;
-    padding: 8px 10px;
-    border: 1px solid var(--cerebr-input-border-color);
-    border-radius: 6px;
-    background-color: var(--cerebr-message-ai-bg);
-    color: var(--cerebr-text-color);
-    font-size: var(--cerebr-fs-13);
-    line-height: 1.2;
-}
-
-.webpage-menu-search-input::placeholder {
-    color: var(--cerebr-text-color-secondary);
-    opacity: 0.48;
-}
-
-.webpage-menu-search-input:focus {
-    outline: none;
-    border-color: var(--cerebr-input-border-color);
-    box-shadow: none;
-}
-
-.webpage-menu-results {
-    min-width: 0;
-    margin-top: 0;
-}
-
-#webpage-content-menu.search-visibility-ready:not(.is-search-visible):not(.has-active-search):not(.is-search-focused) .webpage-menu-results {
-    margin-top: calc(4px - var(--webpage-menu-search-height, 0px));
-}
-
-.webpage-menu-loading,
-.webpage-menu-empty {
-    padding: 10px 8px;
-    color: var(--cerebr-text-color-secondary);
-    font-size: var(--cerebr-fs-13);
-}
-
-.webpage-menu-empty--search {
-    padding-top: 2px;
-}
-
-.webpage-menu-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    -webkit-user-select: none;
-    user-select: none;
-}
-
-.webpage-menu-item:hover {
-    background-color: var(--settings-hover-bg-color);
-}
-
-.webpage-menu-item .title {
-    flex: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-right: 16px; /* 增加标题和开关之间的间距 */
-    min-width: 0; /* 确保在 flex 布局中 ellipsis 生效 */
-}
-
-.webpage-menu-item .switch {
-    flex-shrink: 0; /* 防止开关被压缩 */
-}
-
-.webpage-menu-item .favicon {
-    width: 16px;
-    height: 16px;
-    margin-right: 8px;
-    vertical-align: middle;
-}
-
-.webpage-menu-group {
-    margin: 4px 0;
-}
-
-.webpage-menu-group-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-.webpage-menu-group-header:hover {
-    background-color: var(--settings-hover-bg-color);
-}
-
-.webpage-menu-group-header:focus-within {
-    background-color: var(--settings-hover-bg-color);
-}
-
-.webpage-menu-group-trigger {
-    -webkit-appearance: none;
-    appearance: none;
-    display: flex;
-    align-items: center;
-    flex: 1;
-    min-width: 0;
-    padding: 0;
-    border: none;
-    background: transparent;
-    color: inherit;
-    cursor: pointer;
-    font: inherit;
-    text-align: left;
-    -webkit-user-select: none;
-    user-select: none;
-}
-
-.webpage-menu-group-trigger:hover {
-    background-color: transparent;
-}
-
-.webpage-menu-group-trigger:focus-visible {
-    outline: none;
-    background-color: transparent;
-    box-shadow: none;
-}
-
-.webpage-menu-group-trigger::before {
-    content: '';
-    display: block;
-    width: 0;
-    height: 0;
-    margin-right: 6px;
-    border-top: 4px solid transparent;
-    border-bottom: 4px solid transparent;
-    border-left: 5px solid currentColor;
-    transform: rotate(90deg);
-    transform-origin: 35% 50%;
-    transition: transform 0.2s ease;
-    flex-shrink: 0;
-}
-
-.webpage-menu-group.is-collapsed .webpage-menu-group-trigger::before {
-    transform: rotate(0deg);
-}
-
-.webpage-menu-group-meta {
-    display: flex;
-    align-items: center;
-    min-width: 0;
-    gap: 6px;
-    flex: 1;
-    margin-right: 10px;
-}
-
-.webpage-menu-group-color {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-
-.webpage-menu-group-color.is-hidden {
-    display: none;
-}
-
-.webpage-menu-group-title {
-    font-size: var(--cerebr-fs-12);
-    color: var(--cerebr-text-color-secondary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
-}
-
-.webpage-menu-group-count {
-    font-size: var(--cerebr-fs-12);
-    color: var(--cerebr-text-color-secondary);
-    flex-shrink: 0;
-}
-
-.webpage-menu-group-switch {
-    flex-shrink: 0;
-}
-
-.webpage-menu-group-items {
-    overflow: hidden;
-}
-
-.webpage-menu-group.is-collapsed .webpage-menu-group-items {
-    max-height: 0;
-    visibility: hidden;
-    pointer-events: none;
-}
-
-.webpage-menu-item--indented {
-    padding-left: 8px;
+/* 网页选择与加号菜单共用一个弹层。 */
+.composer-source-picker { display: flex; flex-direction: column; min-height: 0; }
+.composer-picker-header { display: flex; align-items: center; gap: 6px; padding: 2px 4px 6px; flex-shrink: 0; font-size: var(--cerebr-fs-13); font-weight: 500; }
+.composer-source-picker button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: none; background: transparent; color: var(--cerebr-text-color); font: inherit; font-size: var(--cerebr-fs-13); border-radius: 7px; padding: 7px 9px; cursor: pointer; }
+.composer-source-picker button:hover { background: var(--cerebr-hover-bg-color); }
+.composer-source-picker svg { width: 16px; height: 16px; flex-shrink: 0; }
+.composer-picker-search { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin: 0 5px 5px; padding: 8px 10px; border-radius: 7px; background: var(--cerebr-hover-bg-color); color: var(--cerebr-text-color-secondary); }
+.composer-picker-search input { width: 100%; min-width: 0; padding: 0; border: none; border-radius: 0; background: transparent; color: var(--cerebr-text-color); font: inherit; font-size: var(--cerebr-fs-13); outline: none; }
+.composer-picker-search input::placeholder { color: var(--cerebr-text-color-secondary); }
+.composer-picker-results { overflow-y: auto; min-height: 0; overscroll-behavior: contain; touch-action: pan-y; }
+.composer-picker-status { padding: 12px 10px; color: var(--cerebr-text-color-secondary); font-size: var(--cerebr-fs-13); }
+.composer-picker-status button { margin-left: 6px; }
+.composer-picker-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 7px; cursor: pointer; min-height: 44px; box-sizing: border-box; }
+.composer-picker-item:hover, .composer-picker-item:focus-within { background: var(--cerebr-hover-bg-color); }
+.composer-picker-item > svg { color: var(--cerebr-icon-color); }
+.webpage-favicon { width: 16px; height: 16px; flex-shrink: 0; object-fit: contain; border-radius: 3px; }
+.composer-source-title .webpage-favicon { width: 14px; height: 14px; }
+.composer-picker-page { flex: 1; min-width: 0; }
+.composer-picker-title, .composer-picker-detail { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composer-picker-title { font-size: var(--cerebr-fs-13); line-height: 1.5; }
+.composer-picker-detail { font-size: var(--cerebr-fs-12); color: var(--cerebr-text-color-secondary); line-height: 1.5; }
+.composer-source-picker input[type="checkbox"] { width: 16px; height: 16px; margin: 0; flex-shrink: 0; accent-color: var(--cerebr-text-color); cursor: pointer; }
+.composer-picker-group-heading { display: flex; align-items: center; gap: 10px; padding: 4px 10px 0 3px; }
+.composer-picker-group-heading button { flex: 1; min-width: 0; color: var(--cerebr-text-color-secondary); justify-content: flex-start; font-size: var(--cerebr-fs-12); }
+.composer-picker-group-heading button span:first-of-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composer-picker-group-heading button span:last-child { margin-left: auto; }
+.composer-picker-group-heading [aria-expanded="false"] svg { transform: rotate(-90deg); }
+.composer-picker-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 5px 5px 0; padding: 5px 3px 0; border-top: 1px solid var(--cerebr-surface-border); flex-shrink: 0; font-size: var(--cerebr-fs-12); color: var(--cerebr-text-color-secondary); }
+.composer-sources { padding: 5px 6px 7px; }
+.composer-source-tags { display: flex; flex-wrap: wrap; gap: 6px; max-height: min(88px, calc(var(--vv-height, 100dvh) * .18)); overflow-y: auto; touch-action: pan-y; overscroll-behavior: contain; }
+.composer-source-tag { display: inline-flex; align-items: center; max-width: 100%; border: 1px solid var(--cerebr-surface-border); border-radius: 7px; background: var(--cerebr-hover-bg-color); }
+.composer-source-tag button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; border: none; background: transparent; color: var(--cerebr-text-color); font: inherit; font-size: var(--cerebr-fs-12); padding: 5px 6px; cursor: pointer; border-radius: 6px; }
+.composer-source-tag button:hover { background: var(--cerebr-message-user-bg); }
+.composer-source-tag svg { width: 13px; height: 13px; flex-shrink: 0; }
+.composer-source-title span { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composer-source-tag .composer-source-remove { align-self: stretch; padding-inline: 6px; color: var(--cerebr-text-color-secondary); flex-shrink: 0; }
+@media (pointer: coarse) {
+    .composer-source-picker button { min-height: 44px; }
+    .composer-picker-search input { font-size: max(16px, var(--cerebr-fs-13)); }
+    .composer-source-tag button { min-height: 44px; }
+    .composer-source-tag .composer-source-remove { min-width: 44px; }
+    .composer-source-title span { max-width: 145px; }
 }

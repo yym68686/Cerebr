@@ -1,4 +1,5 @@
 import { syncStorageAdapter } from './storage-adapter.js';
+import { appAssetUrl } from '../platform/assets.js';
 
 const SUPPORTED_LOCALES = ['en', 'zh_CN', 'zh_TW'];
 export const LANGUAGE_PREFERENCE_KEY = 'uiLanguage';
@@ -39,17 +40,6 @@ export function detectSystemLocale() {
     return mapToSupportedLocale(typeof navigator !== 'undefined' ? navigator.language : 'en');
 }
 
-function getResourceUrl(path) {
-    try {
-        if (typeof chrome !== 'undefined' && chrome.runtime?.getURL) {
-            return chrome.runtime.getURL(path);
-        }
-    } catch {
-        // ignore
-    }
-    return new URL(path, window.location.href).toString();
-}
-
 function coerceMessagesJsonToMap(json) {
     const map = Object.create(null);
     if (!json || typeof json !== 'object') return map;
@@ -62,7 +52,7 @@ function coerceMessagesJsonToMap(json) {
 }
 
 async function loadLocaleMessages(locale) {
-    const url = getResourceUrl(`_locales/${locale}/messages.json`);
+    const url = appAssetUrl(`_locales/${locale}/messages.json`);
     const response = await fetch(url, { cache: 'no-cache' });
     if (!response.ok) throw new Error(`Failed to load locale ${locale}: ${response.status}`);
     const json = await response.json();
@@ -110,7 +100,8 @@ export async function getLanguagePreference() {
 }
 
 export async function setLanguagePreference(value) {
-    const normalized = value === LANGUAGE_AUTO ? LANGUAGE_AUTO : (SUPPORTED_LOCALES.includes(value) ? value : LANGUAGE_AUTO);
+    const normalized =
+        value === LANGUAGE_AUTO ? LANGUAGE_AUTO : SUPPORTED_LOCALES.includes(value) ? value : LANGUAGE_AUTO;
     await syncStorageAdapter.set({ [LANGUAGE_PREFERENCE_KEY]: normalized });
     return normalized;
 }
@@ -137,13 +128,15 @@ export async function initI18n() {
     initialized = true;
 
     try {
-        const langAttr = activeLocale === 'zh_CN' ? 'zh-CN' : (activeLocale === 'zh_TW' ? 'zh-TW' : 'en');
+        const langAttr = activeLocale === 'zh_CN' ? 'zh-CN' : activeLocale === 'zh_TW' ? 'zh-TW' : 'en';
         document.documentElement.setAttribute('lang', langAttr);
     } catch {
         // ignore
     }
 
-    window.dispatchEvent(new CustomEvent('cerebr:localeChanged', { detail: { locale: activeLocale, preference } }));
+    window.dispatchEvent(
+        new CustomEvent('cerebr:localeChanged', { detail: { locale: activeLocale, preference } })
+    );
 }
 
 export async function reloadI18n() {
@@ -154,9 +147,9 @@ function parseAttrBindings(value) {
     const raw = String(value || '');
     return raw
         .split(';')
-        .map(s => s.trim())
+        .map((s) => s.trim())
         .filter(Boolean)
-        .map(pair => {
+        .map((pair) => {
             const idx = pair.indexOf(':');
             if (idx === -1) return null;
             const attr = pair.slice(0, idx).trim();
@@ -203,4 +196,3 @@ export function onLocaleChanged(handler) {
     if (initialized) handler({ locale: activeLocale, preference: null });
     return () => window.removeEventListener('cerebr:localeChanged', listener);
 }
-

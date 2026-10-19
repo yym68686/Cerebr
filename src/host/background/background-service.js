@@ -1,3 +1,8 @@
+import { startExtensionSync } from '../../runtime/sync/extension-sync.js';
+import { createBrowserPageRequests } from './browser-page-requests.js';
+const desktopSync = startExtensionSync({ browserRequest: createBrowserPageRequests({ api: chrome, getPageContent: readBrowserPage }) });
+import { extensionAssetPath } from '../../platform/assets.js';
+import { createTabConnection } from './tab-connection.js';
 import { createBackgroundPluginRuntime } from '../../plugin/background/background-plugin-runtime.js';
 import { isPluginBridgeMessage } from '../../plugin/bridge/plugin-bridge.js';
 import { createPageUserScriptService } from '../../plugin/page/page-user-script-service.js';
@@ -160,7 +165,7 @@ async function ensurePdfJsInjected(tabId) {
   try {
     await chrome.scripting.executeScript({
       target: { tabId },
-      files: ['lib/pdf.js']
+      files: [extensionAssetPath('lib/pdf.js')]
     });
     pdfJsInjectedTabs.add(tabId);
     return { success: true };
@@ -224,27 +229,10 @@ function mergePageDiagnostics(primary = [], secondary = []) {
   });
 }
 
-// 重新注入 content script 并等待连接
-async function reinjectContentScript(tabId) {
-  console.log('标签页未连接，尝试重新注入 content script...');
-  try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ['content.js']
-    });
-    console.log('已重新注入 content script');
-    // 给脚本一点时间初始化
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const isConnected = await isTabConnected(tabId);
-    if (!isConnected) {
-      console.log('重新注入后仍未连接');
-    }
-    return isConnected;
-  } catch (error) {
-    console.error('重新注入 content script 失败:', error);
-    return false;
-  }
-}
+const tabConnection = createTabConnection({ api: chrome });
+const isTabConnected = tabConnection.isTabConnected;
+const reinjectContentScript = (tabId) =>
+  tabConnection.reinjectContentScript(tabId, extensionAssetPath('content.js'));
 
 // 处理标签页连接和消息发送的通用函数
 async function handleTabCommand(commandType) {
@@ -666,46 +654,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // 处理来自 sidebar 的网页内容请求
   if (message.type === 'GET_PAGE_CONTENT_FROM_SIDEBAR') {
-    (async () => {
-      try {
-        // 确保请求来自我们的扩展UI
-        if (!sender.url || !sender.url.includes('index.html')) {
-          console.warn('GET_PAGE_CONTENT_FROM_SIDEBAR request from invalid sender:', sender.url);
-          sendResponse(null);
-          return;
-        }
-
-        // 如果消息中指定了 tabId，则使用它；否则，查询当前活动标签页
-        const tabIdToQuery = message.tabId || (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id;
-
-        if (!tabIdToQuery) {
-          console.warn('No target tab found for GET_PAGE_CONTENT_FROM_SIDEBAR');
-          sendResponse(null);
-          return;
-        }
-
-        let isConnected = await isTabConnected(tabIdToQuery);
-        if (!isConnected) {
-            // 如果未连接，尝试重新注入脚本
-            console.log(`Tab ${tabIdToQuery} not connected, attempting to reinject content script.`);
-            isConnected = await reinjectContentScript(tabIdToQuery);
-        }
-
-        if (isConnected) {
-          const response = await chrome.tabs.sendMessage(tabIdToQuery, {
-            type: 'GET_PAGE_CONTENT_INTERNAL',
-            skipWaitContent: message.skipWaitContent || false
-          });
-          sendResponse(response);
-        } else {
-          console.warn(`Tab ${tabIdToQuery} is still not connected, even after attempting to reinject.`);
-          sendResponse(null);
-        }
-      } catch (error) {
-        console.error(`Error in GET_PAGE_CONTENT_FROM_SIDEBAR for tab ${message.tabId}:`, error);
-        sendResponse(null);
-      }
-    })();
+    if (!sender.url?.startsWith(chrome.runtime.getURL('')) || !sender.url.includes('index.html')) return;
+    void readBrowserPage(message).then(sendResponse).catch(error => {
+      console.error('Could not extract selected webpage:', error);
+      sendResponse(null);
+    });
     return true;
   }
 
@@ -768,21 +721,6 @@ chrome.runtime.onInstalled.addListener((details) => {
       occurredAt: Date.now(),
     });
 });
-
-// 改进标签页连接检查
-async function isTabConnected(tabId) {
-    try {
-        // console.log(`isTabConnected PING: ${tabId}`);
-        const response = await chrome.tabs.sendMessage(tabId, {
-            type: 'PING',
-            timestamp: Date.now()
-        });
-        // console.log('isTabConnected:', response.type);
-        return response && response.type === 'PONG';
-    } catch {
-        return false;
-    }
-}
 
 const PDF_CHUNK_SIZE = 4 * 1024 * 1024;
 const MAX_PDF_CACHE_ENTRIES = 5;
@@ -930,8 +868,34 @@ function releasePDF(requestId) {
   return { success: true };
 }
 
+// Shared by the extension UI and the authenticated desktop browser bridge.
+async function readBrowserPage(message) {
+  const tabId = message.tabId ?? (await chrome.tabs.query({active:true,lastFocusedWindow:true}))[0]?.id;
+  if (!Number.isSafeInteger(tabId)) return null;
+  const tab = await chrome.tabs.get(tabId);
+  if (!/^(https?:|file:)/.test(tab.url || '')) return null;
+  const connected = await isTabConnected(tabId) || await reinjectContentScript(tabId);
+  if (!connected) return null;
+  return chrome.tabs.sendMessage(tabId, {type:'GET_PAGE_CONTENT_INTERNAL',skipWaitContent:message.skipWaitContent || false});
+}
+
 // 监听标签页激活事件，并通知相关方，兼容 Firefox 需要
+let webpageTabsChangedTimer;
+const notifyWebpageTabsChanged = () => {
+  clearTimeout(webpageTabsChangedTimer);
+  webpageTabsChangedTimer = setTimeout(() => {
+    void chrome.runtime.sendMessage({ type: 'WEBPAGE_TABS_CHANGED' }).catch(() => {});
+    desktopSync.emitBrowserEvent({type:'tabs-changed'});
+  }, 100);
+};
+chrome.tabs.onCreated.addListener(notifyWebpageTabsChanged);
+chrome.tabs.onRemoved.addListener(notifyWebpageTabsChanged);
+chrome.tabs.onUpdated.addListener((_tabId, change) => {
+  if (change.url || change.title || change.favIconUrl || change.status === 'complete' || change.groupId !== undefined)
+    notifyWebpageTabsChanged();
+});
 chrome.tabs.onActivated.addListener(activeInfo => {
+  desktopSync.emitBrowserEvent({type:'tabs-changed'});
   chrome.runtime.sendMessage({
     type: 'TAB_ACTIVATED',
     payload: activeInfo

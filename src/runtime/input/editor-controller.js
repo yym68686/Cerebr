@@ -4,7 +4,8 @@ import {
     insertTextIntoMessageInput,
     moveCaretToEnd,
     setMessageInputText,
-} from '../../components/message-input.js';
+} from '../../runtime/input/native-editor.js';
+import { getDraftQuotes, setDraftQuotes, addDraftQuote } from './draft-quotes.js';
 
 function normalizeString(value, fallback = '') {
     const normalized = String(value ?? '').trim();
@@ -18,12 +19,14 @@ export function createEditorController({
     const getDraftSnapshot = () => {
         const { message, imageTags } = getFormattedMessageContent(messageInput);
         const text = String(message ?? '');
-        const normalizedImageTags = Array.isArray(imageTags) ? [...imageTags] : [];
+        const normalizedImageTags = Array.from(imageTags || []);
+        const quotes = [...getDraftQuotes(messageInput)];
 
         return {
             text,
             imageTags: normalizedImageTags,
-            empty: !text.trim() && normalizedImageTags.length === 0,
+            quotes,
+            empty: !text.trim() && normalizedImageTags.length === 0 && !quotes.length,
         };
     };
 
@@ -70,6 +73,8 @@ export function createEditorController({
     };
 
     return {
+        addQuote: (text) => addDraftQuote(messageInput, text),
+        setQuotes: (quotes) => setDraftQuotes(messageInput, quotes),
         focus,
         blur() {
             messageInput?.blur?.();

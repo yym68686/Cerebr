@@ -164,6 +164,7 @@ Host-rendered lists inside `page.view` now handle inline row bodies, live drag r
 Shell plugins can implement:
 
 - `onBeforeSend`
+  - 宿主先读取全部已选网页/PDF，再触发此钩子。若其中一个页面读取失败，本次发送会保留草稿并显示失败页面，不会把不完整的网页上下文传给后续请求钩子或模型；未勾选任何页面时仍可正常聊天。
 - `onBuildPrompt`
 - `onRequest`
 - `onResponse`

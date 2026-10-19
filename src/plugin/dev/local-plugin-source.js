@@ -1,3 +1,4 @@
+import { appAssetUrl } from '../../platform/assets.js';
 import { isExtensionEnvironment } from '../../utils/storage-adapter.js';
 
 function normalizeString(value, fallback = '') {
@@ -15,7 +16,7 @@ function getExtensionOrigin() {
 
 function resolveAbsoluteUrl(rawUrl) {
     if (isExtensionEnvironment) {
-        return new URL(chrome.runtime.getURL(rawUrl.replace(/^\/+/, ''))).toString();
+        return appAssetUrl(rawUrl);
     }
 
     return new URL(rawUrl, window.location.href).toString();

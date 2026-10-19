@@ -436,19 +436,15 @@
     padding: 18px;
     border-radius: 14px;
     border: 1.5px dashed var(--cerebr-highlight-border-color);
-    background:
-        radial-gradient(circle at top, rgba(48, 119, 255, 0.08), transparent 60%),
-        var(--cerebr-hover-bg-color);
+    background: var(--cerebr-settings-section-bg);
     text-align: center;
     transition: border-color 0.16s ease, background-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
 }
 
 .plugin-dev-dropzone.is-dragover {
     border-color: var(--cerebr-highlight-border-color);
-    background:
-        radial-gradient(circle at top, rgba(48, 119, 255, 0.18), transparent 62%),
-        rgba(48, 119, 255, 0.08);
-    box-shadow: 0 10px 24px rgba(48, 119, 255, 0.14);
+    background: var(--cerebr-settings-accent-bg);
+    box-shadow: 0 10px 24px var(--cerebr-popup-shadow);
     transform: translateY(-1px);
 }
 
@@ -497,8 +493,6 @@
 
 .plugin-dev-import__input:focus {
     outline: none;
-    border-color: var(--cerebr-highlight-border-color);
-    box-shadow: 0 0 0 3px rgba(48, 119, 255, 0.12);
 }
 
 @media (max-width: 560px) {

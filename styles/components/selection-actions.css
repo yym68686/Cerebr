@@ -1,0 +1,8 @@
+.composer-quotes { display: flex; flex-direction: column; gap: 6px; padding: 5px 6px 7px; max-height: 100px; overflow-y: auto; }
+.composer-quote { display: flex; align-items: center; gap: 8px; padding: 5px 7px; background: var(--cerebr-hover-bg-color); border-radius: 7px; color: var(--cerebr-text-color-secondary); font-size: var(--cerebr-fs-12); }
+.composer-quote-mark { font: 24px/1 Georgia, serif; }
+.composer-quote > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: pre-wrap; }
+.composer-quote button { border: 0; padding: 4px; background: transparent; color: inherit; cursor: pointer; display: flex; }
+.composer-quote svg { width: 14px; height: 14px; }
+.message-quotes { max-width: min(520px, 100%); align-self: flex-end; }
+.message .message-quotes blockquote { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--cerebr-fs-13); border-left: 2px solid var(--cerebr-surface-border); padding-left: 10px; margin: 0 0 6px; color: var(--cerebr-text-color-secondary); }

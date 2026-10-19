@@ -1,0 +1,42 @@
+{
+  "name": "cerebr",
+  "version": "2.5.15",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "node scripts/build.mjs",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "vitest run",
+    "check": "node scripts/release-version.mjs && npm run test && npm run build",
+    "package:extension": "node scripts/package-extension.mjs",
+    "dev:desktop": "npm run build && npm run start --workspace cerebr-desktop",
+    "package:desktop": "npm run build && npm run make --workspace cerebr-desktop"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "iconoir-react": "^7.12.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tailwind-merge": "^3.7.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^5.1.0",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^27.0.0",
+    "prettier": "^3.9.8",
+    "shadow-plugin": "^2.1.1",
+    "tailwindcss": "^4.3.3",
+    "vite": "^7.3.0",
+    "vitest": "^4.0.0"
+  },
+  "workspaces": [
+    "desktop"
+  ]
+}

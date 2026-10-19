@@ -1,3 +1,4 @@
+import { appAssetUrl } from '../../platform/assets.js';
 import {
   SITE_KEY_PLUS,
   canonicalizePositionKey,
@@ -7,6 +8,7 @@ import {
 } from '../../platform/site-key.js';
 import { createPluginBridgeMessage, isPluginBridgeMessage } from '../../plugin/bridge/plugin-bridge.js';
 import { createPagePluginRuntime } from '../../plugin/page/page-plugin-runtime.js';
+import { getBuiltinPagePluginEntries } from '../../plugin/page/page-plugin-registry.js';
 import { handleUserScriptPagePluginHostRpc } from '../../plugin/page/user-script-page-plugin-host.js';
 
 const SITE_OVERRIDES_KEY = 'panelSiteOverridesV1';
@@ -25,7 +27,7 @@ let sidebarStylesheetTextPromise = null;
 
 function getSidebarStylesheetText() {
   if (!sidebarStylesheetTextPromise) {
-    const stylesheetUrl = chrome.runtime.getURL(SIDEBAR_STYLESHEET_PATH);
+    const stylesheetUrl = appAssetUrl(SIDEBAR_STYLESHEET_PATH);
     sidebarStylesheetTextPromise = fetch(stylesheetUrl, { cache: 'no-store' })
       .then(async (response) => {
         if (!response.ok) {
@@ -75,6 +77,7 @@ function clampDimension(valuePx, { fallbackPx, minPx, maxPx }) {
 
 class CerebrSidebar {
   constructor() {
+    this.selectionToken = crypto.randomUUID();
     this.isVisible = false;
     this.sidebarWidth = 430;
     this.sidebarHeight = null;
@@ -616,7 +619,7 @@ class CerebrSidebar {
     const iframe = this.createIframe();
     if (!iframe) return false;
 
-    const iframeUrl = chrome.runtime.getURL('index.html');
+    const iframeUrl = `${appAssetUrl('index.html')}#selectionToken=${this.selectionToken}`;
     if (iframe.getAttribute('src') !== iframeUrl) {
       this.resetIframeReadyState();
       iframe.src = iframeUrl;
@@ -1045,7 +1048,6 @@ class CerebrSidebar {
         }
         this.ensureIframeLoaded();
         this.sidebar.style.display = 'block';
-        void this.sidebar.offsetWidth; // 强制重排以使过渡动画运行
         this.sidebar.classList.add('visible');
       } else {
         this.clearInputFocusRetries();
@@ -1057,17 +1059,7 @@ class CerebrSidebar {
           this.hideTimeout = null;
         }
 
-        if (!wasVisible) {
-          this.sidebar.style.display = 'none';
-        } else {
-          this.hideTimeout = setTimeout(() => {
-            if (!this.isVisible) {
-              this.sidebar.style.display = 'none';
-            }
-            this.hideTimeout = null;
-          }, 350);
-          // 350ms是为了和css的transition的0.3s对齐，再加一些余量，等动画结束再设置为display:none
-        }
+        this.sidebar.style.display = 'none';
       }
 
       // 保存状态
@@ -1484,7 +1476,14 @@ export function bootContentScript() {
       pagePluginRuntime = createPagePluginRuntime({
         sidebar,
         overlayLayer: sidebar.pluginLayer,
+        pluginEntries: getBuiltinPagePluginEntries().filter((entry) => entry.plugin.id !== 'builtin.selection-action'),
       });
+      void import('./page-selection-actions.jsx').then(({ mountPageSelectionActions }) => mountPageSelectionActions({
+        onAction: (payload) => {
+          sidebar.open();
+          return sidebar.sendReadyAwareMessage({ type: 'CEREBR_SELECTION_ACTION', token: sidebar.selectionToken, ...payload });
+        },
+      })).catch((error) => console.error('Selection Actions failed:', error));
       return pagePluginRuntime.start();
     }).catch((error) => {
       console.error('初始化页面插件运行时失败:', error);
@@ -1774,7 +1773,7 @@ async function extractPageContent(skipWaitContent = false) {
   return null;
 }
 
-const PDFJS_WORKER_PATH = chrome.runtime.getURL('lib/pdf.worker.js');
+const PDFJS_WORKER_PATH = appAssetUrl('lib/pdf.worker.js');
 
 let pdfJsReadyPromise = null;
 
@@ -1869,29 +1868,20 @@ async function extractTextFromPDF(url) {
   let loadingTask = null;
   let pdf = null;
   let worker = null;
-  try {
-    // 使用已存在的 sidebar 实例
-    if (!sidebar || !sidebar.sidebar) {
-      console.error('侧边栏实例不存在');
-      return null;
-    }
-
-    // 获取iframe
-    const iframe = sidebar.sidebar.querySelector('.cerebr-sidebar__iframe');
-    if (!iframe) {
-      console.error('找不到iframe元素');
-      return null;
-    }
-
-    // 发送更新placeholder消息
-    const sendPlaceholderUpdate = (message, timeout = 0) => {
-      // console.log('发送placeholder更新:', message);
-      iframe.contentWindow.postMessage({
+  // Other selected tabs may never have opened the lazily created sidebar.
+  // Progress display is optional; it must not prevent extracting their PDFs.
+  const sendPlaceholderUpdate = (message, timeout = 0) => {
+    try {
+      sidebar?.postMessageToIframe({
         type: 'UPDATE_PLACEHOLDER',
         placeholder: message,
         timeout: timeout
-      }, '*');
-    };
+      });
+    } catch {
+      // A closed or reloading sidebar must not interrupt PDF extraction.
+    }
+  };
+  try {
 
     sendPlaceholderUpdate('正在下载PDF文件...');
 
@@ -1902,7 +1892,7 @@ async function extractTextFromPDF(url) {
       url: url
     });
 
-    if (!initResponse.success) {
+    if (!initResponse?.success) {
       console.error('PDF初始化失败，响应:', initResponse);
       sendPlaceholderUpdate('PDF下载失败', 2000);
       throw new Error('PDF初始化失败');
@@ -2003,16 +1993,7 @@ async function extractTextFromPDF(url) {
   } catch (error) {
     console.error('PDF处理过程中出错:', error);
     console.error('错误堆栈:', error.stack);
-    if (sidebar && sidebar.sidebar) {
-      const iframe = sidebar.sidebar.querySelector('.cerebr-sidebar__iframe');
-      if (iframe) {
-        iframe.contentWindow.postMessage({
-          type: 'UPDATE_PLACEHOLDER',
-          placeholder: 'PDF处理失败',
-          timeout: 2000
-        }, '*');
-      }
-    }
+    sendPlaceholderUpdate('PDF处理失败', 2000);
     return null;
   } finally {
     if (requestId) {

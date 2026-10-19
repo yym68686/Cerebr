@@ -1,7 +1,9 @@
+/* Floating notifications use Beautiful UI's neutral surface and restrained
+   status colors. Keep them above the conversation, clear of the Prompt Bar. */
 .toast-container {
     position: fixed;
-    left: 50%;
-    bottom: calc(64px + env(safe-area-inset-bottom));
+    top: calc(16px + env(safe-area-inset-top));
+    left: calc(50% + var(--cerebr-navigation-width, 0px) / 2);
     transform: translateX(-50%);
     z-index: 2147483647;
     display: flex;
@@ -9,66 +11,53 @@
     align-items: center;
     gap: 8px;
     pointer-events: none;
-    width: min(520px, calc(100vw - 24px));
+    width: min(440px, calc(100vw - var(--cerebr-navigation-width, 0px) - 32px));
 }
 
 .toast {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    box-sizing: border-box;
     width: fit-content;
     max-width: 100%;
-    padding: 10px 12px;
-    border-radius: 12px;
+    min-height: 36px;
+    padding: 8px 12px;
+    border-radius: 18px;
     background: var(--cerebr-toast-bg);
     color: var(--cerebr-toast-text);
     font-size: var(--cerebr-fs-13);
-    line-height: 1.35;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+    font-weight: 400;
+    line-height: 20px;
+    box-shadow: 0 0 0 1px var(--cerebr-toast-border), var(--cerebr-toast-shadow);
     opacity: 0;
-    transform: translateY(8px) scale(0.98);
-    animation: toastIn 0.16s ease-out forwards;
-    text-align: center;
-    backdrop-filter: blur(var(--cerebr-blur-radius));
-    -webkit-backdrop-filter: blur(var(--cerebr-blur-radius));
+    animation: toastIn .2s cubic-bezier(.16, 1, .3, 1) forwards;
 }
 
-.toast--success {
-    background: var(--cerebr-toast-success-bg);
+.toast__icon {
+    flex: 0 0 auto;
+    margin-top: 2px;
+    color: var(--cerebr-toast-muted);
 }
-
-.toast--error {
-    background: var(--cerebr-toast-error-bg);
-}
-
-.toast--hide {
-    animation: toastOut 0.16s ease-in forwards;
-}
+.toast--success .toast__icon { color: var(--cerebr-toast-success-icon); }
+.toast--error .toast__icon { color: var(--cerebr-toast-error-icon); }
+.toast__message { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.toast--hide { animation: toastOut .16s ease-in forwards; }
 
 @keyframes toastIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px) scale(0.98);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes toastOut {
-    from {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-    to {
-        opacity: 0;
-        transform: translateY(6px) scale(0.98);
-    }
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-3px); }
 }
 
+/* Leave the narrow-screen navigation button and top edge unobstructed. */
+@media (max-width: 767px) {
+    .toast-container { top: calc(56px + env(safe-area-inset-top)); }
+}
 @media (prefers-reduced-motion: reduce) {
-    .toast,
-    .toast--hide {
-        animation: none;
-        opacity: 1;
-        transform: none;
-    }
+    .toast, .toast--hide { animation: none; opacity: 1; transform: none; }
+    .toast--hide { opacity: 0; }
 }
