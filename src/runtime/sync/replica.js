@@ -110,7 +110,12 @@ export async function writeLocal(db, values, removals = []) {
 
 export async function seedReplica(db, suppliedKeys) {
     const keys = suppliedKeys || (await request(db.transaction(KV).objectStore(KV).getAllKeys()));
-    for (const key of keys.filter(isSyncedKey)) {
+    // Reconnecting is common. Inspect keys first so existing history (including
+    // large image records) is not cloned in thousands of read/write transactions.
+    const existing = new Set(
+        await request(db.transaction(SYNC_RECORDS).objectStore(SYNC_RECORDS).getAllKeys())
+    );
+    for (const key of keys.filter((key) => isSyncedKey(key) && !existing.has(key))) {
         const tx = db.transaction([KV, SYNC_RECORDS, SYNC_META], 'readwrite'),
             complete = done(tx);
         const records = tx.objectStore(SYNC_RECORDS),
@@ -148,7 +153,7 @@ export async function acknowledgeRecord(db, record) {
         complete = done(tx),
         store = tx.objectStore(SYNC_RECORDS);
     const local = await request(store.get(record.key));
-    if (local && compareVersions(local.version, record.version) === 0)
+    if (local?.dirty && compareVersions(local.version, record.version) === 0)
         store.put({ ...local, dirty: 0 }, record.key);
     await complete;
 }
@@ -180,9 +185,11 @@ export async function applyRemoteRecord(db, record) {
     if (!local || order > 0) announceRemoteChanges([record.key]);
     return !local || order >= 0;
 }
-export async function replicaManifest(db) {
+export async function replicaManifest(db, { includeDirty = false } = {}) {
     // Keys/revisions only during reconnect; image payloads are transferred only when needed.
-    return (await replicaRecords(db)).map(({ key, version, deleted }) => ({ key, version, deleted }));
+    return (await replicaRecords(db)).map(({ key, version, deleted, dirty }) => ({
+        key, version, deleted, ...(includeDirty ? { dirty: !!dirty } : {}),
+    }));
 }
 export async function replicaRecord(db, key) {
     return request(db.transaction(SYNC_RECORDS).objectStore(SYNC_RECORDS).get(key));

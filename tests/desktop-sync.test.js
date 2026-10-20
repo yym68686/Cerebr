@@ -100,6 +100,28 @@ it('preserves a newer unsent edit when a delayed acknowledgement arrives', async
     expect((await replicaRecord(a, first.key)).value.messages[0].content).toBe('second');
     expect(await replicaRecords(a, { dirtyOnly: true })).toHaveLength(1);
 });
+it('reconnects an acknowledged history without rewriting its records while still acknowledging offline writes', async () => {
+    const db = await database();
+    for (let i = 0; i < 40; i++) {
+        await applyRemoteRecord(db, {
+            key: `cerebr_chat_v2_${i}`, value: chat(String(i), 'Synced history'),
+            version: { clock: i + 1, actor: 'remote' }, deleted: false,
+        });
+    }
+    const manifest = await replicaManifest(db);
+    const transactions = vi.spyOn(db, 'transaction');
+    const client = await createSyncClient({ db, send: () => {} });
+    try {
+        await client.receive({ type: 'manifest', records: manifest });
+        expect(transactions.mock.calls.filter(([, mode]) => mode === 'readwrite')).toHaveLength(0);
+        transactions.mockRestore();
+        await writeLocal(db, { cerebr_chat_v2_offline: chat('offline', 'Unacknowledged') });
+        expect(await replicaRecords(db, { dirtyOnly: true })).toHaveLength(1);
+        await client.receive({ type: 'manifest', records: await replicaManifest(db) });
+        expect(await replicaRecords(db, { dirtyOnly: true })).toEqual([]);
+        expect((await replicaRecord(db, 'cerebr_chat_v2_offline')).value.messages[0].content).toBe('Unacknowledged');
+    } finally { transactions.mockRestore(); client.close(); }
+});
 it('synchronizes two independent replicas through the desktop database and converges after offline edits', async () => {
     const a = await database(),
         b = await database(),

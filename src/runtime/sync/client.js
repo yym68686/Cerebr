@@ -58,7 +58,7 @@ export async function createSyncClient({
     const receive = async (message) => {
         if (stopped) return;
         if (message.type === 'manifest') {
-            const local = new Map((await replicaManifest(db)).map((r) => [r.key, r]));
+            const local = new Map((await replicaManifest(db, { includeDirty: true })).map((r) => [r.key, r]));
             const needed = [];
             for (const remote of message.records) {
                 acknowledged.set(remote.key, remote.version);
@@ -66,7 +66,7 @@ export async function createSyncClient({
                 if (!ours || compareVersions(remote.version, ours.version) > 0) needed.push(remote.key);
                 else if (compareVersions(remote.version, ours.version) < 0)
                     send({ type: 'put', record: await replicaRecord(db, remote.key) });
-                else await acknowledgeRecord(db, remote);
+                else if (ours.dirty) await acknowledgeRecord(db, remote);
                 local.delete(remote.key);
             }
             for (const key of local.keys()) send({ type: 'put', record: await replicaRecord(db, key) });
