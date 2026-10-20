@@ -168,7 +168,7 @@ export async function createSyncClient({
             reconciliation = null;
             reject(new Error('同步响应超时，请重新连接。'));
         }, 30000);
-        onStatus({ syncing: true, verification: null });
+        onStatus({ syncing: true });
         // A suspended tab may miss events despite retaining an open socket.
         send({ type: 'hello' });
         return promise;
@@ -196,6 +196,7 @@ export async function createSyncClient({
         },
         async verify() {
             if (!ready || stopped) throw new Error('请先连接同步并等待首次同步完成。');
+            onStatus({ verification: null });
             await reconcile();
             await queue;
             await transmit();
