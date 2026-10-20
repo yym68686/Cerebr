@@ -112,7 +112,7 @@ async function connect() {
     client?.close();
     client = null;
     socket?.close();
-    emitStatus({ connecting: true, connected: false, error: null, user: authData.user });
+    emitStatus({ connecting: true, connected: false, syncing: false, error: null, user: authData.user });
     const device = await metadata();
     if (current !== generation) return;
     const ws = new WebSocket(CLOUD_SYNC_URL.replace(/^http/, 'ws') + '/sync');
@@ -145,7 +145,7 @@ async function connect() {
                         onLive: emitLive,
                         onProgress: emitProgress,
                         onStatus: (s) => {
-                            emitStatus({ ...s, connecting: false });
+                            emitStatus({ ...s, ...(s.connected !== undefined || s.error ? { connecting: false } : {}), ...(s.error ? { syncing: false } : {}) });
                             if (s.lastSyncAt) void reportStats().catch(() => {});
                         },
                     });
@@ -171,6 +171,7 @@ async function connect() {
         emitStatus({
             connected: false,
             connecting: false,
+            syncing: false,
             ...(event.code === 4003 ? { error: '同步已被暂停或账号已封禁，请联系管理员。' } : {}),
         });
         if (!stopped && !authenticationError && event.code !== 4003)
@@ -206,9 +207,11 @@ async function runAction(action, payload) {
             user: null,
             connected: false,
             connecting: false,
+            syncing: false,
             error: null,
             verification: null,
             summary: null,
+            localSummary: null,
         });
         return { ok: true };
     }

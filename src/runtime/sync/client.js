@@ -1,4 +1,4 @@
-import { compareVersions } from './protocol.js';
+import { CHAT_PREFIX, compareVersions } from './protocol.js';
 import {
     acknowledgeRecord,
     applyRemoteRecord,
@@ -26,6 +26,31 @@ export async function createSyncClient({
     const acknowledged = new Map();
     const pending = new Set();
     let scan = true;
+    // Counts describe the records already available locally, including offline
+    // edits. Keep only their contributions, never duplicate image payloads.
+    const counted = new Map();
+    let chats = 0, messages = 0, countsTimer, countsChanged = false;
+    const publishCounts = () => {
+        clearTimeout(countsTimer);
+        countsTimer = null;
+        if (stopped || !countsChanged) return;
+        countsChanged = false;
+        onStatus({ localSummary: { chats, messages } });
+    };
+    const countRecord = (record) => {
+        if (!record) return;
+        const previous = counted.get(record.key);
+        if (previous && compareVersions(record.version, previous.version) <= 0) return;
+        const chat = record.key.startsWith(CHAT_PREFIX) && !record.deleted ? 1 : 0;
+        const count = chat ? (record.messageCount ?? record.value?.messages?.length ?? 0) : 0;
+        counted.set(record.key, { version: record.version, chat, messages: count });
+        chats += chat - (previous?.chat || 0);
+        messages += count - (previous?.messages || 0);
+        countsChanged = true;
+        // Limit React and extension-storage updates during large imports, while
+        // continuing to show progress before the final server barrier arrives.
+        if (!countsTimer) countsTimer = setTimeout(publishCounts, 200);
+    };
     const transmit = async () => {
         if (!ready || stopped) return;
         if (scan) {
@@ -37,6 +62,7 @@ export async function createSyncClient({
         pending.clear();
         for (const key of keys) {
             const record = await replicaRecord(db, key);
+            countRecord(record);
             if (record && compareVersions(record.version, acknowledged.get(key)) > 0)
                 send({ type: 'put', record });
         }
@@ -58,7 +84,13 @@ export async function createSyncClient({
     const receive = async (message) => {
         if (stopped) return;
         if (message.type === 'manifest') {
-            const local = new Map((await replicaManifest(db, { includeDirty: true })).map((r) => [r.key, r]));
+            onStatus({ syncing: true });
+            const local = new Map((await replicaManifest(db, { includeDirty: true, includeCounts: true })).map((r) => [r.key, r]));
+            counted.clear();
+            chats = messages = 0;
+            countsChanged = true;
+            local.forEach(countRecord);
+            publishCounts();
             const needed = [];
             for (const remote of message.records) {
                 acknowledged.set(remote.key, remote.version);
@@ -77,10 +109,14 @@ export async function createSyncClient({
         } else if (message.type === 'record') {
             acknowledged.set(message.record.key, message.record.version);
             const applied = await applyRemoteRecord(db, message.record);
-            if (!applied) send({ type: 'put', record: await replicaRecord(db, message.record.key) });
+            const record = applied ? message.record : await replicaRecord(db, message.record.key);
+            countRecord(record);
+            if (!applied) send({ type: 'put', record });
         } else if (message.type === 'caught-up') {
+            publishCounts();
             onStatus({
                 connected: true,
+                syncing: false,
                 lastSyncAt: Date.now(),
                 error: null,
                 ...(message.summary ? { summary: message.summary } : {}),
@@ -150,6 +186,7 @@ export async function createSyncClient({
             stopped = true;
             ready = false;
             clearTimeout(timer);
+            clearTimeout(countsTimer);
             unsubscribe();
             unsubscribeRemote();
             for (const check of checks.values()) {

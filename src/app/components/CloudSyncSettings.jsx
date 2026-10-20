@@ -5,6 +5,7 @@ import { t } from '../../utils/i18n.js';
 
 export function CloudSyncSettings() {
     const state = useSyncExternalStore(cloudSyncStore.subscribe, cloudSyncStore.getSnapshot);
+    const counts = state.localSummary ?? state.summary;
     const [mode, setMode] = useState('login'),
         [username, setUsername] = useState(''),
         [password, setPassword] = useState(''),
@@ -43,11 +44,13 @@ export function CloudSyncSettings() {
                         >
                             <i />
                             {t(
-                                state.connected
-                                    ? 'desktop_sync_connected'
-                                    : state.connecting
-                                      ? 'cloud_sync_connecting'
-                                      : 'desktop_sync_disconnected'
+                                state.syncing
+                                    ? 'cloud_sync_syncing'
+                                    : state.connected
+                                      ? 'desktop_sync_connected'
+                                      : state.connecting
+                                        ? 'cloud_sync_connecting'
+                                        : 'desktop_sync_disconnected'
                             )}
                         </span>
                     )}
@@ -71,12 +74,12 @@ export function CloudSyncSettings() {
                         </div>
                         <div className="sync-overview">
                             <div className="sync-stat">
-                                <strong>{new Intl.NumberFormat().format(state.summary?.chats || 0)}</strong>
+                                <strong>{new Intl.NumberFormat().format(counts?.chats || 0)}</strong>
                                 <span>{t('sync_chats')}</span>
                             </div>
                             <div className="sync-stat">
                                 <strong>
-                                    {new Intl.NumberFormat().format(state.summary?.messages || 0)}
+                                    {new Intl.NumberFormat().format(counts?.messages || 0)}
                                 </strong>
                                 <span>{t('sync_messages')}</span>
                             </div>

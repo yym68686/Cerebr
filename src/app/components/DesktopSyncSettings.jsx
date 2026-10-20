@@ -38,7 +38,7 @@ export function DesktopSyncSettings() {
         return () => clearTimeout(timer);
     }, [copied]);
     if (!isDesktop && !isExtensionEnvironment) return null;
-    const counts = isDesktop ? state : state.summary;
+    const counts = state.localSummary ?? (isDesktop ? state : state.summary);
     const format = (value) => new Intl.NumberFormat().format(value || 0);
     const run = async (operation) => {
         setError('');

@@ -464,6 +464,7 @@
   "cloud_sync_title": {"message": "在所有设备继续对话"},
   "cloud_sync_description": {"message": "同一账号，连接网页、桌面和浏览器扩展。"},
   "cloud_sync_connecting": {"message": "连接中"},
+  "cloud_sync_syncing": {"message": "正在同步"},
   "cloud_sync_local_first": {"message": "先保存在本地，再同步到云端"},
   "cloud_sync_logout": {"message": "退出登录"},
   "cloud_sync_reconnect": {"message": "重新连接"},

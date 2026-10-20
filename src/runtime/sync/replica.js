@@ -185,10 +185,11 @@ export async function applyRemoteRecord(db, record) {
     if (!local || order > 0) announceRemoteChanges([record.key]);
     return !local || order >= 0;
 }
-export async function replicaManifest(db, { includeDirty = false } = {}) {
+export async function replicaManifest(db, { includeDirty = false, includeCounts = false } = {}) {
     // Keys/revisions only during reconnect; image payloads are transferred only when needed.
-    return (await replicaRecords(db)).map(({ key, version, deleted, dirty }) => ({
+    return (await replicaRecords(db)).map(({ key, version, deleted, dirty, value }) => ({
         key, version, deleted, ...(includeDirty ? { dirty: !!dirty } : {}),
+        ...(includeCounts ? { messageCount: value?.messages?.length || 0 } : {}),
     }));
 }
 export async function replicaRecord(db, key) {

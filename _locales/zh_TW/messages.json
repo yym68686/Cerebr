@@ -464,6 +464,7 @@
   "cloud_sync_title": {"message": "在所有裝置繼續對話"},
   "cloud_sync_description": {"message": "同一帳號，連接網頁、桌面和瀏覽器擴充功能。"},
   "cloud_sync_connecting": {"message": "連接中"},
+  "cloud_sync_syncing": {"message": "正在同步"},
   "cloud_sync_local_first": {"message": "先儲存在本機，再同步至雲端"},
   "cloud_sync_logout": {"message": "登出"},
   "cloud_sync_reconnect": {"message": "重新連接"},

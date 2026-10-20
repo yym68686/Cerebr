@@ -240,3 +240,51 @@ it('acknowledges local and cloud connections independently and relays records re
         expect(cloudSent.filter((m) => m.type === 'put')).toEqual([]);
     } finally { local.close(); cloud.close(); }
 });
+
+it('publishes incremental local counts before initial sync finishes without double-counting acknowledgements', async () => {
+    const db = await database(), status = {}, onStatus = vi.fn((patch) => Object.assign(status, patch));
+    const client = await createSyncClient({ db, send: () => {}, onStatus });
+    const record = (id, clock, count, deleted = false) => ({
+        key: `cerebr_chat_v2_${id}`, version: { clock, actor: 'remote' }, deleted,
+        value: deleted ? null : { ...chat(id, 'Question'), messages: Array.from({ length: count }, () => ({ role: 'user', content: 'Message' })) },
+    });
+    try {
+        await client.receive({ type: 'manifest', records: [] });
+        expect(status.localSummary).toEqual({ chats: 0, messages: 0 });
+        expect(status.syncing).toBe(true);
+        const first = record('first', 1, 2), second = record('second', 2, 3);
+        await client.receive({ type: 'record', record: first });
+        await vi.waitFor(() => expect(status.localSummary).toEqual({ chats: 1, messages: 2 }));
+        expect(status.connected).not.toBe(true);
+        await client.receive({ type: 'record', record: first });
+        await client.receive({ type: 'record', record: second });
+        await vi.waitFor(() => expect(status.localSummary).toEqual({ chats: 2, messages: 5 }));
+        await client.receive({ type: 'record', record: record('first', 3, 4) });
+        await client.receive({ type: 'record', record: first }); // stale replay
+        await client.receive({ type: 'record', record: record('second', 4, 0, true) });
+        await client.receive({ type: 'caught-up', summary: { chats: 1, messages: 4 } });
+        expect(status.localSummary).toEqual({ chats: 1, messages: 4 });
+        expect(status.syncing).toBe(false);
+        expect(status.connected).toBe(true);
+        // Closing cancels pending UI updates rather than reviving an old connection.
+        await client.receive({ type: 'record', record: record('third', 5, 1) });
+        client.close();
+        const calls = onStatus.mock.calls.length;
+        await new Promise(resolve => setTimeout(resolve, 250));
+        expect(onStatus).toHaveBeenCalledTimes(calls);
+    } finally { client.close(); }
+});
+
+it('shows existing offline history immediately and includes pending local edits during sync', async () => {
+    const db = await database(), status = {};
+    await writeLocal(db, { cerebr_chat_v2_offline: chat('offline', 'Offline question') });
+    const client = await createSyncClient({ db, send: () => {}, onStatus: patch => Object.assign(status, patch) });
+    try {
+        await client.receive({ type: 'manifest', records: [] });
+        expect(status.localSummary).toEqual({ chats: 1, messages: 1 });
+        await writeLocal(db, { cerebr_chat_v2_next: chat('next', 'Another question') });
+        await client.flush();
+        await vi.waitFor(() => expect(status.localSummary).toEqual({ chats: 2, messages: 2 }));
+        expect(status.syncing).toBe(true);
+    } finally { client.close(); }
+});
