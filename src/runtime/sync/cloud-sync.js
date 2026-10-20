@@ -89,9 +89,13 @@ async function metadata() {
 const send = (message) => {
     if (socket?.readyState === 1) socket.send(JSON.stringify(message));
 };
-let statsDue = 0;
+let statsDue = 0, statsTimer;
 async function reportStats() {
-    if (Date.now() - statsDue < 10000) return;
+    if (Date.now() - statsDue < 10000) {
+        if (!statsTimer) statsTimer = setTimeout(() => { statsTimer = null; void reportStats().catch(() => {}); }, 10000 - (Date.now() - statsDue));
+        return;
+    }
+    clearTimeout(statsTimer); statsTimer = null;
     statsDue = Date.now();
     const db = await getDb(),
         keys = (await replicaManifest(db)).filter((r) => !r.deleted && r.key.startsWith('cerebr_chat_v2_'));
@@ -104,6 +108,7 @@ async function connect() {
     const current = ++generation;
     clearTimeout(retry);
     clearInterval(heartbeat);
+    clearTimeout(statsTimer); statsTimer = null; statsDue = 0;
     client?.close();
     client = null;
     socket?.close();
@@ -162,6 +167,7 @@ async function connect() {
         client?.close();
         client = null;
         clearInterval(heartbeat);
+        clearTimeout(statsTimer); statsTimer = null;
         emitStatus({
             connected: false,
             connecting: false,
@@ -187,6 +193,7 @@ async function runAction(action, payload) {
         generation++;
         clearTimeout(retry);
         clearInterval(heartbeat);
+        clearTimeout(statsTimer); statsTimer = null;
         socket?.close();
         client?.close();
         client = null;
