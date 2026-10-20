@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { IDBFactory } from 'fake-indexeddb';
 import { SyncDatabase } from '../desktop/src/sync-database.ts';
 import {
@@ -192,4 +192,29 @@ it('verifies the exact history bytes using the same digest in Chromium and the d
     records[0].value = { text: 'changed' };
     expect((await browserSummary(records)).digest).not.toEqual(server.summary(true).digest);
     server.close();
+});
+it('acknowledges local and cloud connections independently and relays records received on the other connection', async () => {
+    const db = await database(), localSent = [], cloudSent = [];
+    const local = await createSyncClient({ db, send: (m) => localSent.push(m) });
+    const cloud = await createSyncClient({ db, send: (m) => cloudSent.push(m) });
+    try {
+        await local.receive({ type: 'manifest', records: [] });
+        await cloud.receive({ type: 'manifest', records: [] });
+        await writeLocal(db, { cerebr_chat_v2_both: chat('both', 'Question') });
+        await local.flush();
+        const record = localSent.find((m) => m.type === 'put').record;
+        await local.receive({ type: 'record', record });
+        expect(await replicaRecords(db, { dirtyOnly: true })).toEqual([]);
+        await cloud.flush();
+        expect(cloudSent.some((m) => m.type === 'put' && m.record.key === record.key)).toBe(true);
+        await cloud.receive({ type: 'record', record });
+        cloudSent.length = 0;
+        const remote = { ...record, key: 'cerebr_chat_v2_remote', value: chat('remote', 'From extension'), version: { clock: record.version.clock + 1, actor: 'remote' } };
+        await local.receive({ type: 'record', record: remote });
+        await vi.waitFor(() => expect(cloudSent.some((m) => m.type === 'put' && m.record.key === remote.key)).toBe(true));
+        await cloud.receive({ type: 'record', record: remote });
+        cloudSent.length = 0;
+        await cloud.flush();
+        expect(cloudSent.filter((m) => m.type === 'put')).toEqual([]);
+    } finally { local.close(); cloud.close(); }
 });

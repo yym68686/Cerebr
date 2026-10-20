@@ -21,7 +21,7 @@ const complete = (tx) =>
         tx.oncomplete = resolve;
         tx.onabort = () => reject(tx.error);
     });
-export const usesApiReplica = () => isExtensionEnvironment || !!globalThis.cerebrDesktop;
+export const usesApiReplica = () => true;
 export const isApiRecord = (key) => key === API_SELECTION || key.startsWith(API_CONFIG_PREFIX);
 function sharedConfig(config) {
     const result = {

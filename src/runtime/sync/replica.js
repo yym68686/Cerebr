@@ -34,13 +34,13 @@ export function announceRemoteChanges(keys) {
         channel?.postMessage({ type: 'remote', keys: batch });
     }, 50);
 }
-export function announceLocalChanges() {
-    localListeners.forEach((fn) => fn());
-    channel?.postMessage({ type: 'local' });
+export function announceLocalChanges(keys) {
+    localListeners.forEach((fn) => fn(keys));
+    channel?.postMessage({ type: 'local', keys });
 }
 export function subscribeLocalChanges(fn) {
     const listener = (event) => {
-        if (event.data?.type === 'local') fn();
+        if (event.data?.type === 'local') fn(event.data.keys);
     };
     localListeners.add(fn);
     channel?.addEventListener('message', listener);
@@ -105,7 +105,7 @@ export async function writeLocal(db, values, removals = []) {
     }
     meta.put(state, 'state');
     await complete;
-    if (changed) announceLocalChanges();
+    if (changed) announceLocalChanges([...Object.keys(values), ...removals].filter(isSyncedKey));
 }
 
 export async function seedReplica(db, suppliedKeys) {

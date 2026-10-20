@@ -1,5 +1,6 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
+vi.mock('../src/runtime/sync/api-settings.js', () => ({ usesApiReplica: () => false, isApiRecord: () => false }));
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const memory = vi.hoisted(() => ({}));
 vi.mock('../src/utils/storage-adapter.js', () => {

@@ -7,6 +7,7 @@ import {
     replicaRecords,
     seedReplica,
     subscribeLocalChanges,
+    subscribeRemoteChanges,
 } from './replica.js';
 import { browserSummary } from './summary.js';
 export async function createSyncClient({
@@ -22,24 +23,45 @@ export async function createSyncClient({
         queue = Promise.resolve(),
         stopped = false;
     const checks = new Map();
+    const acknowledged = new Map();
+    const pending = new Set();
+    let scan = true;
     const transmit = async () => {
         if (!ready || stopped) return;
-        for (const record of await replicaRecords(db, { dirtyOnly: true })) send({ type: 'put', record });
+        if (scan) {
+            scan = false;
+            for (const item of await replicaManifest(db))
+                if (compareVersions(item.version, acknowledged.get(item.key)) > 0) pending.add(item.key);
+        }
+        const keys = [...pending];
+        pending.clear();
+        for (const key of keys) {
+            const record = await replicaRecord(db, key);
+            if (record && compareVersions(record.version, acknowledged.get(key)) > 0)
+                send({ type: 'put', record });
+        }
         send({ type: 'barrier', id: crypto.randomUUID() });
     };
-    const unsubscribe = subscribeLocalChanges(() => {
+    const schedule = (keys) => {
+        if (keys) keys.forEach((key) => pending.add(key));
+        else scan = true;
         if (!timer)
             timer = setTimeout(() => {
                 timer = 0;
                 queue = queue.then(transmit).catch((e) => onStatus({ error: e.message }));
             }, 100);
-    });
+    };
+    const unsubscribe = subscribeLocalChanges(schedule);
+    // A write received from the local bridge must also reach the cloud (and
+    // vice versa). Acknowledgements belong to this connection, not the record.
+    const unsubscribeRemote = subscribeRemoteChanges(schedule);
     const receive = async (message) => {
         if (stopped) return;
         if (message.type === 'manifest') {
             const local = new Map((await replicaManifest(db)).map((r) => [r.key, r]));
             const needed = [];
             for (const remote of message.records) {
+                acknowledged.set(remote.key, remote.version);
                 const ours = local.get(remote.key);
                 if (!ours || compareVersions(remote.version, ours.version) > 0) needed.push(remote.key);
                 else if (compareVersions(remote.version, ours.version) < 0)
@@ -49,9 +71,11 @@ export async function createSyncClient({
             }
             for (const key of local.keys()) send({ type: 'put', record: await replicaRecord(db, key) });
             ready = true;
+            scan = false;
             send({ type: 'get', keys: needed, id: crypto.randomUUID() });
             send({ type: 'barrier', id: crypto.randomUUID() });
         } else if (message.type === 'record') {
+            acknowledged.set(message.record.key, message.record.version);
             const applied = await applyRemoteRecord(db, message.record);
             if (!applied) send({ type: 'put', record: await replicaRecord(db, message.record.key) });
         } else if (message.type === 'caught-up') {
@@ -127,6 +151,7 @@ export async function createSyncClient({
             ready = false;
             clearTimeout(timer);
             unsubscribe();
+            unsubscribeRemote();
             for (const check of checks.values()) {
                 clearTimeout(check.timer);
                 check.reject(new Error('同步连接已关闭。'));

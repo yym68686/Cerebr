@@ -458,5 +458,21 @@
   "update_error_development": {"message": "開發模式下無法安裝更新，請使用桌面安裝包。"},
   "update_error_portable": {"message": "請先使用 Setup.exe 安裝 Cerebr，以啟用自動更新。"},
   "update_error_first_run": {"message": "安裝程式正在完成設定，請稍後重試。"},
-  "update_error_unsupported": {"message": "目前系統暫不支援自動更新。"}
+  "update_error_unsupported": {"message": "目前系統暫不支援自動更新。"},
+  "sync_title": {"message": "同步"},
+  "local_sync_title": {"message": "本機同步"},
+  "cloud_sync_title": {"message": "在所有裝置繼續對話"},
+  "cloud_sync_description": {"message": "同一帳號，連接網頁、桌面和瀏覽器擴充功能。"},
+  "cloud_sync_connecting": {"message": "連接中"},
+  "cloud_sync_local_first": {"message": "先儲存在本機，再同步至雲端"},
+  "cloud_sync_logout": {"message": "登出"},
+  "cloud_sync_reconnect": {"message": "重新連接"},
+  "cloud_sync_account": {"message": "同步帳號"},
+  "cloud_sync_login": {"message": "登入"},
+  "cloud_sync_register": {"message": "註冊"},
+  "cloud_sync_username": {"message": "使用者名稱"},
+  "cloud_sync_password": {"message": "密碼（至少 10 位）"},
+  "cloud_sync_submitting": {"message": "請稍候…"},
+  "cloud_sync_merge_note": {"message": "登入後合併此裝置的聊天、附件、草稿與 API 設定。帳號僅用於同步，登出後保留本機內容。"},
+  "cloud_sync_backup_note": {"message": "離線也能聊天。本機與雲端同步互為備份。"}
 }

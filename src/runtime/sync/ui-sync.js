@@ -1,6 +1,7 @@
 import { createStore } from '../../app/state/store.js';
 import { getDb, isExtensionEnvironment } from '../../utils/storage-adapter.js';
 import { createSyncClient } from './client.js';
+import { startCloudSync, publishCloudLive, publishCloudProgress, subscribeCloudLive, subscribeCloudProgress } from './cloud-sync.js';
 import { applyLiveChat, clearLiveChat, clearLiveChats, settleLiveChat } from './live-chat.js';
 import { updateDesktopBrowser, emitDesktopBrowserEvent } from '../../platform/desktop-browser.js';
 export const isDesktop = !!globalThis.cerebrDesktop;
@@ -34,6 +35,9 @@ const live = (frame) => {
         progress({ chatId: frame.chatId, phase: frame.phase, startedAt: frame.startedAt });
 };
 export async function startUISync() {
+    subscribeCloudLive(live);
+    subscribeCloudProgress(progress);
+    void startCloudSync().catch((error)=>console.error('[Cerebr] Cloud sync initialization failed',error));
     if (isDesktop) {
         const unsubscribe = globalThis.cerebrDesktop.onMessage(
             (message) => void desktopClient?.receive(message)
@@ -81,11 +85,13 @@ export function publishLiveChat(frame) {
         clearLiveChat(frame.chatId);
     }
     if (frame.phase === 'idle') localRequests.delete(frame.chatId);
+    publishCloudLive(frame);
     if (isDesktop) desktopClient?.live(frame);
     else if (isExtensionEnvironment)
         void chrome.runtime.sendMessage({ type: 'CEREBR_LOCAL_LIVE', frame }).catch(() => {});
 }
 export function publishProgress(value) {
+    publishCloudProgress(value);
     if (isDesktop) desktopClient?.progress(value);
     else if (isExtensionEnvironment)
         void chrome.runtime.sendMessage({ type: 'CEREBR_LOCAL_PROGRESS', progress: value }).catch(() => {});

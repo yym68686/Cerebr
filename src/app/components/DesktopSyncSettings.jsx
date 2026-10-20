@@ -55,7 +55,7 @@ export function DesktopSyncSettings() {
     return (
         <section className="preferences-section" id="desktop-sync-settings">
             <div className="settings-section-heading">
-                <h2>{t('desktop_sync_title')}</h2>
+                <h2>{t('local_sync_title')}</h2>
             </div>
             <div className="sync-card">
                 <div className="sync-card-header">

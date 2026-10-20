@@ -1,4 +1,5 @@
 import { DesktopSyncSettings } from './DesktopSyncSettings.jsx';
+import { CloudSyncSettings } from './CloudSyncSettings.jsx';
 import { DesktopUpdateSettings } from './DesktopUpdateSettings.jsx';
 import { useRef, useState, useSyncExternalStore } from 'react';
 import { preferencesStore, changePreference } from '../state/preferences.js';
@@ -69,6 +70,7 @@ export function Preferences({ visible, onBack, saveDraft }) {
             title={t('title_preferences')}
             description={t('preferences_description')}
         >
+            <CloudSyncSettings />
             <DesktopSyncSettings />
             <section className="preferences-section">
                 <div className="settings-section-heading">
