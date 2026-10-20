@@ -22,6 +22,15 @@ it('keeps a finished frame until matching durable history arrives', () => {
     reconcileLiveChat('a', chat);
     expect(getLiveChat('a')).toBeUndefined();
 });
+it('releases a finished preview when later offline messages or edits arrive', () => {
+    const chat = { ...initial.chat, updatedAt: '2026-10-20T00:00:00Z' };
+    applyLiveChat({ ...initial, phase: 'idle', chat });
+    reconcileLiveChat('a', { ...chat, messages: [...chat.messages, { role: 'user', content: 'Offline question' }] });
+    expect(getLiveChat('a')).toBeUndefined();
+    applyLiveChat({ ...initial, phase: 'idle', chat });
+    reconcileLiveChat('a', { ...chat, updatedAt: '2026-10-20T00:01:00Z', messages: [{ role: 'user', content: 'Edited offline' }] });
+    expect(getLiveChat('a')).toBeUndefined();
+});
 it('does not apply an old request or a delta without its own initial snapshot', () => {
     applyLiveChat(initial);
     expect(applyLiveChat({ ...initial, requestId: 'r2', chat: undefined, sequence: 2, index: 0, message: {} })).toBe(false);

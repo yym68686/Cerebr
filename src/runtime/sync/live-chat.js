@@ -47,7 +47,10 @@ export function reconcileLiveChat(chatId, durable) {
     if (!view) return;
     if (
         !durable ||
-        (view.phase === 'idle' && JSON.stringify(view.chat.messages) === JSON.stringify(durable.messages))
+        (view.phase === 'idle' && (
+            Date.parse(durable.updatedAt) > Date.parse(view.chat.updatedAt) ||
+            JSON.stringify(view.chat.messages) === JSON.stringify(durable.messages?.slice(0, view.chat.messages.length))
+        ))
     ) {
         views.delete(chatId);
         listeners.forEach((fn) => fn());
