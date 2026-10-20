@@ -98,11 +98,11 @@ export function CloudSyncSettings() {
                                 onClick={() => run(state.connected ? 'verify' : 'connect')}
                             >
                                 <RefreshDouble />
-                                {t(state.connected ? 'desktop_sync_verify' : 'cloud_sync_reconnect')}
+                                {t(busy ? 'cloud_sync_syncing' : state.connected ? 'cloud_sync_now' : 'cloud_sync_reconnect')}
                             </button>
                             {state.verification && (
                                 <span className="cloud-verification">
-                                    <CheckCircle />
+                                    {state.verification.matches ? <CheckCircle /> : <RefreshDouble />}
                                     {t(
                                         state.verification.matches
                                             ? 'sync_integrity_match'

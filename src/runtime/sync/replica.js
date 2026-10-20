@@ -180,17 +180,40 @@ export async function applyRemoteRecord(db, record) {
         const state = (await request(meta.get('state'))) || { actor: crypto.randomUUID(), clock: 0 };
         state.clock = Math.max(state.clock, record.version.clock);
         meta.put(state, 'state');
-    } else if (order === 0 && local.dirty) records.put({ ...local, dirty: 0 }, record.key);
+    } else if (order === 0) {
+        if (local.dirty) records.put({ ...local, dirty: 0 }, record.key);
+        // Repair a stale materialized chat/index even if the deletion revision
+        // was already recorded by another open tab. Notify in-memory views too.
+        if (record.deleted) {
+            kv.delete(record.key);
+            if (record.key.startsWith(CHAT_PREFIX)) {
+                const ids = (await request(kv.get(CHAT_INDEX))) || [];
+                kv.put(ids.filter(id => CHAT_PREFIX + id !== record.key), CHAT_INDEX);
+            }
+        }
+    }
     await complete;
-    if (!local || order > 0) announceRemoteChanges([record.key]);
+    if (!local || order > 0 || (order === 0 && record.deleted)) announceRemoteChanges([record.key]);
     return !local || order >= 0;
 }
 export async function replicaManifest(db, { includeDirty = false, includeCounts = false } = {}) {
-    // Keys/revisions only during reconnect; image payloads are transferred only when needed.
-    return (await replicaRecords(db)).map(({ key, version, deleted, dirty, value }) => ({
-        key, version, deleted, ...(includeDirty ? { dirty: !!dirty } : {}),
-        ...(includeCounts ? { messageCount: value?.messages?.length || 0 } : {}),
-    }));
+    // Keep metadata only. Reconciliation runs after wake and periodically, so
+    // retaining a second full copy of every image via getAll would be costly.
+    const cursor = db.transaction(SYNC_RECORDS).objectStore(SYNC_RECORDS).openCursor();
+    return new Promise((resolve, reject) => {
+        const manifest = [];
+        cursor.onerror = () => reject(cursor.error);
+        cursor.onsuccess = () => {
+            const entry = cursor.result;
+            if (!entry) return resolve(manifest);
+            const { key, version, deleted, dirty, value } = entry.value;
+            manifest.push({ key, version, deleted,
+                ...(includeDirty ? { dirty: !!dirty } : {}),
+                ...(includeCounts ? { messageCount: value?.messages?.length || 0 } : {}),
+            });
+            entry.continue();
+        };
+    });
 }
 export async function replicaRecord(db, key) {
     return request(db.transaction(SYNC_RECORDS).objectStore(SYNC_RECORDS).get(key));

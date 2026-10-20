@@ -242,8 +242,8 @@ it('acknowledges local and cloud connections independently and relays records re
 });
 
 it('publishes incremental local counts before initial sync finishes without double-counting acknowledgements', async () => {
-    const db = await database(), status = {}, onStatus = vi.fn((patch) => Object.assign(status, patch));
-    const client = await createSyncClient({ db, send: () => {}, onStatus });
+    const db = await database(), status = {}, sent = [], onStatus = vi.fn((patch) => Object.assign(status, patch));
+    const client = await createSyncClient({ db, send: message => sent.push(message), onStatus });
     const record = (id, clock, count, deleted = false) => ({
         key: `cerebr_chat_v2_${id}`, version: { clock, actor: 'remote' }, deleted,
         value: deleted ? null : { ...chat(id, 'Question'), messages: Array.from({ length: count }, () => ({ role: 'user', content: 'Message' })) },
@@ -262,7 +262,7 @@ it('publishes incremental local counts before initial sync finishes without doub
         await client.receive({ type: 'record', record: record('first', 3, 4) });
         await client.receive({ type: 'record', record: first }); // stale replay
         await client.receive({ type: 'record', record: record('second', 4, 0, true) });
-        await client.receive({ type: 'caught-up', summary: { chats: 1, messages: 4 } });
+        await client.receive({ type: 'caught-up', id: sent.find(m => m.type === 'barrier').id, summary: { chats: 1, messages: 4 } });
         expect(status.localSummary).toEqual({ chats: 1, messages: 4 });
         expect(status.syncing).toBe(false);
         expect(status.connected).toBe(true);
@@ -287,4 +287,63 @@ it('shows existing offline history immediately and includes pending local edits 
         await vi.waitFor(() => expect(status.localSummary).toEqual({ chats: 2, messages: 2 }));
         expect(status.syncing).toBe(true);
     } finally { client.close(); }
+});
+
+it('repairs a missed deletion on an open connection before verifying', async () => {
+    const db = await database(), server = new SyncDatabase(':memory:'), sent = [], status = {};
+    const key = 'cerebr_chat_v2_default';
+    await writeLocal(db, { [key]: chat('default', 'Welcome') });
+    server.put(await replicaRecord(db, key));
+    const client = await createSyncClient({ db, send: m => sent.push(m), onStatus: s => Object.assign(status, s) });
+    async function drain() {
+        while (sent.length) {
+            const m = sent.shift();
+            if (m.type === 'hello') await client.receive({ type: 'manifest', records: server.manifest() });
+            if (m.type === 'get') {
+                for (const key of m.keys) await client.receive({ type: 'record', record: server.get(key) });
+                await client.receive({ type: 'caught-up', id: m.id });
+            }
+            if (m.type === 'put') await client.receive({ type: 'record', record: server.put(m.record).record });
+            if (m.type === 'barrier') await client.receive({ type: 'caught-up', id: m.id, summary: server.summary(!!m.verify) });
+        }
+    }
+    try {
+        client.start(); await drain();
+        const old = server.get(key);
+        server.put({ ...old, value: null, deleted: true, version: { clock: old.version.clock + 1, actor: 'desktop' } });
+        // The deletion broadcast was missed while this web tab was suspended.
+        expect(await read(db, key)).toBeDefined();
+        const verification = client.verify();
+        await vi.waitFor(() => expect(sent.some(m => m.type === 'hello')).toBe(true));
+        await drain();
+        await vi.waitFor(() => expect(sent.some(m => m.verify)).toBe(true));
+        await drain();
+        expect((await verification).matches).toBe(true);
+        expect(await read(db, key)).toBeUndefined();
+        expect(status.localSummary).toEqual({ chats: 0, messages: 0 });
+        expect(status.syncing).toBe(false);
+    } finally { client.close(); server.close(); }
+});
+
+it('repairs a stale materialized chat when a known tombstone is replayed', async () => {
+    const db = await database(), key = 'cerebr_chat_v2_removed';
+    await writeLocal(db, { [key]: chat('removed', 'old') });
+    const previous = await replicaRecord(db, key);
+    const tombstone = { key, value: null, deleted: true, version: { clock: previous.version.clock + 1, actor: 'desktop' } };
+    await applyRemoteRecord(db, tombstone);
+    // Simulate a stale IndexedDB materialized copy left by an interrupted old client.
+    const tx = db.transaction('keyValueStore', 'readwrite');
+    tx.objectStore('keyValueStore').put(chat('removed', 'stale'), key);
+    await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); });
+    expect(await read(db, key)).toBeDefined();
+    await applyRemoteRecord(db, tombstone);
+    expect(await read(db, key)).toBeUndefined();
+});
+
+it('matches PostgreSQL JSONB history regardless of nested object property order', async () => {
+    const record = { key: 'cerebr_chat_v2_jsonb', value: { ...chat('jsonb', 'Hello'), messages: [{ role: 'assistant', content: 'Hello', metadata: { b: 2, a: 1 } }] }, deleted: false, version: { clock: 1, actor: 'test' } };
+    const reordered = JSON.parse(JSON.stringify(record, (_key, value) => value && typeof value === 'object' && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).reverse()) : value));
+    expect((await browserSummary([record])).digest).toBe((await browserSummary([reordered])).digest);
+    reordered.value.messages[0].content = 'Changed';
+    expect((await browserSummary([record])).digest).not.toBe((await browserSummary([reordered])).digest);
 });

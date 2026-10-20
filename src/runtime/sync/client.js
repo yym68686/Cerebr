@@ -23,6 +23,7 @@ export async function createSyncClient({
         queue = Promise.resolve(),
         stopped = false;
     const checks = new Map();
+    let reconciliation = null, reconciliationBarrier = null;
     const acknowledged = new Map();
     const pending = new Set();
     let scan = true;
@@ -98,6 +99,8 @@ export async function createSyncClient({
                 if (!ours || compareVersions(remote.version, ours.version) > 0) needed.push(remote.key);
                 else if (compareVersions(remote.version, ours.version) < 0)
                     send({ type: 'put', record: await replicaRecord(db, remote.key) });
+                else if (remote.deleted)
+                    await applyRemoteRecord(db, { ...remote, value: null });
                 else if (ours.dirty) await acknowledgeRecord(db, remote);
                 local.delete(remote.key);
             }
@@ -105,7 +108,8 @@ export async function createSyncClient({
             ready = true;
             scan = false;
             send({ type: 'get', keys: needed, id: crypto.randomUUID() });
-            send({ type: 'barrier', id: crypto.randomUUID() });
+            reconciliationBarrier = crypto.randomUUID();
+            send({ type: 'barrier', id: reconciliationBarrier });
         } else if (message.type === 'record') {
             acknowledged.set(message.record.key, message.record.version);
             const applied = await applyRemoteRecord(db, message.record);
@@ -113,6 +117,16 @@ export async function createSyncClient({
             countRecord(record);
             if (!applied) send({ type: 'put', record });
         } else if (message.type === 'caught-up') {
+            // A get response only acknowledges that batch. Complete the round
+            // after the barrier sent after all uploads and downloads.
+            if ((reconciliation || reconciliationBarrier) && message.id !== reconciliationBarrier && !checks.has(message.id)) return;
+            if (message.id === reconciliationBarrier) {
+                reconciliationBarrier = null;
+                clearTimeout(reconciliation?.timer);
+                const round = reconciliation;
+                reconciliation = null;
+                round?.resolve();
+            }
             publishCounts();
             onStatus({
                 connected: true,
@@ -142,7 +156,25 @@ export async function createSyncClient({
         } else if (message.type === 'progress') onProgress(message.progress);
         else if (message.type === 'error') onStatus({ error: message.error });
     };
+    const reconcile = () => {
+        if (stopped) return Promise.reject(new Error('同步连接已关闭。'));
+        if (reconciliation) return reconciliation.promise;
+        let resolve, reject;
+        const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+        const round = { promise, resolve, reject };
+        reconciliation = round;
+        round.timer = setTimeout(() => {
+            if (reconciliation !== round) return;
+            reconciliation = null;
+            reject(new Error('同步响应超时，请重新连接。'));
+        }, 30000);
+        onStatus({ syncing: true, verification: null });
+        // A suspended tab may miss events despite retaining an open socket.
+        send({ type: 'hello' });
+        return promise;
+    };
     return {
+        reconcile,
         start() {
             send({ type: 'hello' });
         },
@@ -163,7 +195,8 @@ export async function createSyncClient({
             return queue;
         },
         async verify() {
-            if (!ready || stopped) throw new Error('请先连接桌面应用并等待首次同步完成。');
+            if (!ready || stopped) throw new Error('请先连接同步并等待首次同步完成。');
+            await reconcile();
             await queue;
             await transmit();
             return new Promise((resolve, reject) => {
@@ -187,6 +220,9 @@ export async function createSyncClient({
             ready = false;
             clearTimeout(timer);
             clearTimeout(countsTimer);
+            clearTimeout(reconciliation?.timer);
+            reconciliation?.reject(new Error('同步连接已关闭。'));
+            reconciliation = null;
             unsubscribe();
             unsubscribeRemote();
             for (const check of checks.values()) {

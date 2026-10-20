@@ -77,6 +77,17 @@ export class ChatManager {
             if (!chatKeys.length) return;
             this._remoteQueue = this._remoteQueue.catch(() => {}).then(async () => {
                 await this._initializePromise;
+                // Finish an in-flight initial list load before removing rows;
+                // otherwise its older snapshot can reinsert a deleted chat.
+                if (this._fullLoadPromise) await this._fullLoadPromise;
+                const incoming = await this.storage.get(chatKeys);
+                for (const key of chatKeys) {
+                    if (incoming[key]) continue;
+                    const id = key.slice(CHAT_V2_PREFIX.length);
+                    this._dirtyChatIds.delete(id);
+                    this._migrationQueue = this._migrationQueue.filter(value => value !== id);
+                    this.chats.delete(id);
+                }
                 await this.flushNow();
                 const records = await this.storage.get(chatKeys);
                 for (const key of chatKeys) {
@@ -87,6 +98,7 @@ export class ChatManager {
                 }
                 if (this._storedIndexIds) this._storedIndexIds = (await this.storage.get(CHATS_INDEX_V2_KEY))[CHATS_INDEX_V2_KEY] || [];
                 if (!this.chats.has(this.currentChatId)) {
+                    if (!this._allChatsLoaded) await this.loadAllChats();
                     this.currentChatId = this._getMostRecentChat()?.id || null;
                     if (!this.currentChatId) this.currentChatId = (await this.createDefaultChat()).id;
                 }

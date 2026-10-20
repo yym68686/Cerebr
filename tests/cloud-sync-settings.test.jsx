@@ -7,7 +7,7 @@ vi.mock('../src/runtime/sync/cloud-sync.js', async () => {
     return { cloudSyncStore: createStore({}), cloudSyncAction: vi.fn() };
 });
 import { CloudSyncSettings } from '../src/app/components/CloudSyncSettings.jsx';
-import { cloudSyncStore } from '../src/runtime/sync/cloud-sync.js';
+import { cloudSyncStore, cloudSyncAction } from '../src/runtime/sync/cloud-sync.js';
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 it('updates visible chat and message totals while syncing instead of waiting for the final summary', async () => {
@@ -24,4 +24,23 @@ it('updates visible chat and message totals while syncing instead of waiting for
         await act(async () => cloudSyncStore.set({ connected: true, connecting: false, syncing: false }));
         expect(host.querySelector('[role="status"]').textContent).toBe('desktop_sync_connected');
     } finally { await act(async () => root.unmount()); host.remove(); }
+});
+
+it('shows an active sync action and a real mismatch rather than waiting indefinitely', async () => {
+    const host = document.createElement('div'), root = createRoot(host);
+    let finish;
+    cloudSyncAction.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    try {
+        cloudSyncStore.set({ user: { username: 'test' }, connected: true, connecting: false, syncing: false, verification: { matches: false } });
+        await act(async () => root.render(<CloudSyncSettings />));
+        const button = host.querySelector('.sync-actions button');
+        expect(button.textContent).toBe('cloud_sync_now');
+        expect(host.querySelector('.cloud-verification').textContent).toBe('sync_integrity_pending');
+        await act(async () => button.click());
+        expect(button.disabled).toBe(true);
+        expect(button.textContent).toBe('cloud_sync_syncing');
+        expect(cloudSyncAction).toHaveBeenLastCalledWith('verify', undefined);
+        await act(async () => finish({ matches: true }));
+        expect(button.disabled).toBe(false);
+    } finally { await act(async () => root.unmount()); }
 });

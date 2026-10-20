@@ -1,7 +1,6 @@
 import { createStore } from '../../app/state/store.js';
 import { getDb, storageAdapter, isExtensionEnvironment } from '../../utils/storage-adapter.js';
 import { createSyncClient } from './client.js';
-import { replicaManifest, replicaRecord } from './replica.js';
 import { ensureApiReplica } from './api-settings.js';
 
 export const CLOUD_SYNC_URL = 'https://cerebr-sync.fugue.pro';
@@ -32,6 +31,9 @@ let socket,
     heartbeat,
     stopped = false,
     generation = 0,
+    lastReceived = 0,
+    lastReconciled = 0,
+    recovering = null,
     initialized;
 const background = isExtensionEnvironment && typeof document === 'undefined';
 const emitStatus = (patch) => {
@@ -97,11 +99,10 @@ async function reportStats() {
     }
     clearTimeout(statsTimer); statsTimer = null;
     statsDue = Date.now();
-    const db = await getDb(),
-        keys = (await replicaManifest(db)).filter((r) => !r.deleted && r.key.startsWith('cerebr_chat_v2_'));
-    let messages = 0;
-    for (const row of keys) messages += (await replicaRecord(db, row.key))?.value?.messages?.length || 0;
-    send({ type: 'client-stats', chats: keys.length, messages });
+    // The client already maintains these totals incrementally. Heartbeats and
+    // catch-up rounds must not reread the entire history (including images).
+    const counts = cloudSyncStore.getSnapshot().localSummary;
+    if (counts) send({ type: 'client-stats', chats: counts.chats, messages: counts.messages });
 }
 async function connect() {
     if (stopped || !authData?.token) return;
@@ -112,11 +113,13 @@ async function connect() {
     client?.close();
     client = null;
     socket?.close();
-    emitStatus({ connecting: true, connected: false, syncing: false, error: null, user: authData.user });
+    emitStatus({ connecting: true, connected: false, syncing: false, verification: null, error: null, user: authData.user });
     const device = await metadata();
     if (current !== generation) return;
     const ws = new WebSocket(CLOUD_SYNC_URL.replace(/^http/, 'ws') + '/sync');
     socket = ws;
+    lastReceived = Date.now();
+    lastReconciled = Date.now();
     let queue = Promise.resolve(),
         authenticationError = false;
     ws.onopen = () => ws.send(JSON.stringify({ type: 'auth', token: authData.token, client: device }));
@@ -128,6 +131,7 @@ async function connect() {
             return;
         }
         if (current !== generation) return;
+        lastReceived = Date.now();
         if (client && ['progress', 'live-chat'].includes(message.type)) {
             void client.receive(message);
             return;
@@ -154,7 +158,16 @@ async function connect() {
                         return;
                     }
                     client.start();
-                    heartbeat = setInterval(() => send({ type: 'ping' }), 20000);
+                    heartbeat = setInterval(() => {
+                        if (Date.now() - lastReceived > 45000) {
+                            // WebSockets can remain OPEN after sleep or a network
+                            // change. Replace the stale connection explicitly.
+                            void connect();
+                            return;
+                        }
+                        send({ type: 'ping' });
+                        if (!cloudSyncStore.getSnapshot().syncing && Date.now() - lastReconciled > 30000) void recoverSync();
+                    }, 15000);
                 } else if (message.type === 'auth-error') {
                     authenticationError = true;
                     emitStatus({ connected: false, connecting: false, error: message.error });
@@ -174,10 +187,27 @@ async function connect() {
             syncing: false,
             ...(event.code === 4003 ? { error: '同步已被暂停或账号已封禁，请联系管理员。' } : {}),
         });
+        if (authenticationError || event.code === 4003) stopped = true;
         if (!stopped && !authenticationError && event.code !== 4003)
             retry = setTimeout(() => void connect(), 5000);
     };
     ws.onerror = () => emitStatus({ error: '暂时无法连接云端，本地聊天已保留。' });
+}
+async function recoverSync() {
+    if (stopped || !authData?.token || recovering) return recovering;
+    if (!client || socket?.readyState !== 1 || Date.now() - lastReceived > 45000) {
+        if (!cloudSyncStore.getSnapshot().connecting) await connect();
+        return;
+    }
+    if (cloudSyncStore.getSnapshot().connecting) return;
+    const current = generation;
+    lastReconciled = Date.now();
+    recovering = client.reconcile().catch((error) => {
+        if (current !== generation || stopped) return;
+        emitStatus({ error: error.message, syncing: false });
+        void connect();
+    }).finally(() => { recovering = null; });
+    return recovering;
 }
 async function runAction(action, payload) {
     if (action === 'login' || action === 'register') {
@@ -222,7 +252,11 @@ async function runAction(action, payload) {
     }
     if (action === 'verify') {
         if (!client) throw new Error('请先连接云端同步。');
-        const verification = await client.verify();
+        // A mismatch is repairable, not a permanent "waiting" state. Refresh
+        // manifests before checking, and retry once if another device wrote
+        // while the digest was being calculated.
+        let verification = await client.verify();
+        if (!verification.matches) verification = await client.verify();
         emitStatus({ verification });
         return verification;
     }
@@ -282,6 +316,15 @@ export function startCloudSync() {
                 }
             });
         authData = (await storageAdapter.get(AUTH))[AUTH];
+        if (typeof window !== 'undefined') {
+            const resume = () => {
+                if (document.visibilityState !== 'hidden') void recoverSync();
+            };
+            window.addEventListener('online', resume);
+            window.addEventListener('pageshow', resume);
+            window.addEventListener('focus', resume);
+            document.addEventListener('visibilitychange', resume);
+        }
         if (authData?.token) void connect();
     })();
     return initialized;
