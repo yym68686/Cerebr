@@ -4,6 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { DesktopUpdater } from './updater';
+import { scheduleUpdateChecks } from './update-scheduler.js';
 
 if (squirrelStartup) app.quit();
 if (process.platform === 'win32') app.setAppUserModelId('com.squirrel.Cerebr.Cerebr');
@@ -187,7 +188,7 @@ app.whenReady().then(() => {
     ipcMain.handle('desktop:update-status', (event) => {
         safeSender(event);
         const id = process.argv.find((arg) => arg.startsWith('--cerebr-update-id='))?.split('=')[1];
-        if (id && /^download-[A-Za-z0-9]{6}$/.test(id)) {
+        if (id && /^download-(?:[A-Za-z0-9]{6}|\d+\.\d+\.\d+-(?:darwin|win32)-(?:arm64|x64))$/.test(id)) {
             const directory = path.join(app.getPath('userData'), 'updates', id);
             if (fs.existsSync(directory))
                 fs.writeFileSync(path.join(directory, 'restarted'), app.getVersion(), { mode: 0o600 });
@@ -196,7 +197,7 @@ app.whenReady().then(() => {
     });
     ipcMain.handle('desktop:update-check', (event) => {
         safeSender(event);
-        void updater.check();
+        void updater.check(true);
         return updater.status;
     });
     ipcMain.handle('desktop:update-ready', async (event) => {
@@ -258,6 +259,10 @@ app.whenReady().then(() => {
         ] as any)
     );
     createWindow();
+    if (app.isPackaged) {
+        const stopUpdates = scheduleUpdateChecks(updater, {online: () => net.isOnline()});
+        app.once('before-quit', stopUpdates);
+    }
     app.on('activate', () => {
         if (!window) createWindow();
     });

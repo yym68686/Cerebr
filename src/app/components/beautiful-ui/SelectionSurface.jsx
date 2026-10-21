@@ -55,7 +55,7 @@ export function SelectionSurface({ hostRef, children }) {
         <>
             <style>{foundation}</style>
             <style>{`@layer properties { :host, *, ::before, ::after { ${propertyDefaults} } }`}</style>
-            <style>{`:host { --spacing: 4px; --font-inter: 'Cerebr Selection Inter'; font-size: 14px; line-height: 1.5; letter-spacing: -.01em; font-feature-settings: 'cv11', 'ss01'; -webkit-font-smoothing: antialiased; } .cerebr-selection-theme { width: max-content; font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif; } [data-selection-pill], .selection-customizer, .selection-error { pointer-events: auto; cursor: default; } input, textarea { cursor: text; } button:not(:disabled) { cursor: pointer; } button:disabled { cursor: default; } button :is(svg, span), button svg * { pointer-events: none; cursor: inherit; }`}</style>
+            <style>{`:host { --spacing: 4px; --font-inter: 'Cerebr Selection Inter'; font-size: 14px; line-height: 1.5; letter-spacing: -.01em; font-feature-settings: 'cv11', 'ss01'; -webkit-font-smoothing: antialiased; } .cerebr-selection-theme { pointer-events: none; width: max-content; font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif; } [data-selection-pill], .selection-customizer, .selection-error { pointer-events: auto; cursor: default; } input, textarea { cursor: text; } button:not(:disabled) { cursor: pointer; } button:disabled { cursor: default; } button :is(svg, span), button svg * { pointer-events: none; cursor: inherit; }`}</style>
             <div className={`cerebr-selection-theme primitive-showcase${dark ? ' dark' : ''}`}>
                 {children}
             </div>

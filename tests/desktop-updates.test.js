@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mkdtemp, readFile, rm, access } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, stat, rm, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -14,6 +14,8 @@ import {
 import { attachDesktopUpdates, desktopUpdateStore } from '../src/platform/desktop-updates.js';
 import { createStore } from '../src/app/state/store.js';
 import { requestUpdate, retryUpdate, updateError, updateErrorCode } from '../desktop/src/update-request.js';
+import { downloadUpdate } from '../desktop/src/update-download.js';
+import { scheduleUpdateChecks } from '../desktop/src/update-scheduler.js';
 
 const folders = [],
     detach = [];
@@ -83,6 +85,96 @@ describe('verified downloads', () => {
         const { result, destination } = await download(Buffer.alloc(128000, 7));
         expect(await result).toBe(createHash('sha1').update(Buffer.alloc(128000, 7)).digest('hex'));
         expect((await readFile(destination)).length).toBe(128000);
+    });
+    it('resumes saved range bytes and downloads missing ranges concurrently before hashing', async () => {
+        const folder = await mkdtemp(path.join(tmpdir(), 'cerebr-update-test-'));
+        folders.push(folder);
+        const bytes = Buffer.from('0123456789abcdefghijklmnopqrstuvwxyz');
+        const destination = path.join(folder, 'parallel.zip');
+        const file = {name:'parallel.zip',url:'https://example.invalid/package.zip',size:bytes.length};
+        const hash = createHash('sha256').update(bytes).digest('hex');
+        await writeFile(`${destination}.resume.json`, JSON.stringify({format:1,url:file.url,size:file.size,sha256:hash,count:4}));
+        await writeFile(`${destination}.part-0`, bytes.subarray(0, 2));
+        let active = 0, maximum = 0;
+        const ranges = [];
+        const request = vi.fn(async (_url, {headers} = {}) => {
+            const range = headers?.Range;
+            if (range === 'bytes=0-0')
+                return new Response(bytes.subarray(0,1), {status:206,headers:{'content-range':`bytes 0-0/${bytes.length}`}});
+            const [, start, end] = /^bytes=(\d+)-(\d+)$/.exec(range);
+            ranges.push([Number(start),Number(end)]);
+            active++;
+            maximum = Math.max(maximum,active);
+            await new Promise(resolve=>setTimeout(resolve,5));
+            active--;
+            return new Response(bytes.subarray(Number(start),Number(end)+1), {
+                status:206, headers:{'content-range':`bytes ${start}-${end}/${bytes.length}`},
+            });
+        });
+        const sha1 = await downloadUpdate({file,destination,sha256:hash,request,minPartSize:1});
+        expect(maximum).toBeGreaterThan(1);
+        expect(ranges).toContainEqual([2,8]);
+        expect(await readFile(destination)).toEqual(bytes);
+        expect(sha1).toBe(createHash('sha1').update(bytes).digest('hex'));
+        expect(await stat(`${destination}.part-0`).catch(()=>null)).toBeNull();
+    });
+    it('keeps a disconnected stream on disk and resumes it in a later download invocation', async () => {
+        const folder = await mkdtemp(path.join(tmpdir(), 'cerebr-update-test-'));
+        folders.push(folder);
+        const bytes = Buffer.from('0123456789abcdefghijklmnopqrstuvwxyz');
+        const destination = path.join(folder,'resume.zip');
+        const file = {url:'https://example.invalid/resume.zip',size:bytes.length};
+        const sha256 = createHash('sha256').update(bytes).digest('hex');
+        let offline = true;
+        const ranges = [];
+        const request = async (_url,{headers}) => {
+            const [, a, b] = /^bytes=(\d+)-(\d+)$/.exec(headers.Range);
+            const start=Number(a),end=Number(b);
+            const response = {status:206,headers:new Headers({'content-range':`bytes ${a}-${b}/${bytes.length}`})};
+            if (end===0) return {...response,body:{cancel:async()=>{}}};
+            ranges.push(start);
+            return {...response,body:(async function* () {
+                if (offline) {
+                    yield bytes.subarray(start,start+3);
+                    throw new Error('net::ERR_CONNECTION_RESET');
+                }
+                yield bytes.subarray(start,end+1);
+            })()};
+        };
+        const options={file,destination,sha256,request,retryOptions:{sleep:async()=>{}}};
+        await expect(downloadUpdate(options)).rejects.toThrow('CONNECTION_RESET');
+        expect(await readFile(`${destination}.part-0`)).toEqual(bytes.subarray(0,9));
+        offline=false;
+        await downloadUpdate(options);
+        expect(ranges).toEqual([0,3,6,9]);
+        expect(await readFile(destination)).toEqual(bytes);
+        ranges.length=0;
+        await downloadUpdate(options);
+        expect(ranges).toHaveLength(0); // completed files are checked and reused
+    });
+    it('falls back to a full transfer when Range is ignored', async () => {
+        const folder=await mkdtemp(path.join(tmpdir(),'cerebr-update-test-'));folders.push(folder);
+        const bytes=Buffer.from('complete archive');
+        const request=vi.fn(async()=>new Response(bytes));
+        const destination=path.join(folder,'full.zip');
+        await downloadUpdate({file:{url:'https://example.invalid/full',size:bytes.length},destination,
+            sha256:createHash('sha256').update(bytes).digest('hex'),request,minPartSize:1});
+        expect(request).toHaveBeenCalledOnce();
+        expect(await readFile(destination)).toEqual(bytes);
+    });
+    it.each(['range','checksum'])('discards invalid %s data and never exposes an unverified installer', async kind => {
+        const folder=await mkdtemp(path.join(tmpdir(),'cerebr-update-test-'));folders.push(folder);
+        const bytes=Buffer.from('verified bytes'), destination=path.join(folder,'bad.zip');
+        const request=async(_url,{headers})=>{
+            const [,a,b]=/^bytes=(\d+)-(\d+)$/.exec(headers.Range);
+            return new Response(bytes.subarray(Number(a),Number(b)+1),{status:206,headers:{
+                'content-range':`bytes ${kind==='range' ? Number(a)+1 : a}-${b}/${bytes.length}`,
+            }});
+        };
+        await expect(downloadUpdate({file:{url:'https://example.invalid/bad',size:bytes.length},destination,
+            sha256:'a'.repeat(64),request})).rejects.toMatchObject({updateCode:'integrity'});
+        await expect(access(destination)).rejects.toThrow();
+        await expect(access(`${destination}.resume.json`)).rejects.toThrow();
     });
     it('restarts a disconnected streamed download from a clean file and verifies the result', async () => {
         const folder = await mkdtemp(path.join(tmpdir(), 'cerebr-update-test-'));
@@ -213,5 +305,29 @@ describe('restart coordination', () => {
         state.receive({ phase: 'waiting' });
         await Promise.resolve();
         expect(desktopUpdateStore.getSnapshot().phase).toBe('waiting');
+    });
+    it('does not restart for a background download until installation is requested', async () => {
+        const state=setup();
+        state.receive({phase:'downloaded'});
+        await Promise.resolve();
+        expect(state.persist).not.toHaveBeenCalled();
+        expect(state.api.ready).not.toHaveBeenCalled();
+        state.receive({phase:'waiting'});
+        await vi.waitFor(()=>expect(state.api.ready).toHaveBeenCalledOnce());
+    });
+});
+describe('automatic update checks', () => {
+    it('checks at startup, retries while offline recovers, and never requests unattended install', async () => {
+        vi.useFakeTimers();
+        let connected = false;
+        const updater = {status:{phase:'idle'},check:vi.fn(async(autoInstall)=>{expect(autoInstall).toBeFalsy();})};
+        const stop = scheduleUpdateChecks(updater,{online:()=>connected});
+        await vi.advanceTimersByTimeAsync(16000);
+        expect(updater.check).not.toHaveBeenCalled();
+        connected = true;
+        await vi.advanceTimersByTimeAsync(50000);
+        expect(updater.check).toHaveBeenCalledOnce();
+        stop();
+        vi.useRealTimers();
     });
 });

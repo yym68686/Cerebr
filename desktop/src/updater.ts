@@ -4,14 +4,9 @@ import { constants } from 'node:fs';
 import path from 'node:path';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import {
-    releaseAPI,
-    selectRelease,
-    parseChecksums,
-    downloadVerified,
-    validateSquirrelFeed,
-} from './update-release.js';
+import { releaseAPI, selectRelease, parseChecksums, validateSquirrelFeed } from './update-release.js';
 import { requestUpdate, retryUpdate, updateErrorCode } from './update-request.js';
+import { downloadUpdate } from './update-download.js';
 
 const exec = promisify(execFile);
 type Status = { phase: string; currentVersion: string; version?: string; progress?: number; error?: string };
@@ -22,6 +17,8 @@ export class DesktopUpdater {
     private target = '';
     private installed = false;
     private stage = 'idle';
+    private installAfterDownload = false;
+    private preparedVersion = '';
     constructor(
         private publish: (status: Status) => void,
         private flush: () => Promise<void>
@@ -30,16 +27,25 @@ export class DesktopUpdater {
         this.status = { ...this.status, ...patch };
         this.publish(this.status);
     }
-    private fetch(url: string, maxTime = 30000) {
-        return requestUpdate(net.fetch, url, app.getVersion(), maxTime);
+    private fetch(url: string, maxTime = 30000, options = {}) {
+        return requestUpdate(net.fetch, url, app.getVersion(), maxTime, options);
     }
     private async log(event: string, error?: unknown) {
         const detail = error instanceof Error ? { name: error.name, message: error.message } : {};
-        const entry = { time: new Date().toISOString(), event, stage: this.stage,
-            currentVersion: app.getVersion(), version: this.status.version, ...detail };
+        const entry = {
+            time: new Date().toISOString(),
+            event,
+            stage: this.stage,
+            currentVersion: app.getVersion(),
+            version: this.status.version,
+            ...detail,
+        };
         try {
-            await appendFile(path.join(app.getPath('userData'), 'desktop-update.log'),
-                JSON.stringify(entry) + '\n', { mode: 0o600 });
+            await appendFile(
+                path.join(app.getPath('userData'), 'desktop-update.log'),
+                JSON.stringify(entry) + '\n',
+                { mode: 0o600 }
+            );
         } catch (logError) {
             console.error('[Updater] Could not write diagnostic log', logError);
         }
@@ -49,10 +55,15 @@ export class DesktopUpdater {
             onRetry: (error: unknown, attempt: number) => this.log(`retry-${attempt}`, error),
         });
     }
-    async check() {
+    async check(installAfterDownload = false) {
+        if (installAfterDownload) this.installAfterDownload = true;
+        if (this.status.phase === 'downloaded' && installAfterDownload) {
+            this.set({ phase: 'waiting' });
+            return this.status;
+        }
         if (['checking', 'downloading', 'waiting', 'installing'].includes(this.status.phase))
             return this.status;
-        this.set({ phase: 'checking', error: undefined, progress: 0, version: undefined });
+        this.set({ phase: 'checking', error: undefined });
         this.stage = 'location';
         await this.log('check-started');
         try {
@@ -88,11 +99,19 @@ export class DesktopUpdater {
                 process.arch
             );
             if (!release) {
+                this.installAfterDownload = false;
                 this.set({ phase: 'current' });
                 await this.log('already-current');
                 return this.status;
             }
-            this.set({ version: release.version });
+            if (release.version === this.preparedVersion) {
+                this.set({ phase: this.installAfterDownload ? 'waiting' : 'downloaded' });
+                return this.status;
+            }
+            this.set({
+                version: release.version,
+                ...(this.status.version !== release.version ? { progress: 0 } : {}),
+            });
             this.stage = 'checksums';
             const hashes = parseChecksums(
                 await this.retry(async () => (await this.fetch(release.checksums.url)).text()),
@@ -101,10 +120,16 @@ export class DesktopUpdater {
             this.stage = 'download';
             const base = path.join(app.getPath('userData'), 'updates');
             await mkdir(base, { recursive: true, mode: 0o700 });
-            // Only this updater's staging folders; never touch history or browser storage.
-            if (this.directory) await rm(this.directory, { recursive: true, force: true });
+            // Stable per-version cache survives failed requests and application
+            // restarts. A newer release uses a different directory.
             if (this.staged) await rm(path.dirname(this.staged), { recursive: true, force: true });
-            this.directory = await mkdtemp(path.join(base, 'download-'));
+            this.staged = '';
+            this.preparedVersion = '';
+            this.directory = path.join(
+                base,
+                `download-${release.version}-${process.platform}-${process.arch}`
+            );
+            await mkdir(this.directory, { recursive: true, mode: 0o700 });
             this.set({ phase: 'downloading', version: release.version });
             const sha1 = new Map<string, string>();
             const total = release.files.reduce((sum: number, file: any) => sum + file.size, 0);
@@ -113,8 +138,12 @@ export class DesktopUpdater {
             for (const file of release.files) {
                 sha1.set(
                     file.name,
-                    await this.retry(async () => downloadVerified({
-                        response: await this.fetch(file.url, 20 * 60 * 1000),
+                    await downloadUpdate({
+                        request: (url: string, options: any) => this.fetch(url, 20 * 60 * 1000, options),
+                        retryOptions: {
+                            onRetry: (error: unknown, attempt: number) =>
+                                this.log(`download-retry-${attempt}`, error),
+                        },
                         file,
                         destination: path.join(this.directory, file.name),
                         sha256: hashes.get(file.name),
@@ -125,7 +154,7 @@ export class DesktopUpdater {
                                 progress: Math.round(((completed + file.size * fraction) / total) * 100),
                             });
                         },
-                    }))
+                    })
                 );
                 completed += file.size;
             }
@@ -141,13 +170,22 @@ export class DesktopUpdater {
                 await this.prepareWindows();
             }
             await this.log('update-ready');
-            this.set({ phase: 'waiting', progress: 100 });
+            this.preparedVersion = release.version;
+            this.set({ phase: this.installAfterDownload ? 'waiting' : 'downloaded', progress: 100 });
         } catch (error: any) {
             console.error('[Updater]', error);
             await this.log('check-failed', error);
-            const fallback = this.stage === 'prepare' ? 'prepare' :
-                ['release', 'checksums'].includes(this.stage) ? 'release' : 'download';
-            this.set({ phase: 'error', error: updateErrorCode(error) || fallback });
+            const fallback =
+                this.stage === 'prepare'
+                    ? 'prepare'
+                    : ['release', 'checksums'].includes(this.stage)
+                      ? 'release'
+                      : 'download';
+            const code = updateErrorCode(error) || fallback;
+            this.set({
+                phase: ['network', 'timeout', 'server'].includes(code) ? 'paused' : 'error',
+                error: code,
+            });
         }
         return this.status;
     }
@@ -222,6 +260,9 @@ export class DesktopUpdater {
             const log = path.join(app.getPath('userData'), 'desktop-update.log');
             // Keep errors outside the app bundle so a failed replacement can be diagnosed.
             await writeFile(log, '', { flag: 'a', mode: 0o600 });
+            // The resumable directory may survive an earlier install attempt.
+            // Only the next renderer's acknowledgement can confirm this launch.
+            await rm(path.join(this.directory, 'restarted'), { force: true });
             const child = spawn(
                 '/bin/sh',
                 [

@@ -431,7 +431,7 @@
   "sync_preparing": { "message": "正在同步…" },
   "sync_history_and_api": { "message": "聊天、附件与 API 设置" },
   "sync_webpage_qa": { "message": "浏览器网页问答" },
-  "sync_code_instruction": { "message": "在浏览器扩展的「桌面同步」中输入此码。" },
+  "sync_code_instruction": { "message": "在浏览器扩展中打开「偏好设置 → 同步 → 本机同步」，输入此配对码。" },
   "sync_code_expiry": { "message": "配对码 10 分钟内有效，仅需连接时使用。" },
   "sync_copy_code": { "message": "复制配对码" },
   "sync_copied": { "message": "已复制" },
@@ -451,11 +451,14 @@
   "update_current": {"message": "已是最新版本。"},
   "update_in_progress": {"message": "更新中"},
   "update_progress": {"message": "更新下载进度"},
-  "update_note": {"message": "点击后自动下载新版，保存聊天与草稿，再重启安装。"},
+  "update_note": {"message": "自动下载新版，断网后继续下载。更新前保存聊天与草稿，再重启安装。"},
+  "update_downloaded": {"message": "$1 已在后台下载完成，可随时重启更新。"},
+  "update_restart": {"message": "重启并更新"},
+  "update_resume": {"message": "继续下载"},
+  "update_error_network": {"message": "网络连接中断，下载进度已保留，联网后将自动续传。"},
+  "update_error_timeout": {"message": "下载超时，进度已保留，将自动继续下载。"},
+  "update_error_server": {"message": "更新服务暂时不可用，进度已保留，将自动重试。"},
   "update_error_download": {"message": "无法完成更新下载，请稍后重试。"},
-  "update_error_network": {"message": "无法连接更新服务，自动重试后仍失败。请检查网络或代理后重试。"},
-  "update_error_timeout": {"message": "更新请求超时，自动重试后仍未完成。请稍后重试。"},
-  "update_error_server": {"message": "GitHub 更新服务暂时不可用，请稍后重试。"},
   "update_error_rate_limit": {"message": "GitHub 暂时限制了更新请求，请稍后再试，避免连续点击。"},
   "update_error_release": {"message": "暂时无法读取完整的版本信息或发布文件，请稍后重试。"},
   "update_error_integrity": {"message": "更新包不完整或校验失败，已停止安装。请重新下载。"},
@@ -484,5 +487,15 @@
   "cloud_sync_password": {"message": "密码（至少 10 位）"},
   "cloud_sync_submitting": {"message": "请稍候…"},
   "cloud_sync_merge_note": {"message": "登录后合并此设备的聊天、附件、草稿与 API 设置。账号仅用于同步，退出后本地内容保留。"},
-  "cloud_sync_backup_note": {"message": "离线也能聊天。本机与云端同步互为备份。"}
+  "cloud_sync_backup_note": {"message": "离线也能聊天。本机与云端同步互为备份。"},
+  "cloud_sync_channel": {
+    "message": "云端同步"
+  },
+  "sync_description": {
+    "message": "聊天先保存在本机，通过云端或本机连接，在不同设备继续对话。"
+  },
+  "sync_manage_connection": {
+    "message": "管理连接"
+  },
+  "sync_library": {"message": "本机聊天"}
 }

@@ -1,12 +1,12 @@
 import { useState, useSyncExternalStore } from 'react';
-import { Cloud, RefreshDouble, LogOut, CheckCircle } from 'iconoir-react';
+import { Cloud, RefreshDouble, LogOut, CheckCircle, NavArrowDown } from 'iconoir-react';
 import { cloudSyncStore, cloudSyncAction } from '../../runtime/sync/cloud-sync.js';
 import { t } from '../../utils/i18n.js';
 
 export function CloudSyncSettings() {
     const state = useSyncExternalStore(cloudSyncStore.subscribe, cloudSyncStore.getSnapshot);
-    const counts = state.localSummary ?? state.summary;
     const [mode, setMode] = useState('login'),
+        [expanded, setExpanded] = useState(false),
         [username, setUsername] = useState(''),
         [password, setPassword] = useState(''),
         [error, setError] = useState(''),
@@ -23,126 +23,115 @@ export function CloudSyncSettings() {
             setBusy(false);
         }
     };
+    const status = state.syncing
+        ? 'cloud_sync_syncing'
+        : state.connected
+          ? 'desktop_sync_connected'
+          : state.connecting
+            ? 'cloud_sync_connecting'
+            : 'desktop_sync_disconnected';
     return (
-        <section className="preferences-section" id="cloud-sync-settings">
-            <div className="settings-section-heading">
-                <h2>{t('sync_title')}</h2>
-            </div>
-            <div className="sync-card">
-                <div className="sync-card-header">
-                    <div className="sync-device-mark">
-                        <Cloud />
-                    </div>
-                    <div className="sync-card-heading">
-                        <h3>{t('cloud_sync_title')}</h3>
-                        <p>{t('cloud_sync_description')}</p>
-                    </div>
-                    {state.user && (
-                        <span
-                            className={`sync-status${state.connected ? ' is-connected' : ''}`}
-                            role="status"
+        <div className="sync-channel" id="cloud-sync-settings">
+            <div className="sync-channel-row">
+                <Cloud className="sync-channel-icon" aria-hidden="true" />
+                <div className="sync-channel-heading">
+                    <h3>
+                        {t('cloud_sync_channel')}
+                        {state.user && (
+                            <span
+                                className={`sync-status${state.connected ? ' is-connected' : ''}`}
+                                role="status"
+                            >
+                                <i />
+                                {t(status)}
+                            </span>
+                        )}
+                    </h3>
+                    <p>{state.user ? state.user.username : t('cloud_sync_description')}</p>
+                </div>
+                {state.user ? (
+                    <div className="sync-row-actions sync-actions">
+                        <button
+                            className="sync-button"
+                            type="button"
+                            disabled={busy || state.connecting}
+                            onClick={() => run(state.connected ? 'verify' : 'connect')}
                         >
-                            <i />
+                            <RefreshDouble className={busy || state.syncing ? 'is-spinning' : ''} />
                             {t(
-                                state.syncing
+                                busy
                                     ? 'cloud_sync_syncing'
                                     : state.connected
-                                      ? 'desktop_sync_connected'
-                                      : state.connecting
-                                        ? 'cloud_sync_connecting'
-                                        : 'desktop_sync_disconnected'
+                                      ? 'cloud_sync_now'
+                                      : 'cloud_sync_reconnect'
+                            )}
+                        </button>
+                        <button
+                            type="button"
+                            className="sync-icon-button"
+                            disabled={busy}
+                            title={t('cloud_sync_logout')}
+                            aria-label={t('cloud_sync_logout')}
+                            onClick={() => run('logout')}
+                        >
+                            <LogOut />
+                        </button>
+                    </div>
+                ) : (
+                    <button
+                        className="sync-button"
+                        type="button"
+                        aria-expanded={expanded}
+                        aria-controls="cloud-sync-auth"
+                        onClick={() => setExpanded(!expanded)}
+                    >
+                        {t('cloud_sync_login')}
+                        <NavArrowDown className={expanded ? 'is-expanded' : ''} />
+                    </button>
+                )}
+            </div>
+            {state.user ? (
+                <div className="sync-channel-meta">
+                    <span>
+                        {t('sync_last_update')}{' '}
+                        <time>
+                            {state.lastSyncAt ? new Date(state.lastSyncAt).toLocaleTimeString() : '—'}
+                        </time>
+                    </span>
+                    {state.verification && (
+                        <span className="cloud-verification">
+                            {state.verification.matches ? <CheckCircle /> : <RefreshDouble />}
+                            {t(
+                                state.verification.matches ? 'sync_integrity_match' : 'sync_integrity_pending'
                             )}
                         </span>
                     )}
                 </div>
-                {state.user ? (
-                    <>
-                        <div className="cloud-account">
-                            <div>
-                                <strong>{state.user.username}</strong>
-                                <small>{t('cloud_sync_local_first')}</small>
-                            </div>
-                            <button
-                                type="button"
-                                className="sync-button"
-                                disabled={busy}
-                                onClick={() => run('logout')}
-                            >
-                                <LogOut />
-                                {t('cloud_sync_logout')}
-                            </button>
-                        </div>
-                        <div className="sync-overview">
-                            <div className="sync-stat">
-                                <strong>{new Intl.NumberFormat().format(counts?.chats || 0)}</strong>
-                                <span>{t('sync_chats')}</span>
-                            </div>
-                            <div className="sync-stat">
-                                <strong>
-                                    {new Intl.NumberFormat().format(counts?.messages || 0)}
-                                </strong>
-                                <span>{t('sync_messages')}</span>
-                            </div>
-                            <div className="sync-recency">
-                                <span>{t('sync_last_update')}</span>
-                                <time>
-                                    {state.lastSyncAt ? new Date(state.lastSyncAt).toLocaleTimeString() : '—'}
-                                </time>
-                            </div>
-                        </div>
-                        <div className="sync-actions">
-                            <button
-                                className="sync-button"
-                                type="button"
-                                disabled={busy || state.connecting}
-                                onClick={() => run(state.connected ? 'verify' : 'connect')}
-                            >
-                                <RefreshDouble />
-                                {t(busy ? 'cloud_sync_syncing' : state.connected ? 'cloud_sync_now' : 'cloud_sync_reconnect')}
-                            </button>
-                            {state.verification && (
-                                <span className="cloud-verification">
-                                    {state.verification.matches ? <CheckCircle /> : <RefreshDouble />}
-                                    {t(
-                                        state.verification.matches
-                                            ? 'sync_integrity_match'
-                                            : 'sync_integrity_pending'
-                                    )}
-                                </span>
-                            )}
-                        </div>
-                    </>
-                ) : (
+            ) : (
+                expanded && (
                     <form
-                        className="cloud-auth-form"
+                        className="cloud-auth-form sync-channel-detail"
+                        id="cloud-sync-auth"
                         onSubmit={(e) => {
                             e.preventDefault();
                             void run(mode, { username, password });
                         }}
                     >
                         <div className="cloud-auth-tabs" role="tablist" aria-label={t('cloud_sync_account')}>
-                            <button
-                                type="button"
-                                role="tab"
-                                aria-selected={mode === 'login'}
-                                onClick={() => {
-                                    setMode('login');
-                                    setError('');
-                                }}
-                            >
-                                {t('cloud_sync_login')}
-                            </button>
-                            <button
-                                type="button"
-                                role="tab"
-                                aria-selected={mode === 'register'}
-                                onClick={() => {
-                                    setMode('register');
-                                    setError('');
-                                }}
-                            >
-                                {t('cloud_sync_register')}
-                            </button>
+                            {['login', 'register'].map((value) => (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={mode === value}
+                                    onClick={() => {
+                                        setMode(value);
+                                        setError('');
+                                    }}
+                                >
+                                    {t(`cloud_sync_${value}`)}
+                                </button>
+                            ))}
                         </div>
                         <div className="cloud-auth-fields">
                             <label>
@@ -172,27 +161,17 @@ export function CloudSyncSettings() {
                             </label>
                         </div>
                         <button type="submit" className="sync-button is-primary" disabled={busy}>
-                            {t(
-                                busy
-                                    ? 'cloud_sync_submitting'
-                                    : mode === 'login'
-                                      ? 'cloud_sync_login'
-                                      : 'cloud_sync_register'
-                            )}
+                            {t(busy ? 'cloud_sync_submitting' : `cloud_sync_${mode}`)}
                         </button>
                         <p className="cloud-auth-note">{t('cloud_sync_merge_note')}</p>
                     </form>
-                )}
-                {(error || state.error) && (
-                    <div className="sync-error" role="alert">
-                        {error || state.error}
-                    </div>
-                )}
-                <div className="sync-local-note">
-                    <CheckCircle />
-                    <span>{t('cloud_sync_backup_note')}</span>
+                )
+            )}
+            {(error || state.error) && (
+                <div className="sync-error" role="alert">
+                    {error || state.error}
                 </div>
-            </div>
-        </section>
+            )}
+        </div>
     );
 }

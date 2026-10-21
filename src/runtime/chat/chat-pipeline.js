@@ -391,6 +391,7 @@ export function createChatPipeline({
                 const userMessage = resolveUserMessage(payload, initial);
                 if (!chat.messages.length) chat.title = draft.text || t('label_image');
                 await chatManager.addMessageToCurrentChat(userMessage);
+                directDraft?.onSubmitted?.();
                 if (!directDraft) {
                     editor.clear();
                     editor.focus();
@@ -451,13 +452,18 @@ export function createChatPipeline({
         abortControllerRef,
         abortActiveReply,
         sendMessage: () => schedule('send'),
-        sendSelection: (text, question) =>
-            schedule('send', undefined, {
+        // The selection toolbar needs the submission result, not the end of
+        // the streamed answer. The scheduler still owns the full request so
+        // stopping, switching chats and subsequent sends keep working.
+        sendSelection: (text, question) => new Promise((resolve) => {
+            void schedule('send', undefined, {
                 text: String(question || '').trim(),
                 quotes: [String(text || '').trim()],
                 imageTags: [],
                 empty: !String(text || '').trim() || !String(question || '').trim(),
-            }),
+                onSubmitted: () => resolve(true),
+            }).then(() => resolve(false), () => resolve(false));
+        }),
         regenerateMessage: (target) =>
             schedule(
                 'regenerate',

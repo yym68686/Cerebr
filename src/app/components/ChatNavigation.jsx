@@ -21,6 +21,7 @@ function GlideList({ children, resetKey, scrollRef, pinnedRow = null }) {
     pinned.current = pinnedRow;
     const ref = useRef(null),
         pointer = useRef(null),
+        keyboardFocus = useRef(null),
         frame = useRef(0);
     const [highlight, setHighlight] = useState(null);
     const highlightTarget = useCallback((target, instant = false) => {
@@ -46,6 +47,7 @@ function GlideList({ children, resetKey, scrollRef, pinnedRow = null }) {
     }, [highlightTarget]);
     const move = (event) => {
         if (event.pointerType === 'touch') return;
+        keyboardFocus.current = null;
         pointer.current = { x: event.clientX, y: event.clientY };
         highlightTarget(event.target);
     };
@@ -64,7 +66,8 @@ function GlideList({ children, resetKey, scrollRef, pinnedRow = null }) {
     useLayoutEffect(() => {
         if (pinnedRow) highlightTarget(pinnedRow, true);
         else if (pointer.current) syncPointer();
-        else if (ref.current?.contains(document.activeElement)) highlightTarget(document.activeElement, true);
+        else if (keyboardFocus.current && ref.current?.contains(document.activeElement))
+            highlightTarget(document.activeElement, true);
         else setHighlight(null);
     }, [resetKey, syncPointer, pinnedRow, highlightTarget]);
     return (
@@ -73,17 +76,31 @@ function GlideList({ children, resetKey, scrollRef, pinnedRow = null }) {
             ref={ref}
             onPointerOver={move}
             onPointerMove={move}
-            onFocus={(event) => highlightTarget(event.target)}
+            onFocus={(event) => {
+                // A mouse click can leave focus on an old row. Only keyboard
+                // focus may restore the moving highlight after a list update.
+                if (!pointer.current && event.target.matches(':focus-visible')) {
+                    keyboardFocus.current = event.target;
+                    highlightTarget(event.target, true);
+                }
+            }}
             onKeyDownCapture={() => {
                 pointer.current = null;
+                keyboardFocus.current = document.activeElement;
+                highlightTarget(document.activeElement, true);
             }}
             onBlur={(event) => {
-                if (!pinned.current && !event.currentTarget.contains(event.relatedTarget)) {
-                    setHighlight(null);
+                if (!event.currentTarget.contains(event.relatedTarget)) {
+                    keyboardFocus.current = null;
+                    if (!pinned.current) {
+                        if (pointer.current) syncPointer();
+                        else setHighlight(null);
+                    }
                 }
             }}
             onPointerLeave={() => {
                 pointer.current = null;
+                keyboardFocus.current = null;
                 cancelAnimationFrame(frame.current);
                 frame.current = 0;
                 if (!pinned.current) setHighlight(null);

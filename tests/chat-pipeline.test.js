@@ -58,7 +58,7 @@ describe('React chat session pipeline', () => {
         expect(callAPI).toHaveBeenCalledTimes(2);
     });
     it('sends a selection as a new quoted question and preserves the existing composer draft', async () => {
-        const { pipeline, chat, editor } = setup();
+        const { pipeline, chat, editor, phase } = setup();
         chat.messages.push({ role: 'assistant', content: 'Old answer' });
         callAPI
             .mockReset()
@@ -67,6 +67,7 @@ describe('React chat session pipeline', () => {
                 processStream: async () => ({ content: 'Explanation' }),
             });
         expect(await pipeline.sendSelection('Quoted passage\nSecond line', 'Why?')).toBe(true);
+        await vi.waitFor(() => expect(phase).toHaveBeenLastCalledWith('idle', null));
         expect(chat.messages[1]).toMatchObject({
             role: 'user',
             content: '> Quoted passage\n> Second line\n\nWhy?',
@@ -78,6 +79,30 @@ describe('React chat session pipeline', () => {
         );
         expect(editor.clear).not.toHaveBeenCalled();
         expect(editor.getDraftSnapshot().text).toBe('hello');
+    });
+    it('acknowledges a selected-text question before the answer arrives, while keeping cancellation active', async () => {
+        const {pipeline, chat, phase} = setup();
+        const controller = new AbortController();
+        let finish;
+        const answer = new Promise(resolve => { finish = resolve; });
+        callAPI.mockReset().mockResolvedValue({controller, processStream:() => answer});
+        expect(await pipeline.sendSelection('Passage', 'Why?')).toBe(true);
+        expect(chat.messages[0].selectionQuestion).toBe('Why?');
+        expect(phase).toHaveBeenLastCalledWith('thinking', 'a');
+        await vi.waitFor(() => expect(callAPI).toHaveBeenCalledOnce());
+        const stopped = pipeline.abortActiveReply();
+        expect(controller.signal.aborted).toBe(true);
+        finish({content:'Partial answer'});
+        await stopped;
+        expect(phase).toHaveBeenLastCalledWith('idle', null);
+    });
+    it('rejects selection submissions before a message is added when configuration or hooks prevent sending', async () => {
+        const missing = setup({}, async()=>null, {}, ()=>null);
+        expect(await missing.pipeline.sendSelection('Passage','Why?')).toBe(false);
+        expect(missing.chat.messages).toHaveLength(0);
+        const canceled = setup({runBeforeSend: async()=>({cancel:true})});
+        expect(await canceled.pipeline.sendSelection('Passage','Why?')).toBe(false);
+        expect(canceled.chat.messages).toHaveLength(0);
     });
     it('sends composer quotes together with images and text', async () => {
         const { pipeline, chat, editor } = setup();

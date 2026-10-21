@@ -5,8 +5,6 @@ body[data-desktop-platform] .settings-page {
     padding-top: 0;
 }
 body[data-desktop-platform] :is(.settings-page-header, .settings-header) {
-    -webkit-app-region: drag;
-    app-region: drag;
     user-select: none;
 }
 body[data-desktop-platform] :is(.settings-page-header, .settings-header) :is(button, input, select, a) {
@@ -25,14 +23,6 @@ body[data-desktop-platform='darwin'] :is(.settings-page-header, .settings-header
 body[data-desktop-platform]:not([data-desktop-platform='darwin'])
     :is(.settings-page-header, .settings-header) {
     padding-right: 154px;
-}
-body[data-desktop-platform] .navigation-header {
-    -webkit-app-region: drag;
-    app-region: drag;
-}
-body[data-desktop-platform] .navigation-header button {
-    -webkit-app-region: no-drag;
-    app-region: no-drag;
 }
 /* The preview appears underneath the fixed toggle. A native drag region here
    can steal enter/leave events while the pointer is still on that toggle. */
@@ -84,88 +74,34 @@ body[data-desktop-platform]:not([data-desktop-platform='darwin'])
     :is(.settings-page-header, .settings-header) {
     padding-left: max(22px, calc(54px - var(--cerebr-navigation-width, 0px)));
 }
-.desktop-update-card {
-    border: 1px solid var(--cerebr-surface-border);
-    border-radius: 14px;
-    overflow: hidden;
-    background: var(--cerebr-surface-bg);
-}
-.desktop-update-heading {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 20px;
-}
-.desktop-update-icon {
-    display: grid;
-    place-items: center;
-    width: 40px;
-    height: 40px;
-    flex-shrink: 0;
-    border-radius: 11px;
-    background: var(--cerebr-hover-bg-color);
-    color: var(--cerebr-text-color-secondary);
-}
-.desktop-update-icon svg {
-    width: 21px;
-    height: 21px;
-}
-.desktop-update-heading > div {
-    flex: 1;
-    min-width: 0;
-}
-.desktop-update-heading h3 {
-    margin: 0 0 4px;
-    font-size: var(--cerebr-fs-14);
-    font-weight: 500;
-}
-.desktop-update-heading h3 span {
-    color: var(--cerebr-text-color-secondary);
-    font-weight: 400;
-    margin-left: 5px;
-}
-.desktop-update-heading p,
-.desktop-update-note {
-    margin: 0;
-    font-size: var(--cerebr-fs-12);
-    line-height: 1.6;
-    color: var(--cerebr-text-color-secondary);
-}
-.desktop-update-note {
-    border-top: 1px solid var(--cerebr-surface-border);
-    padding: 12px 20px;
-}
-.desktop-update-card progress {
-    display: block;
-    width: calc(100% - 40px);
-    height: 3px;
-    margin: 0 20px 18px;
-    border: 0;
-    border-radius: 3px;
-    overflow: hidden;
-    accent-color: var(--cerebr-text-color);
-}
-.desktop-update-card progress::-webkit-progress-bar {
-    background: var(--cerebr-hover-bg-color);
-}
-.desktop-update-card progress::-webkit-progress-value {
-    background: var(--cerebr-text-color);
-}
-@media (max-width: 520px) {
-    .desktop-update-heading {
-        flex-wrap: wrap;
-    }
-    .desktop-update-heading .settings-button {
-        margin-left: 54px;
-    }
+.desktop-update-heading { display: flex; align-items: center; gap: 14px; }
+.desktop-update-icon { display: grid; place-items: center; flex-shrink: 0; color: var(--cerebr-text-color-secondary); }
+.desktop-update-icon svg { width: 20px; height: 20px; stroke-width: 1.5; }
+.desktop-update-heading > div { flex: 1; min-width: 0; }
+.desktop-update-heading h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font-size: var(--cerebr-fs-14); font-weight: 500; }
+.desktop-update-version { font-size: 11px; color: var(--cerebr-text-color-secondary); font-weight: 400; font-variant-numeric: tabular-nums; }
+.desktop-update-heading p, .desktop-update-note { margin: 0; font-size: var(--cerebr-fs-12); line-height: 1.6; color: var(--cerebr-text-color-secondary); }
+.desktop-update-heading .settings-button { flex-shrink: 0; border: 0; background: transparent; color: var(--cerebr-text-color-secondary); }
+.desktop-update-heading .settings-button:hover:enabled { background: var(--cerebr-hover-bg-color); color: var(--cerebr-text-color); }
+.desktop-update-note { margin: 16px 0 0 34px; font-size: 11px; }
+.desktop-update-content progress { display: block; width: calc(100% - 34px); height: 3px; margin: 16px 0 0 34px; border: 0; border-radius: 3px; overflow: hidden; accent-color: var(--cerebr-text-color); }
+.desktop-update-content progress::-webkit-progress-bar { background: var(--cerebr-hover-bg-color); }
+.desktop-update-content progress::-webkit-progress-value { background: var(--cerebr-text-color); }
+@container (max-width: 480px) {
+    .desktop-update-heading { flex-wrap: wrap; gap: 10px; }
+    .desktop-update-heading > div { flex-basis: calc(100% - 32px); }
+    .desktop-update-heading .settings-button { margin-left: 30px; }
+    .desktop-update-note { margin-left: 30px; }
 }
 .desktop-chat-drag-region {
-    position: fixed; top: 0; left: max(142px, var(--cerebr-navigation-width, 0px));
+    /* One native drag surface for both panes. Native hit testing ignores CSS
+       z-index, so its rectangle must never overlap the fixed sidebar toggle. */
+    position: fixed; top: 0; left: 142px;
     right: 12px; height: 28px; z-index: 190; background: transparent;
     -webkit-app-region: drag; app-region: drag;
 }
-body[data-desktop-platform]:not([data-desktop-platform='darwin']) .desktop-chat-drag-region { left: max(54px, var(--cerebr-navigation-width, 0px)); right: 138px; }
-body:has(.settings-page.visible, #plugin-settings.visible, #plugin-shell-page.visible) .desktop-chat-drag-region { display: none; }
+body[data-desktop-platform]:not([data-desktop-platform='darwin']) .desktop-chat-drag-region { left: 54px; right: 138px; }
+body:has(.settings-page.visible, #plugin-settings.visible, #plugin-shell-page.visible) .desktop-chat-drag-region { height: 46px; }
 .composer-sources-loading { pointer-events: none; }
 .composer-sources-loading .composer-source-tag { width: 140px; height: 28px; opacity: .45; }
 #chat-navigation, #input-container, .desktop-window-controls, .navigation-window-toggle { user-select: none; -webkit-user-select: none; }

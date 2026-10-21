@@ -23,7 +23,7 @@ export function DesktopUpdateSettings() {
             <div className="settings-section-heading">
                 <h2>{t('update_title')}</h2>
             </div>
-            <div className="desktop-update-card">
+            <div className="desktop-update-content">
                 <div className="desktop-update-heading">
                     <span className="desktop-update-icon" aria-hidden="true">
                         {error ? (
@@ -36,7 +36,10 @@ export function DesktopUpdateSettings() {
                     </span>
                     <div>
                         <h3>
-                            Cerebr <span>{status.currentVersion || __CEREBR_VERSION__}</span>
+                            Cerebr{' '}
+                            <span className="desktop-update-version">
+                                {status.currentVersion || __CEREBR_VERSION__}
+                            </span>
                         </h3>
                         <p role="status">
                             {error
@@ -45,11 +48,23 @@ export function DesktopUpdateSettings() {
                         </p>
                     </div>
                     <button type="button" className="settings-button" disabled={busy} onClick={check}>
-                        <RefreshDouble className={status.phase === 'checking' ? 'is-spinning' : ''} />
-                        {t(busy ? 'update_in_progress' : 'update_check')}
+                        {status.phase === 'downloaded' ? (
+                            <RefreshDouble />
+                        ) : (
+                            <Download className={status.phase === 'checking' ? 'is-spinning' : ''} />
+                        )}
+                        {t(
+                            status.phase === 'downloaded'
+                                ? 'update_restart'
+                                : status.phase === 'paused'
+                                  ? 'update_resume'
+                                  : busy
+                                    ? 'update_in_progress'
+                                    : 'update_check'
+                        )}
                     </button>
                 </div>
-                {status.phase === 'downloading' && (
+                {['downloading', 'paused'].includes(status.phase) && (
                     <progress max="100" value={status.progress || 0} aria-label={t('update_progress')} />
                 )}
                 <p className="desktop-update-note">{t('update_note')}</p>

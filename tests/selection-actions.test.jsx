@@ -139,6 +139,36 @@ it('keeps the toolbar and question when sending is rejected', async () => {
     await click('[aria-label=composer_send]');
     expect(surface().querySelector('[aria-label=selection_follow_up]').value).toBe('Keep this question');
 });
+it.each([false, true])('preserves the passage while typing and clears it on submission (page=%s)', async (page) => {
+    const highlights = new Map();
+    vi.stubGlobal('CSS', { highlights });
+    vi.stubGlobal('Highlight', class extends Set {
+        constructor(...ranges) { super(ranges); }
+    });
+    await render(page);
+    await select();
+    expect(highlights.size).toBe(1);
+    const [range] = [...highlights.values()][0];
+    await act(async () => {
+        const input = surface().querySelector('[aria-label=selection_follow_up]');
+        input.dispatchEvent(new MouseEvent('pointerdown', {bubbles:true,composed:true}));
+        input.focus();
+        window.getSelection().removeAllRanges();
+        document.dispatchEvent(new Event('selectionchange'));
+    });
+    await tick();
+    await fill('[aria-label=selection_follow_up]', 'Why?');
+    expect(highlights.size).toBe(1);
+    expect(range.toString()).toBe('A selected passage.');
+    expect(passage.innerHTML).toBe('A selected passage.');
+    await click('[aria-label=composer_send]');
+    expect(host.querySelector('[data-selection-actions]')).toBeNull();
+    expect(highlights.size).toBe(0);
+    document.dispatchEvent(new Event('selectionchange'));
+    window.dispatchEvent(new Event('scroll'));
+    await act(async () => vi.advanceTimersByTimeAsync(250));
+    expect(host.querySelector('[data-selection-actions]')).toBeNull();
+});
 it('saves a named icon/prompt action, reloads it and sends it with the selected text', async () => {
     await render();
     await select();

@@ -10,7 +10,9 @@ export async function mountPageSelectionActions({ onAction }) {
     await initI18n();
     const host = document.createElement('cerebr-selection');
     host.style.cssText =
-        'all:initial;position:fixed;inset:0;z-index:2147483647;pointer-events:none;cursor:default;';
+        'all:initial;display:contents;';
+    // Only the visible toolbar should have a hit-test/compositor rectangle.
+    // A full-viewport transparent shadow host can compete with the iframe's cursor.
     const shadow = host.attachShadow({ mode: 'closed' });
     const container = document.createElement('div');
     shadow.append(container);

@@ -28,6 +28,7 @@ function ActionIcon({ name }) {
     return <Component width={14} height={14} strokeWidth={1.8} aria-hidden />;
 }
 import { watchTextSelection } from '../../runtime/selection/watch-selection.js';
+import { highlightPassage } from '../../runtime/selection/passage-highlight.js';
 import {
     selectionStore,
     loadSelectionSettings,
@@ -72,6 +73,9 @@ export function SelectionActions({ scope, page = false, disabled = false, onAdd,
             },
         });
     }, [enabled, scope, page]);
+    useLayoutEffect(() => {
+        if (enabled && selection?.range) return highlightPassage(selection.range);
+    }, [enabled, selection]);
     useLayoutEffect(() => {
         if (!selection || !root.current) return;
         const place = () => {
@@ -137,11 +141,10 @@ export function SelectionActions({ scope, page = false, disabled = false, onAdd,
                 top: position.top,
                 visibility: position.ready ? 'visible' : 'hidden',
                 position: 'fixed',
-                zIndex: 2200,
+                zIndex: page ? 2147483647 : 2200,
                 width: 'max-content',
                 maxWidth: 'calc(100vw - 16px)',
                 pointerEvents: 'none',
-                cursor: 'default',
             }}
             role="dialog"
             aria-label={t('selection_actions')}

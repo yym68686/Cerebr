@@ -19,8 +19,6 @@
     transition: box-shadow 0.2s ease;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    backface-visibility: hidden;
-    perspective: 1000px;
 }
 
 /* 消息中的图片样式 */
@@ -30,14 +28,6 @@
     height: auto;
     margin: 8px 0;
     border-radius: 6px;
-}
-
-/* 添加更新中的消息样式 */
-.message.updating {
-    backface-visibility: hidden;
-    -webkit-backface-visibility: hidden;
-    -webkit-transform-style: preserve-3d;
-    transform-style: preserve-3d;
 }
 
 .user-message {

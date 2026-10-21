@@ -11,17 +11,20 @@ export function updateErrorCode(error) {
     return undefined;
 }
 
-export async function requestUpdate(fetch, url, version, timeout = 30000) {
-    const signal = AbortSignal.timeout(timeout);
+/** @param {{headers?: Record<string, string>, signal?: AbortSignal}} [options] */
+export async function requestUpdate(fetch, url, version, timeout = 30000, options = {}) {
+    const timeoutSignal = AbortSignal.timeout(timeout);
+    const signal = options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal;
     let response;
     try {
         response = await fetch(url, {
-            headers: { 'User-Agent': `Cerebr/${version}`, Accept: 'application/vnd.github+json' },
+            headers: { 'User-Agent': `Cerebr/${version}`, Accept: 'application/vnd.github+json', ...options.headers },
             signal,
             cache: 'no-store',
         });
     } catch (error) {
-        throw updateError(signal.aborted ? 'timeout' : 'network', error.message, error);
+        if (options.signal?.aborted) throw options.signal.reason;
+        throw updateError(timeoutSignal.aborted ? 'timeout' : 'network', error.message, error);
     }
     if (!response.ok) {
         const rateLimited = response.status === 429 ||

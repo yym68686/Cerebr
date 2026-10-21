@@ -23,6 +23,7 @@ export function readTextSelection(scope = document.body, excludeChat = false) {
     const bounds = range.getBoundingClientRect?.() || rect;
     return {
         text,
+        range: range.cloneRange(),
         centerX: (bounds.left + bounds.right) / 2,
         rect: { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom },
     };

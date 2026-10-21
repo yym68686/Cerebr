@@ -431,7 +431,7 @@
   "sync_preparing": { "message": "Syncing…" },
   "sync_history_and_api": { "message": "Chats, attachments and API settings" },
   "sync_webpage_qa": { "message": "Chat with browser pages" },
-  "sync_code_instruction": { "message": "Enter this code in Desktop sync in the browser extension." },
+  "sync_code_instruction": { "message": "In your browser extension, open Preferences → Sync → Local sync and enter this code." },
   "sync_code_expiry": { "message": "Valid for 10 minutes. Only needed when pairing." },
   "sync_copy_code": { "message": "Copy pairing code" },
   "sync_copied": { "message": "Copied" },
@@ -451,11 +451,14 @@
   "update_current": {"message": "You’re up to date."},
   "update_in_progress": {"message": "Updating"},
   "update_progress": {"message": "Update download progress"},
-  "update_note": {"message": "Downloads the latest version, saves chats and drafts, then restarts to install."},
+  "update_note": {"message": "New versions download automatically and resume after interruptions. Update when ready; your chats and drafts are saved before restarting."},
+  "update_downloaded": {"message": "Version $1 is downloaded. Restart when you are ready."},
+  "update_restart": {"message": "Restart and update"},
+  "update_resume": {"message": "Resume download"},
+  "update_error_network": {"message": "Connection interrupted. Download progress is saved; retrying automatically when online."},
+  "update_error_timeout": {"message": "Download timed out. Progress is saved and will resume automatically."},
+  "update_error_server": {"message": "Update service is temporarily unavailable. Progress is saved; retrying automatically."},
   "update_error_download": {"message": "The update download could not be completed. Please try again later."},
-  "update_error_network": {"message": "Cannot reach the update service after retrying. Check your connection or proxy and try again."},
-  "update_error_timeout": {"message": "The update request timed out after retrying. Please try again later."},
-  "update_error_server": {"message": "GitHub's update service is temporarily unavailable. Please try again later."},
   "update_error_rate_limit": {"message": "GitHub has temporarily limited update requests. Please wait before trying again."},
   "update_error_release": {"message": "Complete release information or files are not available. Please try again later."},
   "update_error_integrity": {"message": "The update is incomplete or failed verification. Installation was stopped. Please download it again."},
@@ -484,5 +487,15 @@
   "cloud_sync_password": {"message": "Password (at least 10 characters)"},
   "cloud_sync_submitting": {"message": "Please wait…"},
   "cloud_sync_merge_note": {"message": "Signing in merges this device’s chats, attachments, drafts and API settings. Your local data stays when you sign out."},
-  "cloud_sync_backup_note": {"message": "Keep chatting offline. Local and cloud sync provide separate copies."}
+  "cloud_sync_backup_note": {"message": "Keep chatting offline. Local and cloud sync provide separate copies."},
+  "cloud_sync_channel": {
+    "message": "Cloud sync"
+  },
+  "sync_description": {
+    "message": "Your conversations stay on this device. Connect the cloud or a nearby browser to continue elsewhere."
+  },
+  "sync_manage_connection": {
+    "message": "Manage"
+  },
+  "sync_library": {"message": "On this device"}
 }

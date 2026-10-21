@@ -161,6 +161,27 @@ it('keeps keyboard focus highlighting and does not create hover from touch scrol
     await act(async () => hover.rows[1].querySelector('button').focus());
     expect(hover.list.querySelector('.navigation-glide-highlight').style.transform).toBe('translateY(40px)');
 });
+it('keeps the selected chat separate and never restores mouse hover to a focused row after leaving', async () => {
+    await render();
+    const hover = mockHoverLayout();
+    await hover.point('pointerover', hover.rows[0], 20, 125);
+    await act(async () => hover.rows[0].querySelector('button').focus());
+    await hover.point('pointermove', hover.rows[1], 20, 155);
+    expect(hover.rows[0].classList.contains('is-active')).toBe(true);
+    expect(hover.rows[1].classList.contains('is-active')).toBe(false);
+    expect(hover.list.querySelector('.navigation-glide-highlight').style.transform).toBe('translateY(40px)');
+    await hover.point('pointerout', hover.rows[1], 300, 155, 'mouse', document.body);
+    expect(hover.list.querySelector('.navigation-glide-highlight')).toBeNull();
+    // A list update used to bring the hover back to the focused/current chat.
+    await act(async () => {
+        data.chats = [...data.chats, {id:'c',title:'Gamma',messages:[]}];
+        data.revision++;
+        data.listeners.forEach(listener => listener());
+    });
+    await tick();
+    expect(hover.rows[0].classList.contains('is-active')).toBe(true);
+    expect(hover.list.querySelector('.navigation-glide-highlight')).toBeNull();
+});
 it('pins the menu target highlight when focus and pointer move into its context menu', async () => {
     await render();
     const hover = mockHoverLayout();
