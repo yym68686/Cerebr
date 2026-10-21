@@ -46,6 +46,18 @@ const render = async (draft = { empty: false, composing: false }, ui = { phase: 
     );
 const click = async (selector) => act(async () => host.querySelector(selector).click());
 describe('Prompt Bar controls', () => {
+    it('displays the conversation’s model and routes explicit switches through the session', async () => {
+        session.selectModel=vi.fn(async()=>{});
+        const chat={id:'old',modelSelection:{configId:'b',modelName:'Model B'}};
+        await act(async()=>root.render(<ComposerControls apis={apis} chat={chat} session={session} ui={{phase:'idle'}} draft={{empty:false}} onSettings={settings}/>));
+        expect(host.querySelector('.composer-model').title).toBe('Model B');
+        await click('.composer-model');
+        const entries=host.querySelectorAll('[role="menuitemradio"]');
+        expect(entries[1].getAttribute('aria-checked')).toBe('true');
+        await act(async()=>entries[0].click());
+        expect(session.selectModel).toHaveBeenCalledWith(0);
+        expect(selectConfig).not.toHaveBeenCalled();
+    });
     it('replaces a label that does not fit with an icon and restores it when there is space', async () => {
         await render();
         const button = host.querySelector('.composer-model');

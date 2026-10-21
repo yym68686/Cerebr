@@ -434,6 +434,7 @@ export class ChatManager {
         title = '新对话',
         messages = [],
         kind = null,
+        modelSelection = this.getDefaultModelSelection?.(),
         titleLocaleBound = undefined
     } = {}) {
         const chatId = crypto.randomUUID();
@@ -445,6 +446,7 @@ export class ChatManager {
             createdAt,
             updatedAt: createdAt
         };
+        if (modelSelection) chat.modelSelection = { ...modelSelection };
         if (kind) {
             chat.kind = kind;
         }
@@ -456,6 +458,15 @@ export class ChatManager {
         this._indexDirty = true;
         this.saveChats({ touchCurrentChat: false });
         return chat;
+    }
+
+    setChatModel(chatId, selection) {
+        const chat = this.chats.get(chatId);
+        if (!chat || !selection?.configId || !selection?.modelName) return;
+        if (chat.modelSelection?.configId === selection.configId && chat.modelSelection?.modelName === selection.modelName) return;
+        chat.modelSelection = { configId: selection.configId, modelName: selection.modelName };
+        this.markChatDirty(chatId, { touchUpdatedAt: false });
+        return this.saveChats({ touchCurrentChat: false });
     }
 
     async createDefaultChat() {

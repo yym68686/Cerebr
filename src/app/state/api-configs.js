@@ -5,6 +5,8 @@ import { createStore } from './store.js';
 import { notify } from './ui-store.js';
 import { usesApiReplica, readApiReplica, writeApiReplica, projectApiSettingsToLegacy, isApiRecord } from '../../runtime/sync/api-settings.js';
 import { subscribeRemoteChanges } from '../../runtime/sync/replica.js';
+import { readModelPreferences, writeDefaultModel } from '../../runtime/sync/model-preferences.js';
+import { modelSelection, resolveChatApiConfig } from '../../domain/chat/model-selection.js';
 
 const metaKeys = ['apiConfigs', 'selectedConfigIndex'];
 const promptKey = (id) => `apiConfigSystemPrompt_${id}`;
@@ -29,7 +31,7 @@ export function normalizeConfig(config = {}) {
 export async function loadApiConfigs() {
     if(usesApiReplica()) {
         const shared=await readApiReplica();
-        if(shared){apiStore.set({configs:shared.configs.map(normalizeConfig),selected:shared.selected,ready:true});return;}
+        if(shared){apiStore.set({...shared,configs:shared.configs.map(normalizeConfig),ready:true});return;}
     }
     let meta = await metadataStorage.get(metaKeys);
     if (!isExtensionEnvironment && !meta.apiConfigs) {
@@ -51,14 +53,17 @@ export async function loadApiConfigs() {
             config.advancedSettings.systemPrompt;
         config.advancedSettings.systemPromptLocalOnly = onlyLocal;
     }
+    const preferences = await readModelPreferences(meta.apiConfigs?.length ? configs[Math.max(0, Math.min(Number(meta.selectedConfigIndex) || 0, configs.length - 1))] : undefined);
     apiStore.set({
         configs,
-        selected: Math.max(0, Math.min(Number(meta.selectedConfigIndex) || 0, configs.length - 1)),
+        ...preferences,
+        selected: preferences.defaultSelection ? configs.findIndex(config => config.id === preferences.defaultSelection.configId) : 0,
         ready: true,
     });
 }
 let timer;
 let dirty = false;
+const dirtyIds = new Set(), removedIds = new Set();
 let saveChain = Promise.resolve();
 export function saveApiConfigs() {
     clearTimeout(timer);
@@ -66,12 +71,14 @@ export function saveApiConfigs() {
     dirty = false;
     const { configs, selected } = apiStore.getSnapshot();
     const snapshot = structuredClone(configs);
+    const changed = [...dirtyIds], removed = [...removedIds];
+    dirtyIds.clear(); removedIds.clear();
     saveChain = saveChain
         .catch(() => {})
         .then(async () => {
             if(usesApiReplica()) {
-                await writeApiReplica(snapshot,selected);
-                await projectApiSettingsToLegacy({configs:snapshot,selected});
+                await writeApiReplica(snapshot,undefined,{changedIds:changed,removedIds:removed});
+                await projectApiSettingsToLegacy(await readApiReplica());
                 return;
             }
             const prompts = {},
@@ -111,6 +118,7 @@ export function saveApiConfigs() {
 }
 export function changeConfig(id, patch) {
     dirty = true;
+    dirtyIds.add(id);
     apiStore.set((s) => ({
         ...s,
         configs: s.configs.map((c) =>
@@ -123,21 +131,30 @@ export function changeConfig(id, patch) {
     timer = setTimeout(() => saveApiConfigs().catch((e) => notify(e.message, { type: 'error' })), 500);
 }
 export function selectConfig(index) {
-    dirty = true;
-    apiStore.set({ selected: index });
-    return saveApiConfigs();
+    const config = apiStore.getSnapshot().configs[index];
+    if (!config) return Promise.resolve();
+    apiStore.set({ selected: index, defaultSelection: modelSelection(config) });
+    // Selection alone must not rewrite every API record or publish a shared
+    // selection revision. Only explicit configuration edits belong in sync.
+    return writeDefaultModel(config).then(async () => {
+        await storageAdapter.set({ selectedConfigIndex: index });
+        await saveApiConfigs();
+    });
 }
 export function duplicateConfig(index) {
     dirty = true;
+    const config = { ...structuredClone(apiStore.getSnapshot().configs[index]), id: crypto.randomUUID() };
+    dirtyIds.add(config.id);
     apiStore.set((s) => ({
         ...s,
-        configs: [...s.configs, { ...structuredClone(s.configs[index]), id: crypto.randomUUID() }],
+        configs: [...s.configs, config],
     }));
     return saveApiConfigs();
 }
 export async function addConfig() {
     const config = normalizeConfig({ baseUrl: '', modelName: '' });
     dirty = true;
+    dirtyIds.add(config.id);
     apiStore.set((s) => ({ ...s, configs: [...s.configs, config] }));
     await saveApiConfigs();
     return config.id;
@@ -145,16 +162,17 @@ export async function addConfig() {
 export function deleteConfig(index) {
     if (apiStore.getSnapshot().configs.length <= 1) return Promise.resolve();
     dirty = true;
+    const removed = apiStore.getSnapshot().configs[index];
+    removedIds.add(removed.id); dirtyIds.delete(removed.id);
     apiStore.set((s) => ({
         ...s,
         configs: s.configs.length > 1 ? s.configs.filter((_, i) => i !== index) : [normalizeConfig()],
-        selected: Math.max(0, s.selected > index ? s.selected - 1 : s.selected === index ? 0 : s.selected),
+        selected: s.selected > index ? s.selected - 1 : s.selected === index ? -1 : s.selected,
     }));
     return saveApiConfigs();
 }
-export function getSelectedApiConfig() {
-    const s = apiStore.getSnapshot();
-    return s.configs[s.selected];
+export function getSelectedApiConfig(chat) {
+    return resolveChatApiConfig(chat, apiStore.getSnapshot());
 }
 let remoteRefresh=Promise.resolve();
 subscribeRemoteChanges(keys=>{

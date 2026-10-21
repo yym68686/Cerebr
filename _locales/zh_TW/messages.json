@@ -355,6 +355,7 @@
 
   "error_api_config_incomplete": { "message": "API 設定不完整" },
   "error_response_unreadable": { "message": "回應內容不可讀" },
+  "error_chat_model_unavailable": { "message": "此對話的 $1 連線不可用，請重新選擇模型或還原 API 設定。" },
   "error_send_failed": { "message": "傳送失敗: $1" },
   "error_regenerate_failed": { "message": "重新產生失敗: $1" },
   "error_unable_get_image_data": { "message": "無法取得圖片資料。" },

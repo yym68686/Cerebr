@@ -6,6 +6,7 @@ import {
 } from '../../utils/storage-adapter.js';
 import { API_CONFIG_PREFIX, API_SELECTION } from './protocol.js';
 import { replicaRecord, replicaRecordsWithPrefix, seedReplica, writeLocal } from './replica.js';
+import { readModelPreferences, writeDefaultModel } from './model-preferences.js';
 
 const marker = 'cerebr_api_replica_initialized_v1';
 const promptKey = (id) => `apiConfigSystemPrompt_${id}`;
@@ -68,9 +69,12 @@ export async function ensureApiReplica(db) {
         seeds.set(
             db,
             (async () => {
+                const initial = await readLegacyApiSettings();
+                // Capture the device's choice BEFORE cloud/local bridge records
+                // arrive. Importing API settings is not a model-switch action.
+                await readModelPreferences(initial?.configs[initial.selected]);
                 if (await req(db.transaction('keyValueStore').objectStore('keyValueStore').get(marker)))
                     return;
-                const initial = await readLegacyApiSettings();
                 const tx = db.transaction('keyValueStore', 'readwrite'),
                     done = complete(tx),
                     store = tx.objectStore('keyValueStore');
@@ -82,10 +86,6 @@ export async function ensureApiReplica(db) {
                             store.put({ config, order }, key);
                             created.push(key);
                         }
-                    }
-                    if (initial && !(await req(store.get(API_SELECTION)))) {
-                        store.put(initial.configs[initial.selected].id, API_SELECTION);
-                        created.push(API_SELECTION);
                     }
                     store.put(true, marker);
                 }
@@ -109,30 +109,31 @@ export async function readApiReplica() {
     records.sort((a, b) => (a.value.order ?? 0) - (b.value.order ?? 0) || a.key.localeCompare(b.key));
     if (!records.length) return null;
     const configs = records.map((record) => record.value.config);
+    // The old shared selection is only a bootstrap hint for an empty device.
+    // It never overrides an existing local choice, even on manual sync.
     const selectedId = (await replicaRecord(db, API_SELECTION))?.value;
+    const preferences = await readModelPreferences(configs.find(config => config.id === selectedId) || configs[0]);
     return {
         configs,
-        selected: Math.max(
-            0,
-            configs.findIndex((config) => config.id === selectedId)
-        ),
+        ...preferences,
+        selected: configs.findIndex(config => config.id === preferences.defaultSelection?.configId),
     };
 }
-export async function writeApiReplica(configs, selected) {
+export async function writeApiReplica(configs, selected, { changedIds, removedIds } = {}) {
     const db = await getDb();
     await ensureApiReplica(db);
     const values = Object.fromEntries(
-        configs.map((config, order) => [
+        configs.flatMap((config, order) => changedIds && !changedIds.includes(config.id) ? [] : [[
             API_CONFIG_PREFIX + config.id,
             { config: sharedConfig(config), order },
-        ])
+        ]])
     );
     const records = await replicaRecordsWithPrefix(db, API_CONFIG_PREFIX);
-    const removed = records
+    const removed = removedIds ? removedIds.map(id => API_CONFIG_PREFIX + id) : records
         .filter((record) => !record.deleted && !Object.hasOwn(values, record.key))
         .map((record) => record.key);
-    if (configs[selected]) values[API_SELECTION] = configs[selected].id;
     await writeLocal(db, values, removed);
+    if (configs[selected]) await writeDefaultModel(configs[selected]);
 }
 
 // Preserve the existing Chrome-sync representation for other extension installs.
@@ -149,12 +150,12 @@ export async function projectApiSettingsToLegacy(settings, beforeSyncWrite = () 
             delete copy.advancedSettings.systemPrompt;
             return copy;
         }),
-        selectedConfigIndex: selected,
     };
     if (!isExtensionEnvironment) {
-        await storageAdapter.set(metadata);
+        await storageAdapter.set({ ...metadata, selectedConfigIndex: selected });
         return;
     }
+    await storageAdapter.set({ selectedConfigIndex: selected });
     const syncPrompts = {};
     for (const config of configs) {
         const prompt = config.advancedSettings.systemPrompt;

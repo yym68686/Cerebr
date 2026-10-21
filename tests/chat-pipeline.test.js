@@ -4,8 +4,9 @@ vi.mock('../src/utils/ui.js', () => ({ showToast: vi.fn() }));
 import { callAPI } from '../src/runtime/chat/api-client.js';
 import { createChatPipeline } from '../src/runtime/chat/chat-pipeline.js';
 import { showToast } from '../src/utils/ui.js';
+import { resolveChatApiConfig } from '../src/domain/chat/model-selection.js';
 
-function setup(plugins = {}, getWebpageInfo = async () => null, managerOverrides = {}) {
+function setup(plugins = {}, getWebpageInfo = async () => null, managerOverrides = {}, selectApi) {
     const chat = { id: 'a', title: '', messages: [] };
     const manager = {
         chats: new Map([['a', chat]]),
@@ -25,11 +26,11 @@ function setup(plugins = {}, getWebpageInfo = async () => null, managerOverrides
     const pipeline = createChatPipeline({
         chatManager: manager,
         editor,
-        getSelectedApiConfig: () => ({
+        getSelectedApiConfig: selectApi || (() => ({
             baseUrl: 'https://test.invalid/v1',
             apiKey: 'test-only',
             modelName: 'test',
-        }),
+        })),
         getWebpageInfo,
         getUserLanguage: () => 'zh-CN',
         pluginRuntime: plugins,
@@ -38,6 +39,24 @@ function setup(plugins = {}, getWebpageInfo = async () => null, managerOverrides
     return { pipeline, chat, editor, phase, manager };
 }
 describe('React chat session pipeline', () => {
+    it('sends and regenerates with the conversation model rather than the new-chat default', async () => {
+        const a={id:'a',modelName:'old-model',apiKey:'test-only',baseUrl:'https://test.invalid/v1'};
+        const b={...a,id:'b',modelName:'new-default'};
+        const state={configs:[a,b],selected:1,defaultSelection:{configId:'b',modelName:'new-default'}};
+        const select=vi.fn(chat=>resolveChatApiConfig(chat,state));
+        const {pipeline,chat}=setup({},async()=>null,{},select);
+        chat.modelSelection={configId:'a',modelName:'old-model'};
+        chat.messages=[{role:'user',content:'original'},{role:'assistant',content:'old answer'}];
+        callAPI.mockReset().mockResolvedValue({controller:new AbortController(),processStream:async()=>({content:'answer'})});
+        await pipeline.sendMessage();
+        expect(select).toHaveBeenCalledWith(chat);
+        expect(callAPI.mock.calls[0][0].apiConfig.modelName).toBe('old-model');
+        await pipeline.regenerateMessage(1);
+        expect(callAPI.mock.calls[1][0].apiConfig.modelName).toBe('old-model');
+        state.configs=[b];
+        expect(await pipeline.sendMessage()).toBe(false);
+        expect(callAPI).toHaveBeenCalledTimes(2);
+    });
     it('sends a selection as a new quoted question and preserves the existing composer draft', async () => {
         const { pipeline, chat, editor } = setup();
         chat.messages.push({ role: 'assistant', content: 'Old answer' });

@@ -42,6 +42,8 @@ vi.mock('../src/app/state/api-configs.js', () => ({
     loadApiConfigs: async () => {},
     getSelectedApiConfig: () => null,
     saveApiConfigs: async () => {},
+    selectConfig: async () => {},
+    apiStore: { getSnapshot: () => ({ configs: [], defaultSelection: null }) },
 }));
 vi.mock('../src/app/state/preferences.js', () => ({ loadPreferences: async () => {} }));
 vi.mock('../src/runtime/webpage/webpage-context.js', () => ({ getEnabledTabsContent: async () => null }));

@@ -355,6 +355,7 @@
 
   "error_api_config_incomplete": { "message": "API config is incomplete" },
   "error_response_unreadable": { "message": "Response body is unreadable" },
+  "error_chat_model_unavailable": { "message": "The connection for $1 is unavailable. Choose a model or restore the API configuration." },
   "error_send_failed": { "message": "Send failed: $1" },
   "error_regenerate_failed": { "message": "Regenerate failed: $1" },
   "error_unable_get_image_data": { "message": "Unable to get image data." },

@@ -317,10 +317,16 @@ export function createChatPipeline({
         if (!chat) return false;
         const draft = directDraft || editor.getDraftSnapshot();
         if (mode === 'send' && draft.empty) return false;
-        const config = getSelectedApiConfig();
+        const config = getSelectedApiConfig(chat);
         if (!config?.baseUrl || !config?.apiKey || !config?.modelName) {
-            showToast(t('error_send_failed', ['Please configure the API URL and model.']), { type: 'error' });
+            showToast(!config && chat.modelSelection
+                ? t('error_chat_model_unavailable', [chat.modelSelection.modelName])
+                : t('error_send_failed', ['Please configure the API URL and model.']), { type: 'error' });
             return false;
+        }
+        if (!chat.modelSelection && config.id) {
+            chat.modelSelection = { configId: config.id, modelName: config.modelName };
+            chatManager.markChatDirty(chat.id);
         }
         abortControllerRef.pendingAbort = false;
         const prelude = createPreludeLatch();

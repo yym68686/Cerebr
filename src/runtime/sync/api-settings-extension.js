@@ -34,7 +34,6 @@ export function startApiSettingsExtensionBridge() {
         for (const [key, change] of Object.entries(changes)) {
             if (
                 key !== 'apiConfigs' &&
-                key !== 'selectedConfigIndex' &&
                 !key.startsWith('apiConfigSystemPrompt')
             )
                 continue;
@@ -51,7 +50,7 @@ export function startApiSettingsExtensionBridge() {
                 () =>
                     schedule(async () => {
                         const settings = await readLegacyApiSettings();
-                        if (settings) await writeApiReplica(settings.configs, settings.selected);
+                        if (settings) await writeApiReplica(settings.configs);
                     }),
                 100
             );

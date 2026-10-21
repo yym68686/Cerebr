@@ -3,15 +3,18 @@ import { selectConfig } from '../state/api-configs.js';
 import { notify, uiStore } from '../state/ui-store.js';
 import { t } from '../../utils/i18n.js';
 import { Icon } from './Icon.jsx';
+import { getChatModelSelection } from '../../domain/chat/model-selection.js';
 
-export function ComposerControls({ apis, session, ui, draft, onSettings }) {
+export function ComposerControls({ apis, chat, session, ui, draft, onSettings }) {
     const [open, setOpen] = useState(false);
     const [iconOnly, setIconOnly] = useState(false);
     const root = useRef(null),
         button = useRef(null),
         label = useRef(null),
         menu = useRef(null);
-    const model = apis.configs[apis.selected]?.modelName || 'gpt-4o';
+    const selection = getChatModelSelection(chat, apis);
+    const model = selection?.modelName || 'gpt-4o';
+    const selected = apis.configs.findIndex(config => config.id === selection?.configId && config.modelName === selection.modelName);
     const active = ui.phase !== 'idle';
     useLayoutEffect(() => {
         const element = button.current;
@@ -112,16 +115,16 @@ export function ComposerControls({ apis, session, ui, draft, onSettings }) {
                             key={config.id}
                             type="button"
                             role="menuitemradio"
-                            aria-checked={index === apis.selected}
+                            aria-checked={index === selected}
                             onClick={() => {
-                                void selectConfig(index).catch((error) =>
+                                void (session?.selectModel ? session.selectModel(index) : selectConfig(index)).catch((error) =>
                                     notify(error.message, { type: 'error' })
                                 );
                                 close();
                             }}
                         >
                             <span>{config.modelName || 'gpt-4o'}</span>
-                            {index === apis.selected && <Icon name="check" />}
+                            {index === selected && <Icon name="check" />}
                         </button>
                     ))}
                     <div className="composer-menu-divider" role="separator" />

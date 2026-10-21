@@ -369,6 +369,7 @@ export function App() {
                     <Slot name="shell.input.after" />
                     <ComposerControls
                         apis={apis}
+                        chat={chat}
                         session={session}
                         ui={ui}
                         draft={draft}
@@ -379,7 +380,7 @@ export function App() {
                 <PluginInputActions />
                 <Slot name="shell.input.row.after" />
             </div>
-            <ApiSettings visible={ui.page === 'api'} onBack={close} />
+            <ApiSettings visible={ui.page === 'api'} onBack={close} chat={chat} onSelectConfig={session?.selectModel} />
             <Preferences
                 visible={ui.page === 'preferences'}
                 onBack={close}

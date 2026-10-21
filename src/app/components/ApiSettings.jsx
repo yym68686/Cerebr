@@ -14,6 +14,7 @@ import { normalizeChatCompletionsUrl } from '../../utils/api-url.js';
 import { notify } from '../state/ui-store.js';
 import { SettingsPage } from './SettingsPage.jsx';
 import { Icon } from './Icon.jsx';
+import { getChatModelSelection } from '../../domain/chat/model-selection.js';
 
 const report = (error) => notify(error.message, { type: 'error' });
 const endpointLabel = (value) => {
@@ -24,7 +25,7 @@ const endpointLabel = (value) => {
     }
 };
 
-function ConnectionEditor({ config, index, selected, canDelete, onDuplicate, onDelete }) {
+function ConnectionEditor({ config, index, selected, canDelete, onDuplicate, onDelete, onSelect }) {
     const [showKey, setShowKey] = useState(false);
     const advanced = config.advancedSettings;
     const change = (patch) => changeConfig(config.id, patch);
@@ -157,7 +158,7 @@ function ConnectionEditor({ config, index, selected, canDelete, onDuplicate, onD
                     type="button"
                     className={`settings-button${selected ? ' is-current' : ' is-primary'}`}
                     disabled={selected}
-                    onClick={() => void selectConfig(index).catch(report)}
+                    onClick={() => void onSelect(index).catch(report)}
                 >
                     <Icon name={selected ? 'check' : 'brain'} />
                     {t(selected ? 'api_in_use' : 'api_use_connection')}
@@ -167,12 +168,14 @@ function ConnectionEditor({ config, index, selected, canDelete, onDuplicate, onD
     );
 }
 
-export function ApiSettings({ visible, onBack }) {
+export function ApiSettings({ visible, onBack, chat, onSelectConfig = selectConfig }) {
     const state = useSyncExternalStore(apiStore.subscribe, apiStore.getSnapshot);
+    const selection = getChatModelSelection(chat, state);
+    const selected = state.configs.findIndex(config => config.id === selection?.configId && config.modelName === selection.modelName);
     const [editingId, setEditingId] = useState(null);
     const editing =
         state.configs.find((config) => config.id === editingId) ||
-        state.configs[state.selected] ||
+        state.configs[selected] ||
         state.configs[0];
     const index = state.configs.indexOf(editing);
     const run = (callback) => {
@@ -217,7 +220,7 @@ export function ApiSettings({ visible, onBack }) {
                                     <strong>{config.modelName || t('api_new_connection')}</strong>
                                     <small>{endpointLabel(config.baseUrl)}</small>
                                 </span>
-                                {i === state.selected && (
+                                {i === selected && (
                                     <span
                                         className="connection-active-dot"
                                         title={t('api_in_use')}
@@ -233,7 +236,8 @@ export function ApiSettings({ visible, onBack }) {
                         key={editing.id}
                         config={editing}
                         index={index}
-                        selected={index === state.selected}
+                        selected={index === selected}
+                        onSelect={onSelectConfig}
                         canDelete={state.configs.length > 1}
                         onDuplicate={() =>
                             run(async () => {
