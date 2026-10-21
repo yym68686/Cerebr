@@ -13,7 +13,7 @@ import {
 } from '../runtime/input/native-editor.js';
 import { storageAdapter, browserAdapter, isExtensionEnvironment } from '../utils/storage-adapter.js';
 import { loadApiConfigs, getSelectedApiConfig, saveApiConfigs, selectConfig, apiStore } from './state/api-configs.js';
-import { getChatModelSelection, modelSelection } from '../domain/chat/model-selection.js';
+import { modelSelection } from '../domain/chat/model-selection.js';
 import { uiStore, openPage, notify } from './state/ui-store.js';
 import { getEnabledTabsContent } from '../runtime/webpage/webpage-context.js';
 import { desktopBrowserStore } from '../platform/desktop-browser.js';
@@ -252,10 +252,6 @@ export function createSession({ messageInput, chatContainer }) {
         void reading.saveNow().catch(reportStorageError);
         pendingReadingId = id;
         await chatManager.switchChat(id);
-        const chat = chatManager.getCurrentChat();
-        if (!chat.modelSelection && apiStore.getSnapshot().defaultSelection) {
-            void chatManager.setChatModel(id, getChatModelSelection(chat, apiStore.getSnapshot()));
-        }
         // A completed reply may still be writing. Navigation must not join that
         // write queue; the store retains and retries any failed chat writes.
         void chatManager.flushNow().catch((error) => {

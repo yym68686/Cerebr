@@ -324,10 +324,6 @@ export function createChatPipeline({
                 : t('error_send_failed', ['Please configure the API URL and model.']), { type: 'error' });
             return false;
         }
-        if (!chat.modelSelection && config.id) {
-            chat.modelSelection = { configId: config.id, modelName: config.modelName };
-            chatManager.markChatDirty(chat.id);
-        }
         abortControllerRef.pendingAbort = false;
         const prelude = createPreludeLatch();
         releasePrelude = prelude.release;
@@ -385,6 +381,12 @@ export function createChatPipeline({
             )
                 return false;
             const payload = normalizeWaterfallPayload(before.payload, initial);
+            // Bind legacy history only when a request is actually submitted.
+            // Merely viewing it must not publish a guessed model to other devices.
+            if (!chat.modelSelection && config.id) {
+                chat.modelSelection = { configId: config.id, modelName: config.modelName };
+                chatManager.markChatDirty(chat.id);
+            }
             if (mode === 'send') {
                 const userMessage = resolveUserMessage(payload, initial);
                 if (!chat.messages.length) chat.title = draft.text || t('label_image');

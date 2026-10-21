@@ -26,6 +26,7 @@ vi.mock('../src/domain/chat/chat-store.js', () => ({
         createNewChat: vi.fn(() => ({ id: 'new' })),
         switchChat: vi.fn(async () => {}),
         flushNow: vi.fn(async () => {}),
+        setChatModel: vi.fn(async () => {}),
     },
 }));
 vi.mock('../src/runtime/chat/chat-pipeline.js', () => ({
@@ -243,6 +244,7 @@ describe('new chat shortcut delivery', () => {
             try {
                 await vi.waitFor(() => expect(finished).toBe(true), { timeout: 100 });
                 expect(chatManager.switchChat).toHaveBeenCalledWith(id);
+                expect(chatManager.setChatModel).not.toHaveBeenCalled();
                 expect(uiStore.getSnapshot().page).toBe(null);
             } finally {
                 release();
