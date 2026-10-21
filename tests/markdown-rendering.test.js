@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
-import { processMathAndMarkdown } from '../htmd/latex.js';
+import { processMathAndMarkdown, textMayContainMath } from '../htmd/latex.js';
 
 beforeAll(() => {
     // Exercise the bundled parser and highlighter used by the application.
@@ -20,6 +20,51 @@ function render(markdown) {
     container.innerHTML = processMathAndMarkdown(markdown);
     return container;
 }
+
+it.each(['50%', '99.999999999999999999999999999999%', String.raw`50\%`])(
+    'recognizes a percentage formula inside bold Chinese text: %s', (percentage) => {
+        const source = `我有 **$${percentage}$ 的概率**。`;
+        expect(textMayContainMath(source)).toBe(true);
+        const container = render(source);
+        expect(container.querySelector('strong')?.textContent).toBe(
+            `\\(${percentage.replace(/(?<!\\)%/, '\\%')}\\) 的概率`
+        );
+        expect(container.querySelector('strong')?.textContent).not.toContain('$');
+    }
+);
+
+it.each([
+    ['**$$50%$$**', String.raw`$$50\%$$`],
+    [String.raw`**\(50%\)**`, String.raw`\(50\%\)`],
+    [String.raw`**\[99.99%\]**`, String.raw`\[ 99.99\% \]`],
+    [String.raw`**\(50\% \)**`, String.raw`\(50\% \)`],
+])('normalizes a numeric percent for TeX without losing its delimiters: %s', (source, expected) => {
+    expect(render(source).textContent).toContain(expected);
+});
+
+it('leaves currency, ordinary percentages and dollar examples in code unchanged', () => {
+    const source = '价格 $50 和 $100，概率 50%。`$50%$`\n\n```text\n$99.99%$\n```';
+    expect(textMayContainMath(source)).toBe(false);
+    const container = render(source);
+    expect(container.textContent).toContain('价格 $50 和 $100，概率 50%。');
+    expect([...container.querySelectorAll('code')].map(el => el.textContent)).toEqual(['$50%$', '$99.99%$']);
+});
+
+it('preserves percentage line breaks and legitimate TeX comments', () => {
+    const text = '概率为 50%\n下一行保留。';
+    const container = render(text);
+    expect(container.textContent).toContain('50%');
+    expect(container.querySelector('br')).not.toBeNull();
+    const formula = String.raw`$$x=1 % explanation` + '\n+2$$';
+    expect(render(formula).textContent).toContain(formula);
+});
+
+it('recognizes a streamed percentage only when its closing dollar arrives', () => {
+    const source = '**$99.999999%$ 的概率**';
+    expect(textMayContainMath('**$99.999999%')).toBe(false);
+    expect(textMayContainMath(source)).toBe(true);
+    expect(render(source).querySelector('strong')?.textContent).toBe(String.raw`\(99.999999\%\) 的概率`);
+});
 
 it('preserves numeric ranges in the reported list without striking through the text between them', () => {
     const container = render(
