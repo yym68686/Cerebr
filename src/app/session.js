@@ -158,7 +158,8 @@ export function createSession({ messageInput, chatContainer }) {
                 : null,
         getUserLanguage: () => navigator.language,
         pluginRuntime: runtime,
-        onPhase: (phase, requestChatId) => {
+        onPhase: (phase, requestChatId, { preserveReadingPosition = false } = {}) => {
+            if (preserveReadingPosition) chatContainer.__cerebrUserPausedAutoScroll = true;
             // The pipeline clears its UI request ID on idle. Publish completion
             // for the previous request before clearing it locally.
             const progressChatId = requestChatId || uiStore.getSnapshot().requestChatId;
@@ -177,12 +178,15 @@ export function createSession({ messageInput, chatContainer }) {
                 ...(phase === 'thinking' ? { requestStartedAt: Date.now() } : {}),
             });
         },
-        onSubmitted: (id, { preserveDraft = false } = {}) => {
+        onSubmitted: (id, { preserveDraft = false, preserveReadingPosition = false } = {}) => {
             sendLive(id, 'thinking', true);
-            chatContainer.__cerebrUserPausedAutoScroll = false;
-            requestAnimationFrame(() => {
-                chatContainer.scrollTop = chatContainer.scrollHeight;
-            });
+            if (!preserveReadingPosition) {
+                chatContainer.__cerebrUserPausedAutoScroll = false;
+                requestAnimationFrame(() => {
+                    if (chatManager.currentChatId === id && !chatContainer.__cerebrUserPausedAutoScroll)
+                        chatContainer.scrollTop = chatContainer.scrollHeight;
+                });
+            }
             if (preserveDraft) return;
             clearTimeout(draftTimer);
             void writeDraft(id, null).catch(reportStorageError);

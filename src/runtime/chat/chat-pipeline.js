@@ -330,7 +330,10 @@ export function createChatPipeline({
         // 用 race 把「等这一步做完」变成「等这一步做完，或者用户点了停止」。abort 后原来的
         // await 仍在后台跑到底（没法真正取消跨标签页取正文），但不再挡着界面复位。
         const raceAbort = async (promise) => Promise.race([promise, prelude.aborted]);
-        onPhase('thinking', chat.id);
+        // A selection question originates in the passage the user is reading.
+        // Let the UI pause following before the first phase/store notification.
+        const preserveReadingPosition = !!directDraft;
+        onPhase('thinking', chat.id, { preserveReadingPosition });
         try {
             let messages = cloneMessages(chat.messages);
             if (mode === 'regenerate') {
@@ -396,7 +399,7 @@ export function createChatPipeline({
                     editor.clear();
                     editor.focus();
                 }
-                await onSubmitted(chat.id, { preserveDraft: !!directDraft });
+                await onSubmitted(chat.id, { preserveDraft: !!directDraft, preserveReadingPosition });
                 payload.messages = [...payload.messages, userMessage];
             } else {
                 chat.messages = messages;

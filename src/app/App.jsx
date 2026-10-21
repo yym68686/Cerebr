@@ -142,6 +142,9 @@ export function App() {
     useLayoutEffect(() => {
         const el = chatRef.current;
         if (!el.__cerebrUserPausedAutoScroll) el.scrollTop = el.scrollHeight;
+        // Appending offscreen messages need not emit a scroll event. Keep the
+        // explicit jump-to-latest control available while preserving the view.
+        setShowScroll(el.scrollHeight - el.scrollTop - el.clientHeight > 160);
         document.dispatchEvent(
             new CustomEvent(
                 messageCount === chat?.messages.length

@@ -23,6 +23,7 @@ function setup(plugins = {}, getWebpageInfo = async () => null, managerOverrides
         focus: vi.fn(),
     };
     const phase = vi.fn();
+    const submitted = vi.fn();
     const pipeline = createChatPipeline({
         chatManager: manager,
         editor,
@@ -35,8 +36,9 @@ function setup(plugins = {}, getWebpageInfo = async () => null, managerOverrides
         getUserLanguage: () => 'zh-CN',
         pluginRuntime: plugins,
         onPhase: phase,
+        onSubmitted: submitted,
     });
-    return { pipeline, chat, editor, phase, manager };
+    return { pipeline, chat, editor, phase, manager, submitted };
 }
 describe('React chat session pipeline', () => {
     it('sends and regenerates with the conversation model rather than the new-chat default', async () => {
@@ -58,7 +60,7 @@ describe('React chat session pipeline', () => {
         expect(callAPI).toHaveBeenCalledTimes(2);
     });
     it('sends a selection as a new quoted question and preserves the existing composer draft', async () => {
-        const { pipeline, chat, editor, phase } = setup();
+        const { pipeline, chat, editor, phase, submitted } = setup();
         chat.messages.push({ role: 'assistant', content: 'Old answer' });
         callAPI
             .mockReset()
@@ -78,6 +80,9 @@ describe('React chat session pipeline', () => {
             '> Quoted passage\n> Second line\n\nWhy?'
         );
         expect(editor.clear).not.toHaveBeenCalled();
+        expect(editor.focus).not.toHaveBeenCalled();
+        expect(phase).toHaveBeenNthCalledWith(1, 'thinking', 'a', { preserveReadingPosition: true });
+        expect(submitted).toHaveBeenCalledWith('a', { preserveDraft: true, preserveReadingPosition: true });
         expect(editor.getDraftSnapshot().text).toBe('hello');
     });
     it('acknowledges a selected-text question before the answer arrives, while keeping cancellation active', async () => {
@@ -88,7 +93,7 @@ describe('React chat session pipeline', () => {
         callAPI.mockReset().mockResolvedValue({controller, processStream:() => answer});
         expect(await pipeline.sendSelection('Passage', 'Why?')).toBe(true);
         expect(chat.messages[0].selectionQuestion).toBe('Why?');
-        expect(phase).toHaveBeenLastCalledWith('thinking', 'a');
+        expect(phase).toHaveBeenLastCalledWith('thinking', 'a', { preserveReadingPosition: true });
         await vi.waitFor(() => expect(callAPI).toHaveBeenCalledOnce());
         const stopped = pipeline.abortActiveReply();
         expect(controller.signal.aborted).toBe(true);

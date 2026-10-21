@@ -216,6 +216,48 @@ describe('new chat shortcut delivery', () => {
         await vi.waitFor(() => expect(storageAdapter.remove).toHaveBeenCalledWith('cerebr_draft_v1_old'));
     });
 
+    it('keeps the reading position from thinking through completion for selection questions', async () => {
+        start();
+        const container = document.getElementById('chat-container');
+        Object.defineProperty(container, 'scrollHeight', { configurable: true, value: 4000 });
+        container.scrollTop = 720;
+        container.__cerebrUserPausedAutoScroll = false;
+        // Model the React layout effect: each phase update may follow the tail.
+        const unsubscribe = uiStore.subscribe(() => {
+            if (!container.__cerebrUserPausedAutoScroll) container.scrollTop = container.scrollHeight;
+        });
+        requestAnimationFrame.mockClear();
+        try {
+            state.pipelineOptions.onPhase('thinking', 'old', { preserveReadingPosition: true });
+            expect(container.scrollTop).toBe(720);
+            await state.pipelineOptions.onSubmitted('old', { preserveDraft: true, preserveReadingPosition: true });
+            state.pipelineOptions.onPhase('replying', 'old');
+            state.pipelineOptions.onPhase('idle', null);
+            expect(container.scrollTop).toBe(720);
+            expect(container.__cerebrUserPausedAutoScroll).toBe(true);
+            expect(requestAnimationFrame).not.toHaveBeenCalled();
+            expect(storageAdapter.remove).not.toHaveBeenCalled();
+
+            // A later normal composer submission resumes following as before.
+            await state.pipelineOptions.onSubmitted('old');
+            requestAnimationFrame.mock.calls.at(-1)[0]();
+            expect(container.scrollTop).toBe(4000);
+            expect(container.__cerebrUserPausedAutoScroll).toBe(false);
+        } finally { unsubscribe(); }
+    });
+
+    it('does not let a queued send scroll override a new reading pause', async () => {
+        start();
+        const container = document.getElementById('chat-container');
+        Object.defineProperty(container, 'scrollHeight', { configurable: true, value: 4000 });
+        await state.pipelineOptions.onSubmitted('old');
+        const scroll = requestAnimationFrame.mock.calls.at(-1)[0];
+        container.scrollTop = 720;
+        state.pipelineOptions.onPhase('thinking', 'old', { preserveReadingPosition: true });
+        scroll();
+        expect(container.scrollTop).toBe(720);
+    });
+
     it('still navigates when ancillary storage writes reject', async () => {
         start();
         session.editor.setDraft('keep this draft');
