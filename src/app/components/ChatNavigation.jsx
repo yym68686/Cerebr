@@ -388,7 +388,7 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                 }}
             >
                 <div className="navigation-header">
-                    {!desktop &&
+                    {!showToggle &&
                         (wide ? (
                             <button
                                 type="button"

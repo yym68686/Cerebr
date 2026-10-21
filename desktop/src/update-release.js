@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { open, rm } from 'node:fs/promises';
+import { updateError } from './update-request.js';
 
 export const releaseAPI = 'https://api.github.com/repos/yym68686/Cerebr/releases/latest';
 const releases = 'https://github.com/yym68686/Cerebr/releases/download/';
@@ -74,13 +75,14 @@ export async function downloadVerified({
     try {
         for await (const chunk of response.body) {
             bytes += chunk.length;
-            if (bytes > file.size) throw new Error('Update size mismatch');
+            if (bytes > file.size) throw updateError('integrity', 'Update size mismatch');
             hash.update(chunk);
             sha1.update(chunk);
             await handle.writeFile(chunk);
             onProgress(bytes / file.size);
         }
-        if (bytes !== file.size || hash.digest('hex') !== sha256) throw new Error('Update checksum mismatch');
+        if (bytes !== file.size || hash.digest('hex') !== sha256)
+            throw updateError('integrity', 'Update checksum mismatch');
         await handle.sync();
         return sha1.digest('hex');
     } catch (error) {

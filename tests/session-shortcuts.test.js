@@ -128,6 +128,12 @@ function message(source, type) {
 }
 
 describe('new chat shortcut delivery', () => {
+    it('coalesces rapid new-chat clicks into one navigation', async () => {
+        start();
+        await Promise.all([session.newChat(),session.newChat(),session.newChat()]);
+        expect(chatManager.createNewChat).toHaveBeenCalledOnce();
+        expect(chatManager.switchChat).toHaveBeenCalledOnce();
+    });
     it('accepts page selection actions only through the current sidebar token', async () => {
         state.extension = true;
         window.history.replaceState(null, '', '#selectionToken=private-channel');

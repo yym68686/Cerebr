@@ -10,7 +10,7 @@ const { memory, bulk } = vi.hoisted(() => {
     const minutesAgo = { c2: 40, c5: 10, c1: 50, c4: 20, c3: 30 };
     for (const id of ids) {
         const at = time(minutesAgo[id]);
-        memory.set(`cerebr_chat_v2_${id}`, { id, title: id, messages: [], createdAt: at, updatedAt: at });
+        memory.set(`cerebr_chat_v2_${id}`, { id, title: id, messages: [{role:'user',content:id}], createdAt: at, updatedAt: at });
     }
     memory.set('cerebr_chats_index_v2', ids);
     memory.set('cerebr_current_chat_id', 'c3');

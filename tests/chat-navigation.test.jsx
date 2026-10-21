@@ -281,6 +281,8 @@ it('previews without changing the saved collapsed preference and pins only on cl
     );
     await act(async () => toggle.dispatchEvent(new MouseEvent('pointerover', { bubbles: true })));
     expect(host.querySelector('#chat-navigation').classList.contains('is-floating')).toBe(true);
+    expect(host.querySelectorAll('[aria-label="nav_expand_sidebar"], [aria-label="nav_collapse_sidebar"]')).toHaveLength(1);
+    expect(host.querySelector('.navigation-header button')).toBeNull();
     expect(chatOrganization.getSnapshot().sidebarCollapsed).toBe(true);
     expect(document.body.dataset.navigationCollapsed).toBe('true');
     await act(async () =>
@@ -293,6 +295,7 @@ it('previews without changing the saved collapsed preference and pins only on cl
     expect(chatOrganization.getSnapshot().sidebarCollapsed).toBe(false);
     expect(host.querySelector('#chat-navigation').classList.contains('is-floating')).toBe(false);
     expect(host.querySelector('#chat-navigation').classList.contains('is-visible')).toBe(true);
+    expect(host.querySelectorAll('[aria-label="nav_expand_sidebar"], [aria-label="nav_collapse_sidebar"]')).toHaveLength(1);
 });
 it('keeps the preview open while hovering the toggle or moving between it and the panel', async () => {
     await act(async () => chatOrganization.setCollapsed('sidebar', true));

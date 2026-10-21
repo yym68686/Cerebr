@@ -1,4 +1,4 @@
-import { storageAdapter } from './storage-adapter.js';
+import { storageAdapter, isExtensionEnvironment } from './storage-adapter.js';
 import { desktopBrowserRequest, onDesktopBrowserEvent } from '../platform/desktop-browser.js';
 
 const WEBPAGE_SWITCHES_BY_CHAT_PREFIX = 'cerebr_webpage_switches_v1_';
@@ -87,9 +87,10 @@ function enqueueWrite(chatId, write) {
 
 export async function getWebpageSwitchesForChat(chatId, { currentTab, initialize = false } = {}) {
     if (!chatId) return {};
-    if(globalThis.cerebrDesktop)return desktopBrowserRequest({type:'GET_WEBPAGE_SWITCHES',chatId,initialize});
+    // Desktop can select pages explicitly; only the extension auto-adds its current page.
+    if(globalThis.cerebrDesktop)return desktopBrowserRequest({type:'GET_WEBPAGE_SWITCHES',chatId,initialize:false});
     const preferenceKey = currentTab && webpagePreferenceKey(currentTab.url);
-    if (initialize && preferenceKey && currentTab.id != null) {
+    if (isExtensionEnvironment && initialize && preferenceKey && currentTab.id != null) {
         // Capture earlier choices before joining the per-chat queue. Looking up
         // this promise inside the job could wait on a later write behind itself.
         const priorChoice = pendingPreferences.get(preferenceKey);

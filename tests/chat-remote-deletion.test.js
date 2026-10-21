@@ -21,7 +21,7 @@ it('applies remote deletion before flushing a dirty chat and falls back to exist
     state.data.set('cerebr_current_chat_id', 'default');
     state.data.set('cerebr_chats_index_v2', ['default', 'other']);
     state.data.set(key, { id: 'default', title: 'Default', messages: [] });
-    state.data.set('cerebr_chat_v2_other', { id: 'other', title: 'Other', messages: [], updatedAt: new Date().toISOString() });
+    state.data.set('cerebr_chat_v2_other', { id: 'other', title: 'Other', messages: [{role:'user',content:'Existing history'}], updatedAt: new Date().toISOString() });
     vi.stubGlobal('requestIdleCallback', () => 1);
     vi.stubGlobal('cancelIdleCallback', () => {});
     const manager = new ChatManager();

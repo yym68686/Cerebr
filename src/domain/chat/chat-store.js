@@ -44,6 +44,9 @@ export class ChatManager {
         this._saveDirty = false;
         this._indexDirty = false;
         this._dirtyChatIds = new Set();
+        // Blank conversations remain local drafts until the first message.
+        this._transientChatIds = new Set();
+        this._newChatId = null;
         this._pendingRemovals = new Set();
         this._pendingCurrentChatSelection = null;
         this._migrationQueue = [];
@@ -122,6 +125,7 @@ export class ChatManager {
         let mostRecentTime = -1;
 
         for (const chat of this.chats.values()) {
+            if (this._transientChatIds.has(chat.id) || !chat.messages?.length) continue;
             const activityTime = this._getChatActivityTimeMs(chat);
             if (activityTime > mostRecentTime) {
                 mostRecentTime = activityTime;
@@ -175,12 +179,18 @@ export class ChatManager {
         const keysToRead = isExtensionEnvironment
             ? [this._currentChatIdStorageKey, LAST_ACTIVE_CHAT_ID_KEY, LEGACY_CURRENT_CHAT_ID_KEY]
             : [this._currentChatIdStorageKey];
-        const currentChatResult = await this.storage.get(keysToRead);
+        const currentChatResult = await this.storage.get([...keysToRead, this._newChatStorageKey()]);
         return {
             tabScopedChatId: currentChatResult[this._currentChatIdStorageKey],
             lastActiveChatId: currentChatResult[LAST_ACTIVE_CHAT_ID_KEY],
-            legacyChatId: currentChatResult[LEGACY_CURRENT_CHAT_ID_KEY]
+            legacyChatId: currentChatResult[LEGACY_CURRENT_CHAT_ID_KEY],
+            newChat: currentChatResult[this._newChatStorageKey()]
         };
+    }
+
+    _newChatStorageKey() {
+        // Local working state, outside the history replica and Chrome sync.
+        return `cerebr_new_chat_v1_${this._currentChatIdStorageKey}`;
     }
 
     async _initializeImpl() {
@@ -197,6 +207,14 @@ export class ChatManager {
         ]);
         const chatIds = indexResult[CHATS_INDEX_V2_KEY];
         const { tabScopedChatId, lastActiveChatId, legacyChatId } = candidates;
+        const pending = candidates.newChat;
+        this._newChatId = null;
+        if (pending?.id && Array.isArray(pending.messages) && pending.messages.length === 0 &&
+            !chatIds?.includes(pending.id)) {
+            this._newChatId = pending.id;
+            this._transientChatIds.add(pending.id);
+            if (!this.chats.has(pending.id)) this.chats.set(pending.id, pending);
+        }
 
         if (Array.isArray(chatIds) && chatIds.length > 0) {
             // 首次打开只读当前对话这一条：读全部对话要几百毫秒，会让侧栏空白到读完为止
@@ -274,7 +292,8 @@ export class ChatManager {
             const lastActiveValid = !!lastActiveChatId && this.chats.has(lastActiveChatId);
             await this.storage.set({
                 [this._currentChatIdStorageKey]: this.currentChatId,
-                ...(lastActiveValid ? {} : { [LAST_ACTIVE_CHAT_ID_KEY]: this.currentChatId })
+                ...(lastActiveValid || this._transientChatIds.has(this.currentChatId)
+                    ? {} : { [LAST_ACTIVE_CHAT_ID_KEY]: this.currentChatId })
             });
         }
 
@@ -300,6 +319,12 @@ export class ChatManager {
      * 选中的对话与完整加载一致；更靠后的候选（最新对话、legacy key）要看全部对话才能判断，交给完整加载。
      */
     async _loadCurrentChatOnly(chatIds, { tabScopedChatId, lastActiveChatId }) {
+        if (this._transientChatIds.has(tabScopedChatId)) {
+            this.currentChatId = tabScopedChatId;
+            this._storedIndexIds = chatIds;
+            this._allChatsLoaded = false;
+            return true;
+        }
         const indexed = new Set(chatIds);
         const chatId = [tabScopedChatId, lastActiveChatId].find((id) => id && indexed.has(id));
         if (!chatId) return false;
@@ -417,7 +442,7 @@ export class ChatManager {
     }
 
     _getIndexIds() {
-        const ids = Array.from(this.chats.keys());
+        const ids = Array.from(this.chats.keys()).filter((id) => !this._transientChatIds.has(id));
         if (this._allChatsLoaded || !this._storedIndexIds) return ids;
         // 补齐前 this.chats 只是子集：以读到的索引为准，再追加新建的对话，避免把索引截断
         const stored = new Set(this._storedIndexIds);
@@ -425,9 +450,9 @@ export class ChatManager {
     }
 
     createNewChat(title = '新对话') {
-        return this.createChat({
-            title
-        });
+        const pending = this.chats.get(this._newChatId);
+        if (pending && this._transientChatIds.has(pending.id)) return pending;
+        return this.createChat({ title, persist: false });
     }
 
     createChat({
@@ -435,7 +460,8 @@ export class ChatManager {
         messages = [],
         kind = null,
         modelSelection = this.getDefaultModelSelection?.(),
-        titleLocaleBound = undefined
+        titleLocaleBound = undefined,
+        persist = true
     } = {}) {
         const chatId = crypto.randomUUID();
         const createdAt = new Date().toISOString();
@@ -454,9 +480,16 @@ export class ChatManager {
             chat.titleLocaleBound = titleLocaleBound;
         }
         this.chats.set(chatId, chat);
-        this._dirtyChatIds.add(chatId);
-        this._indexDirty = true;
-        this.saveChats({ touchCurrentChat: false });
+        if (persist) {
+            this._dirtyChatIds.add(chatId);
+            this._indexDirty = true;
+            this.saveChats({ touchCurrentChat: false });
+        } else {
+            this._transientChatIds.add(chatId);
+            this._newChatId = chatId;
+            this._dirtyChatIds.add(chatId);
+            this.saveChats({ touchCurrentChat: false });
+        }
         return chat;
     }
 
@@ -659,7 +692,9 @@ export class ChatManager {
     }
 
     getAllChats() {
-        return Array.from(this.chats.values()).sort((a, b) =>
+        return Array.from(this.chats.values()).filter((chat) =>
+            !this._transientChatIds.has(chat.id) && chat.messages?.length
+        ).sort((a, b) =>
             this._getChatActivityTimeMs(b) - this._getChatActivityTimeMs(a)
         );
     }
@@ -668,6 +703,11 @@ export class ChatManager {
         const currentChat = this.getCurrentChat();
         if (!currentChat) {
             throw new Error('当前没有活动的对话');
+        }
+        if (this._transientChatIds.delete(currentChat.id)) {
+            this._indexDirty = true;
+            this._newChatId = null;
+            this._pendingRemovals.add(this._newChatStorageKey());
         }
         currentChat.messages.push(message);
         if (message.role === 'user') currentChat.lastUserMessageAt = new Date().toISOString();
@@ -925,7 +965,9 @@ export class ChatManager {
                 const chat = this.chats.get(chatId);
                 if (chat) {
                     try {
-                        await this.storage.set({ [chatKeyV2(chatId)]: chat });
+                        const key = this._transientChatIds.has(chatId)
+                            ? this._newChatStorageKey() : chatKeyV2(chatId);
+                        await this.storage.set({ [key]: chat });
                     } catch (error) {
                         this._dirtyChatIds.add(chatId);
                         throw error;
@@ -942,7 +984,8 @@ export class ChatManager {
                     await this._resolveCurrentChatIdStorageKey();
                     await this.storage.set({
                         [this._currentChatIdStorageKey]: selection.chatId,
-                        ...(isExtensionEnvironment ? { [LAST_ACTIVE_CHAT_ID_KEY]: selection.chatId } : {})
+                        ...(isExtensionEnvironment && !this._transientChatIds.has(selection.chatId)
+                            ? { [LAST_ACTIVE_CHAT_ID_KEY]: selection.chatId } : {})
                     });
                 } catch (error) {
                     this._pendingCurrentChatSelection ||= selection;

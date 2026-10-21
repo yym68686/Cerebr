@@ -13,6 +13,7 @@ import {
 } from '../desktop/src/update-release.js';
 import { attachDesktopUpdates, desktopUpdateStore } from '../src/platform/desktop-updates.js';
 import { createStore } from '../src/app/state/store.js';
+import { requestUpdate, retryUpdate, updateError, updateErrorCode } from '../desktop/src/update-request.js';
 
 const folders = [],
     detach = [];
@@ -83,6 +84,28 @@ describe('verified downloads', () => {
         expect(await result).toBe(createHash('sha1').update(Buffer.alloc(128000, 7)).digest('hex'));
         expect((await readFile(destination)).length).toBe(128000);
     });
+    it('restarts a disconnected streamed download from a clean file and verifies the result', async () => {
+        const folder = await mkdtemp(path.join(tmpdir(), 'cerebr-update-test-'));
+        folders.push(folder);
+        const destination = path.join(folder, 'retry.zip');
+        const bytes = Buffer.from('complete-installer');
+        let attempt = 0;
+        const operation = vi.fn(async () => {
+            attempt++;
+            let sent = false;
+            const response = attempt === 1 ? new Response(new ReadableStream({
+                pull(controller) {
+                    if (sent) controller.error(new Error('net::ERR_CONNECTION_RESET'));
+                    else { sent = true; controller.enqueue(bytes.subarray(0, 4)); }
+                },
+            })) : new Response(bytes);
+            return downloadVerified({response, file:{size:bytes.length}, destination,
+                sha256:createHash('sha256').update(bytes).digest('hex')});
+        });
+        await retryUpdate(operation, {sleep:async()=>{}});
+        expect(operation).toHaveBeenCalledTimes(2);
+        expect(await readFile(destination)).toEqual(bytes);
+    });
     it.each(['tampered', 'too-large', 'truncated'])(
         'deletes a %s download before installation',
         async (kind) => {
@@ -105,6 +128,42 @@ describe('verified downloads', () => {
             `${'b'.repeat(40)} ${file.name} 100`,
         ])
             expect(() => validateSquirrelFeed(line, file, 'a'.repeat(40))).toThrow();
+    });
+});
+describe('update requests and failure reporting', () => {
+    const url = 'https://api.github.com/repos/yym68686/Cerebr/releases/latest';
+    it('recovers from a transient service failure and reports each retry', async () => {
+        const fetch = vi.fn()
+            .mockResolvedValueOnce(new Response('', {status:503}))
+            .mockRejectedValueOnce(new Error('net::ERR_CONNECTION_RESET'))
+            .mockResolvedValueOnce(new Response('{}'));
+        const onRetry = vi.fn();
+        await retryUpdate(async () => (await requestUpdate(fetch, url, version)).json(),
+            {sleep:async()=>{}, onRetry});
+        expect(fetch).toHaveBeenCalledTimes(3);
+        expect(onRetry.mock.calls.map(([error])=>updateErrorCode(error))).toEqual(['server','network']);
+        expect(fetch.mock.calls[0][1].cache).toBe('no-store');
+    });
+    it.each([403,429])('reports HTTP %s rate limits without retrying them', async status => {
+        const fetch = vi.fn(async () => new Response('', {status,headers:{'x-ratelimit-remaining':'0'}}));
+        await expect(retryUpdate(()=>requestUpdate(fetch,url,version), {sleep:async()=>{}}))
+            .rejects.toMatchObject({updateCode:'rate_limit'});
+        expect(fetch).toHaveBeenCalledOnce();
+    });
+    it('bounds network retries and does not retry validation or missing release files', async () => {
+        for (const [code, count] of [['network',3],['integrity',1],['release',1]]) {
+            const operation = vi.fn(async () => {throw updateError(code,'test error');});
+            await expect(retryUpdate(operation, {sleep:async()=>{}})).rejects.toMatchObject({updateCode:code});
+            expect(operation).toHaveBeenCalledTimes(count);
+        }
+        await expect(requestUpdate(async()=>new Response('',{status:404}),url,version))
+            .rejects.toMatchObject({updateCode:'release'});
+    });
+    it('distinguishes request timeouts from network failures', async () => {
+        const fetch = (_url,{signal}) => new Promise((resolve,reject)=>{
+            signal.addEventListener('abort',()=>reject(signal.reason),{once:true});
+        });
+        await expect(requestUpdate(fetch,url,version,5)).rejects.toMatchObject({updateCode:'timeout'});
     });
 });
 describe('restart coordination', () => {

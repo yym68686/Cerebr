@@ -30,6 +30,8 @@ vi.mock('../src/utils/default-chat.js', () => ({
     resolveDefaultChatLocale: async () => 'en',
 }));
 import { ChatManager, chatManager } from '../src/domain/chat/chat-store.js';
+import { createChatPipeline } from '../src/runtime/chat/chat-pipeline.js';
+import { isSyncedKey } from '../src/runtime/sync/protocol.js';
 
 const INDEX = 'cerebr_chats_index_v2';
 const LEGACY_CHATS = 'cerebr_chats';
@@ -213,7 +215,7 @@ describe('补齐之前的操作', () => {
     it('新建对话写索引时保留尚未读入的对话', async () => {
         seed({ [LEGACY_CURRENT]: 'c3' });
         const manager = await openManager();
-        const created = manager.createChat({ title: 'new' });
+        const created = manager.createChat({ title: 'new', messages: [{ role: 'user', content: 'new' }] });
         await manager.flushNow();
         expect(memory.get(INDEX)).toEqual([...INDEX_ORDER, created.id]);
 
@@ -326,7 +328,7 @@ describe('扩展环境的当前对话记录', () => {
         memory.clear();
         seed({ [TAB]: 'c3', [LAST_ACTIVE]: 'c4', missing: ['c4'] });
         const switched = await openManager();
-        const created = switched.createNewChat('new');
+        const created = switched.createChat({ title: 'new', messages: [{ role: 'user', content: 'new' }] });
         await switched.switchChat(created.id);
         await switched.loadAllChats();
         await switched.flushNow();
@@ -398,12 +400,85 @@ describe('对话列表按新提问排序', () => {
         expect(order(reloaded)).toEqual(['c2', 'c1', 'c5', 'c4', 'c3']);
     });
 
-    it('新建空对话显示在顶部，之前查看的旧对话保持原位置', async () => {
+    it('新建空对话不进入列表，首次发送后才显示在顶部', async () => {
         seed({ [LEGACY_CURRENT]: 'c1' });
         const manager = await openManager();
         await manager.loadAllChats();
         const created = manager.createNewChat('New chat');
         await manager.switchChat(created.id);
+        expect(order(manager)).toEqual(originalOrder);
+        await manager.flushNow();
+        expect(memory.get(INDEX)).toEqual(INDEX_ORDER);
+        expect(memory.has(chatKey(created.id))).toBe(false);
+        await manager.addMessageToCurrentChat({ role: 'user', content: 'first question' });
         expect(order(manager)).toEqual([created.id, ...originalOrder]);
+        await manager.flushNow();
+        expect(memory.get(INDEX)).toContain(created.id);
+        expect(memory.get(chatKey(created.id)).messages).toHaveLength(1);
+    });
+});
+
+describe('未发送的新对话', () => {
+    it.each([false, true])('重复新建、改模型、保存和重新打开都不产生历史（extension=%s）', async (extension) => {
+        state.extension = extension;
+        seed(extension ? { [TAB]: 'c3', [LAST_ACTIVE]: 'c3' } : { [LEGACY_CURRENT]: 'c3' });
+        const manager = await openManager();
+        const pending = manager.createNewChat();
+        expect(manager.createNewChat().id).toBe(pending.id); // even before switchChat settles
+        await manager.switchChat(pending.id);
+        const model = { configId: 'model-a', modelName: 'model-a' };
+        const saved = manager.setChatModel(pending.id, model);
+        await manager.flushNow(); await saved;
+        manager.addYouTubeTranscriptRef(pending.id, { key: 'transcript' });
+        manager.saveChats(); // canceled sends / prelude cleanup also use this path
+        await manager.flushNow();
+        expect(memory.get(INDEX)).toEqual(INDEX_ORDER);
+        expect(memory.has(chatKey(pending.id))).toBe(false);
+        expect(isSyncedKey(manager._newChatStorageKey())).toBe(false);
+        if (extension) expect(memory.get(LAST_ACTIVE)).toBe('c3');
+        const reloaded = await openManager();
+        expect(reloaded.getCurrentChat()).toMatchObject({ id: pending.id, modelSelection: model });
+        await reloaded.loadAllChats();
+        expect(reloaded.getAllChats()).toHaveLength(CHATS.length);
+        await reloaded.switchChat('c2');
+        expect(reloaded.createNewChat().id).toBe(pending.id); // return to the same unsent draft
+        await reloaded.switchChat(pending.id);
+        await reloaded.addMessageToCurrentChat({role:'user', content:[{type:'image_url',image_url:{url:'data:image/png;base64,AA=='}}]});
+        await reloaded.flushNow();
+        expect(memory.get(INDEX).filter(id=>id===pending.id)).toHaveLength(1);
+        expect(memory.get(chatKey(pending.id)).modelSelection).toEqual(model);
+        expect(reloaded.createNewChat().id).not.toBe(pending.id);
+    });
+
+    it('隐藏旧版本产生的空条目，但保留其数据，不删除已发送或有回复的记录', async () => {
+        const empty = { ...makeChat('empty', 0), messages: [] };
+        seed({index:[...INDEX_ORDER,'empty'],[LEGACY_CURRENT]:'c3'});
+        memory.set(chatKey('empty'),empty);
+        const manager = await openManager(); await manager.loadAllChats();
+        expect(manager.getAllChats().map(chat=>chat.id)).not.toContain('empty');
+        expect(memory.get(chatKey('empty'))).toEqual(empty);
+    });
+
+    it('发送在准备阶段被取消或网页提取失败时，仍不保存空历史', async () => {
+        seed({[LEGACY_CURRENT]:'c3'});
+        const manager = await openManager();
+        const pending = manager.createNewChat(); await manager.switchChat(pending.id);
+        const editor = {getDraftSnapshot:()=>({text:'question',imageTags:[],empty:false})};
+        for (const failedExtraction of [false,true]) {
+            const pipeline = createChatPipeline({chatManager:manager,editor,
+                getSelectedApiConfig:()=>({id:'test-model',modelName:'test-model',apiKey:'qa-only',baseUrl:'https://example.invalid'}),
+                getWebpageInfo:async()=>{if(failedExtraction)throw new Error('Extraction failed');return null;},
+                getUserLanguage:()=> 'en',
+                pluginRuntime:{runBeforeSend:async()=>({cancel:true})},
+                showToast:()=>{},
+            });
+            const silence = vi.spyOn(console,'error').mockImplementation(()=>{});
+            try { expect(await pipeline.sendMessage()).toBe(false); }
+            finally {silence.mockRestore();}
+            await manager.flushNow();
+            expect(memory.has(chatKey(pending.id))).toBe(false);
+            expect(memory.get(INDEX)).toEqual(INDEX_ORDER);
+            expect(manager.createNewChat().id).toBe(pending.id);
+        }
     });
 });

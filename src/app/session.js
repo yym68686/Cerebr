@@ -137,7 +137,7 @@ export function createSession({ messageInput, chatContainer }) {
         liveStartedAt = 0;
     const sendLive = (chatId, phase, full = false) => {
         const chat = chatManager.chats.get(chatId);
-        if (!chat || !liveRequest) return;
+        if (!chat?.messages.length || !liveRequest) return;
         const index = chat.messages.length - 1;
         publishLiveChat({
             chatId,
@@ -275,10 +275,17 @@ export function createSession({ messageInput, chatContainer }) {
             }
         });
     };
-    const newChat = async () => {
-        const chat = chatManager.createNewChat(t('chat_new_title'));
-        await switchChat(chat.id);
-        editor.focus();
+    let newChatTask;
+    const newChat = () => {
+        if (newChatTask) return newChatTask;
+        newChatTask = (async () => {
+            await pipeline.abortActiveReply();
+            const chat = chatManager.createNewChat(t('chat_new_title'));
+            if (chatManager.currentChatId !== chat.id) await switchChat(chat.id);
+            else openPage(null);
+            editor.focus();
+        })().finally(() => { newChatTask = null; });
+        return newChatTask;
     };
     const removeChat = async (id) => {
         if (chatManager.currentChatId === id) {

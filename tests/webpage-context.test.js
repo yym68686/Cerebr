@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const state = vi.hoisted(() => ({ memory: new Map(), chatId: 'chat-a', messages: undefined }));
+const state = vi.hoisted(() => ({ memory: new Map(), chatId: 'chat-a', messages: undefined, extension: true }));
 vi.mock('../src/utils/storage-adapter.js', () => ({
+    get isExtensionEnvironment() { return state.extension; },
     storageAdapter: {
         get: vi.fn(async (keys) =>
             Object.fromEntries(
@@ -39,6 +40,36 @@ import {
     isNewWebpageConversation,
 } from '../src/utils/webpage-switches.js';
 import { callAPI } from '../src/runtime/chat/api-client.js';
+import { desktopBrowserStore } from '../src/platform/desktop-browser.js';
+
+it('desktop reads explicit choices without initializing the current page, including before sending', async () => {
+    state.extension = false;
+    state.messages = [];
+    const selections = new Map();
+    const browserRequest = vi.fn(async ({message}) => {
+        if (message.type === 'UPDATE_WEBPAGE_SWITCHES') {
+            selections.set(message.chatId, {...selections.get(message.chatId), ...message.patch});
+            return true;
+        }
+        return selections.get(message.chatId) || {};
+    });
+    vi.stubGlobal('cerebrDesktop', {browserRequest});
+    desktopBrowserStore.set({session:'test-browser'});
+    try {
+        expect(await getWebpageSwitchesForChat('desktop-new', {currentTab:papers[0],initialize:true})).toEqual({});
+        expect(browserRequest).toHaveBeenLastCalledWith({session:'test-browser',message:{type:'GET_WEBPAGE_SWITCHES',chatId:'desktop-new',initialize:false}});
+        expect(await getEnabledTabsContent()).toBeNull();
+        expect(browserAdapter.sendMessage).not.toHaveBeenCalled();
+        await updateWebpageSwitchesForChat('chat-a', {1:true}, {tabs:[papers[0]]});
+        expect((await getEnabledTabsContent()).pages).toHaveLength(1);
+        expect(await getWebpageSwitchesForChat('desktop-another', {currentTab:papers[0],initialize:true})).toEqual({});
+    } finally { desktopBrowserStore.set({session:null}); }
+});
+
+it('web pages do not automatically initialize a source either', async () => {
+    state.extension = false;
+    expect(await getWebpageSwitchesForChat('web-new', {currentTab:papers[0],initialize:true})).toEqual({});
+});
 
 const papers = [
     { id: 1, title: 'YM_V5.pdf', url: 'https://example.org/YM_V5.pdf', lastAccessed: 2 },
@@ -58,6 +89,7 @@ beforeEach(() => {
     vi.clearAllMocks();
     state.chatId = 'chat-a';
     state.messages = undefined;
+    state.extension = true;
     state.memory.clear();
     state.memory.set(key('chat-a'), { 1: true, 2: true });
     browserAdapter.getAllTabs.mockResolvedValue(structuredClone(papers));

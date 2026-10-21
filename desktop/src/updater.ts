@@ -1,5 +1,5 @@
 import { app, autoUpdater, net } from 'electron';
-import { access, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, appendFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import path from 'node:path';
 import { execFile, spawn } from 'node:child_process';
@@ -11,6 +11,7 @@ import {
     downloadVerified,
     validateSquirrelFeed,
 } from './update-release.js';
+import { requestUpdate, retryUpdate, updateErrorCode } from './update-request.js';
 
 const exec = promisify(execFile);
 type Status = { phase: string; currentVersion: string; version?: string; progress?: number; error?: string };
@@ -20,6 +21,7 @@ export class DesktopUpdater {
     private staged = '';
     private target = '';
     private installed = false;
+    private stage = 'idle';
     constructor(
         private publish: (status: Status) => void,
         private flush: () => Promise<void>
@@ -28,19 +30,31 @@ export class DesktopUpdater {
         this.status = { ...this.status, ...patch };
         this.publish(this.status);
     }
-    private async fetch(url: string, maxTime = 30000) {
-        const response = await net.fetch(url, {
-            headers: { 'User-Agent': `Cerebr/${app.getVersion()}`, Accept: 'application/vnd.github+json' },
-            signal: AbortSignal.timeout(maxTime),
-            cache: 'no-store',
+    private fetch(url: string, maxTime = 30000) {
+        return requestUpdate(net.fetch, url, app.getVersion(), maxTime);
+    }
+    private async log(event: string, error?: unknown) {
+        const detail = error instanceof Error ? { name: error.name, message: error.message } : {};
+        const entry = { time: new Date().toISOString(), event, stage: this.stage,
+            currentVersion: app.getVersion(), version: this.status.version, ...detail };
+        try {
+            await appendFile(path.join(app.getPath('userData'), 'desktop-update.log'),
+                JSON.stringify(entry) + '\n', { mode: 0o600 });
+        } catch (logError) {
+            console.error('[Updater] Could not write diagnostic log', logError);
+        }
+    }
+    private retry<T>(operation: () => Promise<T>) {
+        return retryUpdate(operation, {
+            onRetry: (error: unknown, attempt: number) => this.log(`retry-${attempt}`, error),
         });
-        if (!response.ok) throw new Error(`Update request failed (${response.status})`);
-        return response;
     }
     async check() {
         if (['checking', 'downloading', 'waiting', 'installing'].includes(this.status.phase))
             return this.status;
         this.set({ phase: 'checking', error: undefined, progress: 0, version: undefined });
+        this.stage = 'location';
+        await this.log('check-started');
         try {
             if (!app.isPackaged)
                 throw Object.assign(new Error('Packaged app required'), { updateCode: 'development' });
@@ -66,20 +80,25 @@ export class DesktopUpdater {
                 if (process.argv.includes('--squirrel-firstrun') && process.uptime() < 15)
                     throw Object.assign(new Error('Installer still running'), { updateCode: 'first_run' });
             } else throw Object.assign(new Error('Unsupported platform'), { updateCode: 'unsupported' });
+            this.stage = 'release';
             const release = selectRelease(
-                await (await this.fetch(releaseAPI)).json(),
+                await this.retry(async () => (await this.fetch(releaseAPI)).json()),
                 app.getVersion(),
                 process.platform,
                 process.arch
             );
             if (!release) {
                 this.set({ phase: 'current' });
+                await this.log('already-current');
                 return this.status;
             }
+            this.set({ version: release.version });
+            this.stage = 'checksums';
             const hashes = parseChecksums(
-                await (await this.fetch(release.checksums.url)).text(),
+                await this.retry(async () => (await this.fetch(release.checksums.url)).text()),
                 release.files
             );
+            this.stage = 'download';
             const base = path.join(app.getPath('userData'), 'updates');
             await mkdir(base, { recursive: true, mode: 0o700 });
             // Only this updater's staging folders; never touch history or browser storage.
@@ -94,7 +113,7 @@ export class DesktopUpdater {
             for (const file of release.files) {
                 sha1.set(
                     file.name,
-                    await downloadVerified({
+                    await this.retry(async () => downloadVerified({
                         response: await this.fetch(file.url, 20 * 60 * 1000),
                         file,
                         destination: path.join(this.directory, file.name),
@@ -106,10 +125,11 @@ export class DesktopUpdater {
                                 progress: Math.round(((completed + file.size * fraction) / total) * 100),
                             });
                         },
-                    })
+                    }))
                 );
                 completed += file.size;
             }
+            this.stage = 'prepare';
             if (process.platform === 'darwin') await this.prepareMac(release.files[0].name, release.version);
             else {
                 const file = release.files[1];
@@ -120,10 +140,14 @@ export class DesktopUpdater {
                 );
                 await this.prepareWindows();
             }
+            await this.log('update-ready');
             this.set({ phase: 'waiting', progress: 100 });
         } catch (error: any) {
             console.error('[Updater]', error);
-            this.set({ phase: 'error', error: error.updateCode || 'download' });
+            await this.log('check-failed', error);
+            const fallback = this.stage === 'prepare' ? 'prepare' :
+                ['release', 'checksums'].includes(this.stage) ? 'release' : 'download';
+            this.set({ phase: 'error', error: updateErrorCode(error) || fallback });
         }
         return this.status;
     }
@@ -184,6 +208,7 @@ export class DesktopUpdater {
     async install() {
         if (this.status.phase !== 'waiting' || this.installed) return;
         this.set({ phase: 'installing' });
+        this.stage = 'install';
         try {
             await this.flush();
             if (process.platform === 'win32') {
@@ -225,6 +250,7 @@ export class DesktopUpdater {
             app.quit();
         } catch (error) {
             console.error('[Updater] Installation failed', error);
+            await this.log('install-failed', error);
             this.set({ phase: 'error', error: 'install' });
         }
     }
