@@ -81,8 +81,8 @@ export function ComposerMenu({ ui, sources, events, onAddImages, onNewChat, onNa
             <div className="composer-menu-primary" hidden={choosingSources}>
                 <MenuItem
                     id="composer-add-image"
-                    label={t('composer_add_images')}
-                    description={t('composer_add_images_hint')}
+                    label={t('composer_add_files')}
+                    description={t('composer_add_files_hint')}
                     onClick={onAddImages}
                 >
                     <Icon name="attachment" />

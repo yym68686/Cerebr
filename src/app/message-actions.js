@@ -1,7 +1,9 @@
 import { buildMessageContent } from '../runtime/input/native-editor.js';
 import { t } from '../utils/i18n.js';
 import { uiStore, notify } from './state/ui-store.js';
-import { quotedText, splitQuotedMessage } from '../runtime/input/draft-quotes.js';
+import { composeDraftMessage } from '../runtime/input/draft-message.js';
+import { splitTextFileMessage } from '../runtime/input/draft-files.js';
+import { splitQuotedMessage } from '../runtime/input/draft-quotes.js';
 
 export function resolveMessageTarget(chat, target) {
     if (!chat || !target || target.chatId !== chat.id) return null;
@@ -27,6 +29,7 @@ export function isReplyTarget(chat, index, state) {
 export function createMessageActions({ chatManager, editor, pipeline, setInputContent }) {
     let savedDraft = null;
     let savedQuotes = [];
+    let savedFiles = [];
     const captureDraft = () => {
         const draft = editor.getDraftSnapshot();
         return structuredClone(buildMessageContent(draft.text, draft.imageTags));
@@ -36,8 +39,10 @@ export function createMessageActions({ chatManager, editor, pipeline, setInputCo
         uiStore.set({ editing: null });
         setInputContent(savedDraft ?? '');
         editor.setQuotes?.(savedQuotes);
+        editor.setFiles?.(savedFiles);
         savedDraft = null;
         savedQuotes = [];
+        savedFiles = [];
         editor.focus();
         return true;
     };
@@ -48,6 +53,7 @@ export function createMessageActions({ chatManager, editor, pipeline, setInputCo
         if (!uiStore.getSnapshot().editing) {
             savedDraft = captureDraft();
             savedQuotes = [...(editor.getDraftSnapshot().quotes || [])];
+            savedFiles = editor.getDraftSnapshot().textFiles || [];
         }
         pipeline.abortActiveReply();
         uiStore.set({
@@ -55,9 +61,11 @@ export function createMessageActions({ chatManager, editor, pipeline, setInputCo
             context: null,
             menu: false,
         });
-        const split = splitQuotedMessage(resolved.message);
+        const attached = splitTextFileMessage(resolved.message);
+        const split = splitQuotedMessage({ ...resolved.message, content: attached.content });
         setInputContent(split.content);
         editor.setQuotes?.(split.quotes);
+        editor.setFiles?.(attached.files);
         editor.focus();
         return true;
     };
@@ -71,7 +79,8 @@ export function createMessageActions({ chatManager, editor, pipeline, setInputCo
             editor.focus();
             return false;
         }
-        const content = buildMessageContent(quotedText(draft.text, draft.quotes), draft.imageTags);
+        const composed = composeDraftMessage(draft);
+        const { content } = composed;
         if (JSON.stringify(content) === JSON.stringify(resolved.message.content)) {
             cancelEdit();
             return true;
@@ -82,10 +91,8 @@ export function createMessageActions({ chatManager, editor, pipeline, setInputCo
         const next = { ...live.message, content };
         delete next.selectionQuotes;
         delete next.selectionQuestion;
-        if (draft.quotes?.length) {
-            next.selectionQuotes = [...draft.quotes];
-            next.selectionQuestion = draft.text;
-        }
+        delete next.textFiles;
+        Object.assign(next, composed);
         // An edited tutorial message belongs to the user and must no longer be relocalized.
         for (const key of ['reasoning_content', 'updating', 'seedId', 'seedVersion', 'seedLocaleBound'])
             delete next[key];

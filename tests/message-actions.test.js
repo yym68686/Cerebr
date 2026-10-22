@@ -3,6 +3,8 @@ import { createMessageActions } from '../src/app/message-actions.js';
 import { uiStore } from '../src/app/state/ui-store.js';
 import { createEditorController } from '../src/runtime/input/editor-controller.js';
 import { setMessageInputContent } from '../src/runtime/input/native-editor.js';
+import { composeDraftMessage } from '../src/runtime/input/draft-message.js';
+import { splitTextFileMessage } from '../src/runtime/input/draft-files.js';
 import { buildDefaultChatSeedMessages, syncDefaultChatForLocale } from '../src/utils/default-chat.js';
 
 let chat, manager, editor, actions, input, pipeline, persisted;
@@ -156,4 +158,19 @@ describe('message editing and deletion', () => {
         expect(await actions.regenerateMessage(target(1))).toBe(true);
         expect(pipeline.regenerateMessage).toHaveBeenCalledWith(1);
     });
+});
+
+it('edits an attached file question and restores the unrelated file draft', async () => {
+    const file = {id:'sent',name:'sent.txt',text:'full file content',size:17};
+    chat.messages.push({role:'user',...composeDraftMessage({text:'Question',imageTags:[],textFiles:[file],quotes:['Quote']})});
+    editor.setDraft('Unsent');
+    editor.setFiles([{id:'draft',name:'draft.txt',text:'draft body',size:10}]);
+    actions.startEdit(target(chat.messages.length - 1));
+    expect(editor.getDraft()).toBe('Question');
+    expect(editor.getDraftSnapshot().textFiles).toEqual([file]);
+    input.textContent = 'Changed question';
+    await actions.confirmEdit();
+    expect(splitTextFileMessage(chat.messages.at(-1))).toMatchObject({content:'> Quote\n\nChanged question',files:[file]});
+    expect(editor.getDraft()).toBe('Unsent');
+    expect(editor.getDraftSnapshot().textFiles[0].name).toBe('draft.txt');
 });

@@ -2,6 +2,7 @@ import { publishProgress, publishLiveChat, subscribeRemoteProgress } from '../ru
 import { createMessageActions } from './message-actions.js';
 import { chatManager } from '../domain/chat/chat-store.js';
 import { createChatPipeline } from '../runtime/chat/chat-pipeline.js';
+import { addFilesToDraft } from '../runtime/input/file-drop.js';
 import { createEditorController } from '../runtime/input/editor-controller.js';
 import {
     attachNativeEditor,
@@ -116,7 +117,7 @@ export function createSession({ messageInput, chatContainer }) {
             activeDraftId,
             draft.empty
                 ? null
-                : { content: buildMessageContent(draft.text, draft.imageTags), quotes: draft.quotes || [] }
+                : { content: buildMessageContent(draft.text, draft.imageTags), quotes: draft.quotes || [], textFiles: draft.textFiles || [] }
         );
     };
     const restoreDraft = async () => {
@@ -129,7 +130,7 @@ export function createSession({ messageInput, chatContainer }) {
         const draft = data[draftKey(id)];
         if (draft) {
             const snapshot = typeof draft === 'string' || Array.isArray(draft) ? { content: draft } : draft;
-            setMessageInputContent(messageInput, snapshot.content, uiConfig, snapshot.quotes);
+            setMessageInputContent(messageInput, snapshot.content, uiConfig, snapshot.quotes, snapshot.textFiles);
         }
     };
     const liveRequests = new Map();
@@ -373,7 +374,7 @@ export function createSession({ messageInput, chatContainer }) {
                         : `data:image/png;base64,${data.imageData.data}`,
                 },
             });
-            setMessageInputContent(messageInput, parts, uiConfig, draft.quotes);
+            setMessageInputContent(messageInput, parts, uiConfig, draft.quotes, draft.textFiles);
             editor.focus();
         }
     });
@@ -443,6 +444,11 @@ export function createSession({ messageInput, chatContainer }) {
         deleteMessage,
         regenerateMessage,
         saveDraft,
+        addFiles: async (files) => {
+            try { await addFilesToDraft(messageInput, files, uiConfig); }
+            catch (error) { notify(error.message || t('drop_read_failed'), { type: 'error' }); }
+            editor.focus();
+        },
         addImages: (files) => addImageFilesToDraft(messageInput, files, uiConfig),
         dispose() {
             disposed = true;

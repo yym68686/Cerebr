@@ -285,3 +285,14 @@
     #input-container, .composer-model, .composer-send { transition: none; }
     .composer-model-menu { animation: none; }
 }
+
+.text-file-attachments { display: flex; flex-wrap: wrap; gap: 6px; padding: 5px 6px 7px; max-height: 120px; overflow-y: auto; overscroll-behavior: contain; }
+.text-file-chip { display: inline-flex; align-items: center; max-width: 100%; min-width: 0; border: 1px solid var(--cerebr-surface-border); border-radius: 7px; background: var(--cerebr-hover-bg-color); }
+.text-file-chip button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--cerebr-text-color); font: inherit; font-size: var(--cerebr-fs-12); cursor: pointer; min-width: 0; }
+.text-file-chip button:hover { background: var(--cerebr-message-user-bg); }
+.text-file-chip svg { width: 14px; height: 14px; flex-shrink: 0; }
+.text-file-label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.text-file-label small { color: var(--cerebr-text-color-secondary); font-size: 11px; white-space: nowrap; flex-shrink: 0; }
+.text-file-chip .text-file-remove { align-self: stretch; color: var(--cerebr-text-color-secondary); flex-shrink: 0; }
+.message .text-file-attachments { justify-content: flex-end; }
+@media (pointer: coarse) { .text-file-chip button { min-height: 40px; } }

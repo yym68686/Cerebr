@@ -12,6 +12,8 @@ import { morphHtml } from '../../render/message/morph-html.js';
 import { uiStore } from '../state/ui-store.js';
 import { t } from '../../utils/i18n.js';
 import { LoadingState, ThinkingState } from './ThinkingState.jsx';
+import { TextFiles } from './ComposerFiles.jsx';
+import { splitTextFileMessage } from '../../runtime/input/draft-files.js';
 import { splitQuotedMessage } from '../../runtime/input/draft-quotes.js';
 
 // markdown 渲染器还没就位时的占位输出，只需要安全，不需要好看（通常只持续一帧）。
@@ -104,8 +106,10 @@ export const Message = memo(function Message({
     editing,
     selectionQuotes,
     selectionQuestion,
+    textFiles,
 }) {
-    const split = splitQuotedMessage({ content, selectionQuotes, selectionQuestion });
+    const attached = splitTextFileMessage({ content, textFiles });
+    const split = splitQuotedMessage({ content: attached.content, selectionQuotes, selectionQuestion });
     const text = contentText(split.content);
     const quotes = split.quotes;
     const images = Array.isArray(content) ? content.filter((p) => p.type === 'image_url') : [];
@@ -114,7 +118,7 @@ export const Message = memo(function Message({
     useEffect(() => () => clearTimeout(longPress.current), []);
     return (
         <div
-            className={`message ${role === 'user' ? 'user' : 'ai'}-message${images.length || quotes.length ? ' has-attachments' : ''}${updating ? ' updating' : ''}${editing ? ' is-editing' : ''}`}
+            className={`message ${role === 'user' ? 'user' : 'ai'}-message${images.length || quotes.length || attached.files.length ? ' has-attachments' : ''}${updating ? ' updating' : ''}${editing ? ' is-editing' : ''}`}
             data-message-index={index}
             data-original-text={contentText(content)}
             data-seed-id={seedId || undefined}
@@ -145,6 +149,7 @@ export const Message = memo(function Message({
                 clearTimeout(longPress.current);
             }}
         >
+            <TextFiles files={attached.files} />
             {!!quotes.length && (
                 <div className="message-quotes" aria-label={t('selection_quotes')}>
                     {quotes.map((quote, i) => (
@@ -186,7 +191,7 @@ export const Message = memo(function Message({
                     <LoadingState startedAt={requestStartedAt} />
                 </div>
             ) : (
-                (!images.length || !!text.trim()) && (
+                ((!images.length && !attached.files.length) || !!text.trim()) && (
                     <Markup className="main-content" text={text} updating={updating} />
                 )
             )}

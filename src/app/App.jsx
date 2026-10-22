@@ -35,6 +35,7 @@ import { ComposerSources } from './components/ComposerSources.jsx';
 import { useWebpageSources } from './hooks/useWebpageSources.js';
 import { isNewWebpageConversation } from '../utils/webpage-switches.js';
 import { SelectionActions } from './components/SelectionActions.jsx';
+import { ComposerFiles } from './components/ComposerFiles.jsx';
 import { ComposerQuotes } from './components/ComposerQuotes.jsx';
 import { DesktopTitlebar } from './components/DesktopTitlebar.jsx';
 import '../utils/viewport.js';
@@ -313,6 +314,7 @@ export function App() {
                 className={`${ui.editing ? 'is-editing-message' : ''}${draft.expanded ? ' is-expanded' : ''}`}
             >
                 <ComposerSources sources={sources} onManage={settingsMenuEvents.openSources} />
+                <ComposerFiles files={draft.textFiles} inputRef={inputRef} />
                 <ComposerQuotes quotes={draft.quotes} inputRef={inputRef} />
                 <div
                     className="composer-attachments"
@@ -322,13 +324,13 @@ export function App() {
                 <input
                     ref={imagePickerRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/*,.txt,text/plain"
                     multiple
                     hidden
                     onChange={(event) => {
                         const files = [...event.target.files];
                         event.target.value = '';
-                        void session?.addImages(files);
+                        void session?.addFiles(files);
                     }}
                 />
                 <div className="input-container-main-row" ref={composerRowRef}>

@@ -1,6 +1,5 @@
 import { callAPI } from './api-client.js';
-import { buildMessageContent } from '../input/native-editor.js';
-import { quotedText } from '../input/draft-quotes.js';
+import { composeDraftMessage } from '../input/draft-message.js';
 import { showToast } from '../../utils/ui.js';
 import { t } from '../../utils/i18n.js';
 import { createChatError, isAbortError, normalizeChatError } from './chat-errors.js';
@@ -67,7 +66,7 @@ function resolveUserMessage(payload, fallbackPayload) {
     if (payload?.draft && typeof payload.draft === 'object') {
         return {
             role: 'user',
-            content: buildMessageContent(payload.draft.message || '', payload.draft.imageTags || []),
+            ...composeDraftMessage({ text: payload.draft.message || '', imageTags: payload.draft.imageTags || [], textFiles: payload.draft.textFiles || [] }),
         };
     }
 
@@ -349,18 +348,12 @@ function createConversationPipeline({
             if (webpageInfo === ABORTED) return false;
             const initial = {
                 mode,
-                draft: mode === 'send' ? { message: draft.text, imageTags: draft.imageTags } : null,
+                draft: mode === 'send' ? { message: draft.text, imageTags: draft.imageTags, textFiles: draft.textFiles || [] } : null,
                 userMessage:
                     mode === 'send'
                         ? {
                               role: 'user',
-                              content: buildMessageContent(
-                                  quotedText(draft.text, draft.quotes),
-                                  draft.imageTags
-                              ),
-                              ...(draft.quotes?.length
-                                  ? { selectionQuotes: [...draft.quotes], selectionQuestion: draft.text }
-                                  : {}),
+                              ...composeDraftMessage(draft),
                           }
                         : null,
                 messages,
@@ -393,7 +386,7 @@ function createConversationPipeline({
             }
             if (mode === 'send') {
                 const userMessage = resolveUserMessage(payload, initial);
-                if (!chat.messages.length) chat.title = draft.text || t('label_image');
+                if (!chat.messages.length) chat.title = draft.text || draft.textFiles?.[0]?.name || t('label_image');
                 await chatManager.addMessageToChat(chat.id, userMessage);
                 directDraft?.onSubmitted?.();
                 if (!directDraft && chatManager.getCurrentChat()?.id === chat.id) {

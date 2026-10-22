@@ -126,12 +126,14 @@ describe('Prompt Bar attachment boundary', () => {
     });
 });
 
-it('imports dropped TXT content as editable plain text without removing existing images or draft text',async()=>{
+it('imports dropped TXT content as a separate file attachment without removing existing images or draft text',async()=>{
  editor.setDraft('question'); appendDraftImage(input,{base64Data:'data:image/png;base64,AQ=='});
  const event=new Event('drop',{bubbles:true,cancelable:true});
  Object.defineProperty(event,'dataTransfer',{value:{files:[new File(['line 1\n<strong>plain text</strong>'],'notes.txt',{type:'text/plain'})]}});
  shelf.dispatchEvent(event);
- await vi.waitFor(()=>expect(editor.getDraft()).toBe('question\n\nline 1\n<strong>plain text</strong>'));
+ await vi.waitFor(()=>expect(editor.getDraftSnapshot().textFiles).toHaveLength(1));
+ expect(editor.getDraft()).toBe('question');
+ expect(editor.getDraftSnapshot().textFiles[0]).toMatchObject({name:'notes.txt',text:'line 1\n<strong>plain text</strong>'});
  expect(shelf.querySelectorAll('img')).toHaveLength(1); expect(input.querySelector('strong')).toBeNull();
  expect(event.defaultPrevented).toBe(true); expect(document.activeElement).toBe(input);
 });

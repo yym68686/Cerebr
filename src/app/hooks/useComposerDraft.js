@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { getAttachmentContainer, getDraftImageTags } from '../../runtime/input/draft-attachments.js';
 import { adjustTextareaHeight } from '../../utils/ui.js';
+import { getDraftFiles } from '../../runtime/input/draft-files.js';
 import { getDraftQuotes } from '../../runtime/input/draft-quotes.js';
 
 // Observe the native editor; React never rewrites its text, selection or undo history.
@@ -21,6 +22,7 @@ export function useComposerDraft(inputRef, rowRef, hasSources = false) {
             const hasText = !!text.trim();
             const hasImages = getDraftImageTags(input).length > 0;
             const quotes = getDraftQuotes(input);
+            const textFiles = getDraftFiles(input);
             const style = getComputedStyle(input);
             const rowStyle = getComputedStyle(row);
             const composer = input.closest('[data-composer]');
@@ -46,14 +48,16 @@ export function useComposerDraft(inputRef, rowRef, hasSources = false) {
             const expanded =
                 hasImages ||
                 quotes.length > 0 ||
+                textFiles.length > 0 ||
                 (hasText &&
                     (multiline ||
                         text.length > 1000 ||
                         (available > 0 && context && context.measureText(text).width > available)));
             setState((previous) => {
                 const next = {
-                    empty: !hasText && !hasImages && !quotes.length,
+                    empty: !hasText && !hasImages && !quotes.length && !textFiles.length,
                     quotes,
+                    textFiles,
                     textEmpty: !hasText,
                     expanded: composing ? previous.expanded : !!expanded,
                     composing,

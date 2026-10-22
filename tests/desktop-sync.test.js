@@ -56,6 +56,7 @@ it('persists images, reasoning and quotes together with their offline sync revis
                 { type: 'text', text: 'photo' },
             ],
             selectionQuotes: ['quote'],
+            textFiles: [{id:'f',name:'notes.txt',size:4,textLength:4}],
         }
     );
     await writeLocal(a, { cerebr_chat_v2_one: value });
@@ -130,7 +131,7 @@ it('synchronizes two independent replicas through the desktop database and conve
         cerebr_chat_v2_a: chat('a', 'extension'),
         cerebr_chat_organization_v1: { folders: [{ id: 'f', name: 'Folder' }], assignments: { a: 'f' } },
         cerebr_reading_progress_v1_a: { anchorIndex: 3 },
-        cerebr_draft_v1_a: { content: 'draft', quotes: ['quote'] },
+        cerebr_draft_v1_a: { content: 'draft', quotes: ['quote'], textFiles: [{id:'f',name:'notes.txt',text:'body',size:4}] },
     });
     await writeLocal(b, { cerebr_chat_v2_b: chat('b', 'desktop') });
     const clients = [],

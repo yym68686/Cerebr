@@ -1,8 +1,9 @@
 import { captureImageTarget } from './draft-attachments.js';
-import { addImageFilesToDraft, insertTextIntoMessageInput, appendDraftImage } from './native-editor.js';
+import { addImageFilesToDraft, appendDraftImage } from './native-editor.js';
 import { handleImageDrop } from '../../utils/image.js';
 import { showToast } from '../../utils/ui.js';
 import { t } from '../../utils/i18n.js';
+import { addDraftFile } from './draft-files.js';
 
 const PAGE_IMAGE = 'application/x-cerebr-page-image';
 export function acceptsDrop(transfer) {
@@ -21,6 +22,18 @@ const readText = (file) =>
         reader.onerror = () => reject(reader.error || new Error(t('drop_read_failed')));
         reader.readAsText(file);
     });
+export async function addFilesToDraft(messageInput, files, uiConfig = {}) {
+    const current = captureImageTarget(messageInput);
+    for (const file of Array.from(files)) {
+        if (!current()) break;
+        if (file.type.startsWith('image/')) await addImageFilesToDraft(messageInput, [file], uiConfig);
+        else if (/\.txt$/i.test(file.name) || file.type === 'text/plain') {
+            if (file.size > 10 * 1024 * 1024) throw new Error(t('drop_text_too_large'));
+            const text = await readText(file);
+            if (current()) addDraftFile(messageInput, { name: file.name, text, size: file.size });
+        } else throw new Error(t('drop_unsupported'));
+    }
+}
 export function attachFileDrop({ messageInput, uiConfig, onState = () => {}, enabled = () => true }) {
     const controller = new AbortController(),
         pending = new Map();
@@ -91,17 +104,7 @@ export function attachFileDrop({ messageInput, uiConfig, onState = () => {}, ena
         }
         void (async () => {
             if (files.length) {
-                for (const file of files) {
-                    if (!current()) break;
-                    if (file.type.startsWith('image/'))
-                        await addImageFilesToDraft(messageInput, [file], uiConfig);
-                    else if (/\.txt$/i.test(file.name) || file.type === 'text/plain') {
-                        if (file.size > 10 * 1024 * 1024) throw new Error(t('drop_text_too_large'));
-                        const text = await readText(file);
-                        if (current() && text.trim())
-                            insertTextIntoMessageInput(messageInput, text, { separator: '\n\n' });
-                    } else throw new Error(t('drop_unsupported'));
-                }
+                await addFilesToDraft(messageInput, files, uiConfig);
             } else {
                 await handleImageDrop(event, {
                     messageInput,

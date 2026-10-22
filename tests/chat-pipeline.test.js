@@ -399,3 +399,13 @@ describe('React chat session pipeline', () => {
     expect(await firstRequest).toBe(true);
     expect(phase).toHaveBeenLastCalledWith('idle', 'a');
  });
+
+it('includes complete TXT attachments in requests and persists compact file metadata', async () => {
+    const {pipeline,chat,editor}=setup();
+    editor.getDraftSnapshot=()=>({text:'Summarize',imageTags:[],textFiles:[{id:'f',name:'notes.txt',text:'Full file body',size:14}],empty:false});
+    callAPI.mockReset().mockResolvedValue({controller:new AbortController(),processStream:async()=>({content:'Summary'})});
+    await pipeline.sendMessage();
+    expect(chat.messages[0].textFiles).toEqual([{id:'f',name:'notes.txt',size:14,textLength:14}]);
+    expect(callAPI.mock.calls[0][0].messages.at(-1).content).toBe('--- notes.txt ---\nFull file body\n---\n\nSummarize');
+    expect(editor.clear).toHaveBeenCalledOnce();
+});

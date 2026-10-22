@@ -1,3 +1,5 @@
+import { readEditorText, isFullEditorSelection, hasLargeEditorContent } from './editor-text.js';
+import { getDraftFiles, setDraftFiles } from './draft-files.js';
 import { attachFileDrop } from './file-drop.js';
 /**
  * 消息输入组件
@@ -245,7 +247,7 @@ function initAnimatedFakeCaret(messageInput, listen) {
 function isInputEffectivelyEmpty(messageInput) {
     const hasImages = getDraftImageTags(messageInput).length > 0;
     const text = (messageInput.textContent || '').trim();
-    return !hasImages && !text;
+    return !hasImages && !text && !getDraftFiles(messageInput).length && !getDraftQuotes(messageInput).length;
 }
 
 function clampNumber(value, min, max) {
@@ -385,7 +387,8 @@ function insertPlainTextAtSelection(messageInput, text) {
 
     range.deleteContents();
 
-    const lines = String(text).replace(/\r\n?/g, '\n').split('\n');
+    const normalized = String(text).replace(/\r\n?/g, '\n');
+    const lines = normalized.length >= 10000 ? [normalized] : normalized.split('\n');
     const fragment = document.createDocumentFragment();
     let lastNode = null;
 
@@ -446,6 +449,7 @@ export function setMessageInputText(messageInput, text) {
     if (!messageInput) return;
     setDraftQuotes(messageInput, [], false);
     clearDraftAttachments(messageInput);
+    setDraftFiles(messageInput, [], false);
 
     try {
         messageInput.replaceChildren();
@@ -463,10 +467,11 @@ export function setMessageInputText(messageInput, text) {
     moveCaretToEnd(messageInput);
 }
 
-export function setMessageInputContent(messageInput, content, uiConfig = {}, quotes = []) {
+export function setMessageInputContent(messageInput, content, uiConfig = {}, quotes = [], textFiles = []) {
     if (!messageInput) return;
     setDraftQuotes(messageInput, quotes, false);
     clearDraftAttachments(messageInput);
+    setDraftFiles(messageInput, textFiles, false);
 
     try {
         messageInput.replaceChildren();
@@ -652,8 +657,32 @@ export function attachNativeEditor(config) {
         }
     };
 
+    let fastDeletion = null;
+    let applyingFastHistory = false;
+    const emitFastEdit = (inputType) => {
+        applyingFastHistory = true;
+        messageInput.dispatchEvent(new InputEvent('input', { bubbles: true, inputType }));
+        applyingFastHistory = false;
+    };
+    const applyFastHistory = (redo) => {
+        if (!fastDeletion || fastDeletion.deleted === redo) return false;
+        if (redo) messageInput.replaceChildren();
+        else {
+            const fragment = document.createDocumentFragment();
+            for (const node of fastDeletion.nodes) fragment.appendChild(node);
+            messageInput.replaceChildren(fragment);
+        }
+        fastDeletion.deleted = redo;
+        moveCaretToEnd(messageInput);
+        emitFastEdit(redo ? 'historyRedo' : 'historyUndo');
+        return true;
+    };
     const fastClearMessageInput = () => {
+        fastDeletion = { nodes: Array.from(messageInput.childNodes), deleted: true };
         clearEditableContent(messageInput);
+        largePasteModeUntil = 0;
+        clearTimeout(postLargePasteLayoutTimer);
+        postLargePasteLayoutTimer = 0;
         scheduleLayoutUpdate();
         try {
             messageInput.focus?.();
@@ -676,7 +705,7 @@ export function attachNativeEditor(config) {
         layoutUpdateRaf = requestAnimationFrame(() => {
             layoutUpdateRaf = 0;
             if (!messageInput?.isConnected) return;
-            const inLargePasteMode = performance.now() < largePasteModeUntil;
+            const inLargePasteMode = performance.now() < largePasteModeUntil && !!messageInput.firstChild;
             if (inLargePasteMode) {
                 const maxHeight = uiConfig?.textarea?.maxHeight ?? 200;
                 messageInput.style.height = `${maxHeight}px`;
@@ -756,7 +785,7 @@ export function attachNativeEditor(config) {
         historyCursor = null;
 
         const text = messageInput.textContent.trim() || getDraftQuotes(messageInput).join('');
-        const hasDraftContent = !!text || getDraftImageTags(messageInput).length > 0;
+        const hasDraftContent = !!text || getDraftImageTags(messageInput).length > 0 || getDraftFiles(messageInput).length > 0;
         if (!hasDraftContent && !isEditingMessage()) return false;
 
         setTimeout(() => {
@@ -800,6 +829,7 @@ export function attachNativeEditor(config) {
     let isHistoryNavigation = false;
 
     listen(messageInput, 'input', function(e) {
+        if (!applyingFastHistory) fastDeletion = null;
         const normalizeHtml = (html) => String(html || '').replace(/\s+/g, '').toLowerCase();
 
         if (suppressNextInput) {
@@ -807,7 +837,7 @@ export function attachNativeEditor(config) {
             return;
         }
 
-        const inLargePasteMode = performance.now() < largePasteModeUntil;
+        const inLargePasteMode = performance.now() < largePasteModeUntil && !!messageInput.firstChild;
 
         if (inLargePasteMode) {
             scheduleLayoutUpdate();
@@ -817,8 +847,10 @@ export function attachNativeEditor(config) {
             return;
         }
 
-        const currHtml = this.innerHTML;
-        const normalizedTail = normalizeHtml(currHtml.slice(-80));
+        const tail = this.lastChild;
+        const normalizedTail = normalizeHtml(tail?.nodeType === Node.ELEMENT_NODE &&
+            (tail.tagName === 'BR' || (tail.tagName === 'DIV' && tail.childNodes.length <= 1 && !tail.textContent))
+            ? tail.outerHTML : '');
         const inputType = e?.inputType || '';
         const isDeleteInput = typeof inputType === 'string' && inputType.startsWith('delete');
         const isPasteLikeInput =
@@ -912,28 +944,20 @@ export function attachNativeEditor(config) {
     listen(messageInput, 'beforeinput', (e) => {
         if (isComposing) return;
 
-        if (e?.inputType && e.inputType.startsWith('delete')) {
-            try {
-                const selection = window.getSelection();
-                if (selection?.rangeCount > 0) {
-                    const range = selection.getRangeAt(0);
-                    const hasSelection = range && !range.collapsed;
-                    if (hasSelection && messageInput.contains(range.commonAncestorContainer)) {
-                        const fullRange = document.createRange();
-                        fullRange.selectNodeContents(messageInput);
-                        const isFullSelection =
-                            range.compareBoundaryPoints(Range.START_TO_START, fullRange) === 0 &&
-                            range.compareBoundaryPoints(Range.END_TO_END, fullRange) === 0;
-                        if (isFullSelection && (messageInput.textContent || '').length >= LARGE_TEXT_PASTE_THRESHOLD) {
-                            if (e.cancelable) e.preventDefault();
-                            fastClearMessageInput();
-                            messageInput.dispatchEvent(new Event('input'));
-                            return;
-                        }
-                    }
-                }
-            } catch {
-                // ignore
+        if (e.cancelable && (e.inputType === 'historyUndo' || e.inputType === 'historyRedo') &&
+            applyFastHistory(e.inputType === 'historyRedo')) {
+            e.preventDefault();
+            return;
+        }
+        if (e.cancelable && e.inputType?.startsWith('delete')) {
+            const selection = window.getSelection();
+            const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+            if (isFullEditorSelection(messageInput, range) && hasLargeEditorContent(messageInput)) {
+                e.preventDefault();
+                fastClearMessageInput();
+                moveCaretToEnd(messageInput);
+                emitFastEdit(e.inputType);
+                return;
             }
         }
 
@@ -959,6 +983,23 @@ export function attachNativeEditor(config) {
     });
 
     listen(messageInput, 'keydown', function(e) {
+        if (isComposing || e.isComposing) return;
+        const command = (e.metaKey || e.ctrlKey) && !e.altKey;
+        if (command && (e.key.toLowerCase() === 'z' || (!e.metaKey && e.key.toLowerCase() === 'y'))) {
+            const redo = e.shiftKey || e.key.toLowerCase() === 'y';
+            if (applyFastHistory(redo)) { e.preventDefault(); return; }
+        }
+        if (e.cancelable && (e.key === 'Backspace' || e.key === 'Delete')) {
+            const selection = window.getSelection();
+            const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+            if (isFullEditorSelection(messageInput, range) && hasLargeEditorContent(messageInput)) {
+                e.preventDefault();
+                fastClearMessageInput();
+                moveCaretToEnd(messageInput);
+                emitFastEdit(e.key === 'Backspace' ? 'deleteContentBackward' : 'deleteContentForward');
+                return;
+            }
+        }
         const isEnter =
             e.key === 'Enter' ||
             e.code === 'Enter' ||
@@ -1069,10 +1110,8 @@ export function attachNativeEditor(config) {
                 if (text.length >= LARGE_TEXT_PASTE_THRESHOLD) {
                     e.preventDefault();
                     largePasteModeUntil = performance.now() + 2000;
-                    setTimeout(() => {
-                        insertPlainTextAtSelection(messageInput, text);
-                        messageInput.dispatchEvent(new Event('input'));
-                    }, 0);
+                    insertPlainTextAtSelection(messageInput, text);
+                    messageInput.dispatchEvent(new Event('input', { bubbles: true }));
                     return;
                 }
 
@@ -1144,18 +1183,7 @@ export function setPlaceholder({ messageInput, placeholder, timeout }) {
  * @returns {Object} 格式化后的内容和图片标签
  */
 export function getFormattedMessageContent(messageInput) {
-    // 使用innerHTML获取内容，并将<br>转换为\n
-    let message = messageInput.innerHTML
-        .replace(/<div><br><\/div>/g, '\n')  // 处理换行后的空行
-        .replace(/<div>/g, '\n')             // 处理换行后的新行开始
-        .replace(/<\/div>/g, '')             // 处理换行后的新行结束
-        .replace(/<br\s*\/?>/g, '\n')        // 处理单个换行
-        .replace(/&nbsp;/g, ' ');            // 处理空格
-
-    // 将HTML实体转换回实际字符
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = message;
-    message = tempDiv.textContent;
+    const message = readEditorText(messageInput);
 
     // 获取图片标签
     const imageTags = getDraftImageTags(messageInput);
@@ -1203,6 +1231,7 @@ export function buildMessageContent(message, imageTags) {
 export function clearMessageInput(messageInput, config = {}) {
     setDraftQuotes(messageInput, [], false);
     clearDraftAttachments(messageInput);
+    setDraftFiles(messageInput, [], false);
     messageInput.innerHTML = '';
     messageInput.dispatchEvent(new Event('input', { bubbles: true }));
     adjustTextareaHeight({

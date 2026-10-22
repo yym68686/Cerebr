@@ -164,6 +164,7 @@ describe('new chat shortcut delivery', () => {
         start();
         session.editor.setDraft('unsaved question');
         session.editor.addQuote('A passage to keep');
+        session.editor.setFiles([{ id: 'file', name: 'keep.txt', text: 'file body', size: 9 }]);
         let release;
         storageAdapter.set.mockReturnValue(
             new Promise((resolve) => {
@@ -183,6 +184,7 @@ describe('new chat shortcut delivery', () => {
             await session.switchChat('old');
             expect(session.editor.getDraft()).toBe('unsaved question');
             expect(session.editor.getDraftSnapshot().quotes).toEqual(['A passage to keep']);
+            expect(session.editor.getDraftSnapshot().textFiles).toEqual([{ id: 'file', name: 'keep.txt', text: 'file body', size: 9 }]);
         } finally {
             release();
             await navigation;
