@@ -1,3 +1,5 @@
+import { DropFeedback } from './components/DropFeedback.jsx';
+import { ChatSearch } from './components/ChatSearch.jsx';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { chatManager } from '../domain/chat/chat-store.js';
 import { t, getActiveLocale, onLocaleChanged } from '../utils/i18n.js';
@@ -208,10 +210,11 @@ export function App() {
         openPage(page);
     };
     const close = () => navigate(null);
-    const localRequestActive = ui.requestChatId === chat?.id && ui.phase !== 'idle';
-    const displayedPhase = localRequestActive ? ui.phase : ui.remoteProgress[chat?.id] || 'idle';
+    const localRequest = ui.localRequests?.[chat?.id];
+    const localRequestActive = !!localRequest || (ui.requestChatId === chat?.id && ui.phase !== 'idle');
+    const displayedPhase = localRequestActive ? (localRequest?.phase || ui.phase) : ui.remoteProgress[chat?.id] || 'idle';
     const requestActive = displayedPhase !== 'idle';
-    const displayedStartedAt = localRequestActive ? ui.requestStartedAt : ui.remoteStartedAt[chat?.id];
+    const displayedStartedAt = localRequestActive ? (localRequest?.startedAt || ui.requestStartedAt) : ui.remoteStartedAt[chat?.id];
     const messages = chat?.messages || [];
     return (
         <>
@@ -233,6 +236,7 @@ export function App() {
             >
                 <Icon name="sidebar-open" />
             </button>
+            <ChatSearch containerRef={chatRef} chatId={chat?.id} disabled={!!ui.page || navigationCoversChat} />
             <Slot name="shell.chat.before" />
             <div
                 id="chat-container"
@@ -392,6 +396,7 @@ export function App() {
             <PluginSettings visible={ui.page === 'plugins'} onBack={close} session={session} />
             <PluginPage />
             <PluginModals />
+            <DropFeedback phase={ui.dropPhase} />
             <ImagePreview image={ui.image} />
             <Toasts toasts={ui.toasts} />
         </>

@@ -539,7 +539,7 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                                 const active = isChat && entry.id === chatManager.currentChatId;
                                 const running =
                                     isChat &&
-                                    ((ui.phase !== 'idle' && ui.requestChatId === entry.id) ||
+                                    (!!ui.localRequests?.[entry.id] || (ui.phase !== 'idle' && ui.requestChatId === entry.id) ||
                                         ['thinking', 'replying'].includes(ui.remoteProgress?.[entry.id]));
                                 const label = isChat ? entry.chat.title : entry.folder.name;
                                 return (

@@ -109,10 +109,10 @@ async function mapWithConcurrency(items, limit, mapper) {
     return results;
 }
 
-export async function getEnabledTabsContent() {
+export async function getEnabledTabsContent(chatId = chatManager.currentChatId) {
     const browserSession=desktopBrowserStore.getSnapshot().session;
     const requireSameBrowser=()=>{if(globalThis.cerebrDesktop&&(!browserSession||browserSession!==desktopBrowserStore.getSnapshot().session))throw new Error('Browser extension disconnected during page extraction');};
-    const chat = chatManager.getCurrentChat();
+    const chat = chatManager.chats?.get(chatId) || chatManager.getCurrentChat();
     const activeChatId = chat?.id || null;
     const initialize = isNewWebpageConversation(chat);
     const [allTabs, currentTab] = await Promise.all([

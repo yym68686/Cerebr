@@ -1,0 +1,206 @@
+/* The compact surface, muted ink and short fades follow Beautiful UI Search /
+   Prompt Bar. These are app integrations, not an additional chat layout. */
+.chat-find {
+    position: fixed;
+    top: calc(48px + env(safe-area-inset-top));
+    right: 18px;
+    z-index: 240;
+    max-width: calc(100% - var(--cerebr-navigation-width, 0px) - 32px);
+    width: 360px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px 6px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--cerebr-surface-border);
+    background: var(--cerebr-surface-bg);
+    color: var(--cerebr-text-color);
+    box-shadow:
+        0 2px 6px var(--cerebr-popup-shadow),
+        0 8px 24px var(--cerebr-popup-shadow);
+    box-sizing: border-box;
+    animation: chat-tools-appear 140ms ease-out both;
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+}
+.chat-find > svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    color: var(--cerebr-text-color-secondary);
+}
+.chat-find input {
+    width: 0;
+    min-width: 0;
+    flex: 1;
+    border: 0;
+    outline: none;
+    box-shadow: none;
+    background: none;
+    padding: 6px;
+    font: inherit;
+    font-size: 13px;
+    color: inherit;
+}
+.chat-find input:focus {
+    outline: none;
+    box-shadow: none;
+}
+.chat-find input::placeholder {
+    color: var(--cerebr-text-color-secondary);
+}
+.chat-find-count {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--cerebr-text-color-secondary);
+    white-space: nowrap;
+}
+.chat-find-divider {
+    width: 1px;
+    height: 18px;
+    margin: 0 2px;
+    background: var(--cerebr-surface-border);
+}
+.chat-find button {
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--cerebr-text-color-secondary);
+    cursor: pointer;
+}
+.chat-find button:hover {
+    background: var(--cerebr-hover-bg-color);
+    color: var(--cerebr-text-color);
+}
+.chat-find button:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+.chat-find button svg {
+    width: 16px;
+    height: 16px;
+}
+.chat-find button:first-of-type svg {
+    transform: rotate(180deg);
+}
+::highlight(cerebr-search) {
+    background-color: #e3bd4c55;
+    color: inherit;
+}
+::highlight(cerebr-search-current) {
+    background-color: #e6bb47;
+    color: #27272a;
+}
+.chat-find-marks {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 110;
+}
+.chat-find-marks span {
+    position: absolute;
+    background: #e3bd4c55;
+    border-radius: 2px;
+}
+.chat-find-marks .is-current {
+    background: #e6bb4777;
+    outline: 1px solid #e6bb47;
+}
+.composer-picker-detail a {
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+.composer-picker-detail a:hover {
+    color: var(--cerebr-text-color);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+.chat-drop-feedback {
+    position: fixed;
+    inset: 52px 16px 16px calc(var(--cerebr-navigation-width, 0px) + 16px);
+    z-index: 800;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    border: 1px dashed var(--cerebr-text-color-secondary);
+    border-radius: 20px;
+    background: color-mix(in srgb, var(--cerebr-bg-color) 78%, transparent);
+    animation: chat-tools-appear 160ms ease-out both;
+}
+.chat-drop-surface {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 28px 36px;
+    border-radius: 18px;
+    background: var(--cerebr-surface-bg);
+    border: 1px solid var(--cerebr-surface-border);
+    box-shadow: 0 8px 32px var(--cerebr-popup-shadow);
+}
+.chat-drop-surface strong {
+    font-size: 15px;
+    font-weight: 500;
+}
+.chat-drop-surface > span:last-child {
+    font-size: 12px;
+    color: var(--cerebr-text-color-secondary);
+}
+.chat-drop-stack {
+    position: relative;
+    width: 44px;
+    height: 48px;
+    margin: 4px 0 10px;
+    display: grid;
+    place-items: center;
+}
+.chat-drop-stack > span {
+    position: absolute;
+    inset: 0;
+    border: 1px solid var(--cerebr-surface-border);
+    border-radius: 8px;
+    background: var(--cerebr-bg-color);
+    transform: rotate(-12deg) translateX(-5px);
+}
+.chat-drop-stack > span:nth-child(2) {
+    transform: rotate(8deg) translateX(4px);
+    background: var(--cerebr-surface-bg);
+}
+.chat-drop-stack > svg {
+    position: relative;
+    width: 24px;
+    height: 24px;
+    color: var(--cerebr-text-color-secondary);
+}
+.chat-drop-surface.is-reading .chat-drop-stack {
+    animation: chat-drop-breathe 1s ease-in-out infinite alternate;
+}
+@keyframes chat-drop-breathe {
+    to {
+        opacity: 0.4;
+        transform: translateY(-3px);
+    }
+}
+@keyframes chat-tools-appear {
+    from {
+        opacity: 0;
+        transform: translateY(3px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .chat-find,
+    .chat-drop-feedback,
+    .chat-drop-surface.is-reading .chat-drop-stack {
+        animation: none;
+    }
+}

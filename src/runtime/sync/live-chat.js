@@ -21,6 +21,7 @@ export function applyLiveChat(frame) {
     if (previous?.startedAt > frame.startedAt || (!frame.chat && previous?.requestId !== frame.requestId))
         return false;
     if (previous?.requestId === frame.requestId && previous.sequence >= frame.sequence) return false;
+    if (previous?.phase === 'idle' && previous.startedAt >= frame.startedAt && frame.phase !== 'idle') return false;
     const chat = frame.chat || previous?.chat;
     if (!chat || chat.id !== frame.chatId || !Array.isArray(chat.messages)) return false;
     let next = chat;

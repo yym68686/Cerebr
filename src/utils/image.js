@@ -45,27 +45,27 @@ export async function handleImageDrop(e, config) {
             }
         }
 
-        // 处理网页图片拖放
-        const data = e.dataTransfer.getData('text/plain');
-        if (data) {
-            try {
-                const imageData = JSON.parse(data);
-                if (imageData.type === 'image') {
-                    insertImageToInput({
-                        messageInput,
-                        createImageTag,
-                        insertImage,
-                        imageData: {
-                            base64Data: imageData.data,
-                            fileName: imageData.name
-                        }
-                    });
-                    onSuccess();
-                }
-            } catch (error) {
-                onError(error);
-            }
+        // Browser drags may contain HTML/URI data instead of a File. Never insert
+        // that HTML into the editor; extract only an image URL and read its bytes.
+        let imageData;
+        try { imageData = JSON.parse(e.dataTransfer.getData('text/plain')); } catch { /* Ordinary URL/text. */ }
+        if (imageData?.type === 'image') {
+            insertImageToInput({messageInput, createImageTag, insertImage,
+                imageData:{base64Data:imageData.data,fileName:imageData.name}});
+            onSuccess();
+            return;
         }
+        const html = e.dataTransfer.getData('text/html');
+        const image = html && new DOMParser().parseFromString(html, 'text/html').querySelector('img');
+        const url = image?.getAttribute('src') || e.dataTransfer.getData('text/uri-list').split('\n').find(line => line && !line.startsWith('#'));
+        if (!url || !/^(https?:|data:image\/|blob:)/i.test(url)) return;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(t('drop_read_failed'));
+        const file = await response.blob();
+        if (!file.type.startsWith('image/')) throw new Error(t('drop_unsupported'));
+        const base64Data = await readImageFileAsDataUrl(file);
+        insertImageToInput({messageInput,createImageTag,insertImage,imageData:{base64Data,fileName:image?.alt || t('label_image')}});
+        onSuccess();
     } catch (error) {
         onError(error);
     }

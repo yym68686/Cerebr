@@ -20,6 +20,7 @@
 @import './components/plugin-slots.css';
 @import './components/webpage-menu.css';
 @import './components/chat-container.css';
+@import './components/chat-tools.css';
 @import './components/toast.css';
 @import './components/chat-navigation.css';
 @import './components/selection-actions.css';

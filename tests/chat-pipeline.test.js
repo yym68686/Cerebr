@@ -11,7 +11,7 @@ function setup(plugins = {}, getWebpageInfo = async () => null, managerOverrides
     const manager = {
         chats: new Map([['a', chat]]),
         getCurrentChat: () => chat,
-        addMessageToCurrentChat: async (m) => chat.messages.push(m),
+        addMessageToChat: async (id, m) => manager.chats.get(id).messages.push(m),
         markChatDirty: vi.fn(),
         saveChats: async () => {},
         flushNow: async () => {},
@@ -69,7 +69,7 @@ describe('React chat session pipeline', () => {
                 processStream: async () => ({ content: 'Explanation' }),
             });
         expect(await pipeline.sendSelection('Quoted passage\nSecond line', 'Why?')).toBe(true);
-        await vi.waitFor(() => expect(phase).toHaveBeenLastCalledWith('idle', null));
+        await vi.waitFor(() => expect(phase).toHaveBeenLastCalledWith('idle', 'a'));
         expect(chat.messages[1]).toMatchObject({
             role: 'user',
             content: '> Quoted passage\n> Second line\n\nWhy?',
@@ -99,7 +99,7 @@ describe('React chat session pipeline', () => {
         expect(controller.signal.aborted).toBe(true);
         finish({content:'Partial answer'});
         await stopped;
-        expect(phase).toHaveBeenLastCalledWith('idle', null);
+        expect(phase).toHaveBeenLastCalledWith('idle', 'a');
     });
     it('rejects selection submissions before a message is added when configuration or hooks prevent sending', async () => {
         const missing = setup({}, async()=>null, {}, ()=>null);
@@ -174,7 +174,7 @@ describe('React chat session pipeline', () => {
             await pipeline.abortActiveReply();
             await pipeline.sendMessage();
             expect(callAPI).toHaveBeenCalledTimes(2);
-            expect(phase).toHaveBeenLastCalledWith('idle', null);
+            expect(phase).toHaveBeenLastCalledWith('idle', 'a');
         } finally {
             complete();
             await first;
@@ -196,7 +196,7 @@ describe('React chat session pipeline', () => {
                 expect.any(String),
                 expect.objectContaining({ type: 'error' })
             );
-            expect(phase).toHaveBeenLastCalledWith('idle', null);
+            expect(phase).toHaveBeenLastCalledWith('idle', 'a');
         } finally {
             errors.mockRestore();
         }
@@ -226,7 +226,7 @@ describe('React chat session pipeline', () => {
         expect(chat.messages[0].content).toBe('transformed');
         expect(editor.clear).toHaveBeenCalledOnce();
         expect(plugins.handleAfterResponse).toHaveBeenCalledOnce();
-        expect(phase).toHaveBeenLastCalledWith('idle', null);
+        expect(phase).toHaveBeenLastCalledWith('idle', 'a');
     });
     it('keeps the draft and history when a plugin cancels sending', async () => {
         callAPI.mockClear();
@@ -257,7 +257,7 @@ describe('React chat session pipeline', () => {
         await ready;
         pipeline.abortActiveReply();
         await request;
-        expect(phase).toHaveBeenLastCalledWith('idle', null);
+        expect(phase).toHaveBeenLastCalledWith('idle', 'a');
         expect(pipeline.abortControllerRef.current).toBe(null);
     });
     it('leaves thinking for idle even when saving the chat fails', async () => {
@@ -276,7 +276,7 @@ describe('React chat session pipeline', () => {
         const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
         try {
             await pipeline.sendMessage();
-            expect(phase).toHaveBeenLastCalledWith('idle', null);
+            expect(phase).toHaveBeenLastCalledWith('idle', 'a');
             await vi.waitFor(() =>
                 expect(errors).toHaveBeenCalledWith(expect.stringContaining('persist'), boom)
             );
@@ -300,7 +300,7 @@ describe('React chat session pipeline', () => {
         await asked;
         await pipeline.abortActiveReply();
         expect(await request).toBe(false);
-        expect(phase).toHaveBeenLastCalledWith('idle', null);
+        expect(phase).toHaveBeenLastCalledWith('idle', 'a');
         expect(callAPI).not.toHaveBeenCalled();
     });
     it('tracks the run before sendMessage() returns, so a stop in the same tick is honored', async () => {
@@ -311,7 +311,7 @@ describe('React chat session pipeline', () => {
         const request = pipeline.sendMessage();
         pipeline.abortActiveReply(); // 与 sendMessage() 同一个同步段，中间没有让出事件循环
         expect(await request).toBe(false);
-        expect(phase).toHaveBeenLastCalledWith('idle', null);
+        expect(phase).toHaveBeenLastCalledWith('idle', 'a');
         expect(callAPI).not.toHaveBeenCalled();
     });
     it('regenerates from a selected question and truncates later messages', async () => {
@@ -363,3 +363,39 @@ describe('React chat session pipeline', () => {
         expect(callAPI).toHaveBeenCalledTimes(2);
     });
 });
+
+ it('streams conversations independently, including navigation during preflight and stopping only the active one', async () => {
+    let resolveContext;
+    const { pipeline, manager, editor, phase, chat } = setup({}, () => new Promise(r => resolveContext = r));
+    const second = { id:'b', messages:[] };
+    manager.chats.set('b', second);
+    let current = chat;
+    manager.getCurrentChat = () => current;
+    const streams = new Map();
+    callAPI.mockReset().mockImplementation(async (params, store, id, update) => {
+        const controller = new AbortController();
+        return { controller, processStream: () => new Promise(resolve => {
+            streams.set(id, { controller, resolve, update });
+            controller.signal.addEventListener('abort', () => resolve());
+        }) };
+    });
+    const firstRequest = pipeline.sendMessage();
+    current = second;
+    resolveContext(null);
+    await vi.waitFor(() => expect(streams.has('a')).toBe(true));
+    expect(chat.messages[0].content).toBe('hello');
+    expect(second.messages).toHaveLength(0);
+    expect(editor.clear).not.toHaveBeenCalled();
+    const secondRequest = pipeline.sendMessage();
+    resolveContext(null);
+    await vi.waitFor(() => expect(streams.has('b')).toBe(true));
+    await streams.get('a').update('a', {content:'still running'});
+    expect(streams.get('a').controller.signal.aborted).toBe(false);
+    await pipeline.abortActiveReply();
+    await secondRequest;
+    expect(streams.get('a').controller.signal.aborted).toBe(false);
+    expect(phase).toHaveBeenLastCalledWith('idle', 'b');
+    streams.get('a').resolve({content:'complete'});
+    expect(await firstRequest).toBe(true);
+    expect(phase).toHaveBeenLastCalledWith('idle', 'a');
+ });

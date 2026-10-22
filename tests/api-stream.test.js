@@ -56,3 +56,20 @@ describe('real HTTP streaming transport', () => {
         expect(update).toHaveBeenLastCalledWith('chat-a', result);
     });
 });
+
+ it.each(['data: [DONE]\n\n', 'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n'])(
+    'settles on %s even when the HTTP connection stays open', async (end) => {
+        const cancel = vi.fn(() => new Promise(() => {}));
+        const body = new ReadableStream({ start(controller) {
+            controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"finished"}}]}\n\n' + end));
+        }, cancel });
+        const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(body));
+        try {
+            const {processStream} = await callAPI({apiConfig:{baseUrl:url,apiKey:'test',modelName:'test'},messages:[]},
+                {updateLastMessage:vi.fn()},'a',vi.fn());
+            let result;
+            void processStream().then(value => result = value);
+            await vi.waitFor(() => expect(result?.content).toBe('finished'), {timeout:500});
+            expect(cancel).toHaveBeenCalled();
+        } finally { fetchMock.mockRestore(); }
+    });

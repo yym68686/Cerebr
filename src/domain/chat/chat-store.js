@@ -700,14 +700,20 @@ export class ChatManager {
     }
 
     async addMessageToCurrentChat(message) {
-        const currentChat = this.getCurrentChat();
+        return this.addMessageToChat(this.currentChatId, message);
+    }
+
+    async addMessageToChat(chatId, message) {
+        const currentChat = this.chats.get(chatId);
         if (!currentChat) {
             throw new Error('当前没有活动的对话');
         }
         if (this._transientChatIds.delete(currentChat.id)) {
             this._indexDirty = true;
-            this._newChatId = null;
-            this._pendingRemovals.add(this._newChatStorageKey());
+            if (this._newChatId === currentChat.id) {
+                this._newChatId = null;
+                this._pendingRemovals.add(this._newChatStorageKey());
+            }
         }
         currentChat.messages.push(message);
         if (message.role === 'user') currentChat.lastUserMessageAt = new Date().toISOString();

@@ -12,6 +12,11 @@ if (process.isMainFrame)
             ipcRenderer.on('desktop:select-all', listener);
             return () => ipcRenderer.removeListener('desktop:select-all', listener);
         },
+        onFind: (callback: () => void) => {
+            const listener = () => callback();
+            ipcRenderer.on('desktop:find', listener);
+            return () => ipcRenderer.removeListener('desktop:find', listener);
+        },
         updates: {
             status: () => ipcRenderer.invoke('desktop:update-status'),
             check: () => ipcRenderer.invoke('desktop:update-check'),

@@ -24,6 +24,20 @@ vi.mock('../src/utils/default-chat.js', () => ({
 }));
 import { ChatManager, chatManager } from '../src/domain/chat/chat-store.js';
 describe('chat persistence under idle scheduling', () => {
+    it('persists a background question without consuming the newer blank draft', async () => {
+        const manager = new ChatManager();
+        await manager.initialize();
+        const first = manager.createNewChat('First');
+        const second = manager.createChat({ title: 'Second', persist: false });
+        await manager.switchChat(second.id);
+        await manager.addMessageToChat(first.id, { role: 'user', content: 'Background question' });
+        await manager.flushNow();
+        expect(manager.currentChatId).toBe(second.id);
+        expect(manager.createNewChat().id).toBe(second.id);
+        expect(manager.getAllChats().some(chat => chat.id === first.id)).toBe(true);
+        expect(manager.getAllChats().some(chat => chat.id === second.id)).toBe(false);
+        expect(memory.get(manager._newChatStorageKey()).id).toBe(second.id);
+    });
     it('reschedules a yielded write and persists edits before a reload', async () => {
         await chatManager.initialize();
         await chatManager.flushNow();

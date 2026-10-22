@@ -497,5 +497,16 @@
   "sync_manage_connection": {
     "message": "Manage"
   },
-  "sync_library": {"message": "On this device"}
+  "sync_library": {"message": "On this device"},
+  "chat_find_title": {"message": "Find in conversation"},
+  "chat_find_placeholder": {"message": "Find in conversation…"},
+  "chat_find_previous": {"message": "Previous match (Shift+Enter)"},
+  "chat_find_next": {"message": "Next match (Enter)"},
+  "chat_find_close": {"message": "Close search (Esc)"},
+  "drop_title": {"message": "Drop into this conversation"},
+  "drop_reading": {"message": "Reading your files…"},
+  "drop_hint": {"message": "Images and TXT files"},
+  "drop_read_failed": {"message": "Could not read this file. Please try again."},
+  "drop_text_too_large": {"message": "TXT files can be up to 10 MB."},
+  "drop_unsupported": {"message": "Please drop an image or a TXT file."}
 }

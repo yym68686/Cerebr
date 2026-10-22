@@ -1090,17 +1090,6 @@ class CerebrSidebar {
     // 存储最后一次拖动的图片信息（仅在确实拖入侧边栏后再取数据）
     let lastDraggedImage = null;
 
-    // 检查是否在侧边栏范围内的函数
-    const isInSidebarBounds = (x, y) => {
-      if (!this.sidebar || !this.isVisible) return false;
-      const sidebarRect = this.sidebar.getBoundingClientRect();
-      return (
-        x >= sidebarRect.left &&
-        x <= sidebarRect.right &&
-        y >= sidebarRect.top &&
-        y <= sidebarRect.bottom
-      );
-    };
 
     const getImageDataFromElement = async (imgEl) => {
       const src = imgEl?.currentSrc || imgEl?.src;
@@ -1148,30 +1137,30 @@ class CerebrSidebar {
       lastDraggedImage = img;
       try {
         e.dataTransfer?.setData?.('text/uri-list', img.currentSrc || img.src || '');
+        e.dataTransfer?.setData?.('application/x-cerebr-page-image', '1');
         e.dataTransfer.effectAllowed = 'copy';
       } catch {
         // ignore
       }
     }, { capture: true });
 
-    // 监听拖动结束事件
-    document.addEventListener('dragend', (e) => {
-      const inSidebar = !!lastDraggedImage && isInSidebarBounds(e.clientX, e.clientY);
+    // The iframe acknowledges an actual drop before we fetch the image. This
+    // also avoids duplicate insertion when the browser provides a File itself.
+    window.addEventListener('message', (event) => {
       const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
-      if (iframe && inSidebar && this.isVisible) {  // 确保侧边栏可见
-        const draggedImg = lastDraggedImage;
-        // 异步获取图片数据并发送到 iframe
-        void (async () => {
-          const imageData = await getImageDataFromElement(draggedImg);
-          if (!imageData) return;
-          iframe.contentWindow.postMessage({
-            type: 'DROP_IMAGE',
-            imageData
-          }, '*');
-        })();
-      }
-      // 重置状态
+      if (!iframe || event.source !== iframe.contentWindow || event.data?.type !== 'CEREBR_DROP_PAGE_IMAGE' ||
+          typeof event.data.requestId !== 'string' || !lastDraggedImage || !this.isVisible) return;
+      const image = lastDraggedImage;
       lastDraggedImage = null;
+      void getImageDataFromElement(image).then(imageData => {
+        iframe.contentWindow.postMessage({type:'CEREBR_DROP_PAGE_IMAGE_RESULT', requestId:event.data.requestId, imageData}, '*');
+      }).catch(() => {
+        iframe.contentWindow.postMessage({type:'CEREBR_DROP_PAGE_IMAGE_RESULT', requestId:event.data.requestId}, '*');
+      });
+    });
+    document.addEventListener('dragend', () => {
+      const image = lastDraggedImage;
+      setTimeout(() => { if (lastDraggedImage === image) lastDraggedImage = null; }, 1000);
     });
   }
 }

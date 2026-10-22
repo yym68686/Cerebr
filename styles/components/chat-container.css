@@ -7,8 +7,8 @@
     padding: 15px max(16px, calc((100% - var(--cerebr-navigation-width, 0px) - 760px) / 2));
     padding-top: calc(52px + env(safe-area-inset-top));
     padding-bottom: calc(84px + env(safe-area-inset-bottom) + var(--chat-bottom-extra-padding, 0px));
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+    scrollbar-width: thin;
+    scrollbar-color: var(--cerebr-surface-border) transparent;
     min-height: 100%;
     -webkit-overflow-scrolling: touch;
     scroll-behavior: auto;
@@ -22,9 +22,7 @@
    pointer crosses message boxes. The drag controller owns the active cursor. */
 .cerebr-extension-sidebar-iframe #chat-container { cursor: default; }
 
-#chat-container::-webkit-scrollbar {
-    display: none;
-}
+
 
 .chat-switch-placeholder {
     height: 100%;

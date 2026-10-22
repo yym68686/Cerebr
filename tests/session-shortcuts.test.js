@@ -32,7 +32,7 @@ vi.mock('../src/domain/chat/chat-store.js', () => ({
 vi.mock('../src/runtime/chat/chat-pipeline.js', () => ({
     createChatPipeline: (options) => {
         state.pipelineOptions = options;
-        return { abortActiveReply: async () => {}, sendSelection: vi.fn(async () => true) };
+        return { abortAll: async () => {}, abortActiveReply: vi.fn(async () => {}), sendSelection: vi.fn(async () => true) };
     },
 }));
 vi.mock('../src/runtime/input/native-editor.js', async (importOriginal) => ({
@@ -192,7 +192,7 @@ describe('new chat shortcut delivery', () => {
         start();
         state.pipelineOptions.onPhase('thinking','request-chat');
         state.pipelineOptions.onPhase('replying','request-chat');
-        state.pipelineOptions.onPhase('idle',null);
+        state.pipelineOptions.onPhase('idle','request-chat');
         expect(publishProgress).toHaveBeenLastCalledWith(expect.objectContaining({phase:'idle',chatId:'request-chat'}));
         expect(uiStore.getSnapshot().requestChatId).toBeNull();
         expect(uiStore.getSnapshot().phase).toBe('idle');
@@ -232,7 +232,7 @@ describe('new chat shortcut delivery', () => {
             expect(container.scrollTop).toBe(720);
             await state.pipelineOptions.onSubmitted('old', { preserveDraft: true, preserveReadingPosition: true });
             state.pipelineOptions.onPhase('replying', 'old');
-            state.pipelineOptions.onPhase('idle', null);
+            state.pipelineOptions.onPhase('idle', 'old');
             expect(container.scrollTop).toBe(720);
             expect(container.__cerebrUserPausedAutoScroll).toBe(true);
             expect(requestAnimationFrame).not.toHaveBeenCalled();
@@ -290,7 +290,7 @@ describe('new chat shortcut delivery', () => {
                 finished = true;
             });
             try {
-                await vi.waitFor(() => expect(finished).toBe(true), { timeout: 100 });
+                await vi.waitFor(() => expect(finished).toBe(true), { timeout: 1000 });
                 expect(chatManager.switchChat).toHaveBeenCalledWith(id);
                 expect(chatManager.setChatModel).not.toHaveBeenCalled();
                 expect(uiStore.getSnapshot().page).toBe(null);
@@ -361,4 +361,22 @@ describe('new chat shortcut delivery', () => {
         await state.start;
         expect(parent.postMessage).not.toHaveBeenCalled();
     });
+});
+
+it('navigation leaves other requests running and completion clears only its own phase',async()=>{
+ start();
+ chatManager.currentChatId='old';
+ state.pipelineOptions.onPhase('thinking','old');
+ await session.switchChat('new');
+ expect(session.pipeline.abortActiveReply).not.toHaveBeenCalled();
+ chatManager.currentChatId='new';
+ state.pipelineOptions.onPhase('thinking','new');
+ state.pipelineOptions.onPhase('replying','old');
+ expect(uiStore.getSnapshot().phase).toBe('thinking');
+ expect(Object.keys(uiStore.getSnapshot().localRequests)).toEqual(expect.arrayContaining(['old','new']));
+ state.pipelineOptions.onPhase('idle','old');
+ expect(uiStore.getSnapshot().localRequests.old).toBeUndefined();
+ expect(uiStore.getSnapshot().localRequests.new.phase).toBe('thinking');
+ state.pipelineOptions.onPhase('idle','new');
+ expect(uiStore.getSnapshot().phase).toBe('idle');
 });

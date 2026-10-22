@@ -1,3 +1,4 @@
+import { createProgressTracker } from './progress-tracker.js';
 import { createStore } from '../../app/state/store.js';
 import { getDb, isExtensionEnvironment } from '../../utils/storage-adapter.js';
 import { createSyncClient } from './client.js';
@@ -15,6 +16,7 @@ export const desktopSyncStore = createStore({
 const progressListeners = new Set();
 const latestProgress = new Map();
 const localRequests = new Set();
+const tracker = createProgressTracker();
 let desktopClient;
 export const subscribeRemoteProgress = (fn) => {
     progressListeners.add(fn);
@@ -22,6 +24,7 @@ export const subscribeRemoteProgress = (fn) => {
     return () => progressListeners.delete(fn);
 };
 const progress = (value) => {
+    if (!tracker.accept(value)) return;
     if (value.reset) {
         clearLiveChats();
         latestProgress.clear();
@@ -31,6 +34,8 @@ const progress = (value) => {
 };
 const live = (frame) => {
     if (localRequests.has(frame.chatId)) return;
+    const lifecycle = { chatId: frame.chatId, phase: frame.phase, startedAt: frame.startedAt };
+    if (!tracker.accept(lifecycle)) return;
     if (applyLiveChat(frame))
         progress({ chatId: frame.chatId, phase: frame.phase, startedAt: frame.startedAt });
 };
@@ -91,6 +96,10 @@ export function publishLiveChat(frame) {
         void chrome.runtime.sendMessage({ type: 'CEREBR_LOCAL_LIVE', frame }).catch(() => {});
 }
 export function publishProgress(value) {
+    tracker.accept(value);
+    if (value.phase === 'thinking') localRequests.add(value.chatId);
+    if (value.phase === 'idle') localRequests.delete(value.chatId);
+    if (value.phase === 'idle') { latestProgress.delete(value.chatId); settleLiveChat(value.chatId); }
     publishCloudProgress(value);
     if (isDesktop) desktopClient?.progress(value);
     else if (isExtensionEnvironment)

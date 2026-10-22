@@ -8,6 +8,7 @@ export const uiStore = createStore({
     image: null,
     toasts: [],
     editing: null,
+    localRequests: {},
     phase: 'idle',
     requestChatId: null,
     requestStartedAt: null,

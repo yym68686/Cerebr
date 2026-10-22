@@ -159,7 +159,8 @@ export function WebpageMenu({ sources, onBack, onDone, onSelected }) {
                                                 {tab.title || tab.url}
                                             </span>
                                             <span className="composer-picker-detail">
-                                                {hostname(tab.url)}
+                                                {/^https?:\/\//i.test(tab.url) ? <a href={tab.url} target="_blank" rel="noopener noreferrer" title={tab.url}
+                                                    onClick={event => event.stopPropagation()}>{hostname(tab.url)}</a> : hostname(tab.url)}
                                                 {tab.id === sources.current?.id
                                                     ? ` · ${t('composer_current_page')}`
                                                     : ''}

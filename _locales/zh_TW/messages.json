@@ -497,5 +497,16 @@
   "sync_manage_connection": {
     "message": "管理連線"
   },
-  "sync_library": {"message": "本機聊天"}
+  "sync_library": {"message": "本機聊天"},
+  "chat_find_title": {"message": "在目前對話中尋找"},
+  "chat_find_placeholder": {"message": "搜尋聊天正文…"},
+  "chat_find_previous": {"message": "上一個符合項目（Shift+Enter）"},
+  "chat_find_next": {"message": "下一個符合項目（Enter）"},
+  "chat_find_close": {"message": "關閉搜尋（Esc）"},
+  "drop_title": {"message": "放開，新增至對話"},
+  "drop_reading": {"message": "正在讀取檔案…"},
+  "drop_hint": {"message": "圖片與 TXT 文字檔案"},
+  "drop_read_failed": {"message": "讀取失敗，請重新拖入。"},
+  "drop_text_too_large": {"message": "TXT 檔案最大支援 10 MB。"},
+  "drop_unsupported": {"message": "請拖入圖片或 TXT 文字檔案。"}
 }

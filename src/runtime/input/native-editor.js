@@ -1,10 +1,11 @@
+import { attachFileDrop } from './file-drop.js';
 /**
  * 消息输入组件
  * 处理用户输入、粘贴、拖放图片等交互
  */
 
 import { adjustTextareaHeight, createImageTag, showToast } from '../../utils/ui.js';
-import { handleImageDrop, readImageFileAsDataUrl } from '../../utils/image.js';
+import { readImageFileAsDataUrl } from '../../utils/image.js';
 import { syncChatBottomExtraPadding } from '../../utils/scroll.js';
 import { t } from '../../utils/i18n.js';
 import { setDraftQuotes, getDraftQuotes } from './draft-quotes.js';
@@ -1086,43 +1087,7 @@ export function attachNativeEditor(config) {
         }
     });
 
-    // 拖放事件监听器
-    const dropTarget = messageInput.closest('[data-composer]') || messageInput;
-    listen(dropTarget, 'dragover', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-    });
-
-    listen(dropTarget, 'dragleave', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-    });
-
-    listen(dropTarget, 'drop', (e) => {
-        const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
-        if (files.length) {
-            e.preventDefault();
-            e.stopPropagation();
-            void addImageFilesToDraft(messageInput, files, uiConfig);
-            return;
-        }
-        const isCurrent = captureImageTarget(messageInput);
-        handleImageDrop(e, {
-            messageInput,
-            createImageTag,
-            insertImage: (imageData) => {
-                if (isCurrent()) appendDraftImage(messageInput, imageData, uiConfig);
-            },
-            onSuccess: () => {
-                // 成功处理后的回调
-            },
-            onError: (error) => {
-                console.error('处理拖放事件失败:', error);
-                showToast(error?.message || t('toast_handle_image_failed'), { type: 'error' });
-            }
-        });
-    });
-
+    const detachFileDrop = attachFileDrop({ messageInput, uiConfig, onState: config.onDropState, enabled: config.dropEnabled });
     // 初始化时同步一次，避免输入栏高度变化导致底部消息被遮挡
     initAnimatedFakeCaret(messageInput, listen);
     syncChatBottomExtraPadding();
@@ -1136,6 +1101,7 @@ export function attachNativeEditor(config) {
     setupInputContainerTouchScrollProxy({ inputContainer, chatContainer, messageInput }, listen);
     return () => {
         controller.abort();
+        detachFileDrop();
         invalidatePendingImages(messageInput);
         cancelAnimationFrame(layoutUpdateRaf);
         clearTimeout(postLargePasteLayoutTimer);

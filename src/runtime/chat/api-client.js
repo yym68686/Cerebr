@@ -314,12 +314,14 @@ export async function callAPI({
 
                     if (line.startsWith('data:')) {
                         const data = line.slice(5).trimStart();
-                        if (data === '[DONE]') {
-                            continue;
+                        if (data.trim() === '[DONE]') {
+                            dispatchUpdate();
+                            return currentMessage;
                         }
 
                         try {
-                            const delta = JSON.parse(data).choices[0]?.delta;
+                            const choice = JSON.parse(data).choices?.[0];
+                            const delta = choice?.delta;
                             let hasUpdate = false;
 
                             if (delta?.content) {
@@ -373,6 +375,10 @@ export async function callAPI({
                                     }
                                 }
                             }
+                            if (choice?.finish_reason) {
+                                dispatchUpdate();
+                                return currentMessage;
+                            }
                         } catch (e) {
                             if (e?.code === 'CEREBR_MISFILED_THINK_SILENTLY') {
                                 throw e;
@@ -418,7 +424,8 @@ export async function callAPI({
             clearTimeout(updateTimeout);
             cancelPendingFrame();
             try {
-                await reader?.cancel?.();
+                // Releasing a completed response must not wait for a stalled transport.
+                void reader?.cancel?.().catch(() => {});
             } catch {
                 // ignore
             }

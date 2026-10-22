@@ -241,6 +241,7 @@ app.whenReady().then(() => {
                     { role: 'cut' },
                     { role: 'copy' },
                     { role: 'paste' },
+                    { label: '在聊天中查找', accelerator: 'CmdOrCtrl+F', click: () => window?.webContents.send('desktop:find') },
                     { label: '全选', accelerator: 'CmdOrCtrl+A', click: () => window?.webContents.send('desktop:select-all') },
                 ],
             },

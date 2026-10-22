@@ -431,3 +431,13 @@ it('keeps source geometry when switching between referenced chats, and reuses th
     expect(host.querySelector('.composer-source-title').textContent).toBe('Alpha');
     expect(host.querySelector('#input-container').classList.contains('is-expanded')).toBe(true);
 });
+
+it('opens source URLs in a separate browsing context without changing selection', async () => {
+    await render(); await open();
+    const link=host.querySelector('.composer-picker-detail a');
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.getAttribute('rel')).toContain('noopener');
+    const before=JSON.stringify(state.memory);
+    await act(async()=>link.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true})));
+    expect(JSON.stringify(state.memory)).toBe(before);
+});

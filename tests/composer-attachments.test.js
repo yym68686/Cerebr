@@ -125,3 +125,30 @@ describe('Prompt Bar attachment boundary', () => {
         expect(editor.getDraft()).toBe(action === 'replace' ? '另一个会话的草稿' : '');
     });
 });
+
+it('imports dropped TXT content as editable plain text without removing existing images or draft text',async()=>{
+ editor.setDraft('question'); appendDraftImage(input,{base64Data:'data:image/png;base64,AQ=='});
+ const event=new Event('drop',{bubbles:true,cancelable:true});
+ Object.defineProperty(event,'dataTransfer',{value:{files:[new File(['line 1\n<strong>plain text</strong>'],'notes.txt',{type:'text/plain'})]}});
+ shelf.dispatchEvent(event);
+ await vi.waitFor(()=>expect(editor.getDraft()).toBe('question\n\nline 1\n<strong>plain text</strong>'));
+ expect(shelf.querySelectorAll('img')).toHaveLength(1); expect(input.querySelector('strong')).toBeNull();
+ expect(event.defaultPrevented).toBe(true); expect(document.activeElement).toBe(input);
+});
+
+it('accepts each extension image drop once, only from its parent and before the draft changes',async()=>{
+ const parent={postMessage:vi.fn()};vi.stubGlobal('parent',parent);
+ try {
+  const event=new Event('drop',{bubbles:true,cancelable:true});
+  Object.defineProperty(event,'dataTransfer',{value:{files:[],types:['application/x-cerebr-page-image']}});
+  shelf.dispatchEvent(event);
+  const request=parent.postMessage.mock.calls[0][0];
+  const data={type:'CEREBR_DROP_PAGE_IMAGE_RESULT',requestId:request.requestId,imageData:{data:'data:image/png;base64,AQ==',name:'web.png'}};
+  window.dispatchEvent(new MessageEvent('message',{source:window,data}));expect(shelf.children).toHaveLength(0);
+  window.dispatchEvent(new MessageEvent('message',{source:parent,data}));
+  window.dispatchEvent(new MessageEvent('message',{source:parent,data}));expect(shelf.children).toHaveLength(1);
+  shelf.dispatchEvent(event);const next=parent.postMessage.mock.calls[1][0];
+  editor.clear();window.dispatchEvent(new MessageEvent('message',{source:parent,data:{...data,requestId:next.requestId}}));
+  expect(shelf.children).toHaveLength(0);
+ }finally{vi.unstubAllGlobals();}
+});

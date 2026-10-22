@@ -74,7 +74,8 @@ function resolveUserMessage(payload, fallbackPayload) {
     return cloneMessage(fallbackPayload.userMessage || null);
 }
 
-export function createChatPipeline({
+function createConversationPipeline({
+    chatId,
     chatManager,
     editor,
     getSelectedApiConfig,
@@ -312,10 +313,10 @@ export function createChatPipeline({
         }
     };
 
-    async function run(mode, messageIndex, directDraft) {
-        const chat = chatManager.getCurrentChat();
+    async function run(mode, messageIndex, directDraft, capturedDraft) {
+        const chat = chatManager.chats.get(chatId);
         if (!chat) return false;
-        const draft = directDraft || editor.getDraftSnapshot();
+        const draft = capturedDraft || directDraft || editor.getDraftSnapshot();
         if (mode === 'send' && draft.empty) return false;
         const config = getSelectedApiConfig(chat);
         if (!config?.baseUrl || !config?.apiKey || !config?.modelName) {
@@ -344,7 +345,7 @@ export function createChatPipeline({
                 if (messages[index]?.role !== 'user') return false;
                 messages = messages.slice(0, index + 1);
             }
-            const webpageInfo = await raceAbort(Promise.resolve(getWebpageInfo()));
+            const webpageInfo = await raceAbort(Promise.resolve(getWebpageInfo(chat.id)));
             if (webpageInfo === ABORTED) return false;
             const initial = {
                 mode,
@@ -380,7 +381,7 @@ export function createChatPipeline({
             if (
                 before.cancel ||
                 abortControllerRef.pendingAbort ||
-                chatManager.getCurrentChat()?.id !== chat.id
+                !chatManager.chats.has(chat.id)
             )
                 return false;
             const payload = normalizeWaterfallPayload(before.payload, initial);
@@ -393,9 +394,9 @@ export function createChatPipeline({
             if (mode === 'send') {
                 const userMessage = resolveUserMessage(payload, initial);
                 if (!chat.messages.length) chat.title = draft.text || t('label_image');
-                await chatManager.addMessageToCurrentChat(userMessage);
+                await chatManager.addMessageToChat(chat.id, userMessage);
                 directDraft?.onSubmitted?.();
-                if (!directDraft) {
+                if (!directDraft && chatManager.getCurrentChat()?.id === chat.id) {
                     editor.clear();
                     editor.focus();
                 }
@@ -431,19 +432,20 @@ export function createChatPipeline({
             if (releasePrelude === prelude.release) releasePrelude = null;
             for (const message of chat.messages) message.updating = false;
             // Restore both the visible phase and the request lock independently
-            // of storage. Send/new-chat/switch-chat all wait for this run.
-            onPhase('idle', null);
+            // of storage. Only another request in this same conversation waits.
+            onPhase('idle', chat.id);
             chatManager.markChatDirty(chat.id);
             persistChat();
             onSettled(chat.id);
         }
     }
     async function schedule(mode, index, directDraft) {
+        const capturedDraft = directDraft || editor.getDraftSnapshot();
         while (running) {
             abortActiveReply();
             await running;
         }
-        const promise = run(mode, index, directDraft);
+        const promise = run(mode, index, directDraft, capturedDraft);
         running = promise;
         try {
             return await promise;
@@ -457,7 +459,7 @@ export function createChatPipeline({
         sendMessage: () => schedule('send'),
         // The selection toolbar needs the submission result, not the end of
         // the streamed answer. The scheduler still owns the full request so
-        // stopping, switching chats and subsequent sends keep working.
+        // stopping and subsequent sends in this conversation keep working.
         sendSelection: (text, question) => new Promise((resolve) => {
             void schedule('send', undefined, {
                 text: String(question || '').trim(),
@@ -474,6 +476,29 @@ export function createChatPipeline({
             ),
         getCurrentChat: () => chatManager.getCurrentChat() || null,
         getMessages: () => cloneMessages(chatManager.getCurrentChat()?.messages || []),
+        showToast,
+    };
+}
+
+// Each conversation owns its controller, preflight latch and request queue.
+// Navigation changes the visible editor, never the lifetime of a request.
+export function createChatPipeline(options) {
+    const conversations = new Map();
+    const currentId = () => options.chatManager.getCurrentChat()?.id;
+    const conversation = (id = currentId()) => {
+        if (!id) return null;
+        if (!conversations.has(id)) conversations.set(id, createConversationPipeline({ ...options, chatId: id }));
+        return conversations.get(id);
+    };
+    return {
+        get abortControllerRef() { return conversation()?.abortControllerRef || { current: null }; },
+        abortActiveReply: (id = currentId()) => conversations.get(id)?.abortActiveReply() || Promise.resolve(),
+        abortAll: () => Promise.all([...conversations.values()].map(request => request.abortActiveReply())),
+        sendMessage: () => conversation()?.sendMessage(),
+        sendSelection: (text, question) => conversation()?.sendSelection(text, question) || Promise.resolve(false),
+        regenerateMessage: target => conversation()?.regenerateMessage(target),
+        getCurrentChat: () => options.chatManager.getCurrentChat() || null,
+        getMessages: () => cloneMessages(options.chatManager.getCurrentChat()?.messages || []),
         showToast,
     };
 }

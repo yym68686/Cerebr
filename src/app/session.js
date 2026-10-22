@@ -132,55 +132,56 @@ export function createSession({ messageInput, chatContainer }) {
             setMessageInputContent(messageInput, snapshot.content, uiConfig, snapshot.quotes);
         }
     };
-    let liveRequest,
-        liveSequence = 0,
-        liveStartedAt = 0;
+    const liveRequests = new Map();
+    const syncActivePhase = () => {
+        const active = uiStore.getSnapshot().localRequests?.[chatManager.currentChatId];
+        uiStore.set({ phase: active?.phase || 'idle', requestChatId: active ? chatManager.currentChatId : null,
+            requestStartedAt: active?.startedAt || null });
+    };
     const sendLive = (chatId, phase, full = false) => {
-        const chat = chatManager.chats.get(chatId);
-        if (!chat?.messages.length || !liveRequest) return;
+        const chat = chatManager.chats.get(chatId), request = liveRequests.get(chatId);
+        if (!chat?.messages.length || !request) return;
         const index = chat.messages.length - 1;
         publishLiveChat({
-            chatId,
-            requestId: liveRequest,
-            sequence: ++liveSequence,
-            phase,
-            startedAt: liveStartedAt,
-            ...(full || index < 0 ? { chat } : { index, message: chat.messages[index] }),
+            chatId, requestId: request.id, sequence: ++request.sequence,
+            phase, startedAt: request.startedAt,
+            ...(full ? { chat } : { index, message: chat.messages[index] }),
         });
     };
     const pipeline = createChatPipeline({
         chatManager,
         editor,
         getSelectedApiConfig,
-        getWebpageInfo: () =>
+        getWebpageInfo: (id) =>
             isExtensionEnvironment || desktopBrowserStore.getSnapshot().session
-                ? getEnabledTabsContent()
+                ? getEnabledTabsContent(id)
                 : null,
         getUserLanguage: () => navigator.language,
         pluginRuntime: runtime,
         onPhase: (phase, requestChatId, { preserveReadingPosition = false } = {}) => {
-            if (preserveReadingPosition) chatContainer.__cerebrUserPausedAutoScroll = true;
-            // The pipeline clears its UI request ID on idle. Publish completion
-            // for the previous request before clearing it locally.
-            const progressChatId = requestChatId || uiStore.getSnapshot().requestChatId;
-            if (phase === 'thinking') {
-                liveRequest = crypto.randomUUID();
-                liveSequence = 0;
-                liveStartedAt = Date.now();
-            }
-            if (progressChatId) {
-                publishProgress({ phase, chatId: progressChatId, startedAt: liveStartedAt });
-                sendLive(progressChatId, phase, phase !== 'replying');
-            }
-            uiStore.set({
-                phase,
-                requestChatId,
-                ...(phase === 'thinking' ? { requestStartedAt: Date.now() } : {}),
+            if (preserveReadingPosition && requestChatId === chatManager.currentChatId)
+                chatContainer.__cerebrUserPausedAutoScroll = true;
+            if (phase === 'thinking') liveRequests.set(requestChatId, {
+                id: crypto.randomUUID(), sequence: 0, startedAt: Date.now(),
             });
+            const request = liveRequests.get(requestChatId);
+            if (requestChatId) {
+                publishProgress({ phase, chatId: requestChatId, startedAt: request?.startedAt });
+                sendLive(requestChatId, phase, phase !== 'replying');
+            }
+            uiStore.set(state => {
+                if (phase !== 'idle' && state.localRequests?.[requestChatId]?.phase === phase) return state;
+                const localRequests = { ...state.localRequests }, remoteProgress = { ...state.remoteProgress };
+                if (phase === 'idle') { delete localRequests[requestChatId]; delete remoteProgress[requestChatId]; }
+                else localRequests[requestChatId] = { phase, startedAt: request?.startedAt };
+                return { ...state, localRequests, remoteProgress };
+            });
+            if (phase === 'idle') liveRequests.delete(requestChatId);
+            syncActivePhase();
         },
         onSubmitted: (id, { preserveDraft = false, preserveReadingPosition = false } = {}) => {
             sendLive(id, 'thinking', true);
-            if (!preserveReadingPosition) {
+            if (!preserveReadingPosition && chatManager.currentChatId === id) {
                 chatContainer.__cerebrUserPausedAutoScroll = false;
                 requestAnimationFrame(() => {
                     if (chatManager.currentChatId === id && !chatContainer.__cerebrUserPausedAutoScroll)
@@ -188,7 +189,7 @@ export function createSession({ messageInput, chatContainer }) {
                 });
             }
             if (preserveDraft) return;
-            clearTimeout(draftTimer);
+            if (activeDraftId === id) clearTimeout(draftTimer);
             void writeDraft(id, null).catch(reportStorageError);
         },
         onSettled: () => void reading.saveNow().catch(reportStorageError),
@@ -214,6 +215,7 @@ export function createSession({ messageInput, chatContainer }) {
     });
     const userQuestions = [];
     const syncQuestions = () => {
+        syncActivePhase();
         userQuestions.splice(
             0,
             userQuestions.length,
@@ -234,6 +236,8 @@ export function createSession({ messageInput, chatContainer }) {
     const detachEditor = attachNativeEditor({
         messageInput,
         sendMessage: pipeline.sendMessage,
+        onDropState: dropPhase => uiStore.set({ dropPhase }),
+        dropEnabled: () => !uiStore.getSnapshot().page,
         confirmMessageEdit: confirmEdit,
         isEditingMessage: () => !!uiStore.getSnapshot().editing,
         cancelMessageEdit: cancelEdit,
@@ -250,12 +254,12 @@ export function createSession({ messageInput, chatContainer }) {
         draftTimer = setTimeout(() => void saveDraft().catch(reportStorageError), 400);
     });
     const switchChat = async (id) => {
-        await pipeline.abortActiveReply();
         cancelEdit();
         void saveDraft().catch(reportStorageError);
         void reading.saveNow().catch(reportStorageError);
         pendingReadingId = id;
         await chatManager.switchChat(id);
+        syncActivePhase();
         // A completed reply may still be writing. Navigation must not join that
         // write queue; the store retains and retries any failed chat writes.
         void chatManager.flushNow().catch((error) => {
@@ -283,8 +287,9 @@ export function createSession({ messageInput, chatContainer }) {
     const newChat = () => {
         if (newChatTask) return newChatTask;
         newChatTask = (async () => {
-            await pipeline.abortActiveReply();
-            const chat = chatManager.createNewChat(t('chat_new_title'));
+            let chat = chatManager.createNewChat(t('chat_new_title'));
+            if (liveRequests.has(chat.id))
+                chat = chatManager.createChat({ title: t('chat_new_title'), persist: false });
             if (chatManager.currentChatId !== chat.id) await switchChat(chat.id);
             else openPage(null);
             editor.focus();
@@ -292,8 +297,8 @@ export function createSession({ messageInput, chatContainer }) {
         return newChatTask;
     };
     const removeChat = async (id) => {
+        await pipeline.abortActiveReply(id);
         if (chatManager.currentChatId === id) {
-            await pipeline.abortActiveReply();
             cancelEdit();
         }
         await chatManager.deleteChat(id);
@@ -373,7 +378,7 @@ export function createSession({ messageInput, chatContainer }) {
         }
     });
     const unsubscribeTabs = browserAdapter.onTabActivated(async (info) => {
-        if (document.hidden || uiStore.getSnapshot().phase !== 'idle') return;
+        if (document.hidden || liveRequests.size) return;
         const tab = await browserAdapter.getCurrentTab();
         if (info?.tabId && info.tabId !== tab?.id) return;
         await saveDraft();
@@ -443,10 +448,10 @@ export function createSession({ messageInput, chatContainer }) {
             disposed = true;
             detachUpdates();
             detachSelectAll();
-            if (uiStore.getSnapshot().requestChatId)
-                publishProgress({ phase: 'idle', chatId: uiStore.getSnapshot().requestChatId });
+            for (const [chatId, request] of liveRequests)
+                publishProgress({ phase: 'idle', chatId, startedAt: request.startedAt });
             flush();
-            pipeline.abortActiveReply();
+            void pipeline.abortAll();
             events.abort();
             unsubscribeTabs();
             detachEditor();
