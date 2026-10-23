@@ -12,6 +12,7 @@ import { getMathSource, copyChatSelection } from '../render/message/message-clip
 import { installCodeBlockDelegation } from '../render/message/markdown-enhancements.js';
 import { createSession } from './session.js';
 import { uiStore, openPage } from './state/ui-store.js';
+import { pluginUiStore } from '../runtime/ui/plugin-ui-store.js';
 import { apiStore } from './state/api-configs.js';
 import { preferencesStore } from './state/preferences.js';
 import { setPlaceholderRestoreResolver } from '../runtime/input/native-editor.js';
@@ -42,6 +43,7 @@ import '../utils/viewport.js';
 
 export function App() {
     const ui = useSyncExternalStore(uiStore.subscribe, uiStore.getSnapshot);
+    const pluginPageOpen = useSyncExternalStore(pluginUiStore.subscribe, () => !!pluginUiStore.getSnapshot().page);
     const apis = useSyncExternalStore(apiStore.subscribe, apiStore.getSnapshot);
     const prefs = useSyncExternalStore(preferencesStore.subscribe, preferencesStore.getSnapshot);
     const revision = useSyncExternalStore(chatManager.subscribe, chatManager.getSnapshot);
@@ -232,7 +234,7 @@ export function App() {
                 className="chat-navigation-mobile-toggle"
                 aria-label={t('nav_open_navigation')}
                 aria-expanded={ui.navigationOpen}
-                hidden={!!ui.page || ui.navigationOpen}
+                hidden={!!ui.page || pluginPageOpen || ui.navigationOpen}
                 onClick={() => navigate('history')}
             >
                 <Icon name="sidebar-open" />

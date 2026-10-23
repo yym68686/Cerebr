@@ -26,6 +26,7 @@ vi.mock('../src/domain/chat/chat-store.js', () => ({
 vi.mock('../src/utils/i18n.js', () => ({ t: (key, args = []) => `${key} ${args.join(' ')}`.trim() }));
 import { ChatNavigation } from '../src/app/components/ChatNavigation.jsx';
 import { chatOrganization } from '../src/domain/chat/chat-organization.js';
+import { pluginUiStore } from '../src/runtime/ui/plugin-ui-store.js';
 import { uiStore } from '../src/app/state/ui-store.js';
 import { chatManager } from '../src/domain/chat/chat-store.js';
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -66,7 +67,8 @@ beforeEach(async () => {
     };
     close = vi.fn();
     navigate = vi.fn();
-    uiStore.set({ phase: 'idle', requestChatId: null });
+    uiStore.set({ phase: 'idle', requestChatId: null, page: null });
+    pluginUiStore.set({ page: null });
     host = document.createElement('div');
     document.body.append(host);
     root = createRoot(host);
@@ -382,4 +384,33 @@ it('cancels a pending close when the pointer returns and does not reopen after c
     } finally {
         vi.unstubAllGlobals();
     }
+});
+
+it.each(['preferences', 'api', 'plugins', 'plugin-page'])('hides the collapsed web toggle and hover preview while %s is open, and restores it on back', async (page) => {
+    await chatOrganization.setCollapsed('sidebar', true);
+    await render();
+    const toggle = host.querySelector('.navigation-window-toggle');
+    await act(async () => toggle.dispatchEvent(new MouseEvent('pointerover', {bubbles:true})));
+    expect(host.querySelector('#chat-navigation').classList.contains('is-floating')).toBe(true);
+    await act(async () => page === 'plugin-page' ? pluginUiStore.set({page:{pluginId:'example'}}) : uiStore.set({page}));
+    expect(host.querySelector('.navigation-window-toggle')).toBeNull();
+    expect(host.querySelector('#chat-navigation').classList.contains('is-visible')).toBe(false);
+    expect(chatOrganization.getSnapshot().sidebarCollapsed).toBe(true);
+    await act(async () => { uiStore.set({page:null}); pluginUiStore.set({page:null}); });
+    expect(host.querySelector('.navigation-window-toggle')).not.toBeNull();
+    expect(host.querySelector('#chat-navigation').classList.contains('is-floating')).toBe(false);
+    await act(async () => host.querySelector('.navigation-window-toggle').dispatchEvent(new MouseEvent('pointerover', {bubbles:true})));
+    expect(host.querySelector('#chat-navigation').classList.contains('is-floating')).toBe(true);
+});
+it('keeps the pinned sidebar and desktop titlebar controls available alongside settings', async () => {
+    await render();
+    await act(async () => uiStore.set({page:'preferences'}));
+    expect(host.querySelector('#chat-navigation').classList.contains('is-visible')).toBe(true);
+    expect(host.querySelector('.navigation-header button')).not.toBeNull();
+    vi.stubGlobal('cerebrDesktop', {platform:'darwin'});
+    try {
+        await act(async () => chatOrganization.setCollapsed('sidebar', true));
+        await render();
+        expect(host.querySelector('.navigation-window-toggle')).not.toBeNull();
+    } finally { vi.unstubAllGlobals(); }
 });

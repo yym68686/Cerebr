@@ -12,6 +12,7 @@ import { chatManager } from '../../domain/chat/chat-store.js';
 import { chatOrganization } from '../../domain/chat/chat-organization.js';
 import { t } from '../../utils/i18n.js';
 import { notify, uiStore } from '../state/ui-store.js';
+import { pluginUiStore } from '../../runtime/ui/plugin-ui-store.js';
 import { useProgressiveCount } from '../hooks/useProgressiveCount.js';
 import { Icon } from './Icon.jsx';
 import { NavigationDialog, NavigationMenu } from './NavigationOverlays.jsx';
@@ -126,6 +127,7 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
     const version = useSyncExternalStore(chatManager.subscribe, chatManager.getSnapshot);
     const organization = useSyncExternalStore(chatOrganization.subscribe, chatOrganization.getSnapshot);
     const ui = useSyncExternalStore(uiStore.subscribe, uiStore.getSnapshot);
+    const pluginPageOpen = useSyncExternalStore(pluginUiStore.subscribe, () => !!pluginUiStore.getSnapshot().page);
     const [searchOpen, setSearchOpen] = useState(false),
         [search, setSearch] = useState('');
     const [menu, setMenu] = useState(null),
@@ -144,9 +146,13 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
         hoverOverlays = useRef(null);
     hoverOverlays.current = { menu, dialog };
     const collapsed = wide && organization.sidebarCollapsed;
-    const floating = wide && collapsed && (preview || open);
+    // Web/extension pages own the top-left back button. The desktop toggle
+    // lives in reserved window chrome and can remain available there.
+    const pageBlocksToggle = !desktop && (!!ui.page || pluginPageOpen);
+    const floating = wide && collapsed && !pageBlocksToggle && (preview || open);
     const visible = (wide && !collapsed) || floating || (!wide && open);
-    const showToggle = desktop || (wide && collapsed);
+    const usesWindowToggle = desktop || (wide && collapsed);
+    const showToggle = usesWindowToggle && !pageBlocksToggle;
     const cancelHoverClose = () => {
         clearTimeout(hoverTimer.current);
         hoverTimer.current = null;
@@ -164,7 +170,7 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
     const enterPreview = (event) => {
         hovering.current = true;
         cancelHoverClose();
-        if (wide && collapsed && !suppressHover.current && event.pointerType !== 'touch') setPreview(true);
+        if (wide && collapsed && !pageBlocksToggle && !suppressHover.current && event.pointerType !== 'touch') setPreview(true);
     };
     const menuTarget = useRef(null);
     menuTarget.current = menu;
@@ -312,9 +318,13 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
         }
     };
     useEffect(() => {
-        if (!wide || !collapsed) setPreview(false);
+        if (!wide || !collapsed || pageBlocksToggle) {
+            setPreview(false);
+            hovering.current = false;
+            suppressHover.current = false;
+        }
         return () => clearTimeout(hoverTimer.current);
-    }, [wide, collapsed]);
+    }, [wide, collapsed, pageBlocksToggle]);
     useEffect(() => {
         if (!floating) return;
         const outside = (event) => {
@@ -405,7 +415,7 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                 }}
             >
                 <div className="navigation-header">
-                    {!showToggle &&
+                    {!usesWindowToggle &&
                         (wide ? (
                             <button
                                 type="button"

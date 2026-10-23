@@ -1011,17 +1011,30 @@ class CerebrSidebar {
 
       resizeHandle.addEventListener('dblclick', () => {
         const direction = resizeHandle.dataset.direction || '';
+        const rect = this.sidebar.getBoundingClientRect();
+        const fromLeft = direction.includes('left');
+        const fromTop = direction.includes('top');
         if (direction.includes('left') || direction.includes('right')) {
-          this.sidebarWidth = this.defaultSidebarWidth;
+          this.sidebarWidth = clampSidebarWidth(this.defaultSidebarWidth, this.defaultSidebarWidth,
+            fromLeft ? rect.right - SIDEBAR_MARGIN_PX : window.innerWidth - rect.left - SIDEBAR_MARGIN_PX);
         }
         if (direction.includes('top') || direction.includes('bottom')) {
-          this.sidebarHeight = null;
+          const defaultHeight = this.getDefaultSidebarHeight();
+          const height = clampSidebarHeight(defaultHeight, defaultHeight,
+            fromTop ? rect.bottom - SIDEBAR_MARGIN_PX : window.innerHeight - rect.top - SIDEBAR_MARGIN_PX);
+          this.sidebarHeight = height === defaultHeight ? null : height;
         }
+        // Match a drag from this handle: keep the opposite edge stationary.
+        // After widening from the left, a saved left coordinate must move too;
+        // changing only width would pull the right edge away from the page edge.
+        this.sidebarLeft = fromLeft ? rect.right - this.getAppliedSidebarWidth() : rect.left;
+        this.sidebarTop = fromTop ? rect.bottom - this.getAppliedSidebarHeight() : rect.top;
         this.applySidebarDimensions();
         this.saveDimensionsDebounced({
           persistWidth: direction.includes('left') || direction.includes('right'),
           persistHeight: direction.includes('top') || direction.includes('bottom')
         });
+        this.savePositionDebounced();
       });
     };
 
