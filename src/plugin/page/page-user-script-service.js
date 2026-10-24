@@ -644,6 +644,10 @@ export function createPageUserScriptService({
                 return;
             }
 
+            if (!requestId.startsWith(`${portMeta.pluginId}:`)) {
+                return;
+            }
+
             pendingHookRequests.delete(requestId);
             if (message?.ok === false) {
                 pending.reject(new Error(normalizeString(message?.error?.message, 'Page user script hook failed')));
