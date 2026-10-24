@@ -7,6 +7,7 @@ export async function publishRelease({
     core,
     tag = process.env.RELEASE_TAG,
     version = process.env.RELEASE_VERSION,
+    commitSha = process.env.RELEASE_SHA || context.sha,
     directory = path.resolve('artifacts/release-all'),
 }) {
     const names = (await readdir(directory)).sort();
@@ -40,7 +41,7 @@ export async function publishRelease({
     if (ref) {
         while (ref.type === 'tag')
             ref = (await github.rest.git.getTag({ owner, repo, tag_sha: ref.sha })).data.object;
-        if (ref.sha !== context.sha) throw new Error(`${tag} points to a different commit`);
+        if (ref.sha !== commitSha) throw new Error(`${tag} points to a different commit`);
     }
     let release;
     try {
@@ -61,7 +62,7 @@ export async function publishRelease({
                 owner,
                 repo,
                 tag_name: tag,
-                target_commitish: context.sha,
+                target_commitish: commitSha,
                 name: tag,
                 draft: true,
                 prerelease: false,

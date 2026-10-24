@@ -42,7 +42,10 @@ beforeEach(async () => {
     core = { notice: vi.fn(), summary: { addLink: () => ({ write: vi.fn(async () => {}) }) } };
     context = { repo: { owner: 'owner', repo: 'repo' }, sha: 'current' };
 });
-afterEach(async () => rm(directory, { recursive: true, force: true }));
+afterEach(async () => {
+    vi.unstubAllEnvs();
+    await rm(directory, { recursive: true, force: true });
+});
 const publish = () => publishRelease({ github, context, core, directory, version, tag });
 it('publishes only after all installers have uploaded to a draft', async () => {
     await publish();
@@ -53,6 +56,19 @@ it('publishes only after all installers have uploaded to a draft', async () => {
     expect(github.rest.repos.updateRelease.mock.invocationCallOrder[0]).toBeGreaterThan(
         Math.max(...github.rest.repos.uploadReleaseAsset.mock.invocationCallOrder)
     );
+});
+it('uses the built commit while preserving the Actions context prototype getters', async () => {
+    // @actions/github Context.repo is a prototype getter, not an enumerable field.
+    context = new class {
+        sha = 'triggering-commit';
+        get repo() { return { owner: 'owner', repo: 'repo' }; }
+    }();
+    vi.stubEnv('RELEASE_SHA', 'current');
+    await publish();
+    expect(github.rest.git.getRef).toHaveBeenCalledWith({ owner: 'owner', repo: 'repo', ref: `tags/${tag}` });
+    expect(github.rest.repos.createRelease).toHaveBeenCalledWith(expect.objectContaining({
+        owner: 'owner', repo: 'repo', target_commitish: 'current',
+    }));
 });
 it('does not create a release when a platform installer is missing', async () => {
     await rm(path.join(directory, 'Cerebr-1.2.3-win32-x64-Setup.exe'));

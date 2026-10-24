@@ -163,4 +163,4 @@ jobs:
               with:
                   script: |
                       const { publishRelease } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/publish-release.mjs`);
-                      await publishRelease({ github, context: { ...context, sha: process.env.RELEASE_SHA }, core });
+                      await publishRelease({ github, context, core });
