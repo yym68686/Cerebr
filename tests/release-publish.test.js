@@ -69,9 +69,30 @@ it('refuses to attach a build to an existing tag from another commit', async () 
     await expect(publish()).rejects.toThrow('different commit');
     expect(github.rest.repos.createRelease).not.toHaveBeenCalled();
 });
-it('preserves already published releases on reruns', async () => {
-    github.rest.repos.getReleaseByTag.mockResolvedValue({ data: { id: 1, draft: false } });
-    await expect(publish()).rejects.toThrow('already published');
+it('succeeds without changing already published releases on reruns', async () => {
+    github.rest.repos.getReleaseByTag.mockResolvedValue({
+        data: { id: 1, draft: false, html_url: 'https://example.com/release' },
+    });
+    await publish();
+    expect(github.rest.repos.createRelease).not.toHaveBeenCalled();
     expect(github.rest.repos.deleteReleaseAsset).not.toHaveBeenCalled();
     expect(github.rest.repos.uploadReleaseAsset).not.toHaveBeenCalled();
+    expect(github.rest.repos.updateRelease).not.toHaveBeenCalled();
+});
+it('still refuses a published release whose tag points to another commit', async () => {
+    github.rest.repos.getReleaseByTag.mockResolvedValue({ data: { id: 1, draft: false } });
+    github.rest.git.getRef.mockResolvedValue({ data: { object: { type: 'commit', sha: 'other' } } });
+    await expect(publish()).rejects.toThrow('different commit');
+    expect(github.rest.repos.uploadReleaseAsset).not.toHaveBeenCalled();
+});
+it('resumes a draft by replacing its incomplete assets before publication', async () => {
+    github.rest.repos.getReleaseByTag.mockResolvedValue({ data: { id: 1, draft: true } });
+    github.paginate.mockResolvedValue([{ id: 7, name: 'cerebr.zip' }]);
+    await publish();
+    expect(github.rest.repos.createRelease).not.toHaveBeenCalled();
+    expect(github.rest.repos.deleteReleaseAsset).toHaveBeenCalledWith(
+        expect.objectContaining({ asset_id: 7 })
+    );
+    expect(github.rest.repos.uploadReleaseAsset).toHaveBeenCalledTimes(13);
+    expect(github.rest.repos.updateRelease).toHaveBeenCalledWith(expect.objectContaining({ draft: false }));
 });

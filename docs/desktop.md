@@ -73,13 +73,15 @@ macOS 数据目录：`~/Library/Application Support/Cerebr/`。Windows 数据目
 | macOS 15 Intel runner | Intel / x64 | DMG、ZIP |
 | Windows 2025 runner | x64 | Setup.exe、ZIP |
 
-发布步骤：
+推送到 `main` 后自动发布，无需手工打标签：
 
-1. 同步修改 `package.json`、`desktop/package.json`、两个扩展 manifest 的版本，并更新 `package-lock.json`。
-2. 提交并推送代码，再推送对应版本标签，例如 `git tag v2.5.15`、`git push origin v2.5.15`。
-3. 版本检查、测试、扩展和全部桌面构建成功后，工作流创建草稿 Release，上传全部包和每个平台的 SHA-256 文件，最后发布。构建失败不会发布残缺版本。
+1. 工作流读取已有正式版本标签；当前声明版本若已使用，就递增最高版本的补丁号（例如 `2.6.14` → `2.6.15`）。若主动把四个版本文件改为更高版本，则使用该版本。
+2. 自动生成版本提交，同步 `package.json`、`desktop/package.json`、两个扩展 manifest 和 `package-lock.json`，创建对应 `v*` 标签，并快进更新 `main`。如果 `main` 已有新的用户提交，则保留标签上的版本提交，不覆盖新代码。下次本地开发前先拉取远端版本提交。
+3. 所有作业检出同一版本提交。版本检查、测试、扩展和全部桌面构建成功后，创建草稿 Release，上传全部包和每个平台的 SHA-256 文件，最后发布。构建失败不会发布残缺版本；保留的标签让重跑复用相同版本。
 
-也可在 Actions 手动运行，勾选 `publish` 发布所选 commit 的版本。已有同名标签必须指向该 commit；已有公开 Release 不会被覆盖。上传中断留下的草稿可重跑完成。无需额外 PAT，发布作业使用仓库的 `GITHUB_TOKEN`，只有该作业具备 `contents: write` 权限。
+仍支持推送手工 `v*` 标签发布，也可在 Actions 手动运行并勾选 `publish`：选择 `main` 时自动准备版本，其他 ref 使用其声明版本。不勾选 `publish` 或运行 PR 检查时只构建。已有同名标签必须指向实际构建提交；同一提交的已公开 Release 重跑直接跳过发布，不覆盖安装包；上传中断留下的草稿可重跑完成。
+
+无需额外 PAT，准备版本和发布作业使用仓库的 `GITHUB_TOKEN` 并具备 `contents: write` 权限；构建作业只读。机器人生成的版本提交和标签不会递归触发新的 push 工作流。发布工作流按仓库串行执行，避免同时分配同一版本；GitHub 的并发队列会合并尚未开始的连续推送。若启用分支或标签保护，需要允许发布机器人创建版本标签和快进版本提交。GitHub Pages 仍由独立的推送工作流部署。
 
 ### 客户端更新
 

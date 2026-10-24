@@ -48,8 +48,12 @@ export async function publishRelease({
     } catch (error) {
         if (error.status !== 404) throw error;
     }
-    if (release && !release.draft)
-        throw new Error(`${tag} is already published; use a new version instead of replacing public assets`);
+    if (release && !release.draft) {
+        if (!ref) throw new Error(`${tag} is already published but its tag is missing`);
+        core.notice(`${tag} is already published for this commit; keeping its public assets unchanged.`);
+        await core.summary.addLink(`Release ${tag}`, release.html_url).write();
+        return;
+    }
     const notes = `## Downloads\n\n- Apple Silicon Mac: arm64 DMG\n- Intel Mac: x64 DMG\n- Windows x64: Setup.exe\n- ZIP archives are also provided. Browser extension packages: cerebr.zip and cerebr-firefox.zip.\n\nThese desktop builds are currently unsigned and not notarized. API settings and chat history can sync with a paired Cerebr browser extension on the same computer.\n`;
     if (!release)
         release = (

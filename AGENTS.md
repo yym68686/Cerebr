@@ -38,7 +38,7 @@ npm run package:extension
 
 ## 发布与缓存
 
-1. 同步更新 `manifest.json`、`manifest.firefox.json` 和 `package.json` 的版本。
+1. 推送 `main` 会自动递增发布版本并同步四个版本文件及 `package-lock.json`；主动指定新版本时，同步更新 `manifest.json`、`manifest.firefox.json`、`package.json` 和 `desktop/package.json`。
 2. 运行 `npm run check`（测试 + 构建），验证 `npm run preview`。
 3. GitHub Pages 使用 GitHub Actions，上传 `dist`。Cloudflare Pages / Vercel 的构建命令为 `npm run build`，输出目录为 `dist`。
 4. 运行 `npm run package:extension`，安装包在 `artifacts/`，Chrome 加载 `artifacts/chrome/`，Firefox 使用对应包。
@@ -106,4 +106,4 @@ npm run package:extension
 - 同步只监听本机，修改协议或存储必须覆盖离线、删除、冲突和完整性校验。详情见 `docs/desktop.md`。
 - 发布版本也要同步更新 `desktop/package.json`。
 
-- `.github/workflows/release.yml` 在 main/相关 PR 构建，在 `v*` 标签或手动 publish 时发布。`scripts/release-version.mjs` 校验四个版本来源；所有平台成功后才公开 Release，不覆盖已发布版本。
+- `.github/workflows/release.yml` 在 main 推送时通过 `scripts/prepare-release.mjs` 自动准备版本提交和标签，并在全部平台构建成功后发布；相关 PR 只构建，仍支持 `v*` 标签或手动 publish。`scripts/release-version.mjs` 校验四个版本来源；重跑复用同一版本，不覆盖已发布版本。版本回写 main 只允许快进，开发前先拉取自动版本提交。
