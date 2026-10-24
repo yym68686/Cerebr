@@ -129,7 +129,7 @@ it('synchronizes two independent replicas through the desktop database and conve
         server = new SyncDatabase(':memory:');
     await writeLocal(a, {
         cerebr_chat_v2_a: chat('a', 'extension'),
-        cerebr_chat_organization_v1: { folders: [{ id: 'f', name: 'Folder' }], assignments: { a: 'f' } },
+        cerebr_chat_organization_v1: { folders: [{ id: 'f', name: 'Folder' }], assignments: { a: 'f' }, chatOrder: ['b', 'a'] },
         cerebr_reading_progress_v1_a: { anchorIndex: 3 },
         cerebr_draft_v1_a: { content: 'draft', quotes: ['quote'], textFiles: [{id:'f',name:'notes.txt',text:'body',size:4}] },
     });
@@ -169,9 +169,13 @@ it('synchronizes two independent replicas through the desktop database and conve
     await drain();
     expect(await replicaManifest(a)).toEqual(await replicaManifest(b));
     expect(server.summary().chats).toBe(2);
+    expect((await read(b, 'cerebr_chat_organization_v1')).chatOrder).toEqual(['b', 'a']);
     cb.close();
     clients.splice(clients.indexOf(cb), 1);
-    await writeLocal(b, { cerebr_chat_v2_b: chat('b', 'edited offline') });
+    await writeLocal(b, {
+        cerebr_chat_v2_b: chat('b', 'edited offline'),
+        cerebr_chat_organization_v1: { folders: [], assignments: {}, chatOrder: ['b'] },
+    });
     await writeLocal(a, {}, ['cerebr_chat_v2_a']);
     await ca.flush();
     await drain();
@@ -179,6 +183,8 @@ it('synchronizes two independent replicas through the desktop database and conve
     await drain();
     expect(await read(a, 'cerebr_chat_v2_b')).toEqual(await read(b, 'cerebr_chat_v2_b'));
     expect(await read(b, 'cerebr_chat_v2_a')).toBeUndefined();
+    expect((await read(a, 'cerebr_chat_organization_v1')).chatOrder).toEqual(['b']);
+    expect(await read(a, 'cerebr_chat_organization_v1')).toEqual(await read(b, 'cerebr_chat_organization_v1'));
     expect(server.summary().chats).toBe(1);
     ca.close();
     reconnect.close();

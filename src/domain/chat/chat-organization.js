@@ -2,7 +2,14 @@ import { subscribeRemoteChanges } from '../../runtime/sync/replica.js';
 import { storageAdapter } from '../../utils/storage-adapter.js';
 
 export const CHAT_ORGANIZATION_KEY = 'cerebr_chat_organization_v1';
-const defaults = () => ({ folders: [], assignments: {}, chatsCollapsed: false, sidebarCollapsed: false });
+const defaults = () => ({ folders: [], assignments: {}, chatOrder: [], chatsCollapsed: false, sidebarCollapsed: false });
+
+// New chats retain activity order at the top; saved chats keep their manual order.
+export function orderChatIds(chatIds, savedOrder = []) {
+    const remaining = new Set(chatIds);
+    const ordered = savedOrder.filter((id) => remaining.delete(id));
+    return [...remaining, ...ordered];
+}
 
 function normalize(value) {
     const ids = new Set();
@@ -25,6 +32,8 @@ function normalize(value) {
     return {
         folders,
         assignments,
+        chatOrder: [...new Set((Array.isArray(value?.chatOrder) ? value.chatOrder : [])
+            .filter((id) => typeof id === 'string' && id.length > 0))],
         chatsCollapsed: !!value?.chatsCollapsed,
         sidebarCollapsed: !!value?.sidebarCollapsed,
     };
@@ -118,6 +127,26 @@ export function createChatOrganization(storage = storageAdapter) {
                     throw new Error('nav_folder_missing');
                 if (folderId) data.assignments[chatId] = folderId;
                 else delete data.assignments[chatId];
+            });
+        },
+        reorderChat(chatId, destination, chatIds) {
+            return change((data) => {
+                const order = orderChatIds(chatIds, data.chatOrder);
+                if (!order.includes(chatId)) return;
+                const { targetId, before = true } = destination;
+                if (targetId === chatId || (targetId && !order.includes(targetId))) return;
+                // Resolve membership from the latest metadata, including changes from other windows.
+                const folderId = targetId ? data.assignments[targetId] : destination.folderId;
+                const folder = folderId && data.folders.find((item) => item.id === folderId);
+                if (folderId && !folder) throw new Error('nav_folder_missing');
+                const next = order.filter((id) => id !== chatId);
+                const index = targetId ? next.indexOf(targetId) + (before ? 0 : 1)
+                    : next.findIndex((id) => (data.assignments[id] || null) === (folderId || null));
+                next.splice(index < 0 ? next.length : index, 0, chatId);
+                data.chatOrder = next;
+                if (folderId) data.assignments[chatId] = folderId;
+                else delete data.assignments[chatId];
+                if (folder) folder.collapsed = false;
             });
         },
         setCollapsed(section, value) {

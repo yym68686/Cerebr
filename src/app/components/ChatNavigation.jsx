@@ -9,11 +9,12 @@ import {
     useSyncExternalStore,
 } from 'react';
 import { chatManager } from '../../domain/chat/chat-store.js';
-import { chatOrganization } from '../../domain/chat/chat-organization.js';
+import { chatOrganization, orderChatIds } from '../../domain/chat/chat-organization.js';
 import { t } from '../../utils/i18n.js';
 import { notify, uiStore } from '../state/ui-store.js';
 import { pluginUiStore } from '../../runtime/ui/plugin-ui-store.js';
 import { useProgressiveCount } from '../hooks/useProgressiveCount.js';
+import { useChatReorder } from '../hooks/useChatReorder.js';
 import { Icon } from './Icon.jsx';
 import { NavigationDialog, NavigationMenu } from './NavigationOverlays.jsx';
 
@@ -163,7 +164,7 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
         cancelHoverClose();
         hoverTimer.current = setTimeout(() => {
             hoverTimer.current = null;
-            if (!hovering.current && !hoverOverlays.current.menu && !hoverOverlays.current.dialog)
+            if (!hovering.current && !hoverOverlays.current.menu && !hoverOverlays.current.dialog && !hoverOverlays.current.reordering)
                 setPreview(false);
         }, 180);
     };
@@ -229,6 +230,10 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
     }, [wide, visible]);
     useEffect(() => () => clearTimeout(longPress.current), []);
     const chats = useMemo(() => (loaded ? chatManager.getAllChats() : []), [loaded, version]);
+    const orderedChats = useMemo(() => {
+        const byId = new Map(chats.map((chat) => [chat.id, chat]));
+        return orderChatIds([...byId.keys()], organization.chatOrder).map((id) => byId.get(id));
+    }, [chats, organization.chatOrder]);
     const folderById = useMemo(
         () => new Map(organization.folders.map((folder) => [folder.id, folder])),
         [organization.folders]
@@ -237,7 +242,7 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
         if (!loaded || (organization.chatsCollapsed && !query)) return [];
         const byFolder = new Map(organization.folders.map((folder) => [folder.id, []]));
         const unfiled = [];
-        for (const chat of chats) {
+        for (const chat of orderedChats) {
             const folderId = organization.assignments[chat.id],
                 folder = folderById.get(folderId);
             const matches =
@@ -263,15 +268,25 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
             if (query && !members.length && !folder.name.toLowerCase().includes(query)) continue;
             rows.push({ kind: 'folder', id: folder.id, folder, count: members.length });
             if (!folder.collapsed || query) {
-                if (!members.length) rows.push({ kind: 'empty', id: `empty-${folder.id}` });
+                if (!members.length) rows.push({ kind: 'empty', id: `empty-${folder.id}`, folderId: folder.id });
                 for (const chat of members) rows.push({ kind: 'chat', id: chat.id, chat, nested: true });
             }
         }
-        if (organization.folders.length && unfiled.length) rows.push({ kind: 'label', id: 'unfiled' });
+        if (organization.folders.length && (unfiled.length || !query)) rows.push({ kind: 'label', id: 'unfiled' });
         for (const chat of unfiled) rows.push({ kind: 'chat', id: chat.id, chat });
         return rows;
-    }, [chats, organization, query, folderById, loaded]);
+    }, [orderedChats, organization, query, folderById, loaded]);
     const count = useProgressiveCount(`${query}:${organization.chatsCollapsed}`, entries.length, 50);
+    const reorder = useChatReorder({
+        listRef,
+        resetKey: `${visible}:${query}:${organization.chatsCollapsed}:${organization.folders.map((folder) => `${folder.id}:${folder.collapsed}`).join(',')}`,
+        onDrop: (id, destination) => run(() => chatOrganization.reorderChat(
+            id, destination, chatManager.getAllChats().map((chat) => chat.id)
+        )),
+    });
+    hoverOverlays.current.reordering = !!reorder.preview;
+    const drop = reorder.preview?.destination;
+    const folderDrop = (id) => drop && 'folderId' in drop && drop.folderId === id;
     const closeMenu = useCallback((restore = true) => {
         if (restore && menuTarget.current?.returnFocus?.isConnected)
             menuTarget.current.returnFocus.focus({ preventScroll: true });
@@ -304,9 +319,9 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
             onClose();
         });
     useEffect(() => {
-        if (!menu && !dialog && !hovering.current) leavePreview();
+        if (!menu && !dialog && !reorder.preview && !hovering.current) leavePreview();
         return () => clearTimeout(hoverTimer.current);
-    }, [menu, dialog]);
+    }, [menu, dialog, reorder.preview?.id]);
     const toggleSidebar = () => {
         cancelHoverClose();
         suppressHover.current = true;
@@ -514,7 +529,14 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                             </>
                         )}
                     </div>
-                    <div className="navigation-chat-list" ref={listRef} onScroll={() => closeMenu(false)}>
+                    <div
+                        className={`navigation-chat-list${reorder.preview ? ' is-reordering' : ''}`}
+                        ref={listRef}
+                        onScroll={() => closeMenu(false)}
+                        onPointerDownCapture={reorder.clearClick}
+                        onClickCapture={reorder.consumeClick}
+                        onDragStart={(event) => event.preventDefault()}
+                    >
                         {loadError ? (
                             <div className="navigation-empty" role="alert">
                                 {t('nav_load_error')}
@@ -530,18 +552,18 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                         <GlideList
                             scrollRef={listRef}
                             pinnedRow={menu?.returnFocus?.closest('[data-nav-row]') || null}
-                            resetKey={`${query}:${entries.length}:${count}:${organization.chatsCollapsed}`}
+                            resetKey={`${query}:${entries.length}:${count}:${organization.chatsCollapsed}:${organization.chatOrder?.join(',')}`}
                         >
                             {entries.slice(0, count).map((entry) => {
                                 if (entry.kind === 'label')
                                     return (
-                                        <div className="navigation-group-label" key={entry.id}>
+                                        <div className={`navigation-group-label${folderDrop(null) ? ' is-drop-folder' : ''}`} data-drop-folder-id="" key={entry.id}>
                                             {t('nav_unfiled')}
                                         </div>
                                     );
                                 if (entry.kind === 'empty')
                                     return (
-                                        <div className="navigation-folder-empty" key={entry.id}>
+                                        <div className={`navigation-folder-empty${folderDrop(entry.folderId) ? ' is-drop-folder' : ''}`} data-drop-folder-id={entry.folderId} key={entry.id}>
                                             {t('nav_folder_empty')}
                                         </div>
                                     );
@@ -558,9 +580,21 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                                         data-nav-row
                                         data-chat-id={isChat ? entry.id : undefined}
                                         data-folder-id={!isChat ? entry.id : undefined}
-                                        className={`navigation-item${active ? ' is-active' : ''}${entry.nested ? ' is-nested' : ''}`}
+                                        data-drop-folder-id={!isChat ? entry.id : undefined}
+                                        className={`navigation-item${active ? ' is-active' : ''}${entry.nested ? ' is-nested' : ''}${reorder.preview?.id === entry.id ? ' is-dragging' : ''}${drop?.targetId === entry.id ? (drop.before ? ' is-drop-before' : ' is-drop-after') : ''}${!isChat && folderDrop(entry.id) ? ' is-drop-folder' : ''}`}
                                         onContextMenu={(event) => showMenu(event, entry)}
                                         onKeyDown={(event) => {
+                                            if (isChat && event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) {
+                                                event.preventDefault();
+                                                event.stopPropagation();
+                                                const siblings = entries.filter((item) => item.kind === 'chat' &&
+                                                    organization.assignments[item.id] === organization.assignments[entry.id]);
+                                                const before = event.key === 'ArrowUp';
+                                                const target = siblings[siblings.findIndex((item) => item.id === entry.id) + (before ? -1 : 1)];
+                                                if (target) run(() => chatOrganization.reorderChat(entry.id,
+                                                    { targetId: target.id, before }, chatManager.getAllChats().map((chat) => chat.id)));
+                                                return;
+                                            }
                                             if (
                                                 event.key === 'ContextMenu' ||
                                                 (event.key === 'F10' && event.shiftKey)
@@ -568,7 +602,13 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                                                 showMenu(event, entry);
                                         }}
                                         onPointerDown={(event) => {
-                                            if (event.pointerType !== 'touch') return;
+                                            if (event.pointerType !== 'touch') {
+                                                if (isChat && !event.target.closest('.navigation-item-more')) {
+                                                    closeMenu(false);
+                                                    reorder.begin(event, entry.id);
+                                                }
+                                                return;
+                                            }
                                             pressPoint.current = { x: event.clientX, y: event.clientY };
                                             const target = {
                                                 preventDefault() {},
@@ -632,6 +672,25 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                                                 role="status"
                                                 aria-label={t('nav_replying')}
                                             />
+                                        )}
+                                        {isChat && (
+                                            <button
+                                                type="button"
+                                                className="navigation-item-drag navigation-icon-button"
+                                                title={t('nav_reorder_chat', [label])}
+                                                aria-label={t('nav_reorder_chat', [label])}
+                                                aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+                                                onPointerDown={(event) => {
+                                                    event.stopPropagation();
+                                                    clearTimeout(longPress.current);
+                                                    closeMenu(false);
+                                                    reorder.begin(event, entry.id);
+                                                }}
+                                                onClick={(event) => event.stopPropagation()}
+                                                onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); }}
+                                            >
+                                                <Icon name="drag-handle" />
+                                            </button>
                                         )}
                                         <button
                                             type="button"

@@ -414,3 +414,163 @@ it('keeps the pinned sidebar and desktop titlebar controls available alongside s
         expect(host.querySelector('.navigation-window-toggle')).not.toBeNull();
     } finally { vi.unstubAllGlobals(); }
 });
+
+function mockReorderLayout() {
+    const list = host.querySelector('.navigation-chat-list');
+    const rows = () => [...list.querySelectorAll('[data-nav-row], .navigation-group-label, .navigation-folder-empty')];
+    vi.spyOn(list, 'getBoundingClientRect').mockReturnValue({ left: 0, right: 240, top: 100, bottom: 400, height: 300 });
+    for (const row of rows()) {
+        vi.spyOn(row, 'getBoundingClientRect').mockImplementation(() => {
+            const top = 100 + rows().indexOf(row) * 40 - list.scrollTop;
+            return { left: 0, right: 240, top, bottom: top + 40, height: 40 };
+        });
+    }
+    document.elementFromPoint = vi.fn((x, y) => {
+        if (x < 0 || x > 240 || y < 100 || y > 400) return document.body;
+        return rows().find((row) => {
+            const rect = row.getBoundingClientRect();
+            return y >= rect.top && y < rect.bottom;
+        }) || list;
+    });
+    return list;
+}
+const chatIds = () => [...host.querySelectorAll('[data-chat-id]')].map((row) => row.dataset.chatId);
+const pointer = async (type, target, y, pointerType = 'mouse', x = 80) => {
+    const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0 });
+    Object.defineProperties(event, { pointerId: { value: 1 }, pointerType: { value: pointerType } });
+    await act(async () => target.dispatchEvent(event));
+};
+
+it('drags chats in both directions, shows an insertion marker and suppresses activation after dropping', async () => {
+    await render();
+    mockReorderLayout();
+    const source = host.querySelector('[data-chat-id="b"] .navigation-item-label');
+    await pointer('pointerdown', source, 160);
+    await pointer('pointermove', window, 110);
+    expect(host.querySelector('[data-chat-id="a"]').classList.contains('is-drop-before')).toBe(true);
+    expect(host.querySelector('[data-chat-id="b"]').classList.contains('is-dragging')).toBe(true);
+    await pointer('pointerup', window, 110);
+    await click('[data-chat-id="b"] .navigation-item-label');
+    expect(chatIds()).toEqual(['b', 'a']);
+    expect(session.switchChat).not.toHaveBeenCalled();
+    expect(close).not.toHaveBeenCalled();
+    expect(host.querySelector('.is-dragging')).toBeNull();
+    await pointer('pointerdown', source, 120);
+    await pointer('pointermove', window, 175);
+    expect(host.querySelector('[data-chat-id="a"]').classList.contains('is-drop-after')).toBe(true);
+    await pointer('pointerup', window, 175);
+    expect(chatIds()).toEqual(['a', 'b']);
+    await pointer('pointerdown', source, 160);
+    await pointer('pointerup', window, 160);
+    await click('[data-chat-id="b"] .navigation-item-label');
+    expect(session.switchChat).toHaveBeenCalledWith('b');
+});
+
+it('supports touch handles while leaving touch scrolling on labels and long-press menus available', async () => {
+    await render(false, true);
+    mockReorderLayout();
+    const label = host.querySelector('[data-chat-id="b"] .navigation-item-label');
+    await pointer('pointerdown', label, 160, 'touch');
+    await pointer('pointermove', label, 110, 'touch');
+    await pointer('pointerup', label, 110, 'touch');
+    expect(chatOrganization.getSnapshot().chatOrder).toEqual([]);
+    const handle = host.querySelector('[data-chat-id="b"] .navigation-item-drag');
+    await pointer('pointerdown', handle, 160, 'touch');
+    await pointer('pointermove', window, 110, 'touch');
+    await pointer('lostpointercapture', handle, 110, 'touch');
+    await act(async () => vi.advanceTimersByTimeAsync(600));
+    expect(host.querySelector('.navigation-menu')).toBeNull();
+    await pointer('pointerup', window, 110, 'touch');
+    expect(chatIds()).toEqual(['b', 'a']);
+    expect(session.switchChat).not.toHaveBeenCalled();
+    await pointer('pointerdown', label, 120, 'touch');
+    await act(async () => vi.advanceTimersByTimeAsync(550));
+    expect(host.querySelector('.navigation-menu')).not.toBeNull();
+    await pointer('pointerup', label, 120, 'touch');
+});
+
+it.each(['escape', 'pointercancel', 'lostpointercapture', 'outside', 'blur', 'hidden'])('cancels a drag on %s without saving or activating', async (reason) => {
+    await render();
+    mockReorderLayout();
+    await pointer('pointerdown', host.querySelector('[data-chat-id="b"] .navigation-item-label'), 160);
+    await pointer('pointermove', window, 110);
+    if (reason === 'escape') await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+    else if (reason === 'pointercancel') await pointer('pointercancel', window, 110);
+    else if (reason === 'lostpointercapture') await pointer('lostpointercapture', host.querySelector('.navigation-chat-list'), 110);
+    else if (reason === 'outside') await pointer('pointerup', window, 110, 'mouse', 300);
+    else if (reason === 'blur') await act(async () => window.dispatchEvent(new Event('blur')));
+    else await render(false, false);
+    await pointer('pointerup', window, 110);
+    expect(chatOrganization.getSnapshot().chatOrder).toEqual([]);
+    expect(host.querySelector('.is-dragging')).toBeNull();
+    expect(session.switchChat).not.toHaveBeenCalled();
+    expect(close).not.toHaveBeenCalled();
+});
+
+it('drops into a collapsed folder and back into an empty unfiled section', async () => {
+    const folder = await chatOrganization.createFolder('Project', 'a');
+    await chatOrganization.setCollapsed(folder.id, true);
+    await render();
+    mockReorderLayout();
+    await pointer('pointerdown', host.querySelector('[data-chat-id="b"] .navigation-item-label'), 200);
+    await pointer('pointermove', window, 120);
+    expect(host.querySelector('[data-folder-id]').classList.contains('is-drop-folder')).toBe(true);
+    await pointer('pointerup', window, 120);
+    expect(chatOrganization.getSnapshot().assignments.b).toBe(folder.id);
+    expect(chatIds()).toEqual(['b', 'a']);
+    await tick();
+    mockReorderLayout();
+    await pointer('pointerdown', host.querySelector('[data-chat-id="b"] .navigation-item-label'), 160);
+    await pointer('pointermove', window, 240);
+    expect(host.querySelector('.navigation-group-label').classList.contains('is-drop-folder')).toBe(true);
+    await pointer('pointerup', window, 240);
+    expect(chatOrganization.getSnapshot().assignments.b).toBeUndefined();
+    expect(chatIds()).toEqual(['a', 'b']);
+});
+
+it('reorders filtered results with the keyboard without dropping hidden chats, and survives remounts', async () => {
+    data.chats = [
+        { id: 'a', title: 'Match A', messages: [] },
+        { id: 'hidden', title: 'Hidden', messages: [] },
+        { id: 'b', title: 'Match B', messages: [] },
+    ];
+    await render();
+    await click(button('nav_search_chats'));
+    await textInput('.navigation-search input', 'Match');
+    await act(async () => host.querySelector('[data-chat-id="b"] .navigation-item-drag').dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowUp', altKey: true, bubbles: true, cancelable: true })
+    ));
+    expect(chatIds()).toEqual(['b', 'a']);
+    expect(chatOrganization.getSnapshot().chatOrder).toEqual(['b', 'a', 'hidden']);
+    await click(button('chat_clear_search_aria'));
+    expect(chatIds()).toEqual(['b', 'a', 'hidden']);
+    await act(async () => root.unmount());
+    root = createRoot(host);
+    await render();
+    expect(chatIds()).toEqual(['b', 'a', 'hidden']);
+});
+
+it('keeps the no-match state when searching folders with no unfiled chats', async () => {
+    const folder = await chatOrganization.createFolder('Project', 'a');
+    await chatOrganization.moveChat('b', folder.id);
+    await render();
+    await click(button('nav_search_chats'));
+    await textInput('.navigation-search input', 'nonexistent');
+    expect(host.querySelector('.navigation-empty').textContent).toBe('chat_list_no_match');
+});
+
+it('scrolls at the list edge while dragging and stops after cancellation', async () => {
+    data.chats = Array.from({ length: 20 }, (_, index) => ({ id: String(index), title: String(index), messages: [] }));
+    await render();
+    const list = mockReorderLayout();
+    Object.defineProperties(list, { scrollHeight: { value: 800 }, clientHeight: { value: 300 } });
+    await pointer('pointerdown', host.querySelector('[data-chat-id="0"] .navigation-item-label'), 120);
+    await pointer('pointermove', window, 390);
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    expect(list.scrollTop).toBeGreaterThan(0);
+    await pointer('pointercancel', window, 390);
+    const stopped = list.scrollTop;
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    expect(list.scrollTop).toBe(stopped);
+    expect(chatOrganization.getSnapshot().chatOrder).toEqual([]);
+});

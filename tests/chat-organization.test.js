@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-import { createChatOrganization, CHAT_ORGANIZATION_KEY } from '../src/domain/chat/chat-organization.js';
+import { createChatOrganization, CHAT_ORGANIZATION_KEY, orderChatIds } from '../src/domain/chat/chat-organization.js';
 let memory, storage, organization;
 beforeEach(() => {
     memory = {};
@@ -68,4 +68,57 @@ it('reads newer stored metadata before applying a change', async () => {
     const second = await other.createFolder('Second');
     await organization.moveChat('a', first.id);
     expect(organization.getSnapshot().folders.map((folder) => folder.id)).toEqual([first.id, second.id]);
+});
+
+it('restores manual order without writing chat history, keeps new chats first and ignores deleted chats', async () => {
+    await organization.reorderChat('c', { targetId: 'a', before: true }, ['a', 'b', 'c']);
+    const restored = createChatOrganization(storage);
+    await restored.load();
+    expect(restored.getSnapshot().chatOrder).toEqual(['c', 'a', 'b']);
+    // Activity changes no longer override a manual order; a new chat still appears first.
+    expect(orderChatIds(['new', 'b', 'a', 'c'], restored.getSnapshot().chatOrder)).toEqual(['new', 'c', 'a', 'b']);
+    expect(orderChatIds(['b', 'c'], restored.getSnapshot().chatOrder)).toEqual(['c', 'b']);
+    await restored.reorderChat('c', { targetId: 'b', before: false }, ['b', 'c']);
+    expect(restored.getSnapshot().chatOrder).toEqual(['b', 'c']);
+    expect(Object.keys(memory)).toEqual([CHAT_ORGANIZATION_KEY]);
+});
+
+it('moves between folders and unfiled atomically while preserving hidden chats', async () => {
+    const folder = await organization.createFolder('Project', 'b');
+    await organization.setCollapsed(folder.id, true);
+    await organization.reorderChat('a', { targetId: 'b', before: false }, ['a', 'hidden', 'b']);
+    expect(organization.getSnapshot()).toMatchObject({
+        chatOrder: ['hidden', 'b', 'a'],
+        assignments: { a: folder.id, b: folder.id },
+        folders: [{ collapsed: false }],
+    });
+    await organization.reorderChat('a', { folderId: null }, ['a', 'hidden', 'b']);
+    expect(organization.getSnapshot()).toMatchObject({ chatOrder: ['a', 'hidden', 'b'], assignments: { b: folder.id } });
+    await organization.reorderChat('a', { folderId: folder.id }, ['a', 'hidden', 'b']);
+    expect(organization.getSnapshot().chatOrder).toEqual(['hidden', 'a', 'b']);
+});
+
+it('applies moves against the latest saved order and does not publish failed reorders', async () => {
+    await organization.load();
+    const other = createChatOrganization(storage);
+    await other.reorderChat('c', { targetId: 'a' }, ['a', 'b', 'c']);
+    await organization.reorderChat('b', { targetId: 'a' }, ['a', 'b', 'c']);
+    expect(organization.getSnapshot().chatOrder).toEqual(['c', 'b', 'a']);
+    storage.set.mockRejectedValueOnce(new Error('Storage failed'));
+    await expect(organization.reorderChat('a', { targetId: 'c' }, ['a', 'b', 'c'])).rejects.toThrow('Storage failed');
+    expect(organization.getSnapshot().chatOrder).toEqual(['c', 'b', 'a']);
+    await organization.reorderChat('a', { targetId: 'c' }, ['a', 'b', 'c']);
+    expect(organization.getSnapshot().chatOrder).toEqual(['a', 'c', 'b']);
+});
+
+it('normalizes legacy or malformed order and safely ignores removed drag targets', async () => {
+    await organization.load();
+    expect(organization.getSnapshot().chatOrder).toEqual([]);
+    memory[CHAT_ORGANIZATION_KEY] = { chatOrder: ['a', 'a', null, 2, '', 'b'] };
+    await organization.load();
+    expect(organization.getSnapshot().chatOrder).toEqual(['a', 'b']);
+    await organization.reorderChat('b', { targetId: 'removed' }, ['a', 'b']);
+    await organization.reorderChat('removed', { targetId: 'a' }, ['a', 'b']);
+    expect(organization.getSnapshot().chatOrder).toEqual(['a', 'b']);
+    await expect(organization.reorderChat('b', { folderId: 'removed' }, ['a', 'b'])).rejects.toThrow('nav_folder_missing');
 });
