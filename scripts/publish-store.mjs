@@ -112,15 +112,18 @@ export async function publishChrome({ client, credentials, publisherId, itemId, 
         body: archive,
     });
     let uploadState = upload.uploadState;
-    if (uploadState === 'UPLOAD_IN_PROGRESS') {
+    if (['IN_PROGRESS', 'UPLOAD_IN_PROGRESS'].includes(uploadState)) {
         const completed = await client.poll(
             status,
-            (value) => value.lastAsyncUploadState !== 'UPLOAD_IN_PROGRESS',
+            (value) =>
+                value.lastAsyncUploadState &&
+                !['IN_PROGRESS', 'UPLOAD_IN_PROGRESS'].includes(value.lastAsyncUploadState),
             'Chrome upload'
         );
         uploadState = completed.lastAsyncUploadState;
     }
-    if (uploadState !== 'SUCCESS') throw new Error(`Chrome upload failed: ${uploadState}`);
+    if (!['SUCCEEDED', 'SUCCESS'].includes(uploadState))
+        throw new Error(`Chrome upload failed: ${uploadState}`);
     if (upload.crxVersion && upload.crxVersion !== version)
         throw new Error('Chrome uploaded version does not match the release');
     const { data: result } = await client.request(`${chromeRoot}${item}:publish`, {

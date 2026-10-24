@@ -79,9 +79,9 @@ it('waits for Chrome upload completion before submitting and reports review rath
     const { client, fetchImpl } = clientFor(
         response({ access_token: 'token' }),
         response({}),
-        response({ uploadState: 'UPLOAD_IN_PROGRESS' }),
-        response({ lastAsyncUploadState: 'UPLOAD_IN_PROGRESS' }),
-        response({ lastAsyncUploadState: 'SUCCESS' }),
+        response({ uploadState: 'IN_PROGRESS' }),
+        response({ lastAsyncUploadState: 'IN_PROGRESS' }),
+        response({ lastAsyncUploadState: 'SUCCEEDED' }),
         response({ state: 'PENDING_REVIEW' })
     );
     expect(await chrome(client)).toMatchObject({ state: 'PENDING_REVIEW', version });
