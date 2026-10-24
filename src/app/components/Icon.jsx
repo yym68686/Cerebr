@@ -13,9 +13,6 @@ const outline = (children) => (
 );
 
 const icons = {
-    'drag-handle': outline(
-        <path d="M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01" strokeWidth="3" />
-    ),
     attachment: outline(
         <>
             <path d="m21.4 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />

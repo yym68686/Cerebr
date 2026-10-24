@@ -38,9 +38,7 @@ body { --cerebr-navigation-width: 0px; }
 .navigation-item-more { position: absolute; right: 0; top: 50%; transform: translateY(-50%); opacity: 0; pointer-events: none; }
 .navigation-item:hover .navigation-item-more, .navigation-item:focus-within .navigation-item-more { opacity: 1; pointer-events: auto; }
 .navigation-item[data-chat-id] { user-select: none; -webkit-user-select: none; }
-#chat-navigation .navigation-item[data-chat-id] .navigation-item-label { padding-right: 68px; }
-#chat-navigation .navigation-item-drag { position: absolute; right: 30px; top: 50%; transform: translateY(-50%); cursor: grab; touch-action: none; -webkit-touch-callout: none; opacity: 0; }
-#chat-navigation .navigation-item:hover .navigation-item-drag, #chat-navigation .navigation-item:focus-within .navigation-item-drag { opacity: 1; }
+.navigation-item[data-chat-id] .navigation-item-more { touch-action: none; -webkit-touch-callout: none; }
 .navigation-chat-list.is-reordering, #chat-navigation .is-reordering button { cursor: grabbing; }
 .navigation-chat-list.is-reordering .navigation-glide-highlight { display: none; }
 .navigation-item.is-dragging { opacity: .45; }
@@ -89,11 +87,9 @@ body { --cerebr-navigation-width: 0px; }
     #chat-navigation .navigation-icon-button { width: 44px; }
     #chat-navigation .navigation-primary-row, #chat-navigation .navigation-item-label { min-height: 44px; }
     .navigation-item-more { opacity: 1; pointer-events: auto; }
-    #chat-navigation .navigation-item-drag { right: 44px; opacity: 1; }
-    #chat-navigation .navigation-item[data-chat-id] .navigation-item-label { padding-right: 92px; }
     #chat-navigation .navigation-item-label { padding-right: 48px; }
-    #chat-navigation .navigation-item:has(.navigation-reply-spinner) .navigation-item-label { padding-right: 110px; }
-    .navigation-reply-spinner { right: 90px; }
+    #chat-navigation .navigation-item:has(.navigation-reply-spinner) .navigation-item-label { padding-right: 66px; }
+    .navigation-reply-spinner { right: 46px; }
     .navigation-search input, .navigation-dialog input { font-size: max(16px, var(--cerebr-fs-14)); }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -78,7 +78,6 @@
   "nav_delete_chat_hint": { "message": "删除“$1”及其中的消息？此操作无法撤销。" },
   "nav_chat_actions": { "message": "聊天操作" },
   "nav_item_actions": { "message": "$1 的操作" },
-  "nav_reorder_chat": { "message": "拖动调整 $1 的顺序（Alt + ↑/↓）" },
   "nav_loading": { "message": "正在加载聊天…" },
   "nav_load_error": { "message": "未能加载聊天。" },
   "nav_replying": { "message": "正在回答" },

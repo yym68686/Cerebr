@@ -466,7 +466,7 @@ it('drags chats in both directions, shows an insertion marker and suppresses act
     expect(session.switchChat).toHaveBeenCalledWith('b');
 });
 
-it('supports touch handles while leaving touch scrolling on labels and long-press menus available', async () => {
+it('supports touch dragging from the actions button while leaving touch scrolling and long-press menus available', async () => {
     await render(false, true);
     mockReorderLayout();
     const label = host.querySelector('[data-chat-id="b"] .navigation-item-label');
@@ -474,14 +474,16 @@ it('supports touch handles while leaving touch scrolling on labels and long-pres
     await pointer('pointermove', label, 110, 'touch');
     await pointer('pointerup', label, 110, 'touch');
     expect(chatOrganization.getSnapshot().chatOrder).toEqual([]);
-    const handle = host.querySelector('[data-chat-id="b"] .navigation-item-drag');
+    const handle = host.querySelector('[data-chat-id="b"] .navigation-item-more');
     await pointer('pointerdown', handle, 160, 'touch');
     await pointer('pointermove', window, 110, 'touch');
     await pointer('lostpointercapture', handle, 110, 'touch');
     await act(async () => vi.advanceTimersByTimeAsync(600));
     expect(host.querySelector('.navigation-menu')).toBeNull();
     await pointer('pointerup', window, 110, 'touch');
+    await act(async () => handle.click());
     expect(chatIds()).toEqual(['b', 'a']);
+    expect(host.querySelector('.navigation-menu')).toBeNull();
     expect(session.switchChat).not.toHaveBeenCalled();
     await pointer('pointerdown', label, 120, 'touch');
     await act(async () => vi.advanceTimersByTimeAsync(550));
@@ -537,7 +539,7 @@ it('reorders filtered results with the keyboard without dropping hidden chats, a
     await render();
     await click(button('nav_search_chats'));
     await textInput('.navigation-search input', 'Match');
-    await act(async () => host.querySelector('[data-chat-id="b"] .navigation-item-drag').dispatchEvent(
+    await act(async () => host.querySelector('[data-chat-id="b"] .navigation-item-label').dispatchEvent(
         new KeyboardEvent('keydown', { key: 'ArrowUp', altKey: true, bubbles: true, cancelable: true })
     ));
     expect(chatIds()).toEqual(['b', 'a']);

@@ -78,7 +78,6 @@
   "nav_delete_chat_hint": { "message": "Delete “$1” and its messages? This cannot be undone." },
   "nav_chat_actions": { "message": "Chat actions" },
   "nav_item_actions": { "message": "Actions for $1" },
-  "nav_reorder_chat": { "message": "Drag to reorder $1 (Alt + ↑/↓)" },
   "nav_loading": { "message": "Loading chats…" },
   "nav_load_error": { "message": "Could not load chats." },
   "nav_replying": { "message": "Generating response" },

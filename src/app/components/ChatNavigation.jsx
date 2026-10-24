@@ -640,6 +640,7 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                                             className="navigation-item-label"
                                             title={label}
                                             aria-current={active ? 'page' : undefined}
+                                            aria-keyshortcuts={isChat ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}
                                             aria-expanded={
                                                 !isChat ? !entry.folder.collapsed || !!query : undefined
                                             }
@@ -673,29 +674,17 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                                                 aria-label={t('nav_replying')}
                                             />
                                         )}
-                                        {isChat && (
-                                            <button
-                                                type="button"
-                                                className="navigation-item-drag navigation-icon-button"
-                                                title={t('nav_reorder_chat', [label])}
-                                                aria-label={t('nav_reorder_chat', [label])}
-                                                aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-                                                onPointerDown={(event) => {
-                                                    event.stopPropagation();
-                                                    clearTimeout(longPress.current);
-                                                    closeMenu(false);
-                                                    reorder.begin(event, entry.id);
-                                                }}
-                                                onClick={(event) => event.stopPropagation()}
-                                                onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); }}
-                                            >
-                                                <Icon name="drag-handle" />
-                                            </button>
-                                        )}
                                         <button
                                             type="button"
                                             className="navigation-item-more navigation-icon-button"
                                             aria-label={t('nav_item_actions', [label])}
+                                            onPointerDown={(event) => {
+                                                if (!isChat || event.pointerType !== 'touch') return;
+                                                event.stopPropagation();
+                                                clearTimeout(longPress.current);
+                                                closeMenu(false);
+                                                reorder.begin(event, entry.id);
+                                            }}
                                             onClick={(event) => showMenu(event, entry)}
                                         >
                                             <Icon name="more" />
