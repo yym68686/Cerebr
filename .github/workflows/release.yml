@@ -7,6 +7,7 @@ on:
     pull_request:
         paths:
             - '.github/workflows/release.yml'
+            - '.github/workflows/publish-stores.yml'
             - 'desktop/**'
             - 'scripts/**'
             - 'package*.json'
@@ -164,3 +165,15 @@ jobs:
                   script: |
                       const { publishRelease } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/publish-release.mjs`);
                       await publishRelease({ github, context, core });
+
+    stores:
+        name: Submit browser store updates
+        needs: [validate, publish]
+        if: ${{ !failure() && !cancelled() && needs.publish.result == 'success' }}
+        permissions:
+            contents: read
+            actions: read
+        uses: ./.github/workflows/publish-stores.yml
+        with:
+            tag: ${{ needs.validate.outputs.tag }}
+        secrets: inherit

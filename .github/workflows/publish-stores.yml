@@ -1,0 +1,151 @@
+name: Publish browser stores
+
+on:
+    workflow_call:
+        inputs:
+            tag:
+                type: string
+                required: true
+    workflow_dispatch:
+        inputs:
+            tag:
+                description: Published release tag (leave empty for the latest release)
+                type: string
+            store:
+                description: Store to submit
+                type: choice
+                default: all
+                options: [all, chrome, edge, firefox]
+
+permissions:
+    contents: read
+    actions: read
+
+concurrency:
+    group: cerebr-browser-store-publishing
+    cancel-in-progress: false
+
+jobs:
+    resolve:
+        runs-on: ubuntu-24.04
+        outputs:
+            tag: ${{ steps.release.outputs.tag }}
+        steps:
+            - uses: actions/github-script@v7
+              id: release
+              env:
+                  REQUESTED_TAG: ${{ inputs.tag }}
+              with:
+                  script: |
+                      const { owner, repo } = context.repo;
+                      const latest = (await github.rest.repos.getLatestRelease({ owner, repo })).data;
+                      const tag = process.env.REQUESTED_TAG || latest.tag_name;
+                      if (!/^v\d+\.\d+\.\d+$/.test(tag)) throw new Error('Invalid release tag');
+                      if (tag !== latest.tag_name) throw new Error('Only the latest public release may be submitted to stores');
+                      if (latest.draft || latest.prerelease) throw new Error('A public stable release is required');
+                      core.setOutput('tag', tag);
+
+    submit:
+        name: Submit ${{ matrix.store }}
+        needs: resolve
+        runs-on: ubuntu-24.04
+        timeout-minutes: 20
+        strategy:
+            fail-fast: false
+            matrix:
+                store: [chrome, edge, firefox]
+        steps:
+            - name: Select store
+              id: selected
+              env:
+                  REQUESTED_STORE: ${{ inputs.store }}
+                  CURRENT_STORE: ${{ matrix.store }}
+              run: |
+                  if [ -z "$REQUESTED_STORE" ] || [ "$REQUESTED_STORE" = all ] || [ "$REQUESTED_STORE" = "$CURRENT_STORE" ]; then
+                    echo 'enabled=true' >> "$GITHUB_OUTPUT"
+                  fi
+            - uses: actions/checkout@v6
+              if: steps.selected.outputs.enabled == 'true'
+              with:
+                  persist-credentials: false
+            - uses: actions/checkout@v6
+              if: steps.selected.outputs.enabled == 'true'
+              with:
+                  ref: ${{ needs.resolve.outputs.tag }}
+                  path: release-source
+                  submodules: recursive
+                  persist-credentials: false
+            - uses: actions/setup-node@v4
+              if: steps.selected.outputs.enabled == 'true'
+              with:
+                  node-version: '24'
+            - name: Download the release package
+              if: steps.selected.outputs.enabled == 'true'
+              working-directory: release-source
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GH_REPO: ${{ github.repository }}
+                  RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+                  STORE: ${{ matrix.store }}
+              run: |
+                  mkdir -p artifacts
+                  if [ "$STORE" = firefox ]; then package=cerebr-firefox.zip; else package=cerebr.zip; fi
+                  gh release download "$RELEASE_TAG" --pattern "$package" --dir artifacts
+                  node --input-type=module -e 'import { readReleaseVersion } from "../scripts/release-version.mjs"; if ("v" + await readReleaseVersion(process.cwd()) !== process.env.RELEASE_TAG) throw new Error("Release versions do not match");'
+            - name: Package reproducible sources for Firefox review
+              if: steps.selected.outputs.enabled == 'true' && matrix.store == 'firefox'
+              working-directory: release-source
+              run: node ../scripts/package-store-source.mjs
+            - name: Restore Edge submission checkpoint for retries
+              if: steps.selected.outputs.enabled == 'true' && matrix.store == 'edge'
+              uses: actions/github-script@v7
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+              with:
+                  script: |
+                      const { owner, repo } = context.repo;
+                      const prefix = `store-edge-${process.env.RELEASE_TAG}-`;
+                      const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, { owner, repo, per_page: 100 });
+                      const previous = artifacts.filter(a => !a.expired && a.name.startsWith(prefix))
+                        .sort((a, b) => b.id - a.id)[0];
+                      if (previous) {
+                        const { execFileSync } = await import('node:child_process');
+                        execFileSync('gh', ['run', 'download', String(previous.workflow_run.id), '--repo', `${owner}/${repo}`,
+                          '--name', previous.name, '--dir', 'release-source/artifacts/store-state'], { stdio: 'inherit' });
+                      }
+            - name: Submit Chrome for review
+              if: steps.selected.outputs.enabled == 'true' && matrix.store == 'chrome'
+              working-directory: release-source
+              env:
+                  RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+                  CHROME_PUBLISHER_ID: ${{ vars.CHROME_PUBLISHER_ID }}
+                  CHROME_EXTENSION_ID: ${{ vars.CHROME_EXTENSION_ID }}
+                  CHROME_SERVICE_ACCOUNT_JSON: ${{ secrets.CHROME_SERVICE_ACCOUNT_JSON }}
+              run: node ../scripts/publish-store.mjs chrome
+            - name: Submit Edge for certification
+              if: steps.selected.outputs.enabled == 'true' && matrix.store == 'edge'
+              working-directory: release-source
+              env:
+                  RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+                  EDGE_PRODUCT_ID: ${{ vars.EDGE_PRODUCT_ID }}
+                  EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
+                  EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
+              run: node ../scripts/publish-store.mjs edge
+            - name: Submit Firefox with source code for review
+              if: steps.selected.outputs.enabled == 'true' && matrix.store == 'firefox'
+              working-directory: release-source
+              env:
+                  RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+                  FIREFOX_ADDON_ID: ${{ vars.FIREFOX_ADDON_ID }}
+                  FIREFOX_API_KEY: ${{ secrets.FIREFOX_API_KEY }}
+                  FIREFOX_API_SECRET: ${{ secrets.FIREFOX_API_SECRET }}
+              run: node ../scripts/publish-store.mjs firefox
+            - name: Save Edge operation IDs even if submission fails
+              if: ${{ always() && steps.selected.outputs.enabled == 'true' && matrix.store == 'edge' }}
+              uses: actions/upload-artifact@v4
+              with:
+                  name: store-edge-${{ needs.resolve.outputs.tag }}-${{ github.run_id }}-${{ github.run_attempt }}
+                  path: release-source/artifacts/store-state/edge.json
+                  if-no-files-found: ignore
+                  retention-days: 90
