@@ -9,3 +9,8 @@ artifacts/
 
 desktop/.vite/
 desktop/out/
+
+# Local verification screenshots and obsolete page snapshots
+/.codex/tmp/
+/tmp/
+/cerebr-src-main.html
