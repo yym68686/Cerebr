@@ -19,7 +19,6 @@ export function SyncSettings() {
             {counts && (
                 <div className="sync-library" aria-live="polite" aria-atomic="true">
                     <div className="sync-library-heading">
-                        <ShieldCheck aria-hidden="true" />
                         <span>{t('sync_library')}</span>
                     </div>
                     <div className="sync-stat">

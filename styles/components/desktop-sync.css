@@ -1,46 +1,45 @@
-/* Compact, softly layered cards; details stay close to their connection. */
+/* One continuous list, with inline status and actions instead of enclosing surfaces. */
 .sync-settings { container: sync-settings / inline-size; }
 .sync-section-description, .sync-section-note { margin: 0; color: var(--cerebr-text-color-secondary); font-size: var(--cerebr-fs-12); line-height: 1.65; }
-.sync-section-description { margin: -4px 0 18px; max-width: 52ch; }
-.sync-library { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 18px; align-items: center; margin-bottom: 14px; padding: 16px 18px; border: 1px solid var(--cerebr-surface-border); border-radius: 14px; background: var(--cerebr-hover-bg-color); }
-.sync-library-heading { display: flex; align-items: center; gap: 8px; color: var(--cerebr-text-color-secondary); font-size: var(--cerebr-fs-12); }
-.sync-library-heading svg { width: 16px; height: 16px; }
-.sync-stat { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.sync-stat strong { font-size: 22px; font-weight: 550; line-height: 1.2; font-variant-numeric: tabular-nums; letter-spacing: -.7px; }
+.sync-section-description { margin: -4px 0 20px; max-width: 52ch; }
+.sync-library { display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: baseline; padding: 2px 0 20px; }
+.sync-library-heading { margin-right: auto; color: var(--cerebr-text-color-secondary); font-size: var(--cerebr-fs-12); }
+.sync-stat { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; }
+.sync-stat strong { font-size: 18px; font-weight: 500; line-height: 1.3; font-variant-numeric: tabular-nums; letter-spacing: -.5px; }
 .sync-stat span { color: var(--cerebr-text-color-secondary); font-size: 11px; }
-.sync-channels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr)); gap: 14px; }
-.sync-channel { display: flex; flex-direction: column; min-width: 0; padding: 18px; border: 1px solid var(--cerebr-surface-border); border-radius: 14px; background: color-mix(in srgb, var(--cerebr-hover-bg-color) 35%, var(--cerebr-settings-page-bg)); }
+.sync-channels { display: flex; flex-direction: column; }
+.sync-channel { min-width: 0; padding: 20px 0; border-top: 1px solid var(--cerebr-surface-border); }
 .sync-channel-row { display: flex; align-items: center; gap: 10px; }
-.sync-settings .sync-channel-icon { box-sizing: border-box; width: 34px; height: 34px; padding: 8px; border: 1px solid var(--cerebr-surface-border); border-radius: 10px; background: var(--cerebr-settings-page-bg); color: var(--cerebr-text-color); flex-shrink: 0; stroke-width: 1.5; }
-.sync-channel h3 { flex: 1; min-width: 0; margin: 0; font-size: var(--cerebr-fs-13); line-height: 1.5; font-weight: 550; }
-.sync-channel-description { margin: 12px 0 0; color: var(--cerebr-text-color-secondary); font-size: var(--cerebr-fs-12); line-height: 1.65; overflow-wrap: anywhere; }
-.sync-account { margin-top: 12px; font-size: var(--cerebr-fs-12); overflow-wrap: anywhere; }
-.sync-status { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border-radius: 6px; background: var(--cerebr-hover-bg-color); color: var(--cerebr-text-color-secondary); font-size: 10px; font-weight: 400; white-space: nowrap; }
+.sync-settings .sync-channel-icon { width: 18px; height: 18px; color: var(--cerebr-text-color-secondary); flex-shrink: 0; stroke-width: 1.5; }
+.sync-channel-heading { display: flex; flex: 1; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; }
+.sync-channel h3 { margin: 0; font-size: var(--cerebr-fs-13); line-height: 1.5; font-weight: 500; }
+.sync-channel-description { margin: 7px 0 0 28px; color: var(--cerebr-text-color-secondary); font-size: var(--cerebr-fs-12); line-height: 1.65; overflow-wrap: anywhere; }
+.sync-channel-secondary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 20px; margin: 7px 0 0 28px; }
+.sync-account { font-size: var(--cerebr-fs-12); color: var(--cerebr-text-color-secondary); overflow-wrap: anywhere; }
+.sync-status { display: inline-flex; align-items: center; gap: 5px; color: var(--cerebr-text-color-secondary); font-size: 11px; font-weight: 400; white-space: nowrap; }
 .sync-status i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
 .sync-status.is-connected i, .sync-success-icon { color: var(--cerebr-toast-success-icon); }
-.sync-channel-toolbar { padding-top: 18px; margin-top: auto; }
-.sync-channel-toolbar > .sync-button { width: 100%; }
-.sync-channel-meta { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--cerebr-surface-border); color: var(--cerebr-text-color-secondary); font-size: 11px; font-variant-numeric: tabular-nums; }
-.sync-channel-meta > span { display: flex; align-items: center; gap: 6px; }
+.sync-channel-toolbar { flex-shrink: 0; }
+.sync-channel-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0 28px; color: var(--cerebr-text-color-secondary); font-size: 11px; font-variant-numeric: tabular-nums; }
+.sync-channel-secondary .sync-channel-meta { margin: 0 0 0 auto; }
+.sync-channel-meta > span { display: inline-flex; align-items: center; gap: 6px; }
 .sync-channel-meta svg { width: 13px; height: 13px; }
-.sync-channel-meta time { margin-left: auto; color: var(--cerebr-text-color); }
-.sync-row-actions, .sync-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.sync-row-actions > .sync-button:first-child { flex: 1; }
-.sync-settings .sync-button, .sync-settings .sync-icon-button { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 34px; padding: 7px 10px; border: 1px solid var(--cerebr-surface-border); border-radius: 8px; background: var(--cerebr-settings-page-bg); color: var(--cerebr-text-color); font: inherit; font-size: var(--cerebr-fs-12); line-height: 1.4; text-decoration: none; cursor: pointer; }
-.sync-settings .sync-icon-button { width: 34px; padding: 7px; flex-shrink: 0; color: var(--cerebr-text-color-secondary); }
+.sync-channel-meta time { color: var(--cerebr-text-color); }
+.sync-row-actions, .sync-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.sync-settings .sync-button, .sync-settings .sync-icon-button { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 6px 8px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--cerebr-text-color-secondary); font: inherit; font-size: var(--cerebr-fs-12); line-height: 1.4; text-decoration: none; cursor: pointer; white-space: nowrap; }
+.sync-settings .sync-icon-button { width: 32px; padding: 7px; flex-shrink: 0; }
 .sync-settings :is(.sync-button, .sync-icon-button):hover:not(:disabled) { background: var(--cerebr-hover-bg-color); color: var(--cerebr-text-color); }
 .sync-settings button:disabled { opacity: .45; cursor: default; }
 .sync-settings :is(button, a, select, input, summary):focus-visible { outline: 2px solid var(--cerebr-focus-border-color); outline-offset: 3px; }
 .sync-settings :is(.sync-button, .sync-icon-button) svg { width: 15px; height: 15px; flex-shrink: 0; }
-.sync-settings .sync-button.is-primary { background: var(--cerebr-text-color); color: var(--cerebr-settings-page-bg); border-color: transparent; }
-.sync-settings .sync-button.is-primary:hover:not(:disabled) { opacity: .85; background: var(--cerebr-text-color); color: var(--cerebr-settings-page-bg); }
-.sync-desktop-download { display: flex; flex-direction: column; gap: 10px; }
-.sync-download-select { position: relative; }
-.sync-download-select select { appearance: none; width: 100%; min-height: 34px; box-sizing: border-box; padding: 7px 30px 7px 10px; border: 1px solid var(--cerebr-surface-border); border-radius: 8px; background: var(--cerebr-settings-page-bg); color: var(--cerebr-text-color-secondary); font-size: var(--cerebr-fs-12); cursor: pointer; text-overflow: ellipsis; }
-.sync-download-select > svg { position: absolute; width: 13px; height: 13px; right: 10px; top: 11px; pointer-events: none; color: var(--cerebr-text-color-secondary); }
-.sync-release-link { align-self: center; color: var(--cerebr-text-color-secondary); font-size: 10px; line-height: 1.5; text-underline-offset: 3px; text-decoration-color: transparent; }
-.sync-release-link:hover { color: var(--cerebr-text-color); text-decoration-color: currentColor; }
-.sync-channel-detail { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--cerebr-surface-border); }
+.sync-settings .sync-button.is-primary { background: var(--cerebr-hover-bg-color); color: var(--cerebr-text-color); border-color: var(--cerebr-surface-border); padding-inline: 12px; }
+.sync-settings .sync-button.is-primary:hover:not(:disabled) { border-color: var(--cerebr-text-color-secondary); }
+.sync-desktop-download { display: flex; align-items: center; gap: 8px; margin: 14px 0 0 28px; }
+.sync-download-select { position: relative; min-width: 0; width: 190px; }
+.sync-download-select select { appearance: none; width: 100%; min-height: 32px; box-sizing: border-box; padding: 6px 20px 6px 0; border: 0; border-radius: 0; background: transparent; color: var(--cerebr-text-color-secondary); font-size: var(--cerebr-fs-12); cursor: pointer; text-overflow: ellipsis; }
+.sync-download-select > svg { position: absolute; width: 12px; height: 12px; right: 0; top: 10px; pointer-events: none; color: var(--cerebr-text-color-secondary); }
+.sync-desktop-download > .sync-row-actions { flex-wrap: nowrap; flex-shrink: 0; margin-left: auto; }
+.sync-channel-detail { margin: 16px 0 0 28px; padding-top: 16px; border-top: 1px solid var(--cerebr-surface-border); }
 .sync-channel-detail .sync-actions { margin-top: 14px; }
 .sync-pairing p, .cloud-auth-note { margin: 0; color: var(--cerebr-text-color-secondary); font-size: var(--cerebr-fs-12); line-height: 1.6; }
 .sync-pairing-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
@@ -61,9 +60,9 @@
 .sync-verification-details dt { margin-top: 6px; }
 .sync-verification-details dd { margin: 0; }
 .sync-verification-details code { display: block; font-size: 10px; overflow-wrap: anywhere; user-select: text; background: transparent; }
-.sync-error { display: flex; align-items: start; gap: 8px; margin-top: 12px; color: var(--cerebr-danger-color); font-size: var(--cerebr-fs-12); line-height: 1.5; overflow-wrap: anywhere; }
+.sync-error { margin-left: 28px; display: flex; align-items: start; gap: 8px; margin-top: 12px; color: var(--cerebr-danger-color); font-size: var(--cerebr-fs-12); line-height: 1.5; overflow-wrap: anywhere; }
 .sync-error svg { width: 16px; height: 16px; flex-shrink: 0; }
-.sync-section-note { display: flex; align-items: start; gap: 7px; padding-top: 14px; font-size: 11px; }
+.sync-section-note { display: flex; align-items: start; gap: 7px; padding-top: 2px; font-size: 11px; }
 .sync-section-note svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; }
 .cloud-auth-tabs { display: flex; gap: 16px; width: fit-content; margin-bottom: 16px; border-bottom: 1px solid var(--cerebr-surface-border); }
 .cloud-auth-tabs button { border: 0; border-bottom: 1px solid transparent; padding: 0 0 7px; margin-bottom: -1px; background: transparent; color: var(--cerebr-text-color-secondary); font: inherit; font-size: var(--cerebr-fs-12); cursor: pointer; }
@@ -74,11 +73,14 @@
 @keyframes sync-control-spin { to { transform: rotate(360deg); } }
 .sync-settings .is-spinning { animation: sync-control-spin 1s linear infinite; }
 @container sync-settings (max-width: 340px) {
-    .sync-library { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 14px; }
-    .sync-library-heading { grid-column: 1 / -1; }
-    .sync-channel { padding: 14px; }
-    .sync-channel-row { gap: 8px; flex-wrap: wrap; }
-    .sync-status { margin-left: auto; }
+    .sync-library { gap: 10px 20px; }
+    .sync-library-heading { flex-basis: 100%; }
+    .sync-channel-heading { flex-direction: column; align-items: start; gap: 3px; }
+    .sync-channel-secondary .sync-channel-meta { margin-left: 0; }
+    .sync-desktop-download { flex-wrap: wrap; }
+    .sync-download-select { width: 100%; }
+    .sync-desktop-download > .sync-row-actions { width: 100%; margin-right: 0; }
+    .sync-desktop-download .sync-button { flex: 1; }
 }
 @media (pointer: coarse) {
     .sync-settings :is(.sync-button, .sync-icon-button), .sync-download-select select { min-height: 44px; }

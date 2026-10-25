@@ -72,11 +72,14 @@ export function DesktopSyncSettings() {
         <div className="sync-channel" id="desktop-sync-settings">
             <div className="sync-channel-row">
                 <Computer className="sync-channel-icon" aria-hidden="true" />
-                <h3>{t('local_sync_title')}</h3>
-                <span className={`sync-status${online ? ' is-connected' : ''}`} role="status">
-                    <i />
-                    {t(online ? 'desktop_sync_connected' : 'desktop_sync_disconnected')}
-                </span>
+                <div className="sync-channel-heading">
+                    <h3>{t('local_sync_title')}</h3>
+                    <span className={`sync-status${online ? ' is-connected' : ''}`} role="status">
+                        <i />
+                        {t(online ? 'desktop_sync_connected' : 'desktop_sync_disconnected')}
+                    </span>
+                </div>
+                <div className="sync-channel-toolbar">{connectionButton}</div>
             </div>
             <p className="sync-channel-description">
                 {t(
@@ -87,13 +90,7 @@ export function DesktopSyncSettings() {
                           : 'sync_desktop_description'
                 )}
             </p>
-            <div className="sync-channel-toolbar">
-                {!isDesktop && !online ? (
-                    <DesktopDownload>{connectionButton}</DesktopDownload>
-                ) : (
-                    connectionButton
-                )}
-            </div>
+            {!isDesktop && !online && <DesktopDownload />}
             {online && (
                 <div className="sync-channel-meta">
                     <span>

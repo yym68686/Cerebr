@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Download, NavArrowDown } from 'iconoir-react';
+import { Download, NavArrowDown, ArrowUpRight } from 'iconoir-react';
 import {
     DESKTOP_DOWNLOADS,
     DESKTOP_RELEASES_URL,
@@ -8,7 +8,7 @@ import {
 } from '../../platform/desktop-downloads.js';
 import { t } from '../../utils/i18n.js';
 
-export function DesktopDownload({ children }) {
+export function DesktopDownload() {
     const [detected, setDetected] = useState({ platform: '', target: '' });
     const [selected, setSelected] = useState(null);
     useEffect(() => {
@@ -57,11 +57,17 @@ export function DesktopDownload({ children }) {
                         {t('desktop_download')}
                     </button>
                 )}
-                {children}
+                <a
+                    className="sync-icon-button sync-release-link"
+                    href={DESKTOP_RELEASES_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={t('desktop_download_releases')}
+                    aria-label={t('desktop_download_releases')}
+                >
+                    <ArrowUpRight aria-hidden="true" />
+                </a>
             </div>
-            <a className="sync-release-link" href={DESKTOP_RELEASES_URL} target="_blank" rel="noreferrer">
-                {t('desktop_download_releases')}
-            </a>
         </div>
     );
 }
