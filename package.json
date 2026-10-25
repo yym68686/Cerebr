@@ -1,6 +1,6 @@
 {
   "name": "cerebr",
-  "version": "2.6.18",
+  "version": "2.6.19",
   "private": true,
   "type": "module",
   "engines": {
