@@ -34,21 +34,15 @@ export function CloudSyncSettings() {
         <div className="sync-channel" id="cloud-sync-settings">
             <div className="sync-channel-row">
                 <Cloud className="sync-channel-icon" aria-hidden="true" />
-                <div className="sync-channel-heading">
-                    <h3>
-                        {t('cloud_sync_channel')}
-                        {state.user && (
-                            <span
-                                className={`sync-status${state.connected ? ' is-connected' : ''}`}
-                                role="status"
-                            >
-                                <i />
-                                {t(status)}
-                            </span>
-                        )}
-                    </h3>
-                    <p>{state.user ? state.user.username : t('cloud_sync_description')}</p>
-                </div>
+                <h3>{t('cloud_sync_channel')}</h3>
+                <span className={`sync-status${state.connected ? ' is-connected' : ''}`} role="status">
+                    <i />
+                    {t(status)}
+                </span>
+            </div>
+            <p className="sync-channel-description">{t('cloud_sync_description')}</p>
+            {state.user && <div className="sync-account">{state.user.username}</div>}
+            <div className="sync-channel-toolbar">
                 {state.user ? (
                     <div className="sync-row-actions sync-actions">
                         <button

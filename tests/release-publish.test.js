@@ -18,6 +18,9 @@ const assets = [
     'Cerebr-win32-x64-1.2.3.zip',
     'RELEASES',
     'Cerebr-1.2.3-full.nupkg',
+    'Cerebr-macOS-arm64.dmg',
+    'Cerebr-macOS-x64.dmg',
+    'Cerebr-Windows-x64.exe',
     ...['darwin-arm64', 'darwin-x64', 'win32-x64'].map((target) => `Cerebr-1.2.3-${target}-SHA256SUMS.txt`),
 ];
 beforeEach(async () => {
@@ -52,7 +55,7 @@ it('publishes only after all installers have uploaded to a draft', async () => {
     expect(github.rest.repos.createRelease).toHaveBeenCalledWith(
         expect.objectContaining({ draft: true, tag_name: tag, target_commitish: 'current' })
     );
-    expect(github.rest.repos.uploadReleaseAsset).toHaveBeenCalledTimes(13);
+    expect(github.rest.repos.uploadReleaseAsset).toHaveBeenCalledTimes(16);
     expect(github.rest.repos.updateRelease.mock.invocationCallOrder[0]).toBeGreaterThan(
         Math.max(...github.rest.repos.uploadReleaseAsset.mock.invocationCallOrder)
     );
@@ -73,6 +76,11 @@ it('uses the built commit while preserving the Actions context prototype getters
 it('does not create a release when a platform installer is missing', async () => {
     await rm(path.join(directory, 'Cerebr-1.2.3-win32-x64-Setup.exe'));
     await expect(publish()).rejects.toThrow('Missing release asset');
+    expect(github.rest.repos.createRelease).not.toHaveBeenCalled();
+});
+it('does not publish a release with a broken one-click download', async () => {
+    await rm(path.join(directory, 'Cerebr-macOS-arm64.dmg'));
+    await expect(publish()).rejects.toThrow('Missing release asset: Cerebr-macOS-arm64.dmg');
     expect(github.rest.repos.createRelease).not.toHaveBeenCalled();
 });
 it('leaves the release as a draft if an upload fails', async () => {
@@ -109,6 +117,6 @@ it('resumes a draft by replacing its incomplete assets before publication', asyn
     expect(github.rest.repos.deleteReleaseAsset).toHaveBeenCalledWith(
         expect.objectContaining({ asset_id: 7 })
     );
-    expect(github.rest.repos.uploadReleaseAsset).toHaveBeenCalledTimes(13);
+    expect(github.rest.repos.uploadReleaseAsset).toHaveBeenCalledTimes(16);
     expect(github.rest.repos.updateRelease).toHaveBeenCalledWith(expect.objectContaining({ draft: false }));
 });

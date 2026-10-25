@@ -119,7 +119,7 @@ export function startExtensionSync({ browserRequest } = {}) {
                 })
                 .catch((error) => publish({ error: error.message }));
         };
-        ws.onerror = () => publish({ connected: false, error: '无法连接桌面应用，请确认 Cerebr 已启动。' });
+        ws.onerror = () => publish({ connected: false, error: null });
         ws.onclose = () => {
             if (socket !== ws) return;
             connecting = false;

@@ -18,7 +18,10 @@ export function SyncSettings() {
             <p className="sync-section-description">{t('sync_description')}</p>
             {counts && (
                 <div className="sync-library" aria-live="polite" aria-atomic="true">
-                    <span>{t('sync_library')}</span>
+                    <div className="sync-library-heading">
+                        <ShieldCheck aria-hidden="true" />
+                        <span>{t('sync_library')}</span>
+                    </div>
                     <div className="sync-stat">
                         <strong>{new Intl.NumberFormat().format(counts.chats || 0)}</strong>
                         <span>{t('sync_chats')}</span>

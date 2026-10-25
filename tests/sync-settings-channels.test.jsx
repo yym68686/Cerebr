@@ -56,16 +56,19 @@ beforeEach(() => {
         pairingCode: 'ABCDEF0123',
         localSummary: { chats: 4, messages: 11 },
         verification: null,
+        error: null,
     });
     cloudSyncStore.set({
         user: { username: 'demo' },
         connected: true,
         localSummary: { chats: 4, messages: 11 },
+        error: null,
     });
 });
 afterEach(async () => {
     await act(async () => root.unmount());
     host.remove();
+    vi.restoreAllMocks();
 });
 it('shares one live total and keeps desktop pairing and integrity actions available when connected', async () => {
     await act(async () => root.render(<SyncSettings />));
@@ -87,7 +90,7 @@ it('pairs an extension with the entered code and exposes disconnect after connec
     await act(async () => root.render(<SyncSettings />));
     await click('[aria-controls="local-sync-detail"]');
     expect(host.querySelector('button[type="submit"]').disabled).toBe(true);
-    await fill('#desktop-pairing-code', 'abcdef0123');
+    await fill('#desktop-pairing-code', 'abcde f0123');
     expect(host.querySelector('button[type="submit"]').disabled).toBe(false);
     await act(async () =>
         host
@@ -120,6 +123,32 @@ it('retains registration behind the cloud login disclosure on the web', async ()
         password: 'test-password-123',
     });
     expect(host.querySelector('[type="password"]').value).toBe('');
+});
+
+it('shows an ordinary disconnected state and a direct download instead of an unavailable-desktop alert', async () => {
+    environment.desktop = false;
+    environment.extension = true;
+    vi.spyOn(navigator, 'platform', 'get').mockReturnValue('Win32');
+    desktopSyncStore.set({ connected: false, error: '无法连接桌面应用，请确认 Cerebr 已启动。' });
+    await act(async () => root.render(<SyncSettings />));
+    const local = host.querySelector('#desktop-sync-settings');
+    expect(local.querySelector('[role="status"]').textContent).toBe('desktop_sync_disconnected');
+    expect(local.querySelector('[role="alert"]')).toBeNull();
+    expect(local.querySelector('a[download]').href).toBe(
+        'https://github.com/yym68686/Cerebr/releases/latest/download/Cerebr-Windows-x64.exe'
+    );
+    await act(async () => {
+        const select = local.querySelector('select');
+        select.value = 'darwin-arm64';
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(local.querySelector('a[download]').href).toContain('Cerebr-macOS-arm64.dmg');
+    await click('[aria-controls="local-sync-detail"]');
+    expect(host.querySelector('#desktop-pairing-code')).not.toBeNull();
+    await act(async () => desktopSyncStore.set({ error: '配对码无效或已过期' }));
+    expect(local.querySelector('[role="alert"]').textContent).toBe('配对码无效或已过期');
+    await act(async () => desktopSyncStore.set({ connected: true, error: null }));
+    expect(local.querySelector('.sync-desktop-download')).toBeNull();
 });
 
 it('keeps the password and shows an error when cloud login does not complete', async () => {

@@ -502,6 +502,12 @@
   "sync_manage_connection": {
     "message": "Manage"
   },
+  "sync_desktop_pair_instruction": {"message": "Open Preferences → Sync in the desktop app to get your pairing code."},
+  "sync_desktop_description": {"message": "Keep chats in sync with Cerebr on this computer."},
+  "desktop_download": {"message": "Download app"},
+  "desktop_download_platform": {"message": "Choose your system"},
+  "desktop_download_mac_chip": {"message": "Choose your Mac chip"},
+  "desktop_download_releases": {"message": "All downloads on GitHub"},
   "sync_library": {"message": "On this device"},
   "chat_find_title": {"message": "Find in conversation"},
   "chat_find_placeholder": {"message": "Find in conversation…"},

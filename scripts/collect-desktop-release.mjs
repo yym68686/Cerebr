@@ -2,6 +2,7 @@ import { createReadStream } from 'node:fs';
 import { mkdir, readdir, cp, writeFile, readFile, rm } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
+import { DESKTOP_DOWNLOADS } from '../src/platform/desktop-downloads.js';
 
 const [platform, arch] = process.argv.slice(2);
 if (!['darwin-arm64', 'darwin-x64', 'win32-x64'].includes(`${platform}-${arch}`))
@@ -32,7 +33,13 @@ for (const file of files) {
     await cp(path.join(make, file), path.join(output, name));
     const hash = createHash('sha256');
     for await (const chunk of createReadStream(path.join(output, name))) hash.update(chunk);
-    checksums.push(`${hash.digest('hex')}  ${name}`);
+    const digest = hash.digest('hex');
+    checksums.push(`${digest}  ${name}`);
+    if (name === installer) {
+        const alias = DESKTOP_DOWNLOADS.find(({ id }) => id === `${platform}-${arch}`).file;
+        await cp(path.join(output, name), path.join(output, alias));
+        checksums.push(`${digest}  ${alias}`);
+    }
 }
 await writeFile(
     path.join(output, `Cerebr-${version}-${platform}-${arch}-SHA256SUMS.txt`),

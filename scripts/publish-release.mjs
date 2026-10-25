@@ -1,5 +1,6 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { DESKTOP_DOWNLOADS } from '../src/platform/desktop-downloads.js';
 
 export async function publishRelease({
     github,
@@ -22,6 +23,7 @@ export async function publishRelease({
         `Cerebr-win32-x64-${version}.zip`,
         'RELEASES',
         `Cerebr-${version}-full.nupkg`,
+        ...DESKTOP_DOWNLOADS.map(({ file }) => file),
         ...['darwin-arm64', 'darwin-x64', 'win32-x64'].map(
             (target) => `Cerebr-${version}-${target}-SHA256SUMS.txt`
         ),

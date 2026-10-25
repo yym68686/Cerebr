@@ -62,6 +62,10 @@ macOS 数据目录：`~/Library/Application Support/Cerebr/`。Windows 数据目
 
 桌面同步偏好采用紧凑卡片，显示连接状态、对话与消息统计、最近同步；已连接时默认收起配对码和摘要详情。只在需要连接另一个浏览器或展开校验详情时显示这些信息。
 
+浏览器扩展未连接桌面版时仅显示中性的「未连接」，不把桌面版未安装或未启动视为错误；配对失败和校验错误仍显示提示。下载入口自动匹配 Windows，Mac 优先读取浏览器提供的芯片信息；Safari / Firefox 等无法可靠识别芯片时由用户选择 Apple Silicon 或 Intel，所有平台均可手动切换。
+
+每次 Release 额外发布 `Cerebr-macOS-arm64.dmg`、`Cerebr-macOS-x64.dmg`、`Cerebr-Windows-x64.exe` 三个固定名称的安装包副本，并纳入各平台 SHA-256 清单。同步设置通过 GitHub 的 `releases/latest/download/<文件名>` 直接下载最新版，无需查询匿名 GitHub API；版本化安装包和桌面自动更新协议继续保留。
+
 
 ## GitHub Actions 自动构建与发布
 

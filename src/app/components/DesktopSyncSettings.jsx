@@ -18,6 +18,7 @@ import {
     disconnectDesktopSync,
 } from '../../runtime/sync/ui-sync.js';
 import { t } from '../../utils/i18n.js';
+import { DesktopDownload } from './DesktopDownload.jsx';
 
 export function DesktopSyncSettings() {
     const state = useSyncExternalStore(desktopSyncStore.subscribe, desktopSyncStore.getSnapshot);
@@ -48,41 +49,50 @@ export function DesktopSyncSettings() {
         }
     };
     const verification = state.verification;
+    // Older extension backgrounds may still have this transport error in storage.
+    // An unavailable desktop app is an ordinary disconnected state.
+    const visibleError =
+        error || (state.error === '无法连接桌面应用，请确认 Cerebr 已启动。' ? '' : state.error);
+    const connectionButton = (
+        <button
+            type="button"
+            className="sync-button"
+            aria-expanded={expanded}
+            aria-controls="local-sync-detail"
+            onClick={() => {
+                setExpanded(!expanded);
+                if (isDesktop && !expanded) void run(refreshDesktopPairing);
+            }}
+        >
+            {t(online ? 'sync_manage_connection' : 'desktop_sync_connect')}
+            <NavArrowDown className={expanded ? 'is-expanded' : ''} />
+        </button>
+    );
     return (
         <div className="sync-channel" id="desktop-sync-settings">
             <div className="sync-channel-row">
                 <Computer className="sync-channel-icon" aria-hidden="true" />
-                <div className="sync-channel-heading">
-                    <h3>
-                        {t('local_sync_title')}
-                        <span className={`sync-status${online ? ' is-connected' : ''}`} role="status">
-                            <i />
-                            {t(online ? 'desktop_sync_connected' : 'desktop_sync_disconnected')}
-                        </span>
-                    </h3>
-                    <p>
-                        {t(
-                            online
-                                ? 'sync_connection_ready'
-                                : isDesktop
-                                  ? 'sync_connect_browser'
-                                  : 'sync_connect_desktop'
-                        )}
-                    </p>
-                </div>
-                <button
-                    type="button"
-                    className="sync-button"
-                    aria-expanded={expanded}
-                    aria-controls="local-sync-detail"
-                    onClick={() => {
-                        setExpanded(!expanded);
-                        if (isDesktop && !expanded) void run(refreshDesktopPairing);
-                    }}
-                >
-                    {t(online ? 'sync_manage_connection' : 'desktop_sync_connect')}
-                    <NavArrowDown className={expanded ? 'is-expanded' : ''} />
-                </button>
+                <h3>{t('local_sync_title')}</h3>
+                <span className={`sync-status${online ? ' is-connected' : ''}`} role="status">
+                    <i />
+                    {t(online ? 'desktop_sync_connected' : 'desktop_sync_disconnected')}
+                </span>
+            </div>
+            <p className="sync-channel-description">
+                {t(
+                    online
+                        ? 'sync_connection_ready'
+                        : isDesktop
+                          ? 'sync_connect_browser'
+                          : 'sync_desktop_description'
+                )}
+            </p>
+            <div className="sync-channel-toolbar">
+                {!isDesktop && !online ? (
+                    <DesktopDownload>{connectionButton}</DesktopDownload>
+                ) : (
+                    connectionButton
+                )}
             </div>
             {online && (
                 <div className="sync-channel-meta">
@@ -150,6 +160,9 @@ export function DesktopSyncSettings() {
                                         void run(() => pairDesktop(code));
                                     }}
                                 >
+                                    <p className="sync-pairing-instruction">
+                                        {t('sync_desktop_pair_instruction')}
+                                    </p>
                                     <label htmlFor="desktop-pairing-code">{t('desktop_sync_code')}</label>
                                     <div className="sync-pairing-row">
                                         <input
@@ -157,12 +170,15 @@ export function DesktopSyncSettings() {
                                             className="settings-input"
                                             autoComplete="off"
                                             spellCheck={false}
-                                            maxLength={10}
+                                            maxLength={11}
                                             placeholder="XXXXX XXXXX"
                                             value={code}
                                             onChange={(e) =>
                                                 setCode(
-                                                    e.target.value.replace(/[^a-f0-9]/gi, '').toUpperCase()
+                                                    e.target.value
+                                                        .replace(/[^a-f0-9]/gi, '')
+                                                        .slice(0, 10)
+                                                        .toUpperCase()
                                                 )
                                             }
                                         />
@@ -242,10 +258,10 @@ export function DesktopSyncSettings() {
                     )}
                 </div>
             )}
-            {(error || state.error) && (
+            {visibleError && (
                 <div className="sync-error" role="alert">
                     <WarningCircle />
-                    <span>{error || state.error}</span>
+                    <span>{visibleError}</span>
                 </div>
             )}
         </div>

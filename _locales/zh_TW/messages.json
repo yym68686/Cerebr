@@ -502,6 +502,12 @@
   "sync_manage_connection": {
     "message": "管理連線"
   },
+  "sync_desktop_pair_instruction": {"message": "開啟桌面版的「偏好設定 → 同步」，取得配對碼。"},
+  "sync_desktop_description": {"message": "與這台電腦上的 Cerebr 桌面版同步。"},
+  "desktop_download": {"message": "下載桌面版"},
+  "desktop_download_platform": {"message": "選擇作業系統"},
+  "desktop_download_mac_chip": {"message": "選擇 Mac 晶片類型"},
+  "desktop_download_releases": {"message": "在 GitHub 查看所有版本"},
   "sync_library": {"message": "本機聊天"},
   "chat_find_title": {"message": "在目前對話中尋找"},
   "chat_find_placeholder": {"message": "搜尋聊天正文…"},
