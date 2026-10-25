@@ -109,6 +109,7 @@ it('retains registration behind the cloud login disclosure on the web', async ()
     await click('[role="tab"]:nth-child(2)');
     await fill('[autocomplete="username"]', 'new_user');
     await fill('[type="password"]', 'test-password-123');
+    cloudSyncAction.mockResolvedValueOnce({ ok: true });
     await act(async () =>
         host
             .querySelector('#cloud-sync-auth')
@@ -119,4 +120,23 @@ it('retains registration behind the cloud login disclosure on the web', async ()
         password: 'test-password-123',
     });
     expect(host.querySelector('[type="password"]').value).toBe('');
+});
+
+it('keeps the password and shows an error when cloud login does not complete', async () => {
+    environment.desktop = false;
+    cloudSyncStore.set({ user: null, connected: false });
+    await act(async () => root.render(<SyncSettings />));
+    await click('[aria-controls="cloud-sync-auth"]');
+    await fill('[autocomplete="username"]', 'demo_user');
+    await fill('[type="password"]', 'test-password-123');
+    cloudSyncAction.mockRejectedValueOnce(new Error('云端同步请求未收到响应。'));
+
+    await act(async () =>
+        host
+            .querySelector('#cloud-sync-auth')
+            .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    );
+
+    expect(host.querySelector('[type="password"]').value).toBe('test-password-123');
+    expect(host.querySelector('[role="alert"]').textContent).toBe('云端同步请求未收到响应。');
 });

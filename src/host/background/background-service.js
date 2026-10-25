@@ -1,6 +1,6 @@
 import { startExtensionSync } from '../../runtime/sync/extension-sync.js';
 import { startCloudSync } from '../../runtime/sync/cloud-sync.js';
-void startCloudSync().catch((error)=>console.error('[Cerebr] Cloud sync failed',error));
+void startCloudSync({ isBackground: true }).catch((error)=>console.error('[Cerebr] Cloud sync failed',error));
 import { createBrowserPageRequests } from './browser-page-requests.js';
 const desktopSync = startExtensionSync({ browserRequest: createBrowserPageRequests({ api: chrome, getPageContent: readBrowserPage }) });
 import { extensionAssetPath } from '../../platform/assets.js';

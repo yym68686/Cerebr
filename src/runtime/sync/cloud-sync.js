@@ -24,6 +24,9 @@ export const subscribeCloudProgress = (fn) => {
     progressListeners.add(fn);
     return () => progressListeners.delete(fn);
 };
+// Firefox/Zen background pages have a document too. The host entry must
+// explicitly select the background role instead of inferring it from the DOM.
+let background = false;
 let socket,
     client,
     authData,
@@ -35,7 +38,6 @@ let socket,
     lastReconciled = 0,
     recovering = null,
     initialized;
-const background = isExtensionEnvironment && typeof document === 'undefined';
 const emitStatus = (patch) => {
     cloudSyncStore.set(patch);
     if (background) void chrome.storage.local.set({ [STATUS]: cloudSyncStore.getSnapshot() });
@@ -266,6 +268,9 @@ export async function cloudSyncAction(action, payload) {
     if (isExtensionEnvironment && !background) {
         const result = await chrome.runtime.sendMessage({ type: 'CEREBR_CLOUD_ACTION', action, payload });
         if (result?.error) throw new Error(result.error);
+        if (!result || typeof result !== 'object' ||
+            ((action === 'login' || action === 'register') && result.ok !== true))
+            throw new Error('云端同步请求未收到响应，请重新加载扩展后重试。');
         return result;
     }
     return runAction(action, payload);
@@ -284,8 +289,9 @@ export function publishCloudProgress(progress) {
             .catch(() => {});
     else client?.progress(progress);
 }
-export function startCloudSync() {
+export function startCloudSync({ isBackground = false } = {}) {
     if (initialized) return initialized;
+    background = isExtensionEnvironment && isBackground;
     initialized = (async () => {
         if (isExtensionEnvironment && !background) {
             const state = (await chrome.storage.local.get(STATUS))[STATUS];
