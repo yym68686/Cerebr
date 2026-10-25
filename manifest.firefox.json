@@ -15,14 +15,15 @@
   },
   "permissions": [
     "storage",
-    "commands",
     "scripting",
-    "userScripts",
     "webRequest",
     "activeTab",
     "tabs",
     "tabGroups",
     "unlimitedStorage"
+  ],
+  "optional_permissions": [
+    "userScripts"
   ],
   "host_permissions": [
     "<all_urls>",

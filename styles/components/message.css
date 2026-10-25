@@ -73,6 +73,12 @@
     margin-top: 0.5em;
 }
 
+/* The scrollable table box can be wider than its intrinsic cell grid in Chromium.
+   Cell borders already draw the table frame, so a border on the outer box looks doubled. */
+.message table {
+    border: 0;
+}
+
 .message ul, .message ol {
     margin: 0.5em 0;
     padding-left: 24px;

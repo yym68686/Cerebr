@@ -28,6 +28,8 @@ npm run package:extension
 - Vite 开发入口直接加载 React；`npm run build` 生成唯一可发布目录 `dist/`。
 - Web 与扩展都加载编译产物的 `index.html` → `boot.js` → `web-manifest.json` → `v/<version>/*-<hash>.js/css`。
 - 仓库根目录的 `manifest.json` / `manifest.firefox.json` 将 background、content scripts、sandbox 和可公开访问资源指向 `dist/`。原有根目录扩展安装可在构建后直接重新加载，保留扩展 ID 与存储。
+- Firefox / Zen 临时加载目录中的任意文件都会读取该目录的 `manifest.json`，选择 `manifest.firefox.json` 不会切换清单。根目录 `manifest.json` 必须同时保留 `background.service_worker` / `background.scripts`（同一个编译入口，Chrome / Firefox 121+），以及与 Firefox 专用清单一致的 Gecko ID；Firefox 安装包仍使用专用清单。
+- `commands` 只作为顶层快捷键配置，不写入 `permissions`。`userScripts` 在两份清单中均放入 `optional_permissions`（Firefox 不接受必选声明）；在插件设置中由用户点击授权，后台监听权限授予/撤销重新同步网页脚本。Chrome 的「允许用户脚本」开关仍需开启。
 - 构建脚本将上述 manifest 的运行时路径转换为产物根目录相对路径，写入 `dist/`，用于独立安装包。两种安装位置加载的是同一套编译产物，没有源码运行兜底。
 - `boot.js` 以 `cache: 'no-store'` 读取清单，先加载 CSS，再导入应用。保持 Safari 缓存规避机制；没有未构建源码兜底。
 - `base: './'` 支持 GitHub Pages 项目子路径、自定义域名及扩展 URL。页面切换是 React 状态，不需要服务端路由回退。

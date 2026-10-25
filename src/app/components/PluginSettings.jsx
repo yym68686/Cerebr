@@ -32,6 +32,7 @@ import {
 } from '../state/plugin-settings-model.js';
 import { notify } from '../state/ui-store.js';
 import { PanelHeader, Slot } from './common.jsx';
+import { UserScriptPermission } from './UserScriptPermission.jsx';
 
 function Badge({ children, modifier = '' }) {
     return <span className={`plugin-badge${modifier ? ` plugin-badge--${modifier}` : ''}`}>{children}</span>;
@@ -296,6 +297,7 @@ export function PluginSettings({ visible, onBack, session }) {
             <PanelHeader title={t('title_plugins')} onBack={onBack} />
             <div className="plugin-settings-content">
                 <p className="plugin-settings-intro">{t('plugins_manage_caption')}</p>
+                {isExtensionEnvironment && <UserScriptPermission visible={visible} />}
                 <Slot name="shell.settings.section" />
                 <div className="plugin-settings-toolbar">
                     <div

@@ -513,5 +513,7 @@
   "drop_hint": {"message": "图片与 TXT 文本文件"},
   "drop_read_failed": {"message": "读取失败，请重新拖入。"},
   "drop_text_too_large": {"message": "TXT 文件最大支持 10 MB。"},
-  "drop_unsupported": {"message": "请拖入图片或 TXT 文本文件。"}
+  "drop_unsupported": {"message": "请拖入图片或 TXT 文本文件。"},
+  "plugin_user_scripts_permission_hint": {"message": "网页脚本插件需要授权才能运行。Chrome 还需在扩展详情中开启「允许用户脚本」。"},
+  "plugin_user_scripts_permission_allow": {"message": "允许网页脚本"}
 }

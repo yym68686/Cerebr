@@ -4,8 +4,16 @@ export const CONTENT_MODULE = 'src/host/content/content-script.js';
 
 // The checkout manifest mounts the build at dist/. Archives put that same build
 // at their root. Source modules are never an extension execution path.
-export function createPackagedManifest(source) {
+export function createPackagedManifest(source, { browser = 'cross-browser' } = {}) {
     const manifest = structuredClone(source);
+    if (browser === 'chrome') {
+        delete manifest.background.scripts;
+        delete manifest.browser_specific_settings;
+    } else if (browser === 'firefox') {
+        delete manifest.background.service_worker;
+    } else if (browser !== 'cross-browser') {
+        throw new Error(`Unsupported extension browser: ${browser}`);
+    }
     const strip = (value) => {
         if (!value.startsWith('dist/'))
             throw new Error(`Checkout extension asset must be inside dist/: ${value}`);

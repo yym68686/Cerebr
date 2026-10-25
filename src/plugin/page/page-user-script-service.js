@@ -361,6 +361,14 @@ export function createPageUserScriptService({
     };
 
     const getUserScriptsAvailability = async () => {
+        if (chrome?.permissions?.contains
+            && !await chrome.permissions.contains({ permissions: ['userScripts'] })) {
+            return {
+                ok: false,
+                code: 'userscripts-permission-required',
+                error: 'Allow webpage scripts in Cerebr’s Plugins settings to run page script plugins.',
+            };
+        }
         if (!chrome?.userScripts?.register || !chrome?.userScripts?.getScripts) {
             return {
                 ok: false,
@@ -426,7 +434,13 @@ export function createPageUserScriptService({
         });
 
         if (!availability.ok) {
-            await unregisterManagedScripts();
+            try {
+                await unregisterManagedScripts();
+            } catch (error) {
+                // Revocation may remove access before registered scripts can be queried.
+                if (availability.code !== 'userscripts-permission-required') throw error;
+                registrationIds.clear();
+            }
             pagePlugins.forEach((descriptor) => {
                 updateDiagnostic(
                     descriptor.id,
@@ -513,6 +527,12 @@ export function createPageUserScriptService({
                 logger?.error?.('[Cerebr] Failed to sync page user scripts', error);
             });
         return syncPromise;
+    };
+
+    const onPermissionsChanged = ({ permissions = [] } = {}) => {
+        if (!permissions.includes('userScripts')) return;
+        worldReady = false;
+        void scheduleSync();
     };
 
     const resolvePortMeta = (port) => {
@@ -863,6 +883,8 @@ export function createPageUserScriptService({
                 return;
             }
             started = true;
+            chrome.permissions?.onAdded?.addListener(onPermissionsChanged);
+            chrome.permissions?.onRemoved?.addListener(onPermissionsChanged);
             i18nBridge.setLocale(await localeStore.start());
             unsubscribeLocaleBridge = localeStore.subscribe(({ locale } = {}) => {
                 i18nBridge.setLocale(locale);
@@ -883,6 +905,8 @@ export function createPageUserScriptService({
                 return;
             }
             started = false;
+            chrome.permissions?.onAdded?.removeListener(onPermissionsChanged);
+            chrome.permissions?.onRemoved?.removeListener(onPermissionsChanged);
             unsubscribePluginSettings?.();
             unsubscribePluginSettings = null;
             unsubscribeDeveloperMode?.();

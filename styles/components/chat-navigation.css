@@ -25,6 +25,7 @@ body { --cerebr-navigation-width: 0px; }
 .navigation-chats-toggle[aria-expanded="false"] svg { transform: rotate(-90deg); }
 .navigation-search { display: flex; align-items: center; gap: 6px; padding-left: 8px; width: 100%; border-radius: 7px; background: var(--cerebr-hover-bg-color); color: var(--cerebr-text-color-secondary); animation: navigation-search-in .18s ease-out; }
 .navigation-search input { width: 0; min-width: 0; flex: 1; background: transparent; border: 0; color: var(--cerebr-text-color); font: inherit; font-size: var(--cerebr-fs-13); padding: 6px 0; outline: none; }
+.navigation-search input[type="search"]::-webkit-search-cancel-button { display: none; -webkit-appearance: none; }
 .navigation-chat-list { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: var(--cerebr-surface-border) transparent; overscroll-behavior: contain; padding-top: 5px; }
 .navigation-item { position: relative; display: flex; align-items: stretch; gap: 0; min-height: 34px; border-radius: 7px; cursor: pointer; }
 .navigation-item.is-active { background: var(--cerebr-hover-bg-color); }

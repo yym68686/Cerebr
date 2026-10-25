@@ -138,6 +138,10 @@ https://github.com/tw93/Pake
 
 需要 Node.js 22.12+（CI 使用 24）。本地开发先运行 `npm run build`，然后可以在 Chrome「加载已解压的扩展程序」选择仓库根目录；根目录 manifest 只加载 `dist` 内的编译产物。原来已安装根目录的用户，只需在扩展管理页重新加载 Cerebr，再刷新网页，无需卸载或更换目录。独立分发时构建并打包，安装 `artifacts/chrome` 或 Firefox 对应包。Web 与扩展使用同一套编译后的 React 界面。
 
+Firefox / Zen 在 `about:debugging#/runtime/this-firefox` 点击「临时加载附加组件」，选择根目录 `manifest.json` 即可。选中 `manifest.firefox.json` 也会加载同目录的 `manifest.json`，不会切换清单；根目录清单同时声明 Chrome 的 service worker 与 Firefox 的 background scripts，需要 Chrome / Firefox 121+。打包后的 Firefox 扩展使用专用清单：运行 `npm run package:extension` 后，选择 `artifacts/firefox/manifest.json` 或 `artifacts/cerebr-firefox.zip`。
+
+要消除 Chrome 对 Firefox 专用 `background.scripts` 的警告，请运行 `npm run package:extension`，在 Chrome 加载 `artifacts/chrome`，不要加载仓库根目录；Firefox / Zen 可加载 `artifacts/firefox/manifest.json`。
+
 ```bash
 git submodule update --init --recursive
 npm ci

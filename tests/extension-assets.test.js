@@ -35,9 +35,31 @@ const chunks = [
 ];
 afterEach(() => vi.unstubAllGlobals());
 
-describe.each(sources.map((source, index) => ({ source, browser: index ? 'Firefox' : 'Chrome' })))(
+it('supports Firefox loading manifest.json even when manifest.firefox.json is selected', () => {
+    // Temporary loading selects a directory; Firefox always reads manifest.json.
+    const [checkout, firefox] = sources;
+    expect(checkout.background.scripts).toEqual(firefox.background.scripts);
+    expect(checkout.background.scripts).toEqual([checkout.background.service_worker]);
+    expect(checkout.background.type).toBe('module');
+    expect(checkout.browser_specific_settings.gecko.id).toBe(firefox.browser_specific_settings.gecko.id);
+    expect(checkout.browser_specific_settings.gecko.strict_min_version).toBe('121.0');
+    const packaged = createPackagedManifest(checkout);
+    expect(packaged.background.scripts).toEqual(['background.js']);
+    expect(packaged.background.service_worker).toBe('background.js');
+});
+
+describe.each(sources.map((source, index) => ({ source, browser: index ? 'Firefox' : 'Cross-browser' })))(
     '$browser extension asset paths',
     ({ source }) => {
+        it('keeps shortcuts and declares userScripts as an optional browser permission', () => {
+            for (const manifest of [source, createPackagedManifest(source)]) {
+                expect(manifest.permissions).not.toContain('commands');
+                expect(manifest.permissions).not.toContain('userScripts');
+                expect(manifest.optional_permissions).toContain('userScripts');
+                expect(manifest.commands.toggle_sidebar.suggested_key.default).toBe('Alt+Z');
+                expect(manifest.commands.new_chat.suggested_key.default).toBe('Alt+X');
+            }
+        });
         it('loads only dist from the checkout and only root-relative assets from the package', () => {
             const packaged = createPackagedManifest(source);
             for (const resource of [

@@ -11,6 +11,8 @@ This guide documents the current developer-mode sideload flow after the plugin r
 - dropped local `shell` plugins in the browser extension host run inside the sandboxed guest runtime and must stay self-contained
 - compatible dropped local `page` plugins in the browser extension host run through Cerebr's managed `user_script` execution surface; plugin authors should keep using `setup(context)` and must not call `chrome.userScripts` directly
 
+Before running a page script plugin in the extension, open Cerebr's **Plugins** settings and click **Allow webpage scripts** if shown. The browser's `userScripts` permission is optional in both extension manifests (Firefox requires this); it is separate from permissions in `plugin.json`. Chrome also requires **Allow User Scripts** in its extension details (Developer mode on Chrome 120–137). Granting or revoking the permission refreshes the managed runtime; reload the target webpage after granting it to run registered scripts. A `userscripts-permission-required` diagnostic means permission is missing; `userscripts-toggle-disabled` means Chrome's separate toggle is off. Shell, background, and declarative plugins do not require this permission.
+
 ## Recommended layout
 
 ```text

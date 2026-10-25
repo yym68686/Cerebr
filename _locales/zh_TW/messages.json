@@ -513,5 +513,7 @@
   "drop_hint": {"message": "圖片與 TXT 文字檔案"},
   "drop_read_failed": {"message": "讀取失敗，請重新拖入。"},
   "drop_text_too_large": {"message": "TXT 檔案最大支援 10 MB。"},
-  "drop_unsupported": {"message": "請拖入圖片或 TXT 文字檔案。"}
+  "drop_unsupported": {"message": "請拖入圖片或 TXT 文字檔案。"},
+  "plugin_user_scripts_permission_hint": {"message": "網頁指令碼外掛需要授權才能執行。Chrome 還需在擴充功能詳細資料中開啟「允許使用者指令碼」。"},
+  "plugin_user_scripts_permission_allow": {"message": "允許網頁指令碼"}
 }

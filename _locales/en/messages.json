@@ -513,5 +513,7 @@
   "drop_hint": {"message": "Images and TXT files"},
   "drop_read_failed": {"message": "Could not read this file. Please try again."},
   "drop_text_too_large": {"message": "TXT files can be up to 10 MB."},
-  "drop_unsupported": {"message": "Please drop an image or a TXT file."}
+  "drop_unsupported": {"message": "Please drop an image or a TXT file."},
+  "plugin_user_scripts_permission_hint": {"message": "Page script plugins need your permission to run. Chrome also requires Allow User Scripts in the extension details."},
+  "plugin_user_scripts_permission_allow": {"message": "Allow webpage scripts"}
 }

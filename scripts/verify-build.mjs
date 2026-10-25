@@ -33,7 +33,8 @@ export async function verifyBuild(root, chunks = []) {
         }
         for (const asset of [
             ...Object.values(manifest.icons),
-            ...(manifest.background.scripts || [manifest.background.service_worker]),
+            ...(manifest.background.service_worker ? [manifest.background.service_worker] : []),
+            ...(manifest.background.scripts || []),
             ...manifest.content_scripts.flatMap((s) => s.js),
             ...manifest.sandbox.pages,
         ])

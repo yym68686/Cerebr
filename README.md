@@ -138,6 +138,10 @@ This project is developed using Chrome Extension Manifest V3, with main tech sta
 
 Requires Node.js 22.12+ (CI uses 24). For local development, run `npm run build` and load the repository root as an unpacked extension; its manifest runs only the compiled `dist` assets. Existing root-directory installations can keep their extension ID and data: reload Cerebr in the extension manager, then refresh the host page. For distribution, build and package, then load `artifacts/chrome` or the Firefox archive. Both Web and extension use the same compiled React UI.
 
+In Firefox / Zen, open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on**, and select the root `manifest.json`. Selecting `manifest.firefox.json` also loads `manifest.json` from the same directory; it does not switch manifests. The root manifest declares both a Chrome service worker and Firefox background scripts, requiring Chrome / Firefox 121+. For the dedicated Firefox manifest, run `npm run package:extension` and select `artifacts/firefox/manifest.json` or `artifacts/cerebr-firefox.zip`.
+
+To avoid Chrome's warning for the Firefox-only `background.scripts` fallback, run `npm run package:extension` and load `artifacts/chrome` instead of the repository root. Firefox / Zen can load `artifacts/firefox/manifest.json`.
+
 ```bash
 git submodule update --init --recursive
 npm ci
