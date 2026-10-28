@@ -138,6 +138,31 @@ it('imports dropped TXT content as a separate file attachment without removing e
  expect(event.defaultPrevented).toBe(true); expect(document.activeElement).toBe(input);
 });
 
+it('imports a dropped DOCX through the native editor without replacing the question', async () => {
+    let worker;
+    vi.stubGlobal('Worker', class {
+        constructor() { worker = this; }
+        postMessage = vi.fn();
+        terminate = vi.fn();
+    });
+    try {
+        editor.setDraft('Summarize this');
+        const file = new File(['zip'], 'report.docx');
+        const event = new Event('drop', { bubbles: true, cancelable: true });
+        Object.defineProperty(event, 'dataTransfer', { value: { files: [file], types: ['Files'] } });
+        shelf.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(true);
+        expect(worker.postMessage).toHaveBeenCalledWith(file);
+        worker.onmessage({ data: { text: '# Report\n\nDocument body' } });
+        await vi.waitFor(() => expect(editor.getDraftSnapshot().textFiles).toHaveLength(1));
+        expect(editor.getDraftSnapshot().textFiles[0]).toMatchObject({
+            name: 'report.docx', text: '# Report\n\nDocument body',
+        });
+        expect(editor.getDraft()).toBe('Summarize this');
+        expect(worker.terminate).toHaveBeenCalledOnce();
+    } finally { vi.unstubAllGlobals(); }
+});
+
 it('accepts each extension image drop once, only from its parent and before the draft changes',async()=>{
  const parent={postMessage:vi.fn()};vi.stubGlobal('parent',parent);
  try {

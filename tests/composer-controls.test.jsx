@@ -97,6 +97,17 @@ describe('Prompt Bar controls', () => {
         expect(session.confirmEdit).toHaveBeenCalledOnce();
         expect(session.pipeline.sendMessage).not.toHaveBeenCalled();
     });
+    it('blocks sending and edit confirmation during file parsing but still allows stopping a response', async () => {
+        await render({ empty: false, readingFiles: true });
+        expect(host.querySelector('.composer-send').disabled).toBe(true);
+        await render({ empty: false, readingFiles: true }, { phase: 'replying' });
+        expect(host.querySelector('.composer-send').disabled).toBe(false);
+        await click('.composer-send');
+        expect(session.pipeline.abortActiveReply).toHaveBeenCalledOnce();
+        await render({ empty: false, readingFiles: true }, { phase: 'replying', editing: { index: 1 } });
+        expect(host.querySelector('.composer-send').disabled).toBe(true);
+        expect(session.confirmEdit).not.toHaveBeenCalled();
+    });
     it('navigates real model configs, persists selection, and restores focus on Escape', async () => {
         await render();
         await click('.composer-model');

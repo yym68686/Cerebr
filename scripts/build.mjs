@@ -38,6 +38,51 @@ await writeFile(
         )
     ).join('\n\n')
 );
+// Include the document libraries' transitive notices as well as their own.
+const documentLicenses = [
+    ['mammoth', 'LICENSE'],
+    ['@xmldom/xmldom', 'LICENSE'],
+    ['argparse', 'LICENSE'],
+    ['sprintf-js', 'LICENSE'],
+    ['base64-js', 'LICENSE'],
+    ['dingbat-to-unicode', 'LICENSE'],
+    ['jszip', 'LICENSE.markdown'],
+    ['lie', 'license.md'],
+    ['immediate', 'LICENSE.txt'],
+    ['pako', 'LICENSE'],
+    ['readable-stream', 'LICENSE'],
+    ['core-util-is', 'LICENSE'],
+    ['inherits', 'LICENSE'],
+    ['isarray', 'README.md'],
+    ['process-nextick-args', 'license.md'],
+    ['safe-buffer', 'LICENSE'],
+    ['string_decoder', 'LICENSE'],
+    ['util-deprecate', 'LICENSE'],
+    ['setimmediate', 'LICENSE.txt'],
+    ['lop', 'LICENSE'],
+    ['duck', 'LICENSE'],
+    ['underscore', 'LICENSE'],
+    ['option', 'LICENSE'],
+    ['xmlbuilder', 'LICENSE'],
+    ['htmlparser2', 'LICENSE'],
+    ['domelementtype', 'LICENSE'],
+    ['domhandler', 'LICENSE'],
+    ['domutils', 'LICENSE'],
+    ['dom-serializer', 'LICENSE'],
+    ['entities', 'LICENSE'],
+    ['fflate', 'LICENSE'],
+];
+await writeFile(
+    path.join(dest, 'document-import-NOTICES.txt'),
+    (
+        await Promise.all(
+            documentLicenses.map(
+                async ([name, license]) =>
+                    `${name}\n\n${await readFile(`node_modules/${name}/${license}`, 'utf8')}`
+            )
+        )
+    ).join('\n\n')
+);
 const manifest = JSON.parse(await readFile('manifest.json', 'utf8'));
 for (const name of ['manifest.json', 'manifest.firefox.json']) {
     const m = JSON.parse(await readFile(name, 'utf8'));

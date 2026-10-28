@@ -3,6 +3,7 @@ import { getAttachmentContainer, getDraftImageTags } from '../../runtime/input/d
 import { adjustTextareaHeight } from '../../utils/ui.js';
 import { getDraftFiles } from '../../runtime/input/draft-files.js';
 import { getDraftQuotes } from '../../runtime/input/draft-quotes.js';
+import { hasPendingFileImports } from '../../runtime/input/file-import-state.js';
 
 // Observe the native editor; React never rewrites its text, selection or undo history.
 export function useComposerDraft(inputRef, rowRef, hasSources = false) {
@@ -23,6 +24,7 @@ export function useComposerDraft(inputRef, rowRef, hasSources = false) {
             const hasImages = getDraftImageTags(input).length > 0;
             const quotes = getDraftQuotes(input);
             const textFiles = getDraftFiles(input);
+            const readingFiles = hasPendingFileImports(input);
             const style = getComputedStyle(input);
             const rowStyle = getComputedStyle(row);
             const composer = input.closest('[data-composer]');
@@ -58,6 +60,7 @@ export function useComposerDraft(inputRef, rowRef, hasSources = false) {
                     empty: !hasText && !hasImages && !quotes.length && !textFiles.length,
                     quotes,
                     textFiles,
+                    readingFiles,
                     textEmpty: !hasText,
                     expanded: composing ? previous.expanded : !!expanded,
                     composing,
@@ -82,6 +85,7 @@ export function useComposerDraft(inputRef, rowRef, hasSources = false) {
             schedule();
         };
         input.addEventListener('input', schedule);
+        input.addEventListener('cerebr:filesReading', schedule);
         input.addEventListener('compositionstart', start);
         input.addEventListener('compositionend', end);
         const changes = new MutationObserver(schedule);
@@ -103,6 +107,7 @@ export function useComposerDraft(inputRef, rowRef, hasSources = false) {
             window.visualViewport?.removeEventListener('resize', schedule);
             window.visualViewport?.removeEventListener('scroll', schedule);
             input.removeEventListener('input', schedule);
+            input.removeEventListener('cerebr:filesReading', schedule);
             input.removeEventListener('compositionstart', start);
             input.removeEventListener('compositionend', end);
         };

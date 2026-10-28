@@ -295,4 +295,13 @@
 .text-file-label small { color: var(--cerebr-text-color-secondary); font-size: 11px; white-space: nowrap; flex-shrink: 0; }
 .text-file-chip .text-file-remove { align-self: stretch; color: var(--cerebr-text-color-secondary); flex-shrink: 0; }
 .message .text-file-attachments { justify-content: flex-end; }
+.document-text-note { display: block; width: 100%; padding: 4px 8px; color: var(--cerebr-text-color-secondary); font-size: var(--cerebr-fs-12); }
+.document-text-preview { box-sizing: border-box; width: min(720px, calc(100% - 24px)); max-height: 85dvh; padding: 18px; border: 1px solid var(--cerebr-surface-border); border-radius: 12px; color: var(--cerebr-text-color); background: var(--cerebr-surface-bg); }
+.document-text-preview::backdrop { background: var(--cerebr-modal-overlay-bg); }
+.document-text-preview header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.document-text-preview strong { overflow-wrap: anywhere; }
+.document-text-preview pre { max-height: 55dvh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: var(--cerebr-fs-13); user-select: text; }
+.document-text-preview button { padding: 8px 12px; border: 1px solid var(--cerebr-surface-border); border-radius: 7px; color: inherit; background: var(--cerebr-hover-bg-color); cursor: pointer; }
+.document-text-preview header button { display: flex; padding: 8px; }
+.document-text-preview header svg { width: 16px; height: 16px; }
 @media (pointer: coarse) { .text-file-chip button { min-height: 40px; } }

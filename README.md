@@ -60,6 +60,7 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
    - Use hotkey Windows: `Alt+Z` / Mac: `Ctrl+Z` to summon sidebar
    - Input questions and send
    - Support image upload for visual Q&A
+   - Drag in TXT or DOCX files, or choose them from the attachment menu; DOCX text is extracted locally and can be previewed before sending
 
 3. 📚 **Webpage/PDF Q&A**
    - Enable webpage Q&A switch

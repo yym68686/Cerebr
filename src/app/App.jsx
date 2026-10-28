@@ -316,7 +316,7 @@ export function App() {
                 className={`${ui.editing ? 'is-editing-message' : ''}${draft.expanded ? ' is-expanded' : ''}`}
             >
                 <ComposerSources sources={sources} onManage={settingsMenuEvents.openSources} />
-                <ComposerFiles files={draft.textFiles} inputRef={inputRef} />
+                <ComposerFiles files={draft.textFiles} reading={draft.readingFiles} inputRef={inputRef} />
                 <ComposerQuotes quotes={draft.quotes} inputRef={inputRef} />
                 <div
                     className="composer-attachments"
@@ -326,7 +326,7 @@ export function App() {
                 <input
                     ref={imagePickerRef}
                     type="file"
-                    accept="image/*,.txt,text/plain"
+                    accept="image/*,.txt,text/plain,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     multiple
                     hidden
                     onChange={(event) => {

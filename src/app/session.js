@@ -3,6 +3,7 @@ import { createMessageActions } from './message-actions.js';
 import { chatManager } from '../domain/chat/chat-store.js';
 import { createChatPipeline } from '../runtime/chat/chat-pipeline.js';
 import { addFilesToDraft } from '../runtime/input/file-drop.js';
+import { hasPendingFileImports, cancelFileImports } from '../runtime/input/file-import-state.js';
 import { createEditorController } from '../runtime/input/editor-controller.js';
 import {
     attachNativeEditor,
@@ -47,6 +48,7 @@ export function createSession({ messageInput, chatContainer }) {
         },
     };
     const editor = createEditorController({ messageInput, uiConfig });
+    const isDraftReady = () => !hasPendingFileImports(messageInput);
     const inputContainer = document.getElementById('input-container');
     const runtime = createShellPluginRuntime({
         messageInput,
@@ -150,6 +152,7 @@ export function createSession({ messageInput, chatContainer }) {
         });
     };
     const pipeline = createChatPipeline({
+        isDraftReady,
         chatManager,
         editor,
         getSelectedApiConfig,
@@ -209,6 +212,7 @@ export function createSession({ messageInput, chatContainer }) {
     });
     runtime.attachChatRuntime(pipeline);
     const { startEdit, cancelEdit, confirmEdit, deleteMessage, regenerateMessage } = createMessageActions({
+        isDraftReady,
         chatManager,
         editor,
         pipeline,
@@ -452,6 +456,7 @@ export function createSession({ messageInput, chatContainer }) {
         addImages: (files) => addImageFilesToDraft(messageInput, files, uiConfig),
         dispose() {
             disposed = true;
+            cancelFileImports(messageInput);
             detachUpdates();
             detachSelectAll();
             for (const [chatId, request] of liveRequests)

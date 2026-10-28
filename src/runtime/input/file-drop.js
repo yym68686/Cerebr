@@ -3,7 +3,10 @@ import { addImageFilesToDraft, appendDraftImage } from './native-editor.js';
 import { handleImageDrop } from '../../utils/image.js';
 import { showToast } from '../../utils/ui.js';
 import { t } from '../../utils/i18n.js';
-import { addDraftFile } from './draft-files.js';
+import { addDraftFile, getDraftFiles } from './draft-files.js';
+import { readDocx } from './docx-reader.js';
+import { isDocx, DOCX_TOTAL_TEXT } from './docx-limits.js';
+import { beginFileImport } from './file-import-state.js';
 
 const PAGE_IMAGE = 'application/x-cerebr-page-image';
 export function acceptsDrop(transfer) {
@@ -15,23 +18,57 @@ export function acceptsDrop(transfer) {
         types.includes('text/uri-list')
     );
 }
-const readText = (file) =>
+const readText = (file, signal) =>
     new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result).replace(/^\uFEFF/, ''));
-        reader.onerror = () => reject(reader.error || new Error(t('drop_read_failed')));
+        const abort = () => {
+            reader.abort?.();
+            reject(new DOMException('Aborted', 'AbortError'));
+        };
+        const finish = (error) => {
+            signal.removeEventListener('abort', abort);
+            if (error) reject(error);
+            else resolve(String(reader.result).replace(/^\uFEFF/, ''));
+        };
+        reader.onload = () => finish();
+        reader.onerror = () => finish(reader.error || new Error(t('drop_read_failed')));
+        signal.addEventListener('abort', abort, { once: true });
         reader.readAsText(file);
     });
 export async function addFilesToDraft(messageInput, files, uiConfig = {}) {
     const current = captureImageTarget(messageInput);
-    for (const file of Array.from(files)) {
-        if (!current()) break;
-        if (file.type.startsWith('image/')) await addImageFilesToDraft(messageInput, [file], uiConfig);
-        else if (/\.txt$/i.test(file.name) || file.type === 'text/plain') {
-            if (file.size > 10 * 1024 * 1024) throw new Error(t('drop_text_too_large'));
-            const text = await readText(file);
-            if (current()) addDraftFile(messageInput, { name: file.name, text, size: file.size });
-        } else throw new Error(t('drop_unsupported'));
+    const task = beginFileImport(messageInput);
+    try {
+        for (const file of Array.from(files)) {
+            if (!current() || task.signal.aborted) break;
+            if (file.type.startsWith('image/')) {
+                await addImageFilesToDraft(messageInput, [file], uiConfig);
+                continue;
+            }
+            const docx = isDocx(file);
+            let text;
+            if (docx) text = await readDocx(file, { signal: task.signal });
+            else if (/\.txt$/i.test(file.name) || file.type === 'text/plain') {
+                if (file.size > 10 * 1024 * 1024) throw new Error(t('drop_text_too_large'));
+                text = await readText(file, task.signal);
+            } else throw new Error(t('drop_unsupported'));
+            if (!current() || task.signal.aborted) break;
+            const existing = getDraftFiles(messageInput);
+            if (
+                (docx || existing.some(isDocx)) &&
+                existing.reduce((length, item) => length + item.text.length, text.length) > DOCX_TOTAL_TEXT
+            )
+                throw new Error(t('docx_total_too_large'));
+            addDraftFile(messageInput, {
+                name: docx && !/\.docx$/i.test(file.name) ? `${file.name}.docx` : file.name,
+                text,
+                size: file.size,
+            });
+        }
+    } catch (error) {
+        if (error.name !== 'AbortError') throw error;
+    } finally {
+        task.finish();
     }
 }
 export function attachFileDrop({ messageInput, uiConfig, onState = () => {}, enabled = () => true }) {

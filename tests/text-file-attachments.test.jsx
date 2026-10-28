@@ -10,6 +10,8 @@ import { composeDraftMessage } from '../src/runtime/input/draft-message.js';
 import { splitQuotedMessage } from '../src/runtime/input/draft-quotes.js';
 import { setMessageInputContent } from '../src/runtime/input/native-editor.js';
 import { serializeDraftSnapshot } from '../src/runtime/input/draft-snapshot.js';
+import { hasPendingFileImports } from '../src/runtime/input/file-import-state.js';
+import { DOCX_MIME, DOCX_TOTAL_TEXT } from '../src/runtime/input/docx-limits.js';
 let host, root, input, editor;
 beforeEach(async () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -20,7 +22,7 @@ beforeEach(async () => {
         const ref = useRef(null), row = useRef(null);
         const draft = useComposerDraft(ref, row);
         return <div data-composer data-expanded={draft.expanded} data-empty={draft.empty}>
-            <ComposerFiles files={draft.textFiles} inputRef={ref} />
+            <ComposerFiles files={draft.textFiles} reading={draft.readingFiles} inputRef={ref} />
             <div data-composer-attachments />
             <div ref={row}><div className="message-input-shell"><div ref={ref} contentEditable suppressContentEditableWarning /></div></div>
         </div>;
@@ -77,4 +79,71 @@ it('discards delayed TXT reads after navigation rather than attaching to the nex
     await importing;
     expect(editor.getDraftSnapshot().textFiles).toEqual([]);
     expect(editor.getDraft()).toBe('New chat');
+});
+
+function mockWorker() {
+    const workers = [];
+    vi.stubGlobal('Worker', class {
+        constructor() { workers.push(this); }
+        postMessage() {}
+        terminate = vi.fn();
+    });
+    return workers;
+}
+
+it('imports DOCX via a worker, previews literal text without executing markup, and downloads Markdown', async () => {
+    const workers = mockWorker();
+    const file = new File(['zip'], 'report.DOCX', { type: DOCX_MIME });
+    const text = '# Report\n\n<script>literal</script>\n\n| A | B |\n| --- | --- |\n| 1 | 2 |';
+    const importing = addFilesToDraft(input, [file]);
+    expect(hasPendingFileImports(input)).toBe(true);
+    await settle();
+    expect(host.querySelector('[role=status]')).not.toBeNull();
+    await act(async () => { workers[0].onmessage({ data: { text } }); await importing; });
+    await settle();
+    expect(hasPendingFileImports(input)).toBe(false);
+    expect(input.textContent).toBe('');
+    expect(editor.getDraftSnapshot().textFiles[0]).toMatchObject({ name: 'report.DOCX', text });
+    const message = composeDraftMessage(editor.getDraftSnapshot());
+    expect(splitTextFileMessage(structuredClone(message)).files[0].text).toBe(text);
+    expect(message.content).toContain(text);
+    await act(async () => host.querySelector('.text-file-label').click());
+    const dialog = document.querySelector('dialog');
+    expect(dialog.querySelector('pre').textContent).toBe(text);
+    expect(dialog.querySelector('script')).toBeNull();
+    // No format-limitation banners in the composer or preview.
+    expect(dialog.querySelector('p')).toBeNull();
+    vi.stubGlobal('URL', class extends URL { static createObjectURL = vi.fn(() => 'blob:test'); static revokeObjectURL = vi.fn(); });
+    const clicked = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function () {
+        expect(this.download).toBe('report.DOCX.md');
+    });
+    await act(async () => dialog.querySelector(':scope > button').click());
+    expect(clicked).toHaveBeenCalledOnce();
+    await act(async () => dialog.querySelector('header button').click());
+    expect(document.querySelector('dialog')).toBeNull();
+});
+
+it('cancels stale DOCX imports on draft replacement without locking the next chat', async () => {
+    const workers = mockWorker();
+    const old = addFilesToDraft(input, [new File(['zip'], 'old.docx')]);
+    editor.setDraft('Next chat');
+    expect(workers[0].terminate).toHaveBeenCalledOnce();
+    expect(hasPendingFileImports(input)).toBe(false);
+    const next = addFilesToDraft(input, [new File(['zip'], 'next.docx')]);
+    await old;
+    expect(hasPendingFileImports(input)).toBe(true);
+    await act(async () => { workers[1].onmessage({ data: { text: 'New document' } }); await next; });
+    expect(editor.getDraftSnapshot().textFiles.map(file => file.name)).toEqual(['next.docx']);
+    expect(editor.getDraft()).toBe('Next chat');
+    expect(hasPendingFileImports(input)).toBe(false);
+});
+
+it('rejects aggregate DOCX text overflow and preserves existing attachments', async () => {
+    const workers = mockWorker();
+    setDraftFiles(input, [{ name: 'large.txt', text: 'a'.repeat(DOCX_TOTAL_TEXT), size: DOCX_TOTAL_TEXT }]);
+    const rejected = expect(addFilesToDraft(input, [new File(['zip'], 'more.docx')])).rejects.toThrow();
+    workers[0].onmessage({ data: { text: 'Too much' } });
+    await rejected;
+    expect(editor.getDraftSnapshot().textFiles).toHaveLength(1);
+    expect(hasPendingFileImports(input)).toBe(false);
 });

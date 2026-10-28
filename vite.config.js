@@ -8,6 +8,16 @@ export default defineConfig({
     plugins: [react(), tailwindcss()],
     publicDir: false,
     define: { __CEREBR_VERSION__: JSON.stringify(version) },
+    worker: {
+        format: 'es',
+        rollupOptions: {
+            output: {
+                entryFileNames: `v/${version}/[name]-[hash].js`,
+                chunkFileNames: `v/${version}/[name]-[hash].js`,
+                assetFileNames: `v/${version}/[name]-[hash][extname]`,
+            },
+        },
+    },
     build: {
         target: 'es2022',
         assetsDir: `v/${version}`,

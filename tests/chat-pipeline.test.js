@@ -6,7 +6,7 @@ import { createChatPipeline } from '../src/runtime/chat/chat-pipeline.js';
 import { showToast } from '../src/utils/ui.js';
 import { resolveChatApiConfig } from '../src/domain/chat/model-selection.js';
 
-function setup(plugins = {}, getWebpageInfo = async () => null, managerOverrides = {}, selectApi) {
+function setup(plugins = {}, getWebpageInfo = async () => null, managerOverrides = {}, selectApi, isDraftReady = () => true) {
     const chat = { id: 'a', title: '', messages: [] };
     const manager = {
         chats: new Map([['a', chat]]),
@@ -25,6 +25,7 @@ function setup(plugins = {}, getWebpageInfo = async () => null, managerOverrides
     const phase = vi.fn();
     const submitted = vi.fn();
     const pipeline = createChatPipeline({
+        isDraftReady,
         chatManager: manager,
         editor,
         getSelectedApiConfig: selectApi || (() => ({
@@ -400,12 +401,25 @@ describe('React chat session pipeline', () => {
     expect(phase).toHaveBeenLastCalledWith('idle', 'a');
  });
 
-it('includes complete TXT attachments in requests and persists compact file metadata', async () => {
+it.each(['notes.txt', 'report.docx'])('includes complete %s attachments in requests and persists compact file metadata', async (name) => {
     const {pipeline,chat,editor}=setup();
-    editor.getDraftSnapshot=()=>({text:'Summarize',imageTags:[],textFiles:[{id:'f',name:'notes.txt',text:'Full file body',size:14}],empty:false});
+    editor.getDraftSnapshot=()=>({text:'Summarize',imageTags:[],textFiles:[{id:'f',name,text:'Full file body',size:14}],empty:false});
     callAPI.mockReset().mockResolvedValue({controller:new AbortController(),processStream:async()=>({content:'Summary'})});
     await pipeline.sendMessage();
-    expect(chat.messages[0].textFiles).toEqual([{id:'f',name:'notes.txt',size:14,textLength:14}]);
-    expect(callAPI.mock.calls[0][0].messages.at(-1).content).toBe('--- notes.txt ---\nFull file body\n---\n\nSummarize');
+    expect(chat.messages[0].textFiles).toEqual([{id:'f',name,size:14,textLength:14}]);
+    expect(callAPI.mock.calls[0][0].messages.at(-1).content).toBe(`--- ${name} ---\nFull file body\n---\n\nSummarize`);
     expect(editor.clear).toHaveBeenCalledOnce();
+});
+
+it('rejects keyboard or runtime sends while an attachment is still being parsed', async () => {
+    let ready = false;
+    const { pipeline, editor, chat } = setup({}, async () => null, {}, undefined, () => ready);
+    callAPI.mockReset().mockResolvedValue({controller:new AbortController(),processStream:async()=>({content:'Done'})});
+    expect(await pipeline.sendMessage()).toBe(false);
+    expect(callAPI).not.toHaveBeenCalled();
+    expect(chat.messages).toHaveLength(0);
+    expect(editor.clear).not.toHaveBeenCalled();
+    ready = true;
+    expect(await pipeline.sendMessage()).toBe(true);
+    expect(callAPI).toHaveBeenCalledOnce();
 });

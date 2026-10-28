@@ -26,7 +26,7 @@ export function isReplyTarget(chat, index, state) {
     );
 }
 
-export function createMessageActions({ chatManager, editor, pipeline, setInputContent }) {
+export function createMessageActions({ chatManager, editor, pipeline, setInputContent, isDraftReady = () => true }) {
     let savedDraft = null;
     let savedQuotes = [];
     let savedFiles = [];
@@ -70,6 +70,10 @@ export function createMessageActions({ chatManager, editor, pipeline, setInputCo
         return true;
     };
     const confirmEdit = async () => {
+        if (!isDraftReady()) {
+            notify(t('drop_reading'), { type: 'info' });
+            return false;
+        }
         const editing = uiStore.getSnapshot().editing;
         const resolved = resolveMessageTarget(chatManager.getCurrentChat(), editing);
         if (!resolved?.message) return false;

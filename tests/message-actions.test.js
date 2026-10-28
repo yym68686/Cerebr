@@ -7,7 +7,7 @@ import { composeDraftMessage } from '../src/runtime/input/draft-message.js';
 import { splitTextFileMessage } from '../src/runtime/input/draft-files.js';
 import { buildDefaultChatSeedMessages, syncDefaultChatForLocale } from '../src/utils/default-chat.js';
 
-let chat, manager, editor, actions, input, pipeline, persisted;
+let chat, manager, editor, actions, input, pipeline, persisted, isDraftReady;
 const target = (index) => ({ chatId: chat.id, index, message: chat.messages[index] });
 beforeEach(() => {
     vi.useFakeTimers();
@@ -35,7 +35,9 @@ beforeEach(() => {
     input = document.createElement('div');
     document.body.append(input);
     editor = createEditorController({ messageInput: input });
+    isDraftReady = vi.fn(() => true);
     actions = createMessageActions({
+        isDraftReady,
         chatManager: manager,
         editor,
         pipeline,
@@ -49,6 +51,19 @@ afterEach(() => {
 });
 
 describe('message editing and deletion', () => {
+    it('keeps edits intact until document imports finish', async () => {
+        const original = structuredClone(chat.messages[0]);
+        actions.startEdit(target(0));
+        editor.setDraft('Edited after importing');
+        isDraftReady.mockReturnValue(false);
+        expect(await actions.confirmEdit()).toBe(false);
+        expect(chat.messages[0]).toEqual(original);
+        expect(editor.getDraft()).toBe('Edited after importing');
+        expect(uiStore.getSnapshot().editing).not.toBeNull();
+        isDraftReady.mockReturnValue(true);
+        expect(await actions.confirmEdit()).toBe(true);
+        expect(chat.messages[0].content).toBe('Edited after importing');
+    });
     it('edits the question separately from its quote and restores the original quoted draft', async () => {
         chat.messages.push({
             role: 'user',

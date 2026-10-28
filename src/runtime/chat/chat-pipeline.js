@@ -84,6 +84,7 @@ function createConversationPipeline({
     onPhase = () => {},
     onSubmitted = () => {},
     onSettled = () => {},
+    isDraftReady = () => true,
 }) {
     const abortControllerRef = { current: null, pendingAbort: false };
     let currentController = null;
@@ -433,6 +434,10 @@ function createConversationPipeline({
         }
     }
     async function schedule(mode, index, directDraft) {
+        if (mode === 'send' && !directDraft && !isDraftReady()) {
+            showToast(t('drop_reading'), { type: 'info' });
+            return false;
+        }
         const capturedDraft = directDraft || editor.getDraftSnapshot();
         while (running) {
             abortActiveReply();

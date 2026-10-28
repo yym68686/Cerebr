@@ -70,6 +70,7 @@ import { storageAdapter } from '../src/utils/storage-adapter.js';
 import { setWebpageSwitchesForChat } from '../src/utils/webpage-switches.js';
 import { uiStore } from '../src/app/state/ui-store.js';
 import { publishProgress } from '../src/runtime/sync/ui-sync.js';
+import { beginFileImport } from '../src/runtime/input/file-import-state.js';
 
 let session, ready, parent, input;
 beforeEach(() => {
@@ -128,6 +129,18 @@ function message(source, type) {
 }
 
 describe('new chat shortcut delivery', () => {
+    it('guards pending document imports and cancels them on navigation and disposal', async () => {
+        start();
+        const task = beginFileImport(input);
+        expect(state.pipelineOptions.isDraftReady()).toBe(false);
+        await session.switchChat('other');
+        expect(task.signal.aborted).toBe(true);
+        expect(state.pipelineOptions.isDraftReady()).toBe(true);
+        const next = beginFileImport(input);
+        session.dispose();
+        session = null;
+        expect(next.signal.aborted).toBe(true);
+    });
     it('coalesces rapid new-chat clicks into one navigation', async () => {
         start();
         await Promise.all([session.newChat(),session.newChat(),session.newChat()]);

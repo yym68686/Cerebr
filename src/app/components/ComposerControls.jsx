@@ -144,7 +144,8 @@ export function ComposerControls({ apis, chat, session, ui, draft, onSettings })
                 id={ui.editing ? 'confirm-edit-button' : 'send-message-button'}
                 type="button"
                 className={`composer-send${active && !ui.editing ? ' is-stopping' : ''}`}
-                disabled={!session || (!active && (draft.empty || draft.composing))}
+                disabled={!session || (!active && (draft.empty || draft.composing)) ||
+                    (draft.readingFiles && (!!ui.editing || !active))}
                 aria-label={t(
                     ui.editing
                         ? 'message_edit_confirm_aria'
@@ -161,6 +162,7 @@ export function ComposerControls({ apis, chat, session, ui, draft, onSettings })
                 )}
                 onPointerDown={(event) => event.preventDefault()}
                 onClick={() => {
+                    if (draft.readingFiles && (ui.editing || !active)) return;
                     if (draft.composing && !active) return;
                     if (ui.editing) void session?.confirmEdit();
                     else if (active) void session?.pipeline.abortActiveReply();

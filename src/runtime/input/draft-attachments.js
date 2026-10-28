@@ -1,3 +1,4 @@
+import { cancelFileImports } from './file-import-state.js';
 // The native editor owns attachment nodes, just as it owns the editable text subtree.
 const revisions = new WeakMap();
 
@@ -14,6 +15,7 @@ export function getDraftImageTags(input) {
 
 export function invalidatePendingImages(input) {
     revisions.set(input, (revisions.get(input) || 0) + 1);
+    cancelFileImports(input);
 }
 
 export function captureImageTarget(input) {
