@@ -185,14 +185,10 @@ app.whenReady().then(() => {
             await request('status');
         }
     );
-    ipcMain.handle('desktop:update-status', (event) => {
+    ipcMain.handle('desktop:update-status', async (event) => {
         safeSender(event);
         const id = process.argv.find((arg) => arg.startsWith('--cerebr-update-id='))?.split('=')[1];
-        if (id && /^download-(?:[A-Za-z0-9]{6}|\d+\.\d+\.\d+-(?:darwin|win32)-(?:arm64|x64))$/.test(id)) {
-            const directory = path.join(app.getPath('userData'), 'updates', id);
-            if (fs.existsSync(directory))
-                fs.writeFileSync(path.join(directory, 'restarted'), app.getVersion(), { mode: 0o600 });
-        }
+        await updater.confirmStartup(id);
         return updater.status;
     });
     ipcMain.handle('desktop:update-check', (event) => {

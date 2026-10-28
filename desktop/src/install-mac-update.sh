@@ -9,6 +9,13 @@ log=$5
 profile=$6
 update_id=$7
 version=$8
+# Restrict cache cleanup to the exact versioned directory created by the host.
+case "$version" in ''|*[!0-9.]*) exit 1 ;; esac
+[ "$update_id" = "download-$version-darwin-arm64" ] || \
+    [ "$update_id" = "download-$version-darwin-x64" ] || exit 1
+update_directory="$profile/updates/$update_id"
+[ -d "$profile/updates" ] && [ ! -L "$profile/updates" ] || exit 1
+[ -d "$update_directory" ] && [ ! -L "$update_directory" ] || exit 1
 PATH=/usr/bin:/bin:/usr/sbin:/sbin
 export PATH
 exec >> "$log" 2>&1
@@ -52,5 +59,9 @@ while [ ! -f "$receipt" ]; do
 done
 [ "$(cat "$receipt")" = "$version" ] || exit 1
 rm -rf "$backup"
+rm -f "$(dirname "$staged")/owner.json"
 rmdir "$(dirname "$staged")"
 echo 'Update installed and Cerebr relaunched.'
+# Last operation: this also removes the running script, after startup and
+# rollback cleanup have succeeded. Failed/unconfirmed installs retain it.
+rm -rf "$update_directory"

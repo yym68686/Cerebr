@@ -7,6 +7,12 @@ import { promisify } from 'node:util';
 import { releaseAPI, selectRelease, parseChecksums, validateSquirrelFeed } from './update-release.js';
 import { requestUpdate, retryUpdate, updateErrorCode } from './update-request.js';
 import { downloadUpdate } from './update-download.js';
+import {
+    acknowledgeUpdateStartup,
+    cleanupMacUpdateStages,
+    cleanupUpdateCaches,
+    isUpdateDirectoryName,
+} from './update-cache.js';
 
 const exec = promisify(execFile);
 type Status = { phase: string; currentVersion: string; version?: string; progress?: number; error?: string };
@@ -19,6 +25,8 @@ export class DesktopUpdater {
     private stage = 'idle';
     private installAfterDownload = false;
     private preparedVersion = '';
+    private startupCleanup: Promise<void> | null = null;
+    private startupId = '';
     constructor(
         private publish: (status: Status) => void,
         private flush: () => Promise<void>
@@ -55,6 +63,74 @@ export class DesktopUpdater {
             onRetry: (error: unknown, attempt: number) => this.log(`retry-${attempt}`, error),
         });
     }
+    private async cleanup(obsoleteBefore = '') {
+        const profile = app.getPath('userData');
+        const onError = (error: unknown) => this.log('cleanup-failed', error);
+        try {
+            await cleanupUpdateCaches({
+                base: path.join(profile, 'updates'),
+                currentVersion: app.getVersion(),
+                startupId: this.startupId,
+                keep: this.directory ? [this.directory] : [],
+                obsoleteBefore,
+                onError,
+            });
+            if (process.platform === 'darwin')
+                await cleanupMacUpdateStages({
+                    application: path.resolve(process.execPath, '../../..'),
+                    profile,
+                    currentVersion: app.getVersion(),
+                    keep: this.staged ? [path.dirname(this.staged)] : [],
+                    onError,
+                    readBundleInfo: async (plist: string) => {
+                        const read = async (key: string) =>
+                            (
+                                await exec('/usr/bin/plutil', ['-extract', key, 'raw', '-o', '-', plist])
+                            ).stdout.trim();
+                        return {
+                            id: await read('CFBundleIdentifier'),
+                            version: await read('CFBundleShortVersionString'),
+                        };
+                    },
+                });
+        } catch (error) {
+            await onError(error);
+        }
+    }
+    // Called once by the ready React session, not by a background update check.
+    // Acknowledge before cleanup and retain the helper's receipt until it exits.
+    confirmStartup(id = '') {
+        if (!this.startupCleanup)
+            this.startupCleanup = (async () => {
+                if (!app.isPackaged) return;
+                if (process.platform === 'darwin' && isUpdateDirectoryName(id)) this.startupId = id;
+                try {
+                    if (this.startupId)
+                        await acknowledgeUpdateStartup(
+                            path.join(app.getPath('userData'), 'updates'),
+                            id,
+                            app.getVersion()
+                        );
+                } catch (error) {
+                    await this.log('startup-confirmation-failed', error);
+                }
+                await this.cleanup();
+            })();
+        return this.startupCleanup;
+    }
+    private writeStageOwner(pid: number) {
+        return writeFile(
+            path.join(path.dirname(this.staged), 'owner.json'),
+            JSON.stringify({
+                format: 1,
+                profile: app.getPath('userData'),
+                application: this.target,
+                cacheId: path.basename(this.directory),
+                pid,
+            }),
+            { mode: 0o600 }
+        );
+    }
     async check(installAfterDownload = false) {
         if (installAfterDownload) this.installAfterDownload = true;
         if (this.status.phase === 'downloaded' && installAfterDownload) {
@@ -67,6 +143,7 @@ export class DesktopUpdater {
         this.stage = 'location';
         await this.log('check-started');
         try {
+            await this.startupCleanup;
             if (!app.isPackaged)
                 throw Object.assign(new Error('Packaged app required'), { updateCode: 'development' });
             if (process.platform === 'darwin') {
@@ -129,6 +206,7 @@ export class DesktopUpdater {
                 base,
                 `download-${release.version}-${process.platform}-${process.arch}`
             );
+            await this.cleanup(release.version);
             await mkdir(this.directory, { recursive: true, mode: 0o700 });
             this.set({ phase: 'downloading', version: release.version });
             const sha1 = new Map<string, string>();
@@ -195,6 +273,7 @@ export class DesktopUpdater {
         const { stdout } = await exec('/usr/bin/unzip', ['-Z1', zip], { maxBuffer: 16 * 1024 * 1024 });
         if (stdout.split('\n').some((entry) => entry.startsWith('/') || entry.split('/').includes('..')))
             throw new Error('Unsafe archive path');
+        await rm(unpacked, { recursive: true, force: true });
         await exec('/usr/bin/ditto', ['-x', '-k', zip, unpacked]);
         const bundle = path.join(unpacked, 'Cerebr.app');
         const plist = path.join(bundle, 'Contents/Info.plist');
@@ -208,7 +287,13 @@ export class DesktopUpdater {
         await access(path.join(bundle, 'Contents/MacOS/Cerebr'), constants.X_OK);
         const stage = await mkdtemp(path.join(path.dirname(this.target), '.Cerebr-update-'));
         this.staged = path.join(stage, 'Cerebr.app');
+        await this.writeStageOwner(process.pid);
         await exec('/usr/bin/ditto', [bundle, this.staged]);
+        // The install bundle is now on the application's volume. Keep the ZIP
+        // for retry/resume, but no longer retain a second unpacked copy.
+        await rm(unpacked, { recursive: true, force: true }).catch((error) =>
+            this.log('cleanup-failed', error)
+        );
     }
     private prepareWindows() {
         return new Promise<void>((resolve, reject) => {
@@ -287,6 +372,7 @@ export class DesktopUpdater {
                 child.once('error', reject);
             });
             child.unref();
+            await this.writeStageOwner(child.pid!);
             this.installed = true;
             app.quit();
         } catch (error) {
