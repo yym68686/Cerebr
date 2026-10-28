@@ -7,8 +7,8 @@ const scope = () => document.body;
 // A content overlay reuses the same React component as the chat UI. Its closed
 // shadow root isolates it from page CSS and keeps action controls out of host DOM.
 export async function mountPageSelectionActions({ onAction }) {
-    await initI18n();
     const host = document.createElement('cerebr-selection');
+    await initI18n({ root: host });
     host.style.cssText =
         'all:initial;display:contents;';
     // Only the visible toolbar should have a hit-test/compositor rectangle.

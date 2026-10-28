@@ -68,7 +68,7 @@ export async function changePreference(key, value) {
     if (key === 'developerMode') await writeDeveloperModePreference(value);
     if (key === 'language') {
         await setLanguagePreference(value);
-        await reloadI18n();
+        await reloadI18n({ root: document.documentElement });
         await syncLocalizedChats();
     }
     preferencesStore.set({ [key]: value });

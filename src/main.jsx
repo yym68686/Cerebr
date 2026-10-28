@@ -49,7 +49,7 @@ async function start() {
     // marked + highlight.js（约 155KB）不再由 index.html 同步阻塞加载，改在这里和存储初始化
     // 并行拉取：两边都是 IO，通常存储更慢，所以首屏基本等不到它。不 await，失败也不该拖住启动。
     void ensureMarkdownReady().catch((error) => console.error('Markdown 渲染器预加载失败:', error));
-    await initI18n();
+    await initI18n({ root: document.documentElement });
     await Promise.all([chatsReady, loadApiConfigs(), loadPreferences()]);
     chatManager.getDefaultModelSelection = () => apiStore.getSnapshot().defaultSelection;
     await syncLocalizedChats();

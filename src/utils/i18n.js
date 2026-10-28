@@ -106,7 +106,8 @@ export async function setLanguagePreference(value) {
     return normalized;
 }
 
-export async function initI18n() {
+// Only set lang on an explicitly owned UI root; content scripts share the host document.
+export async function initI18n({ root = null } = {}) {
     const preference = await getLanguagePreference();
     const resolved = preference === LANGUAGE_AUTO ? detectSystemLocale() : preference;
 
@@ -129,7 +130,7 @@ export async function initI18n() {
 
     try {
         const langAttr = activeLocale === 'zh_CN' ? 'zh-CN' : activeLocale === 'zh_TW' ? 'zh-TW' : 'en';
-        document.documentElement.setAttribute('lang', langAttr);
+        root?.setAttribute('lang', langAttr);
     } catch {
         // ignore
     }
@@ -139,8 +140,8 @@ export async function initI18n() {
     );
 }
 
-export async function reloadI18n() {
-    return initI18n();
+export async function reloadI18n(options) {
+    return initI18n(options);
 }
 
 function parseAttrBindings(value) {
