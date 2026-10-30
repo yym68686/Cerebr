@@ -520,7 +520,7 @@
   "drop_read_failed": {"message": "讀取失敗，請重新拖入。"},
   "drop_text_too_large": {"message": "TXT 檔案最大支援 10 MB。"},
   "drop_unsupported": {"message": "請拖入圖片、TXT、DOCX 或 PDF 檔案。暫不支援舊版 .doc 檔案。"},
-  "pdf_too_large": {"message": "PDF 檔案最大支援 10 MB。"},
+  "pdf_too_large": {"message": "PDF 檔案最大支援 50 MB。"},
   "pdf_invalid": {"message": "無法解析此 PDF，檔案可能已損壞或格式不受支援。"},
   "pdf_password": {"message": "此 PDF 需要密碼，請解鎖檔案後再新增。"},
   "pdf_timeout": {"message": "PDF 解析逾時，請分割文件後重試。"},

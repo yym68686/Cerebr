@@ -79,9 +79,16 @@ it('terminates on timeout and abort, including a pre-aborted task', async () => 
     expect(workers).toHaveLength(2);
     expect(vi.getTimerCount()).toBe(0);
 });
-it('rejects oversized files before reading and validates returned text', async () => {
+it('accepts PDFs through 50 MB, rejects larger files before reading and validates returned text', async () => {
     await expect(readPdf({ size: PDF_MAX_BYTES + 1 })).rejects.toThrow('pdf_too_large');
     expect(workers).toHaveLength(0);
+    for (const size of [20 * 1024 * 1024, 50 * 1024 * 1024]) {
+        const source = { name: 'large.pdf', size };
+        const reading = readPdf(source);
+        expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({ file: source }));
+        result({ text: 'Large PDF text' });
+        await expect(reading).resolves.toBe('Large PDF text');
+    }
     const oversized = expect(readPdf(file())).rejects.toThrow('pdf_text_too_large');
     result({ text: 'x'.repeat(PDF_MAX_TEXT + 1) });
     await oversized;

@@ -520,7 +520,7 @@
   "drop_read_failed": {"message": "Could not read this file. Please try again."},
   "drop_text_too_large": {"message": "TXT files can be up to 10 MB."},
   "drop_unsupported": {"message": "Please drop an image, TXT, DOCX or PDF file. Legacy .doc files are not supported."},
-  "pdf_too_large": {"message": "PDF files can be up to 10 MB."},
+  "pdf_too_large": {"message": "PDF files can be up to 50 MB."},
   "pdf_invalid": {"message": "Could not parse this PDF. The file may be damaged or unsupported."},
   "pdf_password": {"message": "This PDF requires a password. Please unlock it before adding it."},
   "pdf_timeout": {"message": "PDF parsing timed out. Please split the document and try again."},
