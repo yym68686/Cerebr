@@ -1,6 +1,6 @@
 import { t } from '../../utils/i18n.js';
 import { appAssetUrl } from '../../platform/assets.js';
-import { PDF_MAX_BYTES, PDF_MAX_TEXT, PDF_TIMEOUT_MS } from './pdf-limits.js';
+import { PDF_MAX_BYTES, PDF_TIMEOUT_MS } from './pdf-limits.js';
 
 export function readPdf(file, { signal } = {}) {
     if (file.size > PDF_MAX_BYTES) return Promise.reject(new Error(t('pdf_too_large')));
@@ -26,7 +26,6 @@ export function readPdf(file, { signal } = {}) {
             if (data?.type !== 'cerebr:pdf-result') return;
             if (data?.error) finish(new Error(t(data.error)));
             else if (typeof data?.text !== 'string' || !data.text.trim()) finish(new Error(t('pdf_empty')));
-            else if (data.text.length > PDF_MAX_TEXT) finish(new Error(t('pdf_text_too_large')));
             else finish(null, data.text);
         };
         worker.onerror = (event) => {

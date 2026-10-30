@@ -11,7 +11,7 @@ import { splitQuotedMessage } from '../src/runtime/input/draft-quotes.js';
 import { setMessageInputContent } from '../src/runtime/input/native-editor.js';
 import { serializeDraftSnapshot } from '../src/runtime/input/draft-snapshot.js';
 import { hasPendingFileImports } from '../src/runtime/input/file-import-state.js';
-import { DOCX_MIME, DOCX_TOTAL_TEXT } from '../src/runtime/input/docx-limits.js';
+import { DOCX_MIME } from '../src/runtime/input/docx-limits.js';
 let host, root, input, editor;
 beforeEach(async () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -51,10 +51,22 @@ it('keeps TXT out of editable DOM, expands even for file-only drafts, and collap
 });
 
 it('round-trips file contents, quote, images and question through storage, send and message chips', async () => {
-    const files = [{id:'f1', name:'notes.txt', text:'first\n---\n\nlast', size:18}, {id:'f2',name:'empty.txt',text:'',size:0}];
-    setMessageInputContent(input, [{type:'text',text:'Question'}, {type:'image_url',image_url:{url:'data:image/png;base64,AQ=='}}], {}, ['Quote'], files);
+    const files = [
+        { id: 'f1', name: 'notes.txt', text: 'first\n---\n\nlast', size: 18 },
+        { id: 'f2', name: 'empty.txt', text: '', size: 0 },
+    ];
+    setMessageInputContent(
+        input,
+        [
+            { type: 'text', text: 'Question' },
+            { type: 'image_url', image_url: { url: 'data:image/png;base64,AQ==' } },
+        ],
+        {},
+        ['Quote'],
+        files
+    );
     const draft = editor.getDraftSnapshot();
-    const stored = structuredClone({content:draft.text, quotes:draft.quotes, textFiles:draft.textFiles});
+    const stored = structuredClone({ content: draft.text, quotes: draft.quotes, textFiles: draft.textFiles });
     editor.clear();
     setMessageInputContent(input, stored.content, {}, stored.quotes, stored.textFiles);
     expect(editor.getDraftSnapshot().textFiles).toEqual(files);
@@ -63,11 +75,20 @@ it('round-trips file contents, quote, images and question through storage, send 
     expect(JSON.stringify(message.textFiles)).not.toContain('first');
     const attached = splitTextFileMessage(structuredClone(message));
     expect(attached.files).toEqual(files);
-    expect(splitQuotedMessage({...message, content:attached.content})).toMatchObject({quotes:['Quote'],content:[{type:'text',text:'Question'},{type:'image_url',image_url:{url:'data:image/png;base64,AQ=='}}]});
+    expect(splitQuotedMessage({ ...message, content: attached.content })).toMatchObject({
+        quotes: ['Quote'],
+        content: [
+            { type: 'text', text: 'Question' },
+            { type: 'image_url', image_url: { url: 'data:image/png;base64,AQ==' } },
+        ],
+    });
     await act(async () => root.render(<TextFiles files={attached.files} />));
     expect(host.textContent).toContain('notes.txt');
     expect(host.textContent).not.toContain('first');
-    expect(splitTextFileMessage({...message,content:'Plugin rewrote the message'})).toEqual({content:'Plugin rewrote the message',files:[]});
+    expect(splitTextFileMessage({ ...message, content: 'Plugin rewrote the message' })).toEqual({
+        content: 'Plugin rewrote the message',
+        files: [],
+    });
 });
 
 it('discards delayed TXT reads after navigation rather than attaching to the next chat', async () => {
@@ -138,16 +159,6 @@ it('cancels stale DOCX imports on draft replacement without locking the next cha
     expect(hasPendingFileImports(input)).toBe(false);
 });
 
-it('rejects aggregate DOCX text overflow and preserves existing attachments', async () => {
-    const workers = mockWorker();
-    setDraftFiles(input, [{ name: 'large.txt', text: 'a'.repeat(DOCX_TOTAL_TEXT), size: DOCX_TOTAL_TEXT }]);
-    const rejected = expect(addFilesToDraft(input, [new File(['zip'], 'more.docx')])).rejects.toThrow();
-    workers[0].onmessage({ data: { text: 'Too much' } });
-    await rejected;
-    expect(editor.getDraftSnapshot().textFiles).toHaveLength(1);
-    expect(hasPendingFileImports(input)).toBe(false);
-});
-
 it.each([
     ['paper.PDF', 'application/pdf', 'paper.PDF'],
     ['document', 'application/pdf', 'document.pdf'],
@@ -215,13 +226,27 @@ it('preserves existing attachments and unlocks sending after PDF parsing fails',
     expect(hasPendingFileImports(input)).toBe(false);
 });
 
-it.each(['more.pdf', 'more.docx', 'more.txt'])('enforces the shared PDF/DOCX/TXT text budget when adding %s', async (name) => {
+it.each(['more.pdf', 'more.docx', 'more.txt'])('keeps full text when adding %s beyond the previous single-file and combined character limits', async (name) => {
     const workers = mockWorker();
-    setDraftFiles(input, [{name:'existing.pdf',text:'x'.repeat(DOCX_TOTAL_TEXT),size:100}]);
-    const rejected = expect(addFilesToDraft(input, [new File(['More text'], name)])).rejects.toThrow();
-    if (name.endsWith('.pdf')) workers[0].onmessage({data:{type:'cerebr:pdf-result',text:'More text'}});
-    if (name.endsWith('.docx')) workers[0].onmessage({data:{text:'More text'}});
-    await rejected;
-    expect(editor.getDraftSnapshot().textFiles).toHaveLength(1);
+    const existing = [
+        { name: 'existing.pdf', text: 'Existing PDF text '.repeat(12_000), size: 100 },
+        { name: 'existing.docx', text: 'Existing DOCX text '.repeat(10_000), size: 100 },
+    ];
+    const added = 'Additional document text '.repeat(12_000);
+    editor.setDraft('Summarize');
+    setDraftFiles(input, existing);
+    const importing = addFilesToDraft(input, [new File([added], name)]);
+    await act(async () => {
+        if (name.endsWith('.pdf')) workers[0].onmessage({ data: { type: 'cerebr:pdf-result', text: added } });
+        if (name.endsWith('.docx')) workers[0].onmessage({ data: { text: added } });
+        await importing;
+    });
+    const snapshot = editor.getDraftSnapshot();
+    const expected = [...existing, { name, text: added }];
+    expect(snapshot.textFiles).toMatchObject(expected);
+    const stored = structuredClone(serializeDraftSnapshot(snapshot));
+    expect(stored.textFiles).toMatchObject(expected);
+    const message = composeDraftMessage(snapshot);
+    expect(splitTextFileMessage(structuredClone(message))).toMatchObject({ files: expected, content: 'Summarize' });
     expect(hasPendingFileImports(input)).toBe(false);
 });

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 vi.mock('../src/utils/i18n.js', () => ({ t: (key) => key }));
 import { readDocx } from '../src/runtime/input/docx-reader.js';
-import { DOCX_MAX_BYTES, DOCX_MAX_TEXT, DOCX_TIMEOUT_MS } from '../src/runtime/input/docx-limits.js';
+import { DOCX_MAX_BYTES, DOCX_TIMEOUT_MS } from '../src/runtime/input/docx-limits.js';
 let worker;
 beforeEach(() => {
     vi.useFakeTimers();
@@ -35,7 +35,7 @@ it('runs parsing off-thread and terminates the worker after successful extractio
     expect(vi.getTimerCount()).toBe(0);
 });
 
-it.each(['docx_invalid', 'docx_too_complex', 'docx_empty', 'docx_text_too_large'])(
+it.each(['docx_invalid', 'docx_too_complex', 'docx_empty'])(
     'reports %s and frees the worker',
     async (error) => {
         const reading = readDocx(file());
@@ -67,11 +67,12 @@ it('terminates immediately on navigation cancellation and rejects pre-aborted ta
     });
 });
 
-it('rejects oversized files before starting a worker and validates its returned text', async () => {
+it('rejects oversized files before starting a worker and accepts extracted text beyond 100,000 characters', async () => {
     await expect(readDocx({ size: DOCX_MAX_BYTES + 1 })).rejects.toThrow('docx_too_large');
-    const rejected = expect(readDocx(file())).rejects.toThrow('docx_text_too_large');
-    worker.onmessage({ data: { text: 'x'.repeat(DOCX_MAX_TEXT + 1) } });
-    await rejected;
+    const text = 'x'.repeat(120_001);
+    const reading = readDocx(file());
+    worker.onmessage({ data: { text } });
+    await expect(reading).resolves.toBe(text);
     expect(worker.terminate).toHaveBeenCalledOnce();
 });
 

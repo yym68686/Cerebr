@@ -5,9 +5,9 @@ import { callAPI } from '../src/runtime/chat/api-client.js';
 let server, url, received;
 beforeAll(async () => {
     server = createServer(async (req, res) => {
-        let raw = '';
-        for await (const bytes of req) raw += bytes;
-        received = { path: req.url, auth: req.headers.authorization, body: JSON.parse(raw) };
+        const chunks = [];
+        for await (const bytes of req) chunks.push(bytes);
+        received = { path: req.url, auth: req.headers.authorization, body: JSON.parse(Buffer.concat(chunks).toString('utf8')) };
         res.writeHead(200, { 'Content-Type': 'text/event-stream' });
         const payload = Buffer.from(
             'data: {"choices":[{"delta":{"reasoning_content":"思考"}}]}\r\n\ndata:{"choices":[{"delta":{"content":"你好 🌏"}}]}\n\ndata: {"choices":[{"delta":{"content":"完成"}}]}'
@@ -54,6 +54,24 @@ describe('real HTTP streaming transport', () => {
         expect(received.body.messages.at(-1)).toEqual({ role: 'user', content: 'ping' });
         expect(result).toEqual({ content: '你好 🌏完成', reasoning_content: '思考' });
         expect(update).toHaveBeenLastCalledWith('chat-a', result);
+    });
+
+    it('sends document text beyond previous client limits unchanged to the configured API', async () => {
+        const text = '完整文档内容 '.repeat(30_000);
+        const { processStream } = await callAPI(
+            {
+                apiConfig: { baseUrl: url, apiKey: 'local-test-only', modelName: 'test-model' },
+                messages: [{ role: 'user', content: text }],
+                userLanguage: 'zh-CN',
+            },
+            { updateLastMessage: vi.fn() },
+            'chat-large-document',
+            vi.fn()
+        );
+        await processStream();
+        const sent = received.body.messages.at(-1).content;
+        expect(sent.length).toBe(text.length);
+        expect(sent === text).toBe(true);
     });
 });
 

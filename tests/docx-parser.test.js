@@ -11,7 +11,7 @@ vi.mock('mammoth', async (original) => {
     };
 });
 import { docxHtmlToText, extractDocxText } from '../src/runtime/input/docx-parser.js';
-import { DOCX_MAX_BYTES, DOCX_MAX_TEXT } from '../src/runtime/input/docx-limits.js';
+import { DOCX_MAX_BYTES } from '../src/runtime/input/docx-limits.js';
 import { docxFixture, paragraph } from './docx-fixture.js';
 const buffer = (bytes) => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
 
@@ -110,7 +110,7 @@ describe('local DOCX extraction', () => {
         await expect(extractDocxText(buffer(docxFixture('')))).rejects.toThrow('docx_empty');
     });
 
-    it('rejects huge files, oversized XML expansion, deep trees and long output without truncation', async () => {
+    it('rejects huge files, oversized XML expansion and deep trees, and preserves long output', async () => {
         await expect(extractDocxText(new ArrayBuffer(DOCX_MAX_BYTES + 1))).rejects.toThrow('docx_too_large');
         const bomb = docxFixture(paragraph('Hi'));
         const view = new DataView(bomb.buffer);
@@ -124,9 +124,10 @@ describe('local DOCX extraction', () => {
         expect(() => docxHtmlToText('<div>'.repeat(110) + 'deep' + '</div>'.repeat(110))).toThrow(
             'docx_too_complex'
         );
-        await expect(
-            extractDocxText(buffer(docxFixture(paragraph('x'.repeat(DOCX_MAX_TEXT + 1)))))
-        ).rejects.toThrow('docx_text_too_large');
+        const expected = '文档内容'.repeat(30_001);
+        const text = await extractDocxText(buffer(docxFixture(paragraph(expected))));
+        expect(text.length).toBe(expected.length);
+        expect(text === expected).toBe(true);
     });
 
     it('rejects forged ZIP sizes instead of silently truncating XML', async () => {

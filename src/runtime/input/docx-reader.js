@@ -1,5 +1,5 @@
 import { t } from '../../utils/i18n.js';
-import { DOCX_MAX_BYTES, DOCX_MAX_TEXT, DOCX_TIMEOUT_MS } from './docx-limits.js';
+import { DOCX_MAX_BYTES, DOCX_TIMEOUT_MS } from './docx-limits.js';
 
 export function readDocx(file, { signal } = {}) {
     if (file.size > DOCX_MAX_BYTES) return Promise.reject(new Error(t('docx_too_large')));
@@ -23,7 +23,6 @@ export function readDocx(file, { signal } = {}) {
         worker.onmessage = ({ data }) => {
             if (data?.error) finish(new Error(t(data.error)));
             else if (typeof data?.text !== 'string' || !data.text.trim()) finish(new Error(t('docx_empty')));
-            else if (data.text.length > DOCX_MAX_TEXT) finish(new Error(t('docx_text_too_large')));
             else finish(null, data.text);
         };
         worker.onerror = (event) => {

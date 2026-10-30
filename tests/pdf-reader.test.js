@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 vi.mock('../src/utils/i18n.js', () => ({ t: (key) => key }));
 import { readPdf } from '../src/runtime/input/pdf-reader.js';
-import { isPdf, PDF_MAX_BYTES, PDF_MAX_TEXT, PDF_TIMEOUT_MS } from '../src/runtime/input/pdf-limits.js';
+import { isPdf, PDF_MAX_BYTES, PDF_TIMEOUT_MS } from '../src/runtime/input/pdf-limits.js';
 
 let worker, workers, postingError;
 beforeEach(() => {
@@ -52,7 +52,7 @@ it('extracts off-thread with local resources and ignores PDF.js transport notifi
     expect(worker.terminate).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(0);
 });
-it.each(['pdf_invalid', 'pdf_password', 'pdf_empty', 'pdf_text_too_large', 'pdf_too_many_pages'])(
+it.each(['pdf_invalid', 'pdf_password', 'pdf_empty', 'pdf_too_many_pages'])(
     'reports %s and terminates its worker',
     async (error) => {
         const rejected = expect(readPdf(file())).rejects.toThrow(error);
@@ -89,9 +89,10 @@ it('accepts PDFs through 50 MB, rejects larger files before reading and validate
         result({ text: 'Large PDF text' });
         await expect(reading).resolves.toBe('Large PDF text');
     }
-    const oversized = expect(readPdf(file())).rejects.toThrow('pdf_text_too_large');
-    result({ text: 'x'.repeat(PDF_MAX_TEXT + 1) });
-    await oversized;
+    const largeText = 'x'.repeat(250_001);
+    const readingLargeText = readPdf(file());
+    result({ text: largeText });
+    await expect(readingLargeText).resolves.toBe(largeText);
     const empty = expect(readPdf(file())).rejects.toThrow('pdf_empty');
     result({ text: '  ' });
     await empty;

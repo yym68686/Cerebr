@@ -1,7 +1,7 @@
 import mammoth from 'mammoth';
 import { parseDocument } from 'htmlparser2';
 import { Unzip, UnzipInflate, unzipSync, zipSync } from 'fflate';
-import { DOCX_MAX_BYTES, DOCX_MAX_TEXT } from './docx-limits.js';
+import { DOCX_MAX_BYTES } from './docx-limits.js';
 
 const fail = (code) => {
     throw new Error(code);
@@ -151,9 +151,7 @@ export function docxHtmlToText(html) {
         const text = children();
         return ['p', 'div', 'blockquote'].includes(node.name) ? `\n\n${text}\n\n` : text;
     };
-    const text = compact(render(parseDocument(html)));
-    if (text.length > DOCX_MAX_TEXT) fail('docx_text_too_large');
-    return text;
+    return compact(render(parseDocument(html)));
 }
 
 export async function extractDocxText(buffer) {

@@ -41,12 +41,20 @@ it('rejects blank, damaged, mislabeled and password-protected PDFs', async () =>
     await expect(extractPdfText(makePdf({ encrypted: true }))).rejects.toThrow('pdf_password');
 });
 
-it('enforces file, page and extracted-text limits without silently truncating', async () => {
+it('enforces file and page limits', async () => {
     await expect(extractPdfText(new ArrayBuffer(PDF_MAX_BYTES + 1))).rejects.toThrow('pdf_too_large');
     await expect(extractPdfText(makePdf({ pages: Array(PDF_MAX_PAGES + 1).fill('x') }))).rejects.toThrow(
         'pdf_too_many_pages'
     );
-    await expect(
-        extractPdfText(makePdf({ pages: Array(120).fill(Array(12).fill('x'.repeat(80)).join('\n')) }))
-    ).rejects.toThrow('pdf_text_too_large');
+});
+
+it('extracts more than 200,000 characters across pages without truncation', async () => {
+    const pages = Array.from({ length: 160 }, (_, i) =>
+        [`Page ${i + 1}`, ...Array(20).fill('x'.repeat(80))].join('\n')
+    );
+    const expected = pages.join('\n\n');
+    expect(expected.length).toBeGreaterThan(200_000);
+    const text = await extractPdfText(makePdf({ pages }));
+    expect(text.length).toBe(expected.length);
+    expect(text === expected).toBe(true);
 });
