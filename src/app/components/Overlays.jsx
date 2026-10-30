@@ -187,17 +187,17 @@ export function ImagePreview({ image }) {
                     draggable={false}
                     style={{ transform: `translate3d(${view.x}px, ${view.y}px, 0) scale(${view.scale})` }}
                 />
-                <button
-                    ref={closeRef}
-                    className="image-preview-close"
-                    aria-label={t('image_preview_close_aria')}
-                    onClick={() => uiStore.set({ image: null })}
-                >
-                    <svg viewBox="0 0 24 24" fill="none">
-                        <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeLinecap="round" />
-                    </svg>
-                </button>
             </div>
+            <button
+                ref={closeRef}
+                className="image-preview-close"
+                aria-label={t('image_preview_close_aria')}
+                onClick={() => uiStore.set({ image: null })}
+            >
+                <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeLinecap="round" />
+                </svg>
+            </button>
         </div>
     );
 }

@@ -53,10 +53,11 @@
 }
 
 .image-preview-close {
+    /* Anchor to the modal viewport, independently of the fitted image bounds. */
     position: absolute;
     z-index: 1;
-    top: 16px;
-    right: 16px;
+    top: calc(16px + env(safe-area-inset-top, 0px));
+    right: calc(16px + env(safe-area-inset-right, 0px));
     width: 32px;
     height: 32px;
     background: var(--cerebr-close-button-bg);

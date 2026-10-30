@@ -93,6 +93,20 @@ function view() {
 const zoomTwice = { ctrlKey: true, deltaY: -Math.log(2) / 0.01 };
 
 describe('image preview gestures', () => {
+    it('keeps the close control outside the image content while zooming and panning', async () => {
+        const close = host.querySelector('.image-preview-close');
+        expect(close.parentElement).toBe(viewport);
+        expect(host.querySelector('.image-preview-content').contains(close)).toBe(false);
+        await wheel(zoomTwice);
+        await wheel({ deltaX: 80, deltaY: 60 });
+        expect(close.parentElement).toBe(viewport);
+        expect(view()).toEqual({ x: -80, y: -60, scale: 2 });
+        await pointer('pointerdown', 980, 20, 1, close);
+        expect(picture.setPointerCapture).not.toHaveBeenCalled();
+        await act(async () => close.click());
+        expect(uiStore.getSnapshot().image).toBeNull();
+    });
+
     it('keeps the point under the cursor stationary while pinching and prevents page zoom', async () => {
         const event = await wheel({ ...zoomTwice, clientX: 600, clientY: 450 });
         expect(event.defaultPrevented).toBe(true);
