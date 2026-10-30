@@ -1,4 +1,4 @@
-import { Fragment, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 import { CheckCircle, InfoCircle, WarningCircle } from 'iconoir-react';
 import { chatManager } from '../../domain/chat/chat-store.js';
 import { uiStore, notify } from '../state/ui-store.js';
@@ -7,6 +7,7 @@ import { Icon } from './Icon.jsx';
 import { isReplyTarget, resolveMessageTarget } from '../message-actions.js';
 import { copyMessageImage } from '../../render/message/message-clipboard.js';
 import { contentText } from './Messages.jsx';
+import { useImagePreviewGestures } from '../hooks/useImagePreviewGestures.js';
 
 export function ContextMenu({ context, session }) {
     useSyncExternalStore(chatManager.subscribe, chatManager.getSnapshot);
@@ -147,7 +148,9 @@ export function ContextMenu({ context, session }) {
 }
 export function ImagePreview({ image }) {
     const closeRef = useRef(null);
-    useLayoutEffect(() => {
+    const { viewportRef, imageRef, view, dragging, onClickCapture } = useImagePreviewGestures(image);
+    // Restore focus after React's commit-time selection restoration has finished.
+    useEffect(() => {
         if (!image) return;
         const old = document.activeElement;
         closeRef.current?.focus();
@@ -155,10 +158,12 @@ export function ImagePreview({ image }) {
     }, [image]);
     return (
         <div
+            ref={viewportRef}
             className={`image-preview-modal${image ? ' visible' : ''}`}
             role="dialog"
             aria-modal="true"
             aria-label={t('image_preview_label')}
+            onClickCapture={onClickCapture}
             onClick={(e) => {
                 if (e.target === e.currentTarget) uiStore.set({ image: null });
             }}
@@ -167,10 +172,21 @@ export function ImagePreview({ image }) {
                     e.preventDefault();
                     closeRef.current.focus();
                 }
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    uiStore.set({ image: null });
+                }
             }}
         >
-            <div className="image-preview-content" role="document">
-                <img src={image || undefined} alt={t('image_preview_alt')} />
+            <div className={`image-preview-content${dragging ? ' is-dragging' : ''}`} role="document">
+                <img
+                    ref={imageRef}
+                    src={image || undefined}
+                    alt={t('image_preview_alt')}
+                    draggable={false}
+                    style={{ transform: `translate3d(${view.x}px, ${view.y}px, 0) scale(${view.scale})` }}
+                />
                 <button
                     ref={closeRef}
                     className="image-preview-close"

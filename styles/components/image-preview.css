@@ -15,30 +15,46 @@
     transition: opacity 0.3s ease;
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .image-preview-modal.visible {
     opacity: 1;
     visibility: visible;
+    /* The enlarged image can cover the desktop titlebar's native drag region. */
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
 }
 
 .image-preview-content {
     max-width: 90%;
     max-height: 90%;
     position: relative;
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 4px 20px var(--cerebr-popup-shadow);
 }
 
 .image-preview-content img {
-    max-width: 100%;
+    max-width: 90vw;
     max-height: 90vh;
     display: block;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px var(--cerebr-popup-shadow);
+    transform-origin: center;
+    will-change: transform;
+    cursor: grab;
+    -webkit-user-drag: none;
+}
+
+.image-preview-content.is-dragging img {
+    cursor: grabbing;
 }
 
 .image-preview-close {
     position: absolute;
+    z-index: 1;
     top: 16px;
     right: 16px;
     width: 32px;
