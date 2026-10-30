@@ -6,6 +6,8 @@ import { t } from '../../utils/i18n.js';
 import { addDraftFile, getDraftFiles } from './draft-files.js';
 import { readDocx } from './docx-reader.js';
 import { isDocx, DOCX_TOTAL_TEXT } from './docx-limits.js';
+import { readPdf } from './pdf-reader.js';
+import { isPdf } from './pdf-limits.js';
 import { beginFileImport } from './file-import-state.js';
 
 const PAGE_IMAGE = 'application/x-cerebr-page-image';
@@ -46,8 +48,10 @@ export async function addFilesToDraft(messageInput, files, uiConfig = {}) {
                 continue;
             }
             const docx = isDocx(file);
+            const pdf = isPdf(file);
             let text;
             if (docx) text = await readDocx(file, { signal: task.signal });
+            else if (pdf) text = await readPdf(file, { signal: task.signal });
             else if (/\.txt$/i.test(file.name) || file.type === 'text/plain') {
                 if (file.size > 10 * 1024 * 1024) throw new Error(t('drop_text_too_large'));
                 text = await readText(file, task.signal);
@@ -55,12 +59,17 @@ export async function addFilesToDraft(messageInput, files, uiConfig = {}) {
             if (!current() || task.signal.aborted) break;
             const existing = getDraftFiles(messageInput);
             if (
-                (docx || existing.some(isDocx)) &&
+                (docx || pdf || existing.some((item) => isDocx(item) || isPdf(item))) &&
                 existing.reduce((length, item) => length + item.text.length, text.length) > DOCX_TOTAL_TEXT
             )
-                throw new Error(t('docx_total_too_large'));
+                throw new Error(t('document_total_too_large'));
             addDraftFile(messageInput, {
-                name: docx && !/\.docx$/i.test(file.name) ? `${file.name}.docx` : file.name,
+                name:
+                    docx && !/\.docx$/i.test(file.name)
+                        ? `${file.name}.docx`
+                        : pdf && !/\.pdf$/i.test(file.name)
+                          ? `${file.name}.pdf`
+                          : file.name,
                 text,
                 size: file.size,
             });

@@ -4,12 +4,15 @@ import { Icon } from './Icon.jsx';
 import { t } from '../../utils/i18n.js';
 import { setDraftFiles } from '../../runtime/input/draft-files.js';
 import { isDocx } from '../../runtime/input/docx-limits.js';
+import { isPdf } from '../../runtime/input/pdf-limits.js';
+
+const isDocument = (file) => isDocx(file) || isPdf(file);
 
 function download(file) {
     const url = URL.createObjectURL(new Blob([file.text], { type: 'text/plain;charset=utf-8' }));
     const link = document.createElement('a');
     link.href = url;
-    link.download = isDocx(file) ? `${file.name}.md` : file.name;
+    link.download = isDocx(file) ? `${file.name}.md` : isPdf(file) ? `${file.name}.txt` : file.name;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
@@ -33,6 +36,12 @@ function DocumentPreview({ file, onClose }) {
             aria-label={file.name}
             onCancel={onClose}
             onClose={onClose}
+            onKeyDown={(event) => {
+                if (event.key !== 'Escape') return;
+                event.preventDefault();
+                event.stopPropagation();
+                onClose();
+            }}
         >
             <header>
                 <strong>{file.name}</strong>
@@ -42,7 +51,7 @@ function DocumentPreview({ file, onClose }) {
             </header>
             <pre tabIndex={0}>{file.text}</pre>
             <button type="button" onClick={() => download(file)}>
-                {t('docx_download_text')}
+                {t(isPdf(file) ? 'pdf_download_text' : 'docx_download_text')}
             </button>
         </dialog>,
         document.body
@@ -60,8 +69,10 @@ export function TextFiles({ files = [], onRemove }) {
                         type="button"
                         className="text-file-label"
                         title={file.name}
-                        aria-label={t(isDocx(file) ? 'docx_preview' : 'composer_download_file', [file.name])}
-                        onClick={() => (isDocx(file) ? setPreview(file) : download(file))}
+                        aria-label={t(isDocument(file) ? 'docx_preview' : 'composer_download_file', [
+                            file.name,
+                        ])}
+                        onClick={() => (isDocument(file) ? setPreview(file) : download(file))}
                     >
                         <Icon name="attachment" />
                         <span>{file.name}</span>

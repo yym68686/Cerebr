@@ -138,7 +138,7 @@ it('imports dropped TXT content as a separate file attachment without removing e
  expect(event.defaultPrevented).toBe(true); expect(document.activeElement).toBe(input);
 });
 
-it('imports a dropped DOCX through the native editor without replacing the question', async () => {
+it.each(['docx', 'pdf'])('imports a dropped %s through the native editor without replacing the question', async (extension) => {
     let worker;
     vi.stubGlobal('Worker', class {
         constructor() { worker = this; }
@@ -147,16 +147,17 @@ it('imports a dropped DOCX through the native editor without replacing the quest
     });
     try {
         editor.setDraft('Summarize this');
-        const file = new File(['zip'], 'report.docx');
+        const file = new File(['document'], `report.${extension}`);
         const event = new Event('drop', { bubbles: true, cancelable: true });
         Object.defineProperty(event, 'dataTransfer', { value: { files: [file], types: ['Files'] } });
         shelf.dispatchEvent(event);
         expect(event.defaultPrevented).toBe(true);
-        expect(worker.postMessage).toHaveBeenCalledWith(file);
-        worker.onmessage({ data: { text: '# Report\n\nDocument body' } });
+        expect(worker.postMessage).toHaveBeenCalledWith(extension === 'pdf'
+            ? {file,assetBase:expect.stringMatching(/\/(?:lib\/pdfjs|node_modules\/pdfjs-dist)\/$/)} : file);
+        worker.onmessage({ data: { ...(extension === 'pdf' ? {type:'cerebr:pdf-result'} : {}), text: '# Report\n\nDocument body' } });
         await vi.waitFor(() => expect(editor.getDraftSnapshot().textFiles).toHaveLength(1));
         expect(editor.getDraftSnapshot().textFiles[0]).toMatchObject({
-            name: 'report.docx', text: '# Report\n\nDocument body',
+            name: `report.${extension}`, text: '# Report\n\nDocument body',
         });
         expect(editor.getDraft()).toBe('Summarize this');
         expect(worker.terminate).toHaveBeenCalledOnce();

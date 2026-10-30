@@ -326,7 +326,7 @@ export function App() {
                 <input
                     ref={imagePickerRef}
                     type="file"
-                    accept="image/*,.txt,text/plain,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    accept="image/*,.txt,text/plain,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.pdf,application/pdf"
                     multiple
                     hidden
                     onChange={(event) => {

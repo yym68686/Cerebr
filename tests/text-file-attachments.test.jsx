@@ -119,7 +119,7 @@ it('imports DOCX via a worker, previews literal text without executing markup, a
     });
     await act(async () => dialog.querySelector(':scope > button').click());
     expect(clicked).toHaveBeenCalledOnce();
-    await act(async () => dialog.querySelector('header button').click());
+    await act(async () => dialog.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape',bubbles:true,cancelable:true})));
     expect(document.querySelector('dialog')).toBeNull();
 });
 
@@ -143,6 +143,84 @@ it('rejects aggregate DOCX text overflow and preserves existing attachments', as
     setDraftFiles(input, [{ name: 'large.txt', text: 'a'.repeat(DOCX_TOTAL_TEXT), size: DOCX_TOTAL_TEXT }]);
     const rejected = expect(addFilesToDraft(input, [new File(['zip'], 'more.docx')])).rejects.toThrow();
     workers[0].onmessage({ data: { text: 'Too much' } });
+    await rejected;
+    expect(editor.getDraftSnapshot().textFiles).toHaveLength(1);
+    expect(hasPendingFileImports(input)).toBe(false);
+});
+
+it.each([
+    ['paper.PDF', 'application/pdf', 'paper.PDF'],
+    ['document', 'application/pdf', 'document.pdf'],
+    ['no-mime.pdf', '', 'no-mime.pdf'],
+])('imports PDF %s, persists it as text and previews/downloads without mounting markup', async (name, type, savedName) => {
+    const workers = mockWorker();
+    const text = 'First page\n<script>literal text</script>\n\n第二页';
+    editor.setDraft('Summarize this');
+    const importing = addFilesToDraft(input, [new File(['%PDF-1.7'], name, {type})]);
+    expect(hasPendingFileImports(input)).toBe(true);
+    await act(async () => {
+        workers[0].onmessage({data:{type:'cerebr:pdf-result',text}});
+        await importing;
+    });
+    await settle();
+    expect(editor.getDraft()).toBe('Summarize this');
+    const stored = structuredClone(serializeDraftSnapshot(editor.getDraftSnapshot()));
+    expect(stored.textFiles[0]).toMatchObject({name:savedName,text});
+    editor.clear();
+    setMessageInputContent(input, stored.content, {}, stored.quotes, stored.textFiles);
+    const message = composeDraftMessage(editor.getDraftSnapshot());
+    const parsed = splitTextFileMessage(structuredClone(message));
+    expect(parsed.files[0]).toMatchObject({name:savedName,text});
+    expect(message.content).toContain(text);
+    expect(JSON.stringify(message.textFiles)).not.toContain('First page');
+    await act(async () => root.render(<TextFiles files={parsed.files} />));
+    await act(async () => host.querySelector('.text-file-label').click());
+    const dialog = document.querySelector('dialog');
+    expect(dialog.querySelector('pre').textContent).toBe(text);
+    expect(dialog.querySelector('script')).toBeNull();
+    expect(dialog.querySelector('p')).toBeNull();
+    vi.stubGlobal('URL', class extends URL { static createObjectURL = vi.fn(() => 'blob:pdf'); static revokeObjectURL = vi.fn(); });
+    const clicked = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function () {
+        expect(this.download).toBe(`${savedName}.txt`);
+    });
+    await act(async () => dialog.querySelector(':scope > button').click());
+    expect(clicked).toHaveBeenCalledOnce();
+    await act(async () => dialog.querySelector('header button').click());
+    expect(document.querySelector('dialog')).toBeNull();
+});
+
+it('cancels PDF parsing on navigation and allows the next chat to import another PDF', async () => {
+    const workers = mockWorker();
+    const old = addFilesToDraft(input, [new File(['%PDF'], 'old.pdf')]);
+    editor.setDraft('Next chat');
+    expect(workers[0].terminate).toHaveBeenCalledOnce();
+    expect(hasPendingFileImports(input)).toBe(false);
+    const next = addFilesToDraft(input, [new File(['%PDF'], 'next.pdf')]);
+    workers[0].onmessage({data:{type:'cerebr:pdf-result',text:'Stale PDF'}});
+    await old;
+    expect(hasPendingFileImports(input)).toBe(true);
+    await act(async () => { workers[1].onmessage({data:{type:'cerebr:pdf-result',text:'New PDF'}}); await next; });
+    expect(editor.getDraftSnapshot().textFiles.map(file => file.name)).toEqual(['next.pdf']);
+    expect(editor.getDraft()).toBe('Next chat');
+    expect(hasPendingFileImports(input)).toBe(false);
+});
+
+it('preserves existing attachments and unlocks sending after PDF parsing fails', async () => {
+    const workers = mockWorker();
+    setDraftFiles(input, [{name:'existing.txt',text:'Keep me',size:7}]);
+    const rejected = expect(addFilesToDraft(input, [new File(['%PDF'], 'locked.pdf')])).rejects.toThrow();
+    workers[0].onmessage({data:{type:'cerebr:pdf-result',error:'pdf_password'}});
+    await rejected;
+    expect(editor.getDraftSnapshot().textFiles.map(file => file.name)).toEqual(['existing.txt']);
+    expect(hasPendingFileImports(input)).toBe(false);
+});
+
+it.each(['more.pdf', 'more.docx', 'more.txt'])('enforces the shared PDF/DOCX/TXT text budget when adding %s', async (name) => {
+    const workers = mockWorker();
+    setDraftFiles(input, [{name:'existing.pdf',text:'x'.repeat(DOCX_TOTAL_TEXT),size:100}]);
+    const rejected = expect(addFilesToDraft(input, [new File(['More text'], name)])).rejects.toThrow();
+    if (name.endsWith('.pdf')) workers[0].onmessage({data:{type:'cerebr:pdf-result',text:'More text'}});
+    if (name.endsWith('.docx')) workers[0].onmessage({data:{text:'More text'}});
     await rejected;
     expect(editor.getDraftSnapshot().textFiles).toHaveLength(1);
     expect(hasPendingFileImports(input)).toBe(false);

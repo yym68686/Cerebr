@@ -18,9 +18,12 @@ export async function verifyBuild(root, chunks = []) {
         )
     );
     for (const locale of await readdir(path.join(root, '_locales'))) {
-        const messages=JSON.parse(await readFile(path.join(root, '_locales', locale, 'messages.json'), 'utf8'));
+        const messages = JSON.parse(
+            await readFile(path.join(root, '_locales', locale, 'messages.json'), 'utf8')
+        );
         for (const key of Object.keys(messages)) {
-            if (!/^[a-zA-Z0-9_]+$/.test(key)) throw new Error(`Invalid extension locale key: ${locale}/${key}`);
+            if (!/^[a-zA-Z0-9_]+$/.test(key))
+                throw new Error(`Invalid extension locale key: ${locale}/${key}`);
         }
     }
     if (manifests[0].version !== manifests[1].version) throw new Error('Extension versions differ');
@@ -52,6 +55,11 @@ export async function verifyBuild(root, chunks = []) {
     }
     const boot = JSON.parse(await readFile(path.join(root, 'web-manifest.json'), 'utf8'));
     for (const file of [boot.entry, ...boot.css]) await assertFile(file);
+    for (const file of [
+        'lib/pdfjs/cmaps/UniGB-UCS2-H.bcmap',
+        'lib/pdfjs/standard_fonts/LiberationSans-Regular.ttf',
+    ])
+        await assertFile(file);
     for (const chunk of chunks.filter((c) => c.type === 'chunk')) {
         for (const imported of [...chunk.imports, ...chunk.dynamicImports])
             if (!/^(https?:|data:)/.test(imported)) await assertFile(imported);

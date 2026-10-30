@@ -17,6 +17,10 @@ for (const name of ['htmd', 'icons', '_locales', 'statics', 'lib', 'styles']) {
         filter: (p) => !p.split(path.sep).includes('.git'),
     });
 }
+// Local CMaps are required for PDFs using predefined CJK encodings; never
+// fetch fonts or maps from a CDN while reading a private document.
+for (const name of ['cmaps', 'standard_fonts'])
+    await cp(`node_modules/pdfjs-dist/${name}`, path.join(dest, 'lib/pdfjs', name), { recursive: true });
 await cp('content.js', path.join(dest, 'content.js'));
 // Preserve notices for the vendored Beautiful UI source, icons, font and styles
 // in both the static site and the extension packages generated from dist.
@@ -40,6 +44,7 @@ await writeFile(
 );
 // Include the document libraries' transitive notices as well as their own.
 const documentLicenses = [
+    ['pdfjs-dist', 'LICENSE'],
     ['mammoth', 'LICENSE'],
     ['@xmldom/xmldom', 'LICENSE'],
     ['argparse', 'LICENSE'],
