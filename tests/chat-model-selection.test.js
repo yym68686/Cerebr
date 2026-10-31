@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { getChatModelSelection, modelSelection, resolveChatApiConfig } from '../src/domain/chat/model-selection.js';
+import { configModelSelection, getChatModelSelection, modelSelection, resolveChatApiConfig } from '../src/domain/chat/model-selection.js';
 const memory = vi.hoisted(() => new Map());
 vi.mock('../src/utils/storage-adapter.js', () => ({
     isExtensionEnvironment: false, browserAdapter: {},
@@ -57,4 +57,33 @@ it('preserves legacy chats through later default changes, refreshes keys, and ne
     const pinned={...legacy,modelSelection:modelSelection(a)};
     expect(resolveChatApiConfig(pinned,{...state,configs:[b]})).toBeUndefined();
     expect(getChatModelSelection(pinned,{...state,configs:[b]}).modelName).toBe(a.modelName);
+});
+
+it('resolves automatic connections from discovery while keeping explicit conversation choices', () => {
+    const config = {...a,modelName:''};
+    const state = {configs:[config,b],selected:0,modelLists:{a:['auto-first','auto-second']}};
+    expect(configModelSelection(config,state)).toEqual({configId:'a',modelName:'auto-first'});
+    expect(resolveChatApiConfig(null,state)).toMatchObject({id:'a',modelName:'auto-first',apiKey:a.apiKey});
+    expect(resolveChatApiConfig({modelSelection:{configId:'a',modelName:'auto-second'}},state).modelName).toBe('auto-second');
+    state.modelLists.a=['changed-catalog'];
+    expect(resolveChatApiConfig({modelSelection:{configId:'a',modelName:'auto-second'}},state).modelName).toBe('auto-second');
+    expect(configModelSelection({...config,modelName:'manual'},state).modelName).toBe('manual');
+    expect(configModelSelection(config,state,'typed-model').modelName).toBe('typed-model');
+});
+
+it('keeps a pending automatic selection on its own connection, including before discovery and after removal', async () => {
+    const config={...a,modelName:''};
+    const state={configs:[config,b],selected:1,defaultSelection:modelSelection(b),modelLists:{}};
+    const chat={modelSelection:modelSelection(config)};
+    expect(resolveChatApiConfig(chat,state)).toMatchObject({id:'a',modelName:''});
+    state.modelLists.a=['discovered'];
+    expect(resolveChatApiConfig(chat,state)).toMatchObject({id:'a',modelName:'discovered'});
+    state.configs=[b];
+    expect(resolveChatApiConfig(chat,state)).toBeUndefined();
+    const manager = new ChatManager();
+    await manager.initialize();
+    const created = manager.createNewChat('Automatic');
+    await manager.setChatModel(created.id,modelSelection(config));
+    expect(created.modelSelection).toEqual({configId:'a',modelName:''});
+    await manager.flushNow();
 });

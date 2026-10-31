@@ -28,3 +28,11 @@ export function normalizeChatCompletionsUrl(value) {
     }
 }
 
+export function modelsUrl(value) {
+    const url = new URL(normalizeChatCompletionsUrl(value));
+    if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Invalid API URL');
+    url.pathname = url.pathname.replace(/\/(?:chat\/completions|responses|models)\/?$/, '') + '/models';
+    url.hash = '';
+    return url.toString();
+}
+

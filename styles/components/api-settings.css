@@ -62,6 +62,10 @@ textarea.settings-input { height: auto; min-height: 110px; resize: vertical; }
 .connection-disclosure[aria-expanded="true"] > svg { transform: rotate(90deg); }
 .connection-disclosure small { margin-left: auto; color: var(--cerebr-text-color-secondary); font-size: 11px; }
 .connection-advanced-fields:not([hidden]) { display: flex; flex-direction: column; gap: 20px; padding-top: 12px; }
+.model-name-input { position: relative; min-width: 0; }
+.model-name-options { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 2; max-height: 240px; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--cerebr-surface-border); border-radius: 8px; background: var(--cerebr-surface-bg); box-shadow: 0 8px 24px var(--cerebr-popup-shadow); padding: 4px; }
+.model-name-options button { display: block; width: 100%; text-align: left; padding: 8px; border: 0; border-radius: 5px; background: transparent; color: var(--cerebr-text-color); font: inherit; font-size: var(--cerebr-fs-13); cursor: pointer; overflow-wrap: anywhere; }
+.model-name-options button:hover, .model-name-options button[aria-selected="true"] { background: var(--cerebr-hover-bg-color); }
 .connection-editor-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 28px; }
 .connection-editor-footer > span { font-size: 11px; color: var(--cerebr-text-color-secondary); }
 @container (max-width: 680px) {

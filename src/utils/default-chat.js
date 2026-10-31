@@ -18,7 +18,7 @@ const DEFAULT_CHAT_CONTENT = {
             {
                 id: 'usage_answer',
                 role: 'assistant',
-                content: 'Open **+ -> API settings** first and add an API key, base URL, and model name. After that, you can chat normally, paste text or images, and continue asking follow-up questions in this default chat.'
+                content: 'Open **+ -> API settings** first and add an API key and base URL. Models are fetched automatically, and you can search and switch them in the chat input bar. You can also specify a model name in Advanced settings. After that, you can chat normally, paste text or images, and continue asking follow-up questions in this default chat.'
             },
             {
                 id: 'webpage_question',
@@ -53,7 +53,7 @@ const DEFAULT_CHAT_CONTENT = {
             {
                 id: 'usage_answer',
                 role: 'assistant',
-                content: '先打开 **+ -> API 设置**，填入 API Key、Base URL 和模型名称。完成后你就可以像普通聊天一样提问，也可以粘贴文字、图片，并且继续在这个默认对话里追问。'
+                content: '先打开 **+ -> API 设置**，填入 API Key 和 Base URL。模型列表会自动获取，可以在聊天输入栏搜索、切换，也可以在高级设置中指定模型名称。完成后你就可以像普通聊天一样提问，也可以粘贴文字、图片，并且继续在这个默认对话里追问。'
             },
             {
                 id: 'webpage_question',
@@ -88,7 +88,7 @@ const DEFAULT_CHAT_CONTENT = {
             {
                 id: 'usage_answer',
                 role: 'assistant',
-                content: '先打開 **+ -> API 設定**，填入 API Key、Base URL 和模型名稱。完成後你就可以像一般聊天一樣提問，也可以貼上文字、圖片，並繼續在這個預設對話裡追問。'
+                content: '先打開 **+ -> API 設定**，填入 API Key 和 Base URL。模型清單會自動取得，可以在聊天輸入列搜尋、切換，也可以在進階設定中指定模型名稱。完成後你就可以像一般聊天一樣提問，也可以貼上文字、圖片，並繼續在這個預設對話裡追問。'
             },
             {
                 id: 'webpage_question',

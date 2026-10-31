@@ -6,20 +6,57 @@ import { notify } from './ui-store.js';
 import { usesApiReplica, readApiReplica, writeApiReplica, projectApiSettingsToLegacy, isApiRecord } from '../../runtime/sync/api-settings.js';
 import { subscribeRemoteChanges } from '../../runtime/sync/replica.js';
 import { readModelPreferences, writeDefaultModel } from '../../runtime/sync/model-preferences.js';
-import { modelSelection, resolveChatApiConfig } from '../../domain/chat/model-selection.js';
+import { configModelSelection, resolveChatApiConfig } from '../../domain/chat/model-selection.js';
+import { fetchModelNames } from '../../runtime/chat/model-catalog.js';
 
 const metaKeys = ['apiConfigs', 'selectedConfigIndex'];
 const promptKey = (id) => `apiConfigSystemPrompt_${id}`;
 const localKey = (id) => `apiConfigSystemPromptLocalOnly_${id}`;
 const metadataStorage = isExtensionEnvironment ? syncStorageAdapter : storageAdapter;
-export const apiStore = createStore({ configs: [], selected: 0, ready: false });
+export const apiStore = createStore({ configs: [], selected: 0, ready: false, modelLists: {} });
+
+// Catalogs stay in memory, separate from saved/synced API configuration. Changing
+// credentials invalidates the old list immediately and cancels its request.
+const modelRequests = new Map();
+apiStore.subscribe(() => {
+    const state = apiStore.getSnapshot();
+    if (!state.ready) return;
+    let modelLists = state.modelLists;
+    const clear = id => {
+        if (!Object.hasOwn(modelLists, id)) return;
+        modelLists = { ...modelLists };
+        delete modelLists[id];
+    };
+    for (const [id, entry] of modelRequests) {
+        const config = state.configs.find(config => config.id === id);
+        if (config?.baseUrl === entry.baseUrl && config?.apiKey === entry.apiKey) continue;
+        clearTimeout(entry.timer);
+        clearTimeout(entry.timeout);
+        entry.controller.abort();
+        modelRequests.delete(id);
+        clear(id);
+    }
+    for (const config of state.configs) {
+        if (modelRequests.has(config.id) || !config.baseUrl || !config.apiKey.trim()) continue;
+        const entry = { baseUrl: config.baseUrl, apiKey: config.apiKey, controller: new AbortController() };
+        modelRequests.set(config.id, entry);
+        entry.timer = setTimeout(async () => {
+            entry.timeout = setTimeout(() => entry.controller.abort(), 10000);
+            const models = await fetchModelNames(config, entry.controller.signal);
+            clearTimeout(entry.timeout);
+            if (modelRequests.get(config.id) !== entry) return;
+            apiStore.set(s => ({ ...s, modelLists: { ...s.modelLists, [config.id]: models } }));
+        }, 350);
+    }
+    if (modelLists !== state.modelLists) apiStore.set({ modelLists });
+});
 export function normalizeConfig(config = {}) {
     return {
         ...config,
         id: config.id || crypto.randomUUID(),
         apiKey: config.apiKey ?? '',
         baseUrl: normalizeChatCompletionsUrl(config.baseUrl ?? 'https://api.0-0.pro/v1/chat/completions'),
-        modelName: config.modelName ?? 'gpt-4o',
+        modelName: config.modelName ?? '',
         advancedSettings: {
             ...config.advancedSettings,
             systemPrompt: config.advancedSettings?.systemPrompt ?? '',
@@ -130,13 +167,15 @@ export function changeConfig(id, patch) {
     clearTimeout(timer);
     timer = setTimeout(() => saveApiConfigs().catch((e) => notify(e.message, { type: 'error' })), 500);
 }
-export function selectConfig(index) {
-    const config = apiStore.getSnapshot().configs[index];
+export function selectConfig(index, modelName) {
+    const state = apiStore.getSnapshot();
+    const config = state.configs[index];
     if (!config) return Promise.resolve();
-    apiStore.set({ selected: index, defaultSelection: modelSelection(config) });
+    const selection = configModelSelection(config, state, modelName);
+    apiStore.set({ selected: index, defaultSelection: selection });
     // Selection alone must not rewrite every API record or publish a shared
     // selection revision. Only explicit configuration edits belong in sync.
-    return writeDefaultModel(config).then(async () => {
+    return writeDefaultModel({ ...config, modelName: selection.modelName }).then(async () => {
         await storageAdapter.set({ selectedConfigIndex: index });
         await saveApiConfigs();
     });

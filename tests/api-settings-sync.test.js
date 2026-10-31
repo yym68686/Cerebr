@@ -62,3 +62,17 @@ it('saves just edited API IDs without deleting or reverting a concurrent remote 
  expect(saved.configs.find(c=>c.id==='a').apiKey).toBe('rotated');
  expect((await replicaRecords(state.db)).some(r=>r.key===API_SELECTION)).toBe(false);
 });
+
+it('syncs model-less connections without sharing the device’s discovered model selection',async()=>{
+ state.db=await database();await writeApiReplica([config('auto','')],0);
+ const before=await replicaRecords(state.db);
+ expect((await readApiReplica()).configs[0].modelName).toBe('');
+ await writeDefaultModel(config('auto','discovered-model'));
+ const selected=await readApiReplica();
+ expect(selected.defaultSelection).toEqual({configId:'auto',modelName:'discovered-model'});
+ expect(selected.configs[0].modelName).toBe('');
+ expect(await replicaRecords(state.db)).toEqual(before);
+ await projectApiSettingsToLegacy(selected);
+ expect(state.native.apiConfigs[0].modelName).toBe('');
+ expect(JSON.stringify(state.native)).not.toContain('discovered-model');
+});

@@ -53,7 +53,8 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
 
 1. 🔑 **Configure API**
    - Click the settings button
-   - Fill in API Key, Base URL and model name
+   - Fill in API Key and Base URL; models are fetched automatically from the connection's `v1/models` endpoint
+   - Search and switch models in the chat input bar. Optionally specify a model in Advanced settings, with suggestions when discovery is available; unsupported endpoints stay silent and manual model names still work
    - Support adding multiple API configurations
 
 2. 💬 **Start Chatting**

@@ -15,7 +15,7 @@ import {
 } from '../runtime/input/native-editor.js';
 import { storageAdapter, browserAdapter, isExtensionEnvironment } from '../utils/storage-adapter.js';
 import { loadApiConfigs, getSelectedApiConfig, saveApiConfigs, selectConfig, apiStore } from './state/api-configs.js';
-import { modelSelection } from '../domain/chat/model-selection.js';
+import { configModelSelection } from '../domain/chat/model-selection.js';
 import { uiStore, openPage, notify } from './state/ui-store.js';
 import { getEnabledTabsContent } from '../runtime/webpage/webpage-context.js';
 import { desktopBrowserStore } from '../platform/desktop-browser.js';
@@ -435,10 +435,11 @@ export function createSession({ messageInput, chatContainer }) {
         pipeline,
         switchChat,
         newChat,
-        selectModel: async (index) => {
-            const selection = modelSelection(apiStore.getSnapshot().configs[index]);
+        selectModel: async (index, modelName) => {
+            const state = apiStore.getSnapshot();
+            const selection = configModelSelection(state.configs[index], state, modelName);
             const saved = chatManager.setChatModel(chatManager.currentChatId, selection);
-            await selectConfig(index);
+            await selectConfig(index, modelName);
             await saved;
         },
         removeChat,

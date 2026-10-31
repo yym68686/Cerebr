@@ -495,7 +495,7 @@ export class ChatManager {
 
     setChatModel(chatId, selection) {
         const chat = this.chats.get(chatId);
-        if (!chat || !selection?.configId || !selection?.modelName) return;
+        if (!chat || !selection?.configId) return;
         if (chat.modelSelection?.configId === selection.configId && chat.modelSelection?.modelName === selection.modelName) return;
         chat.modelSelection = { configId: selection.configId, modelName: selection.modelName };
         this.markChatDirty(chatId, { touchUpdatedAt: false });

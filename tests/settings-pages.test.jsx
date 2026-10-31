@@ -44,6 +44,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 let host, root, back;
 beforeEach(async () => {
     vi.clearAllMocks();
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 404 })));
     for (const key of Object.keys(memory)) delete memory[key];
     memory.apiConfigs = [
         { id: 'a', modelName: 'gpt-5', apiKey: 'test-key', baseUrl: 'https://one.example/v1' },
@@ -60,6 +61,8 @@ afterEach(async () => {
     await act(async () => root.unmount());
     host.remove();
     await saveApiConfigs();
+    apiStore.set({ ready: true, configs: [], modelLists: {} });
+    vi.unstubAllGlobals();
 });
 const click = async (selector) => act(async () => host.querySelector(selector).click());
 const fill = async (selector, value) =>
@@ -74,6 +77,8 @@ const fill = async (selector, value) =>
 
 it('edits a connection independently from the active model and saves all settings', async () => {
     await act(async () => root.render(<ApiSettings visible onBack={back} />));
+    expect(host.querySelector('.connection-fields [name="modelName"]')).toBeNull();
+    expect(host.querySelector('[name="modelName"]').closest('.connection-advanced-fields').hidden).toBe(true);
     expect(host.querySelector('[name="apiKey"]').type).toBe('password');
     await click('[aria-label="api_show_key"]');
     expect(host.querySelector('[name="apiKey"]').type).toBe('text');
@@ -99,6 +104,45 @@ it('edits a connection independently from the active model and saves all setting
     expect(memory.apiConfigs[1].baseUrl).toBe('https://new.example/v1/chat/completions');
     expect(memory.apiConfigs[0].advancedSettings.reasoningEffort).toBe('high');
     expect(memory.apiConfigSystemPrompt_a).toBe('Please be concise.');
+});
+
+it('only supplies model name suggestions when discovery succeeded, and permits arbitrary names', async () => {
+    await act(async () => {
+        apiStore.set({ modelLists: { a: ['gpt-5', 'gpt-5-mini', 'claude-test'] } });
+        root.render(<ApiSettings visible onBack={back} />);
+    });
+    await click('.connection-disclosure');
+    await act(async () => host.querySelector('[name="modelName"]').focus());
+    expect([...host.querySelectorAll('[role="option"]')].map(node => node.textContent)).toEqual(['gpt-5', 'gpt-5-mini']);
+    await fill('[name="modelName"]', 'MINI');
+    expect([...host.querySelectorAll('[role="option"]')].map(node => node.textContent)).toEqual(['gpt-5-mini']);
+    await click('[role="option"]');
+    expect(host.querySelector('[name="modelName"]').value).toBe('gpt-5-mini');
+    await fill('[name="modelName"]', 'private-model');
+    expect(host.querySelector('[role="listbox"]')).toBeNull();
+    await act(async () => host.querySelector('[name="modelName"]').blur());
+    expect(apiStore.getSnapshot().defaultSelection.modelName).toBe('private-model');
+    await click('.connection-item:nth-child(2)');
+    await click('.connection-disclosure');
+    await act(async () => host.querySelector('[name="modelName"]').focus());
+    await fill('[name="modelName"]', 'manual-only');
+    expect(host.querySelector('[role="listbox"]')).toBeNull();
+    expect(host.querySelector('[name="modelName"]').hasAttribute('aria-expanded')).toBe(false);
+    await saveApiConfigs();
+    expect(memory.apiConfigs[1].modelName).toBe('manual-only');
+});
+
+it('keeps reasoning settings available for an automatically selected GPT model', async () => {
+    await act(async () => {
+        apiStore.set({
+            configs: [{...apiStore.getSnapshot().configs[0],modelName:''}],
+            modelLists:{a:['gpt-discovered']},defaultSelection:{configId:'a',modelName:'gpt-discovered'},
+        });
+        root.render(<ApiSettings visible onBack={back} />);
+    });
+    await click('.connection-disclosure');
+    expect(host.querySelector('[name="reasoningEffort"]')).not.toBeNull();
+    expect(host.querySelector('[name="modelName"]').value).toBe('');
 });
 
 it('adds, duplicates and deletes connections without discarding the original configuration', async () => {

@@ -42,6 +42,15 @@ function setup(plugins = {}, getWebpageInfo = async () => null, managerOverrides
     return { pipeline, chat, editor, phase, manager, submitted };
 }
 describe('React chat session pipeline', () => {
+    it('sends a discovered model without a configured model name and pins the conversation to it', async () => {
+        const state={configs:[{id:'auto',baseUrl:'https://auto.test/v1',apiKey:'test-only',modelName:''}],selected:0,modelLists:{auto:['discovered']}};
+        const {pipeline,chat}=setup({},async()=>null,{},chat=>resolveChatApiConfig(chat,state));
+        callAPI.mockReset().mockResolvedValue({controller:new AbortController(),processStream:async()=>({content:'answer'})});
+        await pipeline.sendMessage();
+        expect(callAPI.mock.calls[0][0].apiConfig.modelName).toBe('discovered');
+        expect(chat.modelSelection).toEqual({configId:'auto',modelName:'discovered'});
+        expect(state.configs[0].modelName).toBe('');
+    });
     it('sends and regenerates with the conversation model rather than the new-chat default', async () => {
         const a={id:'a',modelName:'old-model',apiKey:'test-only',baseUrl:'https://test.invalid/v1'};
         const b={...a,id:'b',modelName:'new-default'};

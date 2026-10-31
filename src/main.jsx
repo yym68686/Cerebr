@@ -5,6 +5,7 @@ import { App } from './app/App.jsx';
 import { initI18n } from './utils/i18n.js';
 import { chatManager } from './domain/chat/chat-store.js';
 import { loadApiConfigs, apiStore } from './app/state/api-configs.js';
+import { getChatModelSelection } from './domain/chat/model-selection.js';
 import { loadPreferences, preferencesStore, syncLocalizedChats } from './app/state/preferences.js';
 import { openPage } from './app/state/ui-store.js';
 import { ensureMarkdownReady } from '../htmd/latex.js';
@@ -51,7 +52,7 @@ async function start() {
     void ensureMarkdownReady().catch((error) => console.error('Markdown 渲染器预加载失败:', error));
     await initI18n({ root: document.documentElement });
     await Promise.all([chatsReady, loadApiConfigs(), loadPreferences()]);
-    chatManager.getDefaultModelSelection = () => apiStore.getSnapshot().defaultSelection;
+    chatManager.getDefaultModelSelection = () => getChatModelSelection(null, apiStore.getSnapshot());
     await syncLocalizedChats();
     void startUISync().catch((error) => console.error('[Cerebr] Desktop sync failed', error));
     if (

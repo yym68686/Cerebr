@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore } from 'react';
+import { useRef, useState, useSyncExternalStore } from 'react';
 import {
     apiStore,
     changeConfig,
@@ -15,6 +15,7 @@ import { notify } from '../state/ui-store.js';
 import { SettingsPage } from './SettingsPage.jsx';
 import { Icon } from './Icon.jsx';
 import { getChatModelSelection } from '../../domain/chat/model-selection.js';
+import { ModelNameInput } from './ModelNameInput.jsx';
 
 const report = (error) => notify(error.message, { type: 'error' });
 const endpointLabel = (value) => {
@@ -25,15 +26,26 @@ const endpointLabel = (value) => {
     }
 };
 
-function ConnectionEditor({ config, index, selected, canDelete, onDuplicate, onDelete, onSelect }) {
+function ConnectionEditor({
+    config,
+    models,
+    selectedModel,
+    index,
+    selected,
+    canDelete,
+    onDuplicate,
+    onDelete,
+    onSelect,
+}) {
     const [showKey, setShowKey] = useState(false);
+    const modelEdited = useRef(false);
     const advanced = config.advancedSettings;
     const change = (patch) => changeConfig(config.id, patch);
     return (
         <div className="connection-editor">
             <div className="connection-editor-heading">
                 <div>
-                    <h2>{config.modelName || t('api_new_connection')}</h2>
+                    <h2>{config.modelName || endpointLabel(config.baseUrl)}</h2>
                     <span>{t('api_connection_details')}</span>
                 </div>
                 <div className="connection-actions">
@@ -60,7 +72,6 @@ function ConnectionEditor({ config, index, selected, canDelete, onDuplicate, onD
             </div>
             <div className="connection-fields">
                 {[
-                    ['modelName', 'model_name_label', 'model_name_placeholder'],
                     ['baseUrl', 'base_url_label', 'base_url_placeholder'],
                     ['apiKey', 'api_key_label', 'api_key_placeholder'],
                 ].map(([key, label, placeholder]) => (
@@ -117,6 +128,24 @@ function ConnectionEditor({ config, index, selected, canDelete, onDuplicate, onD
                     className="connection-advanced-fields"
                 >
                     <div className="settings-field">
+                        <label htmlFor={`${config.id}-modelName`}>{t('model_name_label')}</label>
+                        <ModelNameInput
+                            id={`${config.id}-modelName`}
+                            value={config.modelName}
+                            models={models}
+                            onChange={(modelName) => {
+                                modelEdited.current = true;
+                                change({ modelName });
+                            }}
+                            onBlur={(e) => {
+                                void saveApiConfigs().catch(report);
+                                if (modelEdited.current && selected)
+                                    void onSelect(index, e.target.value).catch(report);
+                                modelEdited.current = false;
+                            }}
+                        />
+                    </div>
+                    <div className="settings-field">
                         <label htmlFor={`${config.id}-prompt`}>{t('api_system_prompt_label')}</label>
                         <p>{t('api_system_prompt_hint')}</p>
                         <textarea
@@ -129,7 +158,7 @@ function ConnectionEditor({ config, index, selected, canDelete, onDuplicate, onD
                             onBlur={() => void saveApiConfigs().catch(report)}
                         />
                     </div>
-                    {modelSupportsReasoningEffort(config.modelName) && (
+                    {modelSupportsReasoningEffort(config.modelName || selectedModel || models[0]) && (
                         <div className="settings-field">
                             <label htmlFor={`${config.id}-reasoning`}>
                                 {t('api_reasoning_effort_label')}
@@ -171,7 +200,7 @@ function ConnectionEditor({ config, index, selected, canDelete, onDuplicate, onD
 export function ApiSettings({ visible, onBack, chat, onSelectConfig = selectConfig }) {
     const state = useSyncExternalStore(apiStore.subscribe, apiStore.getSnapshot);
     const selection = getChatModelSelection(chat, state);
-    const selected = state.configs.findIndex(config => config.id === selection?.configId && config.modelName === selection.modelName);
+    const selected = state.configs.findIndex((config) => config.id === selection?.configId);
     const [editingId, setEditingId] = useState(null);
     const editing =
         state.configs.find((config) => config.id === editingId) ||
@@ -217,7 +246,7 @@ export function ApiSettings({ visible, onBack, chat, onSelectConfig = selectConf
                                     <Icon name="brain" />
                                 </span>
                                 <span className="connection-item-copy">
-                                    <strong>{config.modelName || t('api_new_connection')}</strong>
+                                    <strong>{config.modelName || endpointLabel(config.baseUrl)}</strong>
                                     <small>{endpointLabel(config.baseUrl)}</small>
                                 </span>
                                 {i === selected && (
@@ -235,8 +264,10 @@ export function ApiSettings({ visible, onBack, chat, onSelectConfig = selectConf
                     <ConnectionEditor
                         key={editing.id}
                         config={editing}
+                        models={state.modelLists?.[editing.id] || []}
+                        selectedModel={selection?.configId === editing.id ? selection.modelName : undefined}
                         index={index}
-                        selected={index === selected}
+                        selected={selection?.configId === editing.id}
                         onSelect={onSelectConfig}
                         canDelete={state.configs.length > 1}
                         onDuplicate={() =>

@@ -52,10 +52,10 @@ describe('Prompt Bar controls', () => {
         await act(async()=>root.render(<ComposerControls apis={apis} chat={chat} session={session} ui={{phase:'idle'}} draft={{empty:false}} onSettings={settings}/>));
         expect(host.querySelector('.composer-model').title).toBe('Model B');
         await click('.composer-model');
-        const entries=host.querySelectorAll('[role="menuitemradio"]');
-        expect(entries[1].getAttribute('aria-checked')).toBe('true');
+        const entries=host.querySelectorAll('[role="option"]');
+        expect(entries[1].getAttribute('aria-selected')).toBe('true');
         await act(async()=>entries[0].click());
-        expect(session.selectModel).toHaveBeenCalledWith(0);
+        expect(session.selectModel).toHaveBeenCalledWith(0, 'Model A');
         expect(selectConfig).not.toHaveBeenCalled();
     });
     it('replaces a label that does not fit with an icon and restores it when there is space', async () => {
@@ -115,16 +115,60 @@ describe('Prompt Bar controls', () => {
             act(async () =>
                 document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
             );
-        expect(document.activeElement.id).toBe('composer-model-menu');
+        expect(document.activeElement.id).toBe('composer-model-search');
         await key('ArrowDown');
-        expect(document.activeElement.textContent).toBe('Model A');
+        expect(document.activeElement.getAttribute('aria-activedescendant')).toBe('composer-model-option-0');
         await key('ArrowDown');
-        await act(async () => document.activeElement.click());
-        expect(selectConfig).toHaveBeenCalledWith(1);
+        await key('Enter');
+        expect(selectConfig).toHaveBeenCalledWith(1, 'Model B');
         expect(document.activeElement).toBe(host.querySelector('.composer-model'));
         await click('.composer-model');
         await key('Escape');
         expect(host.querySelector('#composer-model-menu')).toBeNull();
         expect(document.activeElement).toBe(host.querySelector('.composer-model'));
+    });
+    it('lists discovered models, filters them and switches without changing a configured model', async () => {
+        const state = { selected: 0, configs: [{ id: 'auto', modelName: '', baseUrl: 'https://auto.test/v1' }], modelLists: { auto: ['Alpha', 'Beta', 'Beta-fast'] } };
+        session.selectModel = vi.fn(async () => {});
+        await act(async () => root.render(<ComposerControls apis={state} session={session} ui={{phase:'idle'}} draft={{empty:false}} onSettings={settings} />));
+        expect(host.querySelector('.composer-model').title).toBe('Alpha');
+        await click('.composer-model');
+        expect(host.querySelectorAll('[role="option"]')).toHaveLength(3);
+        const input = host.querySelector('.composer-model-search');
+        await act(async () => {
+            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'bEtA');
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        expect([...host.querySelectorAll('[role="option"]')].map(node => node.textContent)).toEqual(['Beta', 'Beta-fast']);
+        await click('[role="option"]');
+        expect(session.selectModel).toHaveBeenCalledWith(0, 'Beta');
+        expect(state.configs[0].modelName).toBe('');
+    });
+    it('accepts a custom name with no catalog and ignores Enter while composing', async () => {
+        const state = { selected: 0, configs: [{ id: 'manual', modelName: '' }], modelLists: { manual: [] } };
+        await act(async () => root.render(<ComposerControls apis={state} session={session} ui={{phase:'idle'}} draft={{empty:false}} onSettings={settings} />));
+        expect(host.querySelector('.composer-model').title).toBe('composer_model_placeholder');
+        await click('.composer-model');
+        const input = host.querySelector('.composer-model-search');
+        expect(input.getAttribute('aria-expanded')).toBe('false');
+        expect(host.querySelector('[role="listbox"]')).toBeNull();
+        await act(async () => {
+            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'manual-model');
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        await act(async () => input.dispatchEvent(new KeyboardEvent('keydown', { key:'Enter', isComposing:true, bubbles:true })));
+        expect(selectConfig).not.toHaveBeenCalled();
+        await act(async () => input.dispatchEvent(new KeyboardEvent('keydown', { key:'Enter', bubbles:true })));
+        expect(selectConfig).toHaveBeenCalledWith(0, 'manual-model');
+    });
+    it('distinguishes the same model name on different API connections', async () => {
+        const state = { selected: 0, configs: [{id:'one',modelName:'',baseUrl:'https://one.test/v1'}, {id:'two',modelName:'',baseUrl:'https://two.test/v1'}], modelLists: {one:['same'],two:['same']} };
+        await act(async () => root.render(<ComposerControls apis={state} session={session} ui={{phase:'idle'}} draft={{empty:false}} onSettings={settings} />));
+        await click('.composer-model');
+        const entries = host.querySelectorAll('[role="option"]');
+        expect(entries[0].textContent).toContain('one.test');
+        expect(entries[1].textContent).toContain('two.test');
+        await act(async () => entries[1].click());
+        expect(selectConfig).toHaveBeenCalledWith(1, 'same');
     });
 });
