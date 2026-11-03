@@ -5,6 +5,7 @@ import { t } from '../../utils/i18n.js';
 import { setDraftFiles } from '../../runtime/input/draft-files.js';
 import { isDocx } from '../../runtime/input/docx-limits.js';
 import { isPdf } from '../../runtime/input/pdf-limits.js';
+import { uiStore } from '../state/ui-store.js';
 
 const isDocument = (file) => isDocx(file) || isPdf(file);
 
@@ -72,7 +73,11 @@ export function TextFiles({ files = [], onRemove }) {
                         aria-label={t(isDocument(file) ? 'docx_preview' : 'composer_download_file', [
                             file.name,
                         ])}
-                        onClick={() => (isDocument(file) ? setPreview(file) : download(file))}
+                        onClick={() => {
+                            if (isPdf(file)) uiStore.set({ pdf: file });
+                            else if (isDocument(file)) setPreview(file);
+                            else download(file);
+                        }}
                     >
                         <Icon name="attachment" />
                         <span>{file.name}</span>

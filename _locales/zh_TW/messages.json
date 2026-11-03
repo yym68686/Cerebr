@@ -528,6 +528,8 @@
   "pdf_empty": {"message": "此 PDF 中未找到可讀取的文字。"},
   "pdf_too_many_pages": {"message": "PDF 最多支援 500 頁，請分割文件。"},
   "pdf_download_text": {"message": "下載擷取文字（.txt）"},
+  "pdf_preview_title": {"message": "PDF 預覽：$1"},
+  "pdf_preview_page": {"message": "第 $1 頁"},
   "docx_too_large": {"message": "DOCX 檔案最大支援 10 MB。"},
   "docx_too_complex": {"message": "此 DOCX 結構過於複雜或解壓縮後超出安全限制，請分割文件後重試。"},
   "docx_invalid": {"message": "無法解析此 DOCX，檔案可能已損壞、加密或格式不受支援。請另存為新的 .docx 後重試。"},

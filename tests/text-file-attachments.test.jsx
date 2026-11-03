@@ -12,6 +12,7 @@ import { setMessageInputContent } from '../src/runtime/input/native-editor.js';
 import { serializeDraftSnapshot } from '../src/runtime/input/draft-snapshot.js';
 import { hasPendingFileImports } from '../src/runtime/input/file-import-state.js';
 import { DOCX_MIME } from '../src/runtime/input/docx-limits.js';
+import { uiStore } from '../src/app/state/ui-store.js';
 let host, root, input, editor;
 beforeEach(async () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -163,7 +164,7 @@ it.each([
     ['paper.PDF', 'application/pdf', 'paper.PDF'],
     ['document', 'application/pdf', 'document.pdf'],
     ['no-mime.pdf', '', 'no-mime.pdf'],
-])('imports PDF %s, persists it as text and previews/downloads without mounting markup', async (name, type, savedName) => {
+])('imports PDF %s, retains the original across draft/message round trips and opens the side preview', async (name, type, savedName) => {
     const workers = mockWorker();
     const text = 'First page\n<script>literal text</script>\n\n第二页';
     editor.setDraft('Summarize this');
@@ -182,22 +183,15 @@ it.each([
     const message = composeDraftMessage(editor.getDraftSnapshot());
     const parsed = splitTextFileMessage(structuredClone(message));
     expect(parsed.files[0]).toMatchObject({name:savedName,text});
+    expect(parsed.files[0].originalPdf).toBe('data:application/pdf;base64,JVBERi0xLjc=');
     expect(message.content).toContain(text);
     expect(JSON.stringify(message.textFiles)).not.toContain('First page');
     await act(async () => root.render(<TextFiles files={parsed.files} />));
     await act(async () => host.querySelector('.text-file-label').click());
-    const dialog = document.querySelector('dialog');
-    expect(dialog.querySelector('pre').textContent).toBe(text);
-    expect(dialog.querySelector('script')).toBeNull();
-    expect(dialog.querySelector('p')).toBeNull();
-    vi.stubGlobal('URL', class extends URL { static createObjectURL = vi.fn(() => 'blob:pdf'); static revokeObjectURL = vi.fn(); });
-    const clicked = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function () {
-        expect(this.download).toBe(`${savedName}.txt`);
-    });
-    await act(async () => dialog.querySelector(':scope > button').click());
-    expect(clicked).toHaveBeenCalledOnce();
-    await act(async () => dialog.querySelector('header button').click());
     expect(document.querySelector('dialog')).toBeNull();
+    expect(uiStore.getSnapshot().pdf).toMatchObject(parsed.files[0]);
+    expect(message.content).not.toContain('data:application/pdf');
+    expect(host.querySelector('script')).toBeNull();
 });
 
 it('cancels PDF parsing on navigation and allows the next chat to import another PDF', async () => {
@@ -224,6 +218,33 @@ it('preserves existing attachments and unlocks sending after PDF parsing fails',
     await rejected;
     expect(editor.getDraftSnapshot().textFiles.map(file => file.name)).toEqual(['existing.txt']);
     expect(hasPendingFileImports(input)).toBe(false);
+});
+
+it('cancels the original PDF read on navigation and ignores a late FileReader result', async () => {
+    const workers = mockWorker();
+    let reader;
+    vi.stubGlobal('FileReader', class {
+        constructor() { reader = this; }
+        readAsDataURL() {}
+        abort = vi.fn();
+    });
+    const importing = addFilesToDraft(input, [new File(['%PDF'], 'old.pdf')]);
+    await act(async () => workers[0].onmessage({ data: { type: 'cerebr:pdf-result', text: 'Old PDF' } }));
+    expect(reader).toBeTruthy();
+    editor.setDraft('Next chat');
+    await importing;
+    reader.result = 'data:application/pdf;base64,JVBERg=='; reader.onload();
+    expect(reader.abort).toHaveBeenCalledOnce();
+    expect(editor.getDraftSnapshot().textFiles).toEqual([]);
+    expect(editor.getDraft()).toBe('Next chat');
+    expect(hasPendingFileImports(input)).toBe(false);
+});
+
+it('does not retain external URLs or markup as original PDF data', () => {
+    for (const originalPdf of ['https://private.example/document.pdf', 'javascript:alert(1)', '<script>bad</script>']) {
+        setDraftFiles(input, [{ name: 'paper.pdf', text: 'Document', originalPdf }]);
+        expect(editor.getDraftSnapshot().textFiles[0].originalPdf).toBeUndefined();
+    }
 });
 
 it.each(['more.pdf', 'more.docx', 'more.txt'])('keeps full text when adding %s beyond the previous single-file and combined character limits', async (name) => {

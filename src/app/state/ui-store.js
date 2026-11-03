@@ -6,6 +6,7 @@ export const uiStore = createStore({
     navigationOpen: false,
     context: null,
     image: null,
+    pdf: null,
     toasts: [],
     editing: null,
     localRequests: {},

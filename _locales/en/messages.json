@@ -528,6 +528,8 @@
   "pdf_empty": {"message": "No readable text was found in this PDF."},
   "pdf_too_many_pages": {"message": "PDF files can have up to 500 pages. Please split the document."},
   "pdf_download_text": {"message": "Download extracted text (.txt)"},
+  "pdf_preview_title": {"message": "PDF preview: $1"},
+  "pdf_preview_page": {"message": "Page $1"},
   "docx_too_large": {"message": "DOCX files can be up to 10 MB."},
   "docx_too_complex": {"message": "This DOCX is too complex or expands beyond the safe limit. Please split it into smaller documents."},
   "docx_invalid": {"message": "Could not parse this DOCX. It may be damaged, encrypted or unsupported. Try saving it as a new .docx file."},

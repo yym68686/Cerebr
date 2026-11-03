@@ -14,6 +14,7 @@
 @import './components/context-menu.css';
 @import './components/input.css';
 @import './components/image-preview.css';
+@import './components/pdf-preview.css';
 @import './components/api-settings.css';
 @import './components/preferences.css';
 @import './components/plugin-settings.css';

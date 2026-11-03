@@ -61,7 +61,8 @@ describe('real HTTP streaming transport', () => {
         const { processStream } = await callAPI(
             {
                 apiConfig: { baseUrl: url, apiKey: 'local-test-only', modelName: 'test-model' },
-                messages: [{ role: 'user', content: text }],
+                messages: [{ role: 'user', content: text, textFiles: [{ id: 'pdf', name: 'paper.pdf',
+                    originalPdf: 'data:application/pdf;base64,JVBERg==', textLength: text.length }] }],
                 userLanguage: 'zh-CN',
             },
             { updateLastMessage: vi.fn() },
@@ -72,6 +73,7 @@ describe('real HTTP streaming transport', () => {
         const sent = received.body.messages.at(-1).content;
         expect(sent.length).toBe(text.length);
         expect(sent === text).toBe(true);
+        expect(received.body.messages.at(-1)).toEqual({ role: 'user', content: text });
     });
 });
 

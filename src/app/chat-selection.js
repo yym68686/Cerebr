@@ -11,6 +11,10 @@ export function selectChatContents(container) {
 export function attachChatSelectAll(container, isChatVisible) {
     const select = () => {
         if (!isChatVisible() || editable(document.activeElement)) return false;
+        const preview = document.querySelector('.pdf-preview-body');
+        const selection = window.getSelection();
+        if (preview && (preview.contains(document.activeElement) || preview.contains(selection?.anchorNode)))
+            return selectChatContents(preview);
         return selectChatContents(container);
     };
     const key = (event) => {

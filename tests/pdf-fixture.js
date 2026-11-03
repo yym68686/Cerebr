@@ -6,6 +6,7 @@ export function makePdf({
     cmap = false,
     encrypted = false,
     script = false,
+    rotations = [],
 } = {}) {
     const objects = [];
     const add = (body) => (objects.push(body), objects.length);
@@ -37,7 +38,7 @@ export function makePdf({
         );
     } else font = add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
     const children = [];
-    for (const text of pages) {
+    for (const [pageIndex, text] of pages.entries()) {
         const lines = text
             .split('\n')
             .map((line, index) => {
@@ -51,7 +52,7 @@ export function makePdf({
         const content = add(stream(`BT /F1 12 Tf 20 750 Td\n${lines}\nET`));
         children.push(
             add(
-                `<< /Type /Page /Parent ${pageTree} 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${font} 0 R >> >> /Contents ${content} 0 R >>`
+                `<< /Type /Page /Parent ${pageTree} 0 R /MediaBox [0 0 612 792] /Rotate ${rotations[pageIndex] || 0} /Resources << /Font << /F1 ${font} 0 R >> >> /Contents ${content} 0 R >>`
             )
         );
     }

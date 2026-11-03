@@ -20,3 +20,13 @@ it('leaves native select-all inside editable inputs', () => {
     expect(key.defaultPrevented).toBe(false);
     expect(window.getSelection().toString()).toBe('');
 });
+it('keeps select-all in a focused PDF preview instead of moving it to the transcript', () => {
+    setup();
+    const preview = document.createElement('div');
+    preview.className = 'pdf-preview-body'; preview.tabIndex = 0;
+    preview.textContent = 'PDF passage'; document.body.append(preview); preview.focus();
+    const key = new KeyboardEvent('keydown', { key: 'a', metaKey: true, bubbles: true, cancelable: true });
+    document.dispatchEvent(key);
+    expect(key.defaultPrevented).toBe(true);
+    expect(window.getSelection().toString()).toBe('PDF passage');
+});

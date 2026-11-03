@@ -20,9 +20,10 @@ export function acceptsDrop(transfer) {
         types.includes('text/uri-list')
     );
 }
-const readText = (file, signal) =>
+const readFile = (file, signal, pdf = false) =>
     new Promise((resolve, reject) => {
         const reader = new FileReader();
+        if (signal.aborted) return reject(new DOMException('Aborted', 'AbortError'));
         const abort = () => {
             reader.abort?.();
             reject(new DOMException('Aborted', 'AbortError'));
@@ -35,7 +36,8 @@ const readText = (file, signal) =>
         reader.onload = () => finish();
         reader.onerror = () => finish(reader.error || new Error(t('drop_read_failed')));
         signal.addEventListener('abort', abort, { once: true });
-        reader.readAsText(file);
+        if (pdf) reader.readAsDataURL(file.slice(0, file.size, 'application/pdf'));
+        else reader.readAsText(file);
     });
 export async function addFilesToDraft(messageInput, files, uiConfig = {}) {
     const current = captureImageTarget(messageInput);
@@ -50,11 +52,16 @@ export async function addFilesToDraft(messageInput, files, uiConfig = {}) {
             const docx = isDocx(file);
             const pdf = isPdf(file);
             let text;
+            let originalPdf;
             if (docx) text = await readDocx(file, { signal: task.signal });
-            else if (pdf) text = await readPdf(file, { signal: task.signal });
+            else if (pdf) {
+                text = await readPdf(file, { signal: task.signal });
+                if (!current() || task.signal.aborted) break;
+                originalPdf = await readFile(file, task.signal, true);
+            }
             else if (/\.txt$/i.test(file.name) || file.type === 'text/plain') {
                 if (file.size > 10 * 1024 * 1024) throw new Error(t('drop_text_too_large'));
-                text = await readText(file, task.signal);
+                text = await readFile(file, task.signal);
             } else throw new Error(t('drop_unsupported'));
             if (!current() || task.signal.aborted) break;
             addDraftFile(messageInput, {
@@ -66,6 +73,7 @@ export async function addFilesToDraft(messageInput, files, uiConfig = {}) {
                           : file.name,
                 text,
                 size: file.size,
+                ...(originalPdf ? { originalPdf } : {}),
             });
         }
     } catch (error) {

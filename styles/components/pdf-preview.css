@@ -1,0 +1,43 @@
+body[data-pdf-preview="true"] { --cerebr-pdf-width: calc((100% - var(--cerebr-navigation-width, 0px)) * .5); }
+body[data-pdf-preview="true"] #chat-container {
+    width: calc(100% - var(--cerebr-navigation-width, 0px) - var(--cerebr-pdf-width));
+    padding-inline: max(16px, calc((100% - var(--cerebr-navigation-width, 0px) - var(--cerebr-pdf-width) - 760px) / 2));
+}
+body[data-pdf-preview="true"] #input-container { right: calc(var(--cerebr-pdf-width) + max(12px, env(safe-area-inset-right))); }
+body[data-pdf-preview="true"] #scroll-to-bottom { right: calc(var(--cerebr-pdf-width) + 16px); }
+.pdf-preview {
+    position: fixed; inset: 0 0 0 auto; width: var(--cerebr-pdf-width); z-index: 300;
+    display: flex; flex-direction: column; box-sizing: border-box; min-width: 0;
+    border-left: 1px solid var(--cerebr-surface-border);
+    color: var(--cerebr-text-color); background: var(--cerebr-app-bg);
+}
+.pdf-preview-header {
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+    padding: calc(12px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 12px 16px;
+    border-bottom: 1px solid var(--cerebr-surface-border); background: var(--cerebr-surface-bg);
+}
+.pdf-preview-header strong { font-size: var(--cerebr-fs-13); font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pdf-preview-header :is(button, a) { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 6px; box-sizing: border-box; border: 0; border-radius: 7px; color: inherit; background: transparent; }
+.pdf-preview-header :is(button, a):hover { background: var(--cerebr-hover-bg-color); }
+.pdf-preview-header svg { width: 18px; height: 18px; }
+body[data-desktop-platform] .pdf-preview-header { padding-top: 32px; }
+body[data-pdf-preview="true"] .desktop-chat-drag-region { right: calc(var(--cerebr-pdf-width) + 12px); }
+.pdf-preview-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 16px; }
+.pdf-preview-pages { width: 100%; }
+.pdf-preview-page { position: relative; background: white; margin-bottom: 16px; box-shadow: 0 2px 8px #0002; overflow: hidden; }
+.pdf-preview-page canvas { display: block; width: 100%; height: 100%; }
+.pdf-preview-text-layer { position: absolute; inset: 0; overflow: clip; line-height: 1; text-align: initial; text-size-adjust: none; -webkit-text-size-adjust: none; transform-origin: 0 0; user-select: text; -webkit-user-select: text; }
+.pdf-preview-text-layer :is(span, br) { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0 0; }
+.pdf-preview-text-layer { --scale-round-x: 1px; --scale-round-y: 1px; --min-font-size: 1; --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size)); --min-font-size-inv: calc(1 / var(--min-font-size)); }
+.pdf-preview-text-layer > :not(.markedContent), .pdf-preview-text-layer .markedContent span:not(.markedContent) { --font-height: 0; font-size: calc(var(--text-scale-factor) * var(--font-height)); --scale-x: 1; --rotate: 0deg; transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv)); }
+.pdf-preview-text-layer .markedContent { display: contents; }
+.pdf-preview-text-layer[data-main-rotation="90"] { transform: rotate(90deg) translateY(-100%); }
+.pdf-preview-text-layer[data-main-rotation="180"] { transform: rotate(180deg) translate(-100%, -100%); }
+.pdf-preview-text-layer[data-main-rotation="270"] { transform: rotate(270deg) translateX(-100%); }
+.pdf-preview-text-layer ::selection { background: #4088ff55; }
+.pdf-preview-legacy-text { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: var(--cerebr-fs-13); line-height: 1.7; user-select: text; -webkit-user-select: text; }
+@media (max-width: 680px) {
+    body[data-pdf-preview="true"] { --cerebr-pdf-width: 100%; }
+    body[data-pdf-preview="true"] :is(#chat-container, #input-container, #scroll-to-bottom) { visibility: hidden; }
+}
+@media (pointer: coarse) { .pdf-preview-header :is(button, a) { width: 44px; height: 44px; } }
