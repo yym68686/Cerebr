@@ -40,6 +40,7 @@ import { ComposerFiles } from './components/ComposerFiles.jsx';
 import { ComposerQuotes } from './components/ComposerQuotes.jsx';
 import { DesktopTitlebar } from './components/DesktopTitlebar.jsx';
 import { PdfPreview } from './components/PdfPreview.jsx';
+import { openPdf, closePdf, closePdfTab } from './state/pdf-preview.js';
 import '../utils/viewport.js';
 
 export function App() {
@@ -66,7 +67,7 @@ export function App() {
     const [elapsed, setElapsed] = useState(0);
     const [showScroll, setShowScroll] = useState(false);
     const previousTop = useRef(0);
-    useEffect(() => { uiStore.set({ pdf: null }); }, [chat?.id]);
+    useEffect(() => { closePdf(); }, [chat?.id]);
     useEffect(() => {
         const next = createSession({ messageInput: inputRef.current, chatContainer: chatRef.current });
         sessionRef.current = next;
@@ -110,7 +111,7 @@ export function App() {
             if (e.key !== 'Escape') return;
             const state = uiStore.getSnapshot();
             if (state.image) uiStore.set({ image: null });
-            else if (state.pdf && !state.page) uiStore.set({ pdf: null });
+            else if (state.pdf && !state.page) closePdf();
             else if (state.navigationOpen) uiStore.set({ navigationOpen: false });
             else if (state.context || state.menu || state.webpageMenu) {
                 uiStore.set({ context: null, menu: false, webpageMenu: false });
@@ -290,12 +291,12 @@ export function App() {
                 )}
             </div>
             <Slot name="shell.chat.after" />
-            {ui.pdf && <PdfPreview key={`${chat?.id}-${ui.pdf.id || ui.pdf.name}`} file={ui.pdf}
+            {ui.pdf && <PdfPreview key={`pdf-${chat?.id}`} file={ui.pdf} files={ui.pdfTabs}
                 disabled={!session || !!ui.page || navigationCoversChat || pluginPageOpen}
-                onClose={() => uiStore.set({ pdf: null })}
+                onSelect={openPdf} onClose={closePdfTab}
                 onAdd={(text) => {
                     session.editor.addQuote(text);
-                    if (window.matchMedia('(max-width: 680px)').matches) uiStore.set({ pdf: null });
+                    if (window.matchMedia('(max-width: 680px)').matches) closePdf();
                     session.editor.focus();
                 }}
                 onSend={(text, prompt) => session.pipeline.sendSelection(text, prompt)} />}

@@ -5,7 +5,7 @@ import { t } from '../../utils/i18n.js';
 import { setDraftFiles } from '../../runtime/input/draft-files.js';
 import { isDocx } from '../../runtime/input/docx-limits.js';
 import { isPdf } from '../../runtime/input/pdf-limits.js';
-import { uiStore } from '../state/ui-store.js';
+import { openPdf } from '../state/pdf-preview.js';
 
 const isDocument = (file) => isDocx(file) || isPdf(file);
 
@@ -74,7 +74,7 @@ export function TextFiles({ files = [], onRemove }) {
                             file.name,
                         ])}
                         onClick={() => {
-                            if (isPdf(file)) uiStore.set({ pdf: file });
+                            if (isPdf(file)) openPdf(file);
                             else if (isDocument(file)) setPreview(file);
                             else download(file);
                         }}

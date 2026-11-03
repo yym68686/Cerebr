@@ -529,6 +529,8 @@
   "pdf_too_many_pages": {"message": "PDF 最多支援 500 頁，請分割文件。"},
   "pdf_download_text": {"message": "下載擷取文字（.txt）"},
   "pdf_preview_title": {"message": "PDF 預覽：$1"},
+  "pdf_preview_files": {"message": "已開啟的 PDF 檔案"},
+  "pdf_preview_close_file": {"message": "關閉 $1"},
   "pdf_preview_page": {"message": "第 $1 頁"},
   "docx_too_large": {"message": "DOCX 檔案最大支援 10 MB。"},
   "docx_too_complex": {"message": "此 DOCX 結構過於複雜或解壓縮後超出安全限制，請分割文件後重試。"},

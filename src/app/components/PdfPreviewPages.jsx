@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { openPdfPreview, TextLayer } from '../../runtime/input/pdf-preview.js';
 import { t } from '../../utils/i18n.js';
 
@@ -72,16 +72,24 @@ function PdfPage({ pdf, number, width, defaultSize, scrollRoot }) {
     );
 }
 
-export default function PdfPreviewPages({ source }) {
+export default function PdfPreviewPages({ source, onReady }) {
     const root = useRef(null);
     const [document, setDocument] = useState(null);
     const [error, setError] = useState(false);
     const [width, setWidth] = useState(0);
+    const restored = useRef(false);
+    useLayoutEffect(() => {
+        if (document && width && !restored.current) {
+            restored.current = true;
+            onReady?.();
+        }
+    }, [document, width, onReady]);
     useEffect(() => {
         let cancelled = false,
             loading;
         setDocument(null);
         setError(false);
+        restored.current = false;
         void (async () => {
             loading = openPdfPreview(source);
             const pdf = await loading.promise;

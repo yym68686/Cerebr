@@ -529,6 +529,8 @@
   "pdf_too_many_pages": {"message": "PDF 最多支持 500 页，请拆分文档。"},
   "pdf_download_text": {"message": "下载提取文本（.txt）"},
   "pdf_preview_title": {"message": "PDF 预览：$1"},
+  "pdf_preview_files": {"message": "已打开的 PDF 文件"},
+  "pdf_preview_close_file": {"message": "关闭 $1"},
   "pdf_preview_page": {"message": "第 $1 页"},
   "docx_too_large": {"message": "DOCX 文件最大支持 10 MB。"},
   "docx_too_complex": {"message": "此 DOCX 结构过于复杂或解压后超出安全限制，请拆分文档后重试。"},

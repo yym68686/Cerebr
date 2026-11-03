@@ -69,8 +69,10 @@ afterEach(async () => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
 });
-const render = () =>
-    act(async () => root.render(<PdfPreviewPages source="data:application/pdf;base64,JVBERg==" />));
+const render = (onReady) =>
+    act(async () =>
+        root.render(<PdfPreviewPages source="data:application/pdf;base64,JVBERg==" onReady={onReady} />)
+    );
 it('renders only nearby pages with selectable text and releases backing stores when they leave view', async () => {
     await render();
     expect(host.querySelectorAll('.pdf-preview-page')).toHaveLength(100);
@@ -106,4 +108,14 @@ it('ignores a delayed load after closing, and reports a broken original without 
     });
     await render();
     expect(host.querySelector('[role=alert]').textContent).toBe('pdf_invalid');
+});
+it('restores reading position after the page placeholders have measurable heights', async () => {
+    const ready = vi.fn(() => {
+        expect(host.querySelectorAll('.pdf-preview-page')).toHaveLength(100);
+        expect(host.querySelector('.pdf-preview-page').style.height).toBe('800px');
+    });
+    await render(ready);
+    expect(ready).toHaveBeenCalledOnce();
+    await act(async () => observers[0].callback([{ isIntersecting: true }]));
+    expect(ready).toHaveBeenCalledOnce();
 });
