@@ -28,7 +28,10 @@ body[data-pdf-preview="true"] #scroll-to-bottom { right: calc(var(--cerebr-pdf-w
 .pdf-preview-close svg { width: 14px; height: 14px; }
 body[data-desktop-platform]:not([data-desktop-platform='darwin']) .pdf-preview-tabs { padding-right: 138px; }
 body[data-pdf-preview="true"] .desktop-chat-drag-region { right: calc(var(--cerebr-pdf-width) + 12px); }
-.pdf-preview-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.pdf-preview-body { position: relative; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.pdf-preview-loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--cerebr-icon-color); pointer-events: none; }
+.pdf-preview-spinner { width: 28px; height: 28px; box-sizing: border-box; border: 2px solid var(--cerebr-surface-border); border-top-color: currentColor; border-radius: 50%; animation: pdf-preview-spin .75s linear infinite; }
+@keyframes pdf-preview-spin { to { transform: rotate(360deg); } }
 .pdf-preview-pages { width: 100%; }
 .pdf-preview-page { position: relative; background: white; margin-bottom: 6px; overflow: hidden; }
 .pdf-preview-page:last-child { margin-bottom: 0; }
@@ -52,3 +55,4 @@ body[data-pdf-preview="true"] .desktop-chat-drag-region { right: calc(var(--cere
     .pdf-preview-tabs { height: calc(36px + env(safe-area-inset-top)); }
     .pdf-preview-close { width: 32px; height: 32px; }
 }
+@media (prefers-reduced-motion: reduce) { .pdf-preview-spinner { animation-duration: 1.8s; } }

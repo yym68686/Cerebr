@@ -99,6 +99,9 @@ it('ignores a delayed load after closing, and reports a broken original without 
         resolve = done;
     });
     await render();
+    expect(host.querySelector('.pdf-preview-loading[role="status"]')).not.toBeNull();
+    expect(host.querySelector('.pdf-preview-spinner[aria-hidden="true"]')).not.toBeNull();
+    expect(host.querySelector('.pdf-preview-loading').textContent).toBe('');
     await act(async () => root.render(null));
     expect(loading.destroy).toHaveBeenCalledOnce();
     await act(async () => resolve(pdf));

@@ -112,7 +112,14 @@ export function PdfPreview({ file, files = [file], onSelect, onClose, disabled =
                 aria-labelledby={`pdf-tab-${file.id}`}
             >
                 {file.originalPdf ? (
-                    <Suspense key={file.id} fallback={<p role="status">{t('drop_reading')}</p>}>
+                    <Suspense
+                        key={file.id}
+                        fallback={
+                            <div className="pdf-preview-loading" role="status" aria-label={t('drop_reading')}>
+                                <span className="pdf-preview-spinner" aria-hidden="true" />
+                            </div>
+                        }
+                    >
                         <PdfPages source={file.originalPdf} onReady={restorePosition} />
                     </Suspense>
                 ) : (

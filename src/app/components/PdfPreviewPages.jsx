@@ -117,7 +117,9 @@ export default function PdfPreviewPages({ source, onReady }) {
             {error ? (
                 <p role="alert">{t('pdf_invalid')}</p>
             ) : !document ? (
-                <p role="status">{t('drop_reading')}</p>
+                <div className="pdf-preview-loading" role="status" aria-label={t('drop_reading')}>
+                    <span className="pdf-preview-spinner" aria-hidden="true" />
+                </div>
             ) : (
                 Array.from({ length: document.pdf.numPages }, (_, index) => (
                     <PdfPage
