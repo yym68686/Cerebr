@@ -5,6 +5,7 @@ import { applyRemoteRecord, upgradeReplica } from '../src/runtime/sync/replica.j
 const progressKey = 'cerebr_reading_progress_v1_test';
 const chatKey = 'cerebr_chat_v2_test';
 const draftKey = 'cerebr_draft_v1_test';
+const webpageCacheKey = 'cerebr_webpage_cache_v1_test';
 const invalidated = () => new Error('Extension context invalidated.');
 let adapter, runtime, local, errors, db;
 
@@ -109,6 +110,25 @@ describe('chat storage during extension reload', () => {
             [progressKey]: undefined,
         });
         expect(errors).not.toHaveBeenCalled();
+    });
+
+    it('stores persistent webpage context in IndexedDB rather than extension local storage', async () => {
+        const pages = [{ title: 'Article', url: 'https://example.org', content: 'Saved page text' }];
+        await adapter.set({ [webpageCacheKey]: pages });
+        expect(await readIdb(webpageCacheKey)).toEqual(pages);
+        expect(local.set).not.toHaveBeenCalled();
+    });
+
+    it('restores backed-up webpage context to IndexedDB', async () => {
+        const pages = [{ title: 'Article', url: 'https://example.org', content: 'Restored page text' }];
+        const { restoreDataBackup } = await import('../src/utils/data-transfer.js');
+        await restoreDataBackup({
+            format: 'cerebr-backup',
+            version: 1,
+            storage: { indexedDb: { [webpageCacheKey]: pages }, local: {}, sync: {} },
+        });
+        expect(await readIdb(webpageCacheKey)).toEqual(pages);
+        expect(local.set).not.toHaveBeenCalled();
     });
 
     it.each([progressKey, [progressKey], draftKey, [draftKey]])(

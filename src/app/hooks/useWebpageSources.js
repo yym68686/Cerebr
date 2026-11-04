@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { desktopBrowserStore } from '../../platform/desktop-browser.js';
 import { browserAdapter, isExtensionEnvironment } from '../../utils/storage-adapter.js';
-import { getWebpageSourceTabs } from '../../runtime/webpage/webpage-context.js';
+import { getEnabledTabsContent, getWebpageSourceTabs } from '../../runtime/webpage/webpage-context.js';
 import {
+    getCachedWebpagesForChat,
     getWebpageSwitchesForChat,
+    removeCachedWebpageSource,
     subscribeWebpageSwitches,
     updateWebpageSwitchesForChat,
+    webpageCacheIdentity,
 } from '../../utils/webpage-switches.js';
 import { notify } from '../state/ui-store.js';
 import { t } from '../../utils/i18n.js';
@@ -24,21 +27,60 @@ export function useWebpageSources(chatId, menuOpen, autoAddCurrentPage = false) 
     const owner = useRef(null);
     const refresh = useCallback(() => owner.current?.refresh(), []);
     useEffect(() => {
-        if (!available || !chatId) {
+        if (!chatId) {
             setData(empty);
             return;
         }
-        const context = { chatId, active: true, load: 0, mutation: 0, pending: 0 };
+        const context = { chatId, active: true, load: 0, mutation: 0, pending: 0, snapshotTimer: null };
         owner.current = context;
+        context.refreshSnapshot = () => {
+            if (!available || !context.active) return;
+            clearTimeout(context.snapshotTimer);
+            context.snapshotTimer = setTimeout(() => {
+                if (context.active && !document.hidden) {
+                    void getEnabledTabsContent(chatId)
+                        .then(() => {
+                            if (context.active) void context.refresh({ snapshot: false });
+                        })
+                        .catch(() => {});
+                }
+            }, 300);
+        };
         // Keep geometry until the new chat's cached or fetched sources are ready.
-        context.refresh = async () => {
+        context.refresh = async ({ snapshot = true } = {}) => {
             const load = ++context.load,
                 mutation = context.mutation;
             const current = () => context.active && load === context.load && mutation === context.mutation;
             try {
-                const [allTabs, tab] = await Promise.all([
+                if (!available) {
+                    const cachedPages = await getCachedWebpagesForChat(chatId);
+                    if (!current()) return;
+                    const tabs = cachedPages.map((page) => ({
+                        id: `cached:${webpageCacheIdentity(page.url)}`,
+                        title: page.title,
+                        url: page.url,
+                        lastAccessed: page.updatedAt || 0,
+                        cached: true,
+                        tabId: page.tabId,
+                    }));
+                    const switches = Object.fromEntries(tabs.map((item) => [item.id, true]));
+                    const next = {
+                        chatId,
+                        tabs,
+                        current: null,
+                        groups: {},
+                        switches,
+                        loading: false,
+                        error: null,
+                    };
+                    cache.current.set(chatId, next);
+                    setData(next);
+                    return;
+                }
+                const [allTabs, tab, cachedPages] = await Promise.all([
                     browserAdapter.getAllTabs(),
                     browserAdapter.getCurrentTab(),
+                    getCachedWebpagesForChat(chatId),
                 ]);
                 if (!current()) return;
                 const currentTab = allTabs.find((item) => item.id === tab?.id) || tab;
@@ -46,7 +88,23 @@ export function useWebpageSources(chatId, menuOpen, autoAddCurrentPage = false) 
                     currentTab,
                     initialize: autoAddCurrentPage,
                 });
-                const tabs = getWebpageSourceTabs(allTabs, switches);
+                const visibleUrls = new Set(allTabs.map((item) => webpageCacheIdentity(item.url)).filter(Boolean));
+                const cachedTabs = cachedPages
+                    .filter((page) => !visibleUrls.has(webpageCacheIdentity(page.url)))
+                    .map((page) => ({
+                        id: `cached:${webpageCacheIdentity(page.url)}`,
+                        title: page.title,
+                        url: page.url,
+                        lastAccessed: page.updatedAt || 0,
+                        cached: true,
+                        tabId: page.tabId,
+                    }));
+                const tabs = getWebpageSourceTabs([...allTabs, ...cachedTabs], switches);
+                const sourceSwitches = { ...switches };
+                const cachedUrls = new Set(cachedPages.map((page) => webpageCacheIdentity(page.url)).filter(Boolean));
+                for (const item of tabs) {
+                    if (cachedUrls.has(webpageCacheIdentity(item.url))) sourceSwitches[item.id] = true;
+                }
                 const groupIds = [...new Set(tabs.map((tab) => tab.groupId).filter((id) => id >= 0))];
                 const groups = await browserAdapter.getTabGroupsByIds(groupIds).catch(() => ({}));
                 if (current()) {
@@ -55,19 +113,47 @@ export function useWebpageSources(chatId, menuOpen, autoAddCurrentPage = false) 
                         tabs,
                         current: tabs.find((item) => item.id === tab?.id || item.url === tab?.url) || null,
                         groups,
-                        switches,
+                        switches: sourceSwitches,
                         loading: false,
                         error: null,
                     };
                     cache.current.set(chatId, next);
                     setData(next);
+                    if (snapshot && next.tabs.some((item) => next.switches[item.id] === true)) context.refreshSnapshot();
                 }
             } catch (error) {
-                if (current()) setData({ ...(cache.current.get(chatId) || empty), chatId, loading: false, error });
+                if (current()) {
+                    const cachedPages = await getCachedWebpagesForChat(chatId).catch(() => []);
+                    if (!current()) return;
+                    const cachedTabs = cachedPages.map((page) => ({
+                        id: `cached:${webpageCacheIdentity(page.url)}`,
+                        title: page.title,
+                        url: page.url,
+                        lastAccessed: page.updatedAt || 0,
+                        cached: true,
+                        tabId: page.tabId,
+                    }));
+                    const next = cachedPages.length
+                        ? {
+                              chatId,
+                              tabs: cachedTabs,
+                              current: null,
+                              groups: {},
+                              switches: Object.fromEntries(cachedTabs.map((tab) => [tab.id, true])),
+                              loading: false,
+                              error: null,
+                          }
+                        : { ...(cache.current.get(chatId) || empty), chatId, loading: false, error };
+                    cache.current.set(chatId, next);
+                    setData(next);
+                }
             }
         };
         const refreshVisible = () => {
-            if (!document.hidden) void context.refresh();
+            if (!document.hidden) {
+                void context.refresh();
+                context.refreshSnapshot();
+            }
         };
         const unsubscribe = subscribeWebpageSwitches((id) => {
             if (id === chatId && !context.pending) void context.refresh();
@@ -79,6 +165,7 @@ export function useWebpageSources(chatId, menuOpen, autoAddCurrentPage = false) 
         void context.refresh();
         return () => {
             context.active = false;
+            clearTimeout(context.snapshotTimer);
             if (owner.current === context) owner.current = null;
             unsubscribe();
             unsubscribeTabs();
@@ -94,7 +181,12 @@ export function useWebpageSources(chatId, menuOpen, autoAddCurrentPage = false) 
         async (tabs, value) => {
             const context = owner.current;
             if (!context?.active || context.chatId !== chatId || !tabs.length) return false;
-            const patch = Object.fromEntries(tabs.map((tab) => [tab.id, value]));
+            const cachedOnlyTabs = tabs.filter((tab) => tab.cached);
+            const realTabs = tabs.filter((tab) => !tab.cached && Number.isSafeInteger(Number(tab.id)));
+            const patch = Object.fromEntries([
+                ...realTabs.map((tab) => [tab.id, value]),
+                ...cachedOnlyTabs.map((tab) => [tab.id, value]),
+            ]);
             context.mutation++;
             context.pending++;
             setData((previous) => {
@@ -104,7 +196,16 @@ export function useWebpageSources(chatId, menuOpen, autoAddCurrentPage = false) 
                 return next;
             });
             try {
-                await updateWebpageSwitchesForChat(chatId, patch, { tabs });
+                if (!value && cachedOnlyTabs.length) {
+                    await Promise.all(cachedOnlyTabs.map((tab) => removeCachedWebpageSource(chatId, tab)));
+                }
+                if (realTabs.length) {
+                    await updateWebpageSwitchesForChat(
+                        chatId,
+                        Object.fromEntries(realTabs.map((tab) => [tab.id, value])),
+                        { tabs: realTabs }
+                    );
+                }
                 return context.active;
             } catch (error) {
                 notify(t('composer_sources_save_error'), { type: 'error' });
@@ -117,12 +218,8 @@ export function useWebpageSources(chatId, menuOpen, autoAddCurrentPage = false) 
         [chatId]
     );
     const cached = cache.current.get(chatId);
-    const switching = available && !!chatId && data.chatId !== chatId;
-    const visible = available
-        ? data.chatId === chatId
-            ? data
-            : cached || { ...empty, loading: true }
-        : empty;
+    const switching = !!chatId && data.chatId !== chatId;
+    const visible = data.chatId === chatId ? data : cached || { ...empty, loading: !!chatId };
     const previousHasSources = data.tabs.some((tab) => data.switches[tab.id] === true);
     const reserveSources = switching && !cached && previousHasSources;
     return {

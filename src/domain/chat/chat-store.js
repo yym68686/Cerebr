@@ -1,6 +1,7 @@
 import { subscribeRemoteChanges } from '../../runtime/sync/replica.js';
 import { getLiveChat, getLiveChats, reconcileLiveChat, subscribeLiveChats } from '../../runtime/sync/live-chat.js';
 import { storageAdapter, browserAdapter, isExtensionEnvironment } from '../../utils/storage-adapter.js';
+import { clearCachedWebpagesForChat } from '../../utils/webpage-switches.js';
 import {
     DEFAULT_CHAT_KIND,
     buildDefaultChatSeedMessages,
@@ -574,6 +575,7 @@ export class ChatManager {
         this._pendingRemovals.add(chatKeyV2(chatId));
         this._indexDirty = true;
         this.saveChats();
+        await clearCachedWebpagesForChat(chatId).catch(() => {});
 
         // 清理不再被任何对话引用的 YouTube 字幕缓存
         if (deletedKeys.length > 0) {

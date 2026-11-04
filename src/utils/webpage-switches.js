@@ -4,7 +4,21 @@ import { desktopBrowserRequest, onDesktopBrowserEvent } from '../platform/deskto
 const WEBPAGE_SWITCHES_BY_CHAT_PREFIX = 'cerebr_webpage_switches_v1_';
 const LEGACY_WEBPAGE_SWITCHES_KEY = 'webpageSwitches';
 const WEBPAGE_PREFERENCE_PREFIX = 'cerebr_webpage_auto_include_v1_';
+const WEBPAGE_CACHE_PREFIX = 'cerebr_webpage_cache_v1_';
 const pendingPreferences = new Map();
+const pendingCacheWrites = new Map();
+const cacheClearRevisions = new Map();
+const cachePageRevisions = new Map();
+
+function cachePageRevisionKey(chatId, identity) {
+    return `${chatId}\u0000${identity}`;
+}
+
+export function getWebpageCacheRevision(chatId, url) {
+    const identity = webpageCacheIdentity(url);
+    const pageRevision = identity ? cachePageRevisions.get(cachePageRevisionKey(chatId, identity)) || 0 : 0;
+    return `${cacheClearRevisions.get(chatId) || 0}:${pageRevision}`;
+}
 
 // Remember a document, including query parameters and hash-router paths, while
 // treating ordinary in-page anchors as the same document.
@@ -17,6 +31,110 @@ export function webpagePreferenceKey(value) {
     } catch {
         return null;
     }
+}
+
+export function webpageCacheIdentity(value) {
+    const key = webpagePreferenceKey(value);
+    return key ? key.slice(WEBPAGE_PREFERENCE_PREFIX.length) : null;
+}
+
+function webpageCacheKey(chatId) {
+    return `${WEBPAGE_CACHE_PREFIX}${chatId}`;
+}
+
+function enqueueCacheWrite(chatId, write) {
+    const pending = (pendingCacheWrites.get(chatId) || Promise.resolve()).catch(() => {}).then(write);
+    pendingCacheWrites.set(chatId, pending);
+    const clear = () => {
+        if (pendingCacheWrites.get(chatId) === pending) pendingCacheWrites.delete(chatId);
+    };
+    pending.then(clear, clear);
+    return pending;
+}
+
+export async function getCachedWebpagesForChat(chatId) {
+    if (!chatId) return [];
+    await pendingCacheWrites.get(chatId)?.catch(() => {});
+    const key = webpageCacheKey(chatId);
+    const result = await storageAdapter.get(key);
+    return Array.isArray(result?.[key])
+        ? result[key].filter((page) => page && webpageCacheIdentity(page.url) && typeof page.content === 'string')
+        : [];
+}
+
+export async function saveCachedWebpagesForChat(chatId, pages, revisions = null) {
+    if (!chatId || !Array.isArray(pages) || !pages.length) return;
+    const expectedRevisions = revisions || new Map(
+        pages.map((page) => [webpageCacheIdentity(page?.url), getWebpageCacheRevision(chatId, page?.url)])
+    );
+    return enqueueCacheWrite(chatId, async () => {
+        // A source removed while extraction was running must not reappear when
+        // that older extraction eventually completes.
+        const key = webpageCacheKey(chatId);
+        const result = await storageAdapter.get(key);
+        const cached = Array.isArray(result?.[key]) ? result[key] : [];
+        const byUrl = new Map(cached.flatMap((page) => {
+            const identity = webpageCacheIdentity(page?.url);
+            return identity && typeof page?.content === 'string' ? [[identity, page]] : [];
+        }));
+        for (const page of pages) {
+            const identity = webpageCacheIdentity(page?.url);
+            if (!identity || typeof page.content !== 'string') continue;
+            if (expectedRevisions.get(identity) !== getWebpageCacheRevision(chatId, page.url)) continue;
+            const observedAt = Number(page.observedAt) || Date.now();
+            if (observedAt < (Number(byUrl.get(identity)?.updatedAt) || 0)) continue;
+            byUrl.set(identity, { ...page, updatedAt: observedAt });
+        }
+        await storageAdapter.set({ [key]: [...byUrl.values()] });
+    });
+}
+
+export async function removeCachedWebpagesForChat(chatId, urls) {
+    if (!chatId || !Array.isArray(urls) || !urls.length) return;
+    const identities = new Set(urls.map(webpageCacheIdentity).filter(Boolean));
+    if (!identities.size) return;
+    for (const identity of identities) {
+        const key = cachePageRevisionKey(chatId, identity);
+        cachePageRevisions.set(key, (cachePageRevisions.get(key) || 0) + 1);
+    }
+    return enqueueCacheWrite(chatId, async () => {
+        const key = webpageCacheKey(chatId);
+        const result = await storageAdapter.get(key);
+        const cached = Array.isArray(result?.[key]) ? result[key] : [];
+        const remaining = cached.filter((page) => !identities.has(webpageCacheIdentity(page?.url)));
+        if (remaining.length === cached.length) return;
+        if (remaining.length) await storageAdapter.set({ [key]: remaining });
+        else await storageAdapter.remove(key);
+    });
+}
+
+export async function clearCachedWebpagesForChat(chatId) {
+    if (!chatId) return;
+    cacheClearRevisions.set(chatId, (cacheClearRevisions.get(chatId) || 0) + 1);
+    return enqueueCacheWrite(chatId, () => storageAdapter.remove(webpageCacheKey(chatId)));
+}
+
+export async function removeCachedWebpageSource(chatId, page) {
+    if (!chatId || !page?.url) return false;
+    if (Number.isSafeInteger(page.tabId)) {
+        const tabId = String(page.tabId);
+        try {
+            if (globalThis.cerebrDesktop) {
+                const switches = await desktopBrowserRequest({ type: 'GET_WEBPAGE_SWITCHES', chatId, initialize: false });
+                await desktopBrowserRequest({
+                    type: 'SET_WEBPAGE_SWITCHES',
+                    chatId,
+                    patch: { ...normalizeSwitches(switches), [tabId]: false },
+                });
+            } else {
+                await updateWebpageSwitchesForChat(chatId, { [tabId]: false });
+            }
+        } catch {
+            // A disconnected browser must not prevent removal of the local snapshot.
+        }
+    }
+    await removeCachedWebpagesForChat(chatId, [page.url]);
+    return true;
 }
 
 export function isNewWebpageConversation(chat) {
@@ -123,8 +241,13 @@ export async function setWebpageSwitchesForChat(chatId, switches) {
 
 export async function updateWebpageSwitchesForChat(chatId, patch, { tabs = [] } = {}) {
     if (!chatId) return false;
-    if(globalThis.cerebrDesktop)return desktopBrowserRequest({type:'UPDATE_WEBPAGE_SWITCHES',chatId,patch:normalizeSwitches(patch)});
     const changes = normalizeSwitches(patch);
+    const removedUrls = tabs.filter((tab) => changes[tab.id] === false).map((tab) => tab.url);
+    if (globalThis.cerebrDesktop) {
+        const result = await desktopBrowserRequest({ type: 'UPDATE_WEBPAGE_SWITCHES', chatId, patch: changes });
+        if (removedUrls.length) await removeCachedWebpagesForChat(chatId, removedUrls);
+        return result;
+    }
     const preferences = Object.fromEntries(
         tabs.flatMap((tab) => {
             const key = webpagePreferenceKey(tab.url);
@@ -140,6 +263,7 @@ export async function updateWebpageSwitchesForChat(chatId, patch, { tabs = [] } 
         // One storage operation keeps the visible selection and future default
         // consistent, including when a save fails.
         await storageAdapter.set({ [keyForChatId(chatId)]: { ...current, ...changes }, ...preferences });
+        if (removedUrls.length) await removeCachedWebpagesForChat(chatId, removedUrls);
         changed(chatId);
         return true;
     });

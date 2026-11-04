@@ -1,15 +1,17 @@
 import { isExtensionEnvironment } from './storage-adapter.js';
+import { upgradeReplica } from '../runtime/sync/replica.js';
 
 const BACKUP_FORMAT = 'cerebr-backup';
 const BACKUP_VERSION = 1;
 
 const IDB_DB_NAME = 'CerebrData';
-const IDB_DB_VERSION = 1;
+const IDB_DB_VERSION = 2;
 const IDB_STORE_NAME = 'keyValueStore';
 
 const CHATS_INDEX_V2_KEY = 'cerebr_chats_index_v2';
 const CHAT_V2_PREFIX = 'cerebr_chat_v2_';
 const READING_PROGRESS_V1_PREFIX = 'cerebr_reading_progress_v1_';
+const WEBPAGE_CACHE_V1_PREFIX = 'cerebr_webpage_cache_v1_';
 const WEB_SYNC_PREFIX = 'sync_';
 
 let dbPromise = null;
@@ -25,7 +27,7 @@ function cloneStorageMap(value) {
 
 function isChatStorageKey(key) {
     return key === CHATS_INDEX_V2_KEY ||
-        (typeof key === 'string' && (key.startsWith(CHAT_V2_PREFIX) || key.startsWith(READING_PROGRESS_V1_PREFIX)));
+        (typeof key === 'string' && (key.startsWith(CHAT_V2_PREFIX) || key.startsWith(READING_PROGRESS_V1_PREFIX) || key.startsWith(WEBPAGE_CACHE_V1_PREFIX)));
 }
 
 function getDb() {
@@ -35,6 +37,7 @@ function getDb() {
 
             request.onupgradeneeded = (event) => {
                 const db = event.target.result;
+                upgradeReplica(db);
                 if (!db.objectStoreNames.contains(IDB_STORE_NAME)) {
                     db.createObjectStore(IDB_STORE_NAME);
                 }

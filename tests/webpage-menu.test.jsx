@@ -10,6 +10,7 @@ vi.mock('../src/utils/storage-adapter.js', () => ({
         getAllTabs: vi.fn(),
         getCurrentTab: vi.fn(),
         getTabGroupsByIds: vi.fn(async () => ({})),
+        sendMessage: vi.fn(),
         onTabActivated: () => () => {},
         onTabsChanged: (callback) => {
             state.tabChange = callback;
@@ -26,7 +27,9 @@ vi.mock('../src/utils/storage-adapter.js', () => ({
             )
         ),
         set: vi.fn(async (values) => Object.assign(state.memory, structuredClone(values))),
-        remove: vi.fn(async () => {}),
+        remove: vi.fn(async (keys) => {
+            for (const key of Array.isArray(keys) ? keys : [keys]) delete state.memory[key];
+        }),
     },
 }));
 vi.mock('../src/domain/chat/chat-store.js', () => ({ chatManager: { getCurrentChat: () => ({ id: 'a' }) } }));
@@ -120,6 +123,10 @@ beforeEach(() => {
     browserAdapter.getAllTabs.mockResolvedValue(tabs);
     browserAdapter.getCurrentTab.mockResolvedValue(tabs[0]);
     browserAdapter.getTabGroupsByIds.mockResolvedValue({});
+    browserAdapter.sendMessage.mockImplementation(async ({ tabId }) => ({
+        title: tabs.find((tab) => tab.id === tabId)?.title,
+        content: `Page content for tab ${tabId}`,
+    }));
     sizeCallbacks = new Map();
     vi.stubGlobal(
         'ResizeObserver',
@@ -337,6 +344,44 @@ describe('Prompt Bar source picker', () => {
         expect(latest.selected.map((tab) => tab.id)).toEqual([2]);
         await render('a');
         expect(latest.selected.map((tab) => tab.id)).toEqual([1]);
+    });
+    it('keeps a cached page in the composer after its browser tab is closed until the user removes it', async () => {
+        state.memory.cerebr_webpage_cache_v1_a = [
+            {
+                title: 'Archived article',
+                url: 'https://archive.example/article',
+                content: 'The page text remains available.',
+                updatedAt: Date.now() - 31 * 24 * 60 * 60 * 1000,
+                tabId: 77,
+            },
+        ];
+        state.memory.cerebr_webpage_switches_v1_a = { 77: true };
+        browserAdapter.getAllTabs.mockResolvedValue([]);
+        browserAdapter.getCurrentTab.mockResolvedValue(null);
+        await render();
+        expect(latest.selected.map((source) => source.title)).toEqual(['Archived article']);
+        expect(host.querySelector('.composer-source-title').textContent).toBe('Archived article');
+        await click('.composer-source-remove');
+        expect(host.querySelector('.composer-sources')).toBeNull();
+        expect(state.memory.cerebr_webpage_cache_v1_a).toBeUndefined();
+        expect(state.memory.cerebr_webpage_switches_v1_a).toEqual({ 77: false });
+    });
+    it('automatically snapshots selected pages and restores their chips after the tab and composer are closed', async () => {
+        state.memory.cerebr_webpage_switches_v1_a = { 1: true };
+        await render();
+        await act(async () => vi.advanceTimersByTimeAsync(350));
+        expect(state.memory.cerebr_webpage_cache_v1_a).toEqual([
+            expect.objectContaining({ url: tabs[0].url, content: 'Page content for tab 1' }),
+        ]);
+        browserAdapter.getAllTabs.mockResolvedValue([]);
+        browserAdapter.getCurrentTab.mockResolvedValue(null);
+        await act(async () => root.unmount());
+        root = createRoot(host);
+        await render();
+        expect(host.querySelector('.composer-source-title').textContent).toBe('Alpha');
+        await click('.composer-source-remove');
+        expect(state.memory.cerebr_webpage_cache_v1_a).toBeUndefined();
+        expect(host.querySelector('.composer-sources')).toBeNull();
     });
     it('ignores an old load completing after a chat switch', async () => {
         let resolve;

@@ -15,7 +15,9 @@ vi.mock('../src/utils/storage-adapter.js', () => ({
         set: vi.fn(async (data) => {
             for (const [key, value] of Object.entries(data)) state.memory.set(key, structuredClone(value));
         }),
-        remove: vi.fn(async () => {}),
+        remove: vi.fn(async (keys) => {
+            for (const key of Array.isArray(keys) ? keys : [keys]) state.memory.delete(key);
+        }),
     },
     browserAdapter: {
         getAllTabs: vi.fn(),
@@ -77,6 +79,7 @@ const papers = [
 ];
 const textById = { 1: 'First PDF: mass gap analysis.', 2: 'Second PDF: topology analysis.' };
 const key = (id) => `cerebr_webpage_switches_v1_${id}`;
+const cacheKey = (id) => `cerebr_webpage_cache_v1_${id}`;
 const deferred = () => {
     let resolve;
     const promise = new Promise((r) => {
@@ -163,6 +166,70 @@ describe('selected PDF context', () => {
             expect(system).toContain(paper.url);
             expect(system).toContain(textById[paper.id]);
         }
+    });
+
+    it('keeps a page available after its tab closes, with no expiry, and refreshes it when seen again', async () => {
+        expect((await getEnabledTabsContent()).pages.map((page) => page.content)).toEqual(Object.values(textById));
+        expect(state.memory.get(cacheKey('chat-a'))).toHaveLength(2);
+
+        const oldCache = state.memory.get(cacheKey('chat-a')).map((page) => ({
+            ...page,
+            updatedAt: Date.now() - 31 * 24 * 60 * 60 * 1000,
+        }));
+        state.memory.set(cacheKey('chat-a'), oldCache);
+        browserAdapter.getAllTabs.mockResolvedValue([]);
+        browserAdapter.getCurrentTab.mockResolvedValue(null);
+        browserAdapter.sendMessage.mockClear();
+
+        const afterClosing = await getEnabledTabsContent();
+        expect(afterClosing.pages.map((page) => page.content)).toEqual(Object.values(textById));
+        expect(browserAdapter.sendMessage).not.toHaveBeenCalled();
+
+        const reopened = { ...papers[0], id: 91 };
+        browserAdapter.getAllTabs.mockResolvedValue([reopened]);
+        browserAdapter.getCurrentTab.mockResolvedValue(reopened);
+        browserAdapter.sendMessage.mockResolvedValue({ title: papers[0].title, content: 'Updated page content' });
+        const afterReopening = await getEnabledTabsContent();
+        expect(afterReopening.pages.find((page) => page.url === papers[0].url).content).toBe('Updated page content');
+        expect(state.memory.get(cacheKey('chat-a')).find((page) => page.url === papers[0].url).content).toBe(
+            'Updated page content'
+        );
+    });
+
+    it('falls back to the previously cached page if refreshing an open tab fails', async () => {
+        await getEnabledTabsContent();
+        browserAdapter.sendMessage.mockRejectedValue(new Error('Page unavailable'));
+        const result = await getEnabledTabsContent();
+        expect(result.pages.map((page) => page.content)).toEqual(Object.values(textById));
+    });
+
+    it('uses cached page context when the browser connection is no longer available', async () => {
+        await getEnabledTabsContent();
+        browserAdapter.getAllTabs.mockRejectedValue(new Error('Browser disconnected'));
+        const result = await getEnabledTabsContent();
+        expect(result.pages.map((page) => page.content)).toEqual(Object.values(textById));
+    });
+
+    it('does not restore a source when the user removes it during an in-flight extraction', async () => {
+        const extraction = deferred();
+        browserAdapter.sendMessage.mockImplementation(async ({ tabId }) => {
+            if (tabId === 1) await extraction.promise;
+            return { title: papers.find((tab) => tab.id === tabId).title, content: textById[tabId] };
+        });
+        const gathering = getEnabledTabsContent();
+        await vi.waitFor(() => expect(browserAdapter.sendMessage).toHaveBeenCalled());
+        await updateWebpageSwitchesForChat('chat-a', { 1: false }, { tabs: [papers[0]] });
+        extraction.resolve();
+        await gathering;
+        expect(state.memory.get(cacheKey('chat-a'))).toEqual([
+            expect.objectContaining({ url: papers[1].url, content: textById[2] }),
+        ]);
+    });
+
+    it('deletes cached page content when that source is explicitly deselected', async () => {
+        await getEnabledTabsContent();
+        await updateWebpageSwitchesForChat('chat-a', { 1: false }, { tabs: [papers[0]] });
+        expect(state.memory.get(cacheKey('chat-a')).map((page) => page.url)).toEqual([papers[1].url]);
     });
 
     it.each(['empty', 'error'])('rejects incomplete context when a selected PDF returns %s', async (kind) => {

@@ -37,6 +37,7 @@ const CHATS_INDEX_V2_KEY = 'cerebr_chats_index_v2';
 const CHAT_V2_PREFIX = 'cerebr_chat_v2_';
 const READING_PROGRESS_V1_PREFIX = 'cerebr_reading_progress_v1_';
 const DRAFT_V1_PREFIX = 'cerebr_draft_v1_';
+const WEBPAGE_CACHE_V1_PREFIX = 'cerebr_webpage_cache_v1_';
 
 function isDraftStorageKey(key) {
     return typeof key === 'string' && key.startsWith(DRAFT_V1_PREFIX);
@@ -45,7 +46,8 @@ function isDraftStorageKey(key) {
 function isChatStorageKey(key) {
     return isSyncedKey(key) || key === CHATS_INDEX_V2_KEY ||
         (typeof key === 'string' && (key.startsWith(CHAT_V2_PREFIX) || key.startsWith(READING_PROGRESS_V1_PREFIX))) ||
-        isDraftStorageKey(key);
+        isDraftStorageKey(key) ||
+        (typeof key === 'string' && key.startsWith(WEBPAGE_CACHE_V1_PREFIX));
 }
 
 function warnWebSyncLocalStorageFallback() {
