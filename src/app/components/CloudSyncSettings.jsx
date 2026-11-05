@@ -136,12 +136,17 @@ export function CloudSyncSettings() {
                     </div>
                     <div className="cloud-auth-fields">
                         <label>
-                            {t('cloud_sync_username')}
+                            {t(mode === 'register' ? 'cloud_sync_email' : 'cloud_sync_username')}
                             <input
                                 className="settings-input"
+                                type={mode === 'register' ? 'email' : 'text'}
+                                inputMode="email"
                                 autoComplete="username"
+                                autoCapitalize="none"
+                                autoCorrect="off"
+                                spellCheck={false}
                                 minLength={3}
-                                maxLength={32}
+                                maxLength={254}
                                 required
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}

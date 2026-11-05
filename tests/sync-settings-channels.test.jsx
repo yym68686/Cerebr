@@ -110,7 +110,7 @@ it('retains registration behind the cloud login disclosure on the web', async ()
     expect(host.querySelector('#desktop-sync-settings')).toBeNull();
     await click('[aria-controls="cloud-sync-auth"]');
     await click('[role="tab"]:nth-child(2)');
-    await fill('[autocomplete="username"]', 'new_user');
+    await fill('[autocomplete="username"]', 'new_user@example.test');
     await fill('[type="password"]', 'test-password-123');
     cloudSyncAction.mockResolvedValueOnce({ ok: true });
     await act(async () =>
@@ -119,10 +119,52 @@ it('retains registration behind the cloud login disclosure on the web', async ()
             .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
     );
     expect(cloudSyncAction).toHaveBeenCalledWith('register', {
-        username: 'new_user',
+        username: 'new_user@example.test',
         password: 'test-password-123',
     });
     expect(host.querySelector('[type="password"]').value).toBe('');
+});
+
+it('rejects non-email registration in the form while preserving legacy username login', async () => {
+    environment.desktop = false;
+    cloudSyncStore.set({ user: null, connected: false });
+    await act(async () => root.render(<SyncSettings />));
+    await click('[aria-controls="cloud-sync-auth"]');
+    await click('[role="tab"]:nth-child(2)');
+    const input = host.querySelector('[autocomplete="username"]');
+    expect(input.type).toBe('email');
+    expect(input.closest('label').textContent).toBe('cloud_sync_email');
+    await fill('[autocomplete="username"]', 'existing_user');
+    await fill('[type="password"]', 'test-password-123');
+    expect(host.querySelector('#cloud-sync-auth').checkValidity()).toBe(false);
+    await act(async () => host.querySelector('button[type="submit"]').click());
+    expect(cloudSyncAction).not.toHaveBeenCalled();
+    await click('[role="tab"]:first-child');
+    expect(input.type).toBe('text');
+    expect(host.querySelector('#cloud-sync-auth').checkValidity()).toBe(true);
+    await act(async () => host.querySelector('button[type="submit"]').click());
+    expect(cloudSyncAction).toHaveBeenCalledWith('login', {
+        username: 'existing_user',
+        password: 'test-password-123',
+    });
+});
+
+it.each(['register', 'login'])('submits an email account name and password for %s', async (action) => {
+    environment.desktop = false;
+    cloudSyncStore.set({ user: null, connected: false });
+    await act(async () => root.render(<SyncSettings />));
+    await click('[aria-controls="cloud-sync-auth"]');
+    if (action === 'register') await click('[role="tab"]:nth-child(2)');
+    const email = 'longer-than-the-old-username-limit@example.test';
+    const username = host.querySelector('[autocomplete="username"]');
+    expect(username.maxLength).toBeGreaterThanOrEqual(email.length);
+    expect(username.getAttribute('autocapitalize')).toBe('none');
+    expect(username.getAttribute('spellcheck')).toBe('false');
+    await fill('[autocomplete="username"]', email);
+    await fill('[type="password"]', email);
+    expect(host.querySelector('#cloud-sync-auth').checkValidity()).toBe(true);
+    await act(async () => host.querySelector('button[type="submit"]').click());
+    expect(cloudSyncAction).toHaveBeenCalledWith(action, { username: email, password: email });
 });
 
 it('shows an ordinary disconnected state and a direct download instead of an unavailable-desktop alert', async () => {
