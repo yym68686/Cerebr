@@ -1,7 +1,7 @@
 {
   "name": "cerebr-desktop",
   "productName": "Cerebr",
-  "version": "2.6.36",
+  "version": "2.6.37",
   "description": "Cerebr desktop with local browser history synchronization",
   "author": "Cerebr",
   "private": true,
