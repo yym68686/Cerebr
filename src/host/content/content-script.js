@@ -101,7 +101,7 @@ class CerebrSidebar {
     this.inputFocusLoadListener = null;
     this.hideTimeout = null;
     this.dragging = false;
-    this.iframePointerEventsBeforeDrag = null;
+    this.dragOrigin = null;
     this.saveStateDebounced = this.debounce(() => void this.saveState(), 250);
     this.saveDimensionsDebounced = this.debounce((options) => void this.saveDimensions(options), 250);
     this.savePositionDebounced = this.debounce(() => void this.savePosition(), 250);
@@ -511,8 +511,8 @@ class CerebrSidebar {
     this.sidebar.style.bottom = 'auto';
   }
 
-  startDragging() {
-    if (!this.sidebar || this.dragging) return;
+  startDragging(screenX, screenY) {
+    if (!this.sidebar || this.dragging || !Number.isFinite(screenX) || !Number.isFinite(screenY)) return;
     this.dragging = true;
 
     // 以“当前可见位置”为起点（避免 desired 与 clamp 后位置不一致导致拖动抖动/跳动）
@@ -526,25 +526,23 @@ class CerebrSidebar {
       // ignore
     }
 
-    const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
-    if (iframe) {
-      this.iframePointerEventsBeforeDrag = iframe.style.pointerEvents;
-      iframe.style.pointerEvents = 'none';
-    }
-
-    document.documentElement.style.cursor = 'grabbing';
-    document.documentElement.style.userSelect = 'none';
+    this.dragOrigin = { screenX, screenY, left: this.sidebarLeft, top: this.sidebarTop };
+    // The iframe owns pointer capture. Disabling it here can break capture and
+    // deliver the rest of the drag to text underneath the moving sidebar.
   }
 
-  dragBy(dx, dy) {
-    if (!this.sidebar || !this.dragging) return;
-    const nextLeft = (Number.isFinite(this.sidebarLeft) ? this.sidebarLeft : 0) + dx;
-    const nextTop = (Number.isFinite(this.sidebarTop) ? this.sidebarTop : 0) + dy;
-    const { left, top } = this.clampSidebarPosition(nextLeft, nextTop);
-    this.sidebarLeft = left;
-    this.sidebarTop = top;
-    this.sidebar.style.left = `${left}px`;
-    this.sidebar.style.top = `${top}px`;
+  dragTo(screenX, screenY) {
+    if (!this.sidebar || !this.dragging || !Number.isFinite(screenX) || !Number.isFinite(screenY)) return;
+    const origin = this.dragOrigin;
+    // Always anchor to pointerdown, never integrate deltas from clamped positions.
+    // Do not clamp while the pointer is held: a nearly full-height sidebar
+    // would otherwise stop moving vertically while the cursor keeps travelling.
+    const nextLeft = origin.left + screenX - origin.screenX;
+    const nextTop = origin.top + screenY - origin.screenY;
+    this.sidebarLeft = nextLeft;
+    this.sidebarTop = nextTop;
+    this.sidebar.style.left = `${nextLeft}px`;
+    this.sidebar.style.top = `${nextTop}px`;
     this.sidebar.style.right = 'auto';
     this.sidebar.style.bottom = 'auto';
   }
@@ -552,15 +550,13 @@ class CerebrSidebar {
   stopDragging() {
     if (!this.dragging) return;
     this.dragging = false;
-
-    const iframe = this.sidebar?.querySelector('.cerebr-sidebar__iframe');
-    if (iframe) {
-      iframe.style.pointerEvents = this.iframePointerEventsBeforeDrag ?? '';
-    }
-    this.iframePointerEventsBeforeDrag = null;
-
-    document.documentElement.style.cursor = '';
-    document.documentElement.style.userSelect = '';
+    this.dragOrigin = null;
+    // Restore the viewport bounds only after release, keeping the panel usable.
+    const { left, top } = this.clampSidebarPosition(this.sidebarLeft, this.sidebarTop);
+    this.sidebarLeft = left;
+    this.sidebarTop = top;
+    this.applySidebarPosition();
+    this.postMessageToIframe({ type: 'CEREBR_SIDEBAR_DRAG_CANCEL' });
 
     this.savePositionDebounced();
   }
@@ -600,6 +596,7 @@ class CerebrSidebar {
     this.resetIframeReadyState();
     iframe.addEventListener('load', () => {
       if (iframe !== this.iframe) return;
+      this.stopDragging();
       this.resetIframeReadyState();
     });
 
@@ -738,17 +735,14 @@ class CerebrSidebar {
 
       if (data.type === 'CEREBR_SIDEBAR_DRAG_START') {
         if (!this.isVisible) return;
-        this.startDragging();
+        this.startDragging(data.screenX, data.screenY);
         return;
       }
 
       if (data.type === 'CEREBR_SIDEBAR_DRAG_MOVE') {
         if (!this.isVisible) return;
         if (!this.dragging) return;
-        const dx = Number(data.dx) || 0;
-        const dy = Number(data.dy) || 0;
-        if (!dx && !dy) return;
-        this.dragBy(dx, dy);
+        this.dragTo(data.screenX, data.screenY);
         return;
       }
 
@@ -760,6 +754,7 @@ class CerebrSidebar {
     window.addEventListener('message', onMessage);
     window.addEventListener('blur', () => this.stopDragging());
     window.addEventListener('resize', () => {
+      this.stopDragging();
       this.applySidebarDimensions();
     });
   }
@@ -1063,6 +1058,7 @@ class CerebrSidebar {
         this.sidebar.style.display = 'block';
         this.sidebar.classList.add('visible');
       } else {
+        this.stopDragging();
         this.clearInputFocusRetries();
         this.clearPendingIframeCommands();
         this.sidebar.classList.remove('visible');

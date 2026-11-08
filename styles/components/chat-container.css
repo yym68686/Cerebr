@@ -22,6 +22,12 @@
    pointer crosses message boxes. The drag controller owns the active cursor. */
 .cerebr-extension-sidebar-iframe #chat-container { cursor: default; }
 
+.cerebr-sidebar-dragging,
+.cerebr-sidebar-dragging * {
+    cursor: grabbing !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+}
 
 
 .chat-switch-placeholder {

@@ -63,3 +63,62 @@ it.each(['top-left','bottom-left','top-right','bottom-right'])('keeps the opposi
     expect(after.width).toBe(430);expect(after.left).toBeGreaterThanOrEqual(8);expect(after.top).toBeGreaterThanOrEqual(8);
     expect(after.bottom).toBeLessThanOrEqual(innerHeight-8);
 });
+
+const dragMessage = (sidebar, type, coordinates = {}, source = sidebar.iframe.contentWindow) =>
+    window.dispatchEvent(new MessageEvent('message', { source, data: { type, ...coordinates } }));
+
+it('anchors iframe drags to pointerdown without accumulating drift at viewport edges or repeated events', async () => {
+    const sidebar = runtime.sidebar;
+    sidebar.open();
+    Object.assign(sidebar, { sidebarLeft: 200, sidebarTop: 100, sidebarHeight: 400 });
+    sidebar.applySidebarDimensions();
+    const iframe = sidebar.iframe;
+    iframe.style.pointerEvents = 'auto';
+    const before = sidebar.sidebar.getBoundingClientRect();
+    const origin = { screenX: 500, screenY: 300 };
+    dragMessage(sidebar, 'CEREBR_SIDEBAR_DRAG_START', origin);
+    expect(iframe.style.pointerEvents).toBe('auto');
+    for (const [x, y] of [[530, 320], [560, 350], [-1000, -1000], [530, 320], [530, 320], [10000, 10000], [500, 300]]) {
+        dragMessage(sidebar, 'CEREBR_SIDEBAR_DRAG_MOVE', { screenX: x, screenY: y });
+        const position = sidebar.sidebar.getBoundingClientRect();
+        expect(position.left).toBe(before.left + x - origin.screenX);
+        expect(position.top).toBe(before.top + y - origin.screenY);
+    }
+    expect(sidebar.sidebar.getBoundingClientRect()).toMatchObject({ left: before.left, top: before.top });
+    dragMessage(sidebar, 'CEREBR_SIDEBAR_DRAG_END');
+    await vi.advanceTimersByTimeAsync(300);
+    expect(iframe.style.pointerEvents).toBe('auto');
+    expect(local.cerebr_sidebar_positions_v1[sidebar.positionKey]).toMatchObject({ left: before.left, top: before.top });
+});
+
+it('keeps the grab point fixed on a full-height sidebar and restores viewport bounds only after release', () => {
+    const sidebar = runtime.sidebar;
+    sidebar.open();
+    const before = sidebar.sidebar.getBoundingClientRect();
+    dragMessage(sidebar, 'CEREBR_SIDEBAR_DRAG_START', { screenX: 700, screenY: 200 });
+    dragMessage(sidebar, 'CEREBR_SIDEBAR_DRAG_MOVE', { screenX: 750, screenY: 450 });
+    expect(sidebar.sidebar.getBoundingClientRect()).toMatchObject({ left: before.left + 50, top: before.top + 250 });
+    dragMessage(sidebar, 'CEREBR_SIDEBAR_DRAG_END');
+    const after = sidebar.sidebar.getBoundingClientRect();
+    expect(after.left).toBeGreaterThanOrEqual(8);
+    expect(after.top).toBeGreaterThanOrEqual(8);
+    expect(after.right).toBeLessThanOrEqual(innerWidth - 8);
+    expect(after.bottom).toBeLessThanOrEqual(innerHeight - 8);
+});
+
+it('rejects foreign and invalid drag coordinates and stops moving when the sidebar closes', () => {
+    const sidebar = runtime.sidebar;
+    sidebar.open();
+    const before = sidebar.sidebar.getBoundingClientRect();
+    dragMessage(sidebar, 'CEREBR_SIDEBAR_DRAG_START', { screenX: 500, screenY: 300 }, window);
+    dragMessage(sidebar, 'CEREBR_SIDEBAR_DRAG_START', { screenX: NaN, screenY: 300 });
+    expect(sidebar.dragging).toBe(false);
+    dragMessage(sidebar, 'CEREBR_SIDEBAR_DRAG_START', { screenX: 500, screenY: 300 });
+    dragMessage(sidebar, 'CEREBR_SIDEBAR_DRAG_MOVE', { screenX: 550, screenY: Infinity });
+    expect(sidebar.sidebar.getBoundingClientRect()).toMatchObject({ left: before.left, top: before.top });
+    sidebar.toggle();
+    expect(sidebar.dragging).toBe(false);
+    sidebar.open();
+    dragMessage(sidebar, 'CEREBR_SIDEBAR_DRAG_MOVE', { screenX: 550, screenY: 300 });
+    expect(sidebar.sidebar.getBoundingClientRect()).toMatchObject({ left: before.left, top: before.top });
+});

@@ -19,8 +19,6 @@ export function attachSidebarDrag(chatContainer) {
     let activePointerId = null;
     let startScreenX = 0;
     let startScreenY = 0;
-    let lastScreenX = 0;
-    let lastScreenY = 0;
     let dragging = false;
     let suppressClickUntil = 0;
 
@@ -44,27 +42,40 @@ export function attachSidebarDrag(chatContainer) {
 
     const endDrag = () => {
         if (activePointerId === null) return;
+        const pointerId = activePointerId;
+        activePointerId = null;
         if (dragging) {
+            suppressClickUntil = Date.now() + 400;
             postToParent({ type: 'CEREBR_SIDEBAR_DRAG_END' });
         }
-        activePointerId = null;
         dragging = false;
+        document.documentElement.classList.remove('cerebr-sidebar-dragging');
+        try {
+            if (chatContainer.hasPointerCapture(pointerId)) chatContainer.releasePointerCapture(pointerId);
+        } catch {
+            // The browser may have already released capture on pointerup/cancel.
+        }
     };
+
+    const moveDrag = (e) => postToParent({
+        type: 'CEREBR_SIDEBAR_DRAG_MOVE', screenX: e.screenX, screenY: e.screenY,
+    });
 
     listen(
         chatContainer,
         'pointerdown',
         (e) => {
             if (e.pointerType && e.pointerType !== 'mouse') return;
-            if (e.button !== 0) return;
+            if (e.button !== 0 || activePointerId !== null) return;
             if (!canStartDragFromTarget(e.target)) return;
 
+            // Prevent the browser from starting a native text selection before
+            // the drag threshold is reached. Message text remains selectable.
+            e.preventDefault();
             activePointerId = e.pointerId;
             // 用 screenX/screenY：拖动窗口本身会改变 iframe 的 clientX 坐标系，导致反馈抖动
             startScreenX = e.screenX;
             startScreenY = e.screenY;
-            lastScreenX = startScreenX;
-            lastScreenY = startScreenY;
             dragging = false;
 
             try {
@@ -73,7 +84,7 @@ export function attachSidebarDrag(chatContainer) {
                 // ignore
             }
         },
-        { passive: true }
+        { passive: false }
     );
 
     listen(
@@ -81,24 +92,21 @@ export function attachSidebarDrag(chatContainer) {
         'pointermove',
         (e) => {
             if (activePointerId === null || e.pointerId !== activePointerId) return;
+            if (!(e.buttons & 1)) {
+                endDrag();
+                return;
+            }
             const totalDx = e.screenX - startScreenX;
             const totalDy = e.screenY - startScreenY;
 
             if (!dragging) {
                 if (Math.hypot(totalDx, totalDy) < DRAG_THRESHOLD_PX) return;
                 dragging = true;
-                suppressClickUntil = Date.now() + 400;
-                postToParent({ type: 'CEREBR_SIDEBAR_DRAG_START' });
+                document.documentElement.classList.add('cerebr-sidebar-dragging');
+                postToParent({ type: 'CEREBR_SIDEBAR_DRAG_START', screenX: startScreenX, screenY: startScreenY });
             }
 
-            const dx = e.screenX - lastScreenX;
-            const dy = e.screenY - lastScreenY;
-            lastScreenX = e.screenX;
-            lastScreenY = e.screenY;
-
-            if (dx || dy) {
-                postToParent({ type: 'CEREBR_SIDEBAR_DRAG_MOVE', dx, dy });
-            }
+            moveDrag(e);
 
             e.preventDefault();
         },
@@ -110,10 +118,24 @@ export function attachSidebarDrag(chatContainer) {
         'pointerup',
         (e) => {
             if (activePointerId === null || e.pointerId !== activePointerId) return;
+            if (dragging) moveDrag(e);
             endDrag();
         },
         { passive: true }
     );
+
+    listen(chatContainer, 'lostpointercapture', (e) => {
+        if (e.pointerId === activePointerId) endDrag();
+    });
+    listen(window, 'blur', endDrag);
+    listen(window, 'message', (e) => {
+        if (e.source === window.parent && e.data?.type === 'CEREBR_SIDEBAR_DRAG_CANCEL') endDrag();
+    });
+    for (const type of ['selectstart', 'dragstart']) {
+        listen(document, type, (e) => {
+            if (activePointerId !== null) e.preventDefault();
+        }, { capture: true });
+    }
 
     listen(
         chatContainer,
@@ -130,7 +152,7 @@ export function attachSidebarDrag(chatContainer) {
         chatContainer,
         'click',
         (e) => {
-            if (Date.now() < suppressClickUntil) {
+            if (dragging || Date.now() < suppressClickUntil) {
                 e.preventDefault();
                 e.stopPropagation();
             }
