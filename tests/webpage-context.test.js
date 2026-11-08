@@ -111,6 +111,26 @@ afterEach(() => {
 });
 
 describe('selected PDF context', () => {
+    it('refreshes only previously used pages while browsing, even if another source is selected', async () => {
+        state.memory.set(cacheKey('chat-a'), [{ ...papers[0], tabId: 1, content: 'Earlier page content' }]);
+        const result = await getEnabledTabsContent('chat-a', { cachedOnly: true });
+        expect(result.pages.map((page) => page.url)).toEqual([papers[0].url]);
+        expect(browserAdapter.sendMessage).toHaveBeenCalledTimes(1);
+        expect(state.memory.get(cacheKey('chat-a')).map((page) => page.url)).toEqual([papers[0].url]);
+        expect((await getEnabledTabsContent()).pages.map((page) => page.url)).toEqual(papers.map((page) => page.url));
+    });
+
+    it('does not transfer a used source to a new URL in the same tab, including legacy selections', async () => {
+        state.messages = [{ role: 'user', content: 'Explain the first paper' }];
+        state.memory.set(key('chat-a'), { 1: true });
+        state.memory.set(cacheKey('chat-a'), [{ ...papers[0], tabId: 1, content: textById[1] }]);
+        const nextPage = { ...papers[0], url: 'https://example.org/unasked' };
+        browserAdapter.getAllTabs.mockResolvedValue([nextPage]);
+        browserAdapter.getCurrentTab.mockResolvedValue(nextPage);
+        expect((await getEnabledTabsContent()).pages.map((page) => page.url)).toEqual([papers[0].url]);
+        expect(browserAdapter.sendMessage).not.toHaveBeenCalled();
+    });
+
     it('lets the background reconnect a selected page without reloading it', async () => {
         browserAdapter.isTabConnected.mockResolvedValue(false);
         const result = await getEnabledTabsContent();

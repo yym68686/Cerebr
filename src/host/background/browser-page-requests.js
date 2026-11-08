@@ -23,6 +23,7 @@ export function createBrowserPageRequests({ api, getPageContent }) {
         if (message.type === 'GET_WEBPAGE_SWITCHES')
             return getWebpageSwitchesForChat(message.chatId, {
                 currentTab: await currentTab(),
+                tabs: await api.tabs.query({}),
                 initialize: message.initialize,
             });
         if (message.type === 'SET_WEBPAGE_SWITCHES')

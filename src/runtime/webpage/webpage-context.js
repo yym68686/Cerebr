@@ -116,15 +116,18 @@ async function mapWithConcurrency(items, limit, mapper) {
     return results;
 }
 
-export async function getEnabledTabsContent(chatId = chatManager.currentChatId) {
+export async function getEnabledTabsContent(chatId = chatManager.currentChatId, { cachedOnly = false } = {}) {
     const browserSession=desktopBrowserStore.getSnapshot().session;
     const browserSessionIsCurrent = () =>
         !globalThis.cerebrDesktop ||
         (!!browserSession && browserSession === desktopBrowserStore.getSnapshot().session);
     const chat = chatManager.chats?.get(chatId) || chatManager.getCurrentChat();
     const activeChatId = chat?.id || null;
-    const initialize = isNewWebpageConversation(chat);
+    const initialize = !cachedOnly && isNewWebpageConversation(chat);
     const cachedPages = await getCachedWebpagesForChat(activeChatId);
+    // Browsing can refresh a document already used by this conversation, but
+    // merely showing a source chip must not turn an unused page into history.
+    if (cachedOnly && !cachedPages.length) return null;
     const cachedContext = (currentUrl = null) => ({
         pages: cachedPages.map((page) => ({
             ...page,
@@ -146,6 +149,7 @@ export async function getEnabledTabsContent(chatId = chatManager.currentChatId) 
     try {
         switches = await getWebpageSwitchesForChat(activeChatId, {
             currentTab: allTabs.find((tab) => tab.id === currentTab?.id) || currentTab,
+            tabs: allTabs,
             initialize,
         });
     } catch (error) {
@@ -159,7 +163,7 @@ export async function getEnabledTabsContent(chatId = chatManager.currentChatId) 
 
     const currentTabId = currentTab?.id;
     const enabledTabs = finalTabs.filter(
-        (tab) => switches[tab.id] === true || cachedByUrl.has(webpageCacheIdentity(tab.url))
+        (tab) => (!cachedOnly && switches[tab.id] === true) || cachedByUrl.has(webpageCacheIdentity(tab.url))
     );
     const cacheRevisions = new Map(
         enabledTabs.map((tab) => [

@@ -1,7 +1,7 @@
 import { act, useRef, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-const state = vi.hoisted(() => ({ memory: {}, tabChange: null, extension: true }));
+const state = vi.hoisted(() => ({ memory: {}, tabChange: null, extension: true, messages: undefined }));
 vi.mock('../src/utils/storage-adapter.js', () => ({
     get isExtensionEnvironment() {
         return state.extension;
@@ -32,7 +32,9 @@ vi.mock('../src/utils/storage-adapter.js', () => ({
         }),
     },
 }));
-vi.mock('../src/domain/chat/chat-store.js', () => ({ chatManager: { getCurrentChat: () => ({ id: 'a' }) } }));
+vi.mock('../src/domain/chat/chat-store.js', () => ({
+    chatManager: { getCurrentChat: () => ({ id: 'a', messages: state.messages }) },
+}));
 vi.mock('../src/utils/i18n.js', () => ({ t: (key, values = []) => `${key} ${values.join(' ')}`.trim() }));
 vi.mock('../src/app/components/PluginSurfaces.jsx', () => ({
     PluginMenuItems: () => (
@@ -49,6 +51,7 @@ import { useWebpageSources } from '../src/app/hooks/useWebpageSources.js';
 import { useComposerDraft } from '../src/app/hooks/useComposerDraft.js';
 import { uiStore } from '../src/app/state/ui-store.js';
 import { desktopBrowserStore } from '../src/platform/desktop-browser.js';
+import { getEnabledTabsContent } from '../src/runtime/webpage/webpage-context.js';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 let root, host, latest, actions, sizeCallbacks;
@@ -117,6 +120,7 @@ beforeEach(() => {
     vi.clearAllMocks();
     state.memory = {};
     state.extension = true;
+    state.messages = undefined;
     storageAdapter.set.mockImplementation(async (values) =>
         Object.assign(state.memory, structuredClone(values))
     );
@@ -159,6 +163,68 @@ afterEach(async () => {
 });
 
 describe('Prompt Bar source picker', () => {
+    it('follows only the current document in an empty chat without caching unasked pages', async () => {
+        state.messages = [];
+        await render('a', true);
+        await act(async () => vi.advanceTimersByTimeAsync(400));
+        expect(latest.selected.map((tab) => tab.title)).toEqual(['Alpha']);
+        expect(state.memory.cerebr_webpage_cache_v1_a).toBeUndefined();
+        expect(browserAdapter.sendMessage).not.toHaveBeenCalled();
+
+        const article = { ...tabs[0], title: 'Another article', url: 'https://alpha.example/article' };
+        browserAdapter.getAllTabs.mockResolvedValue([article, tabs[1]]);
+        browserAdapter.getCurrentTab.mockResolvedValue(article);
+        await act(async () => state.tabChange());
+        await tick();
+        expect(latest.selected.map((tab) => tab.title)).toEqual(['Another article']);
+
+        browserAdapter.getCurrentTab.mockResolvedValue(tabs[1]);
+        await act(async () => state.tabChange());
+        await tick();
+        expect(latest.selected.map((tab) => tab.title)).toEqual(['Beta']);
+        browserAdapter.getAllTabs.mockResolvedValue([]);
+        browserAdapter.getCurrentTab.mockResolvedValue(null);
+        await act(async () => state.tabChange());
+        await act(async () => vi.advanceTimersByTimeAsync(400));
+        expect(latest.selected).toEqual([]);
+        expect(state.memory.cerebr_webpage_cache_v1_a).toBeUndefined();
+    });
+    it('pins a page after asking about it and never appends newly visited documents', async () => {
+        state.messages = [];
+        await render('a', true);
+        await act(async () => getEnabledTabsContent('a'));
+        state.messages = [{ role: 'user', content: 'Explain Alpha' }];
+        await render('a', false);
+
+        const article = { ...tabs[0], title: 'Unasked article', url: 'https://alpha.example/unasked' };
+        browserAdapter.getAllTabs.mockResolvedValue([article, tabs[1]]);
+        browserAdapter.getCurrentTab.mockResolvedValue(article);
+        await act(async () => state.tabChange());
+        await act(async () => vi.advanceTimersByTimeAsync(400));
+        expect(latest.selected.map((tab) => tab.title)).toEqual(['Alpha']);
+        expect(latest.selected[0].cached).toBe(true);
+
+        browserAdapter.getCurrentTab.mockResolvedValue(tabs[1]);
+        await act(async () => state.tabChange());
+        await act(async () => vi.advanceTimersByTimeAsync(400));
+        expect(latest.selected.map((tab) => tab.title)).toEqual(['Alpha']);
+        expect(state.memory.cerebr_webpage_cache_v1_a.map((page) => page.url)).toEqual([tabs[0].url]);
+        expect((await getEnabledTabsContent('a')).pages.map((page) => page.url)).toEqual([tabs[0].url]);
+    });
+    it('keeps manual additions available but waits for a question before caching them', async () => {
+        await render();
+        await act(async () => latest.toggle([tabs[1]], true));
+        await act(async () => vi.advanceTimersByTimeAsync(400));
+        expect(latest.selected.map((tab) => tab.title)).toEqual(['Beta']);
+        expect(state.memory.cerebr_webpage_cache_v1_a).toBeUndefined();
+        await act(async () => getEnabledTabsContent('a'));
+        browserAdapter.getAllTabs.mockResolvedValue([]);
+        browserAdapter.getCurrentTab.mockResolvedValue(null);
+        await act(async () => state.tabChange());
+        await tick();
+        expect(latest.selected.map((tab) => tab.title)).toEqual(['Beta']);
+        expect(latest.selected[0].cached).toBe(true);
+    });
     it('automatically adds the current page to new chats, remembers removal and restores the default after selecting again', async () => {
         await render('first', true);
         expect(latest.selected.map((tab) => tab.id)).toEqual([1]);
@@ -366,8 +432,11 @@ describe('Prompt Bar source picker', () => {
         expect(state.memory.cerebr_webpage_cache_v1_a).toBeUndefined();
         expect(state.memory.cerebr_webpage_switches_v1_a).toEqual({ 77: false });
     });
-    it('automatically snapshots selected pages and restores their chips after the tab and composer are closed', async () => {
+    it('refreshes previously used pages and restores their chips after the tab and composer are closed', async () => {
         state.memory.cerebr_webpage_switches_v1_a = { 1: true };
+        state.memory.cerebr_webpage_cache_v1_a = [
+            { title: tabs[0].title, url: tabs[0].url, content: 'Earlier content', tabId: 1 },
+        ];
         await render();
         await act(async () => vi.advanceTimersByTimeAsync(350));
         expect(state.memory.cerebr_webpage_cache_v1_a).toEqual([

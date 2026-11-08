@@ -38,7 +38,7 @@ export function useWebpageSources(chatId, menuOpen, autoAddCurrentPage = false) 
             clearTimeout(context.snapshotTimer);
             context.snapshotTimer = setTimeout(() => {
                 if (context.active && !document.hidden) {
-                    void getEnabledTabsContent(chatId)
+                    void getEnabledTabsContent(chatId, { cachedOnly: true })
                         .then(() => {
                             if (context.active) void context.refresh({ snapshot: false });
                         })
@@ -86,6 +86,7 @@ export function useWebpageSources(chatId, menuOpen, autoAddCurrentPage = false) 
                 const currentTab = allTabs.find((item) => item.id === tab?.id) || tab;
                 const switches = await getWebpageSwitchesForChat(chatId, {
                     currentTab,
+                    tabs: allTabs,
                     initialize: autoAddCurrentPage,
                 });
                 const visibleUrls = new Set(allTabs.map((item) => webpageCacheIdentity(item.url)).filter(Boolean));
@@ -119,7 +120,7 @@ export function useWebpageSources(chatId, menuOpen, autoAddCurrentPage = false) 
                     };
                     cache.current.set(chatId, next);
                     setData(next);
-                    if (snapshot && next.tabs.some((item) => next.switches[item.id] === true)) context.refreshSnapshot();
+                    if (snapshot && cachedPages.length) context.refreshSnapshot();
                 }
             } catch (error) {
                 if (current()) {

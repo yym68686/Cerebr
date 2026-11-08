@@ -5,6 +5,7 @@ const WEBPAGE_SWITCHES_BY_CHAT_PREFIX = 'cerebr_webpage_switches_v1_';
 const LEGACY_WEBPAGE_SWITCHES_KEY = 'webpageSwitches';
 const WEBPAGE_PREFERENCE_PREFIX = 'cerebr_webpage_auto_include_v1_';
 const WEBPAGE_CACHE_PREFIX = 'cerebr_webpage_cache_v1_';
+const WEBPAGE_SELECTION_PREFIX = 'cerebr_webpage_selection_v1_';
 const pendingPreferences = new Map();
 const pendingCacheWrites = new Map();
 const cacheClearRevisions = new Map();
@@ -161,6 +162,39 @@ function keyForChatId(chatId) {
     return `${WEBPAGE_SWITCHES_BY_CHAT_PREFIX}${chatId}`;
 }
 
+function selectionKey(chatId) {
+    return `${WEBPAGE_SELECTION_PREFIX}${chatId}`;
+}
+
+async function readSelection(chatId) {
+    const key = selectionKey(chatId);
+    const result = await storageAdapter.get(key);
+    const selection = result?.[key];
+    const urls = { ...selection?.urls };
+    if (!selection) {
+        for (const page of await getCachedWebpagesForChat(chatId)) {
+            if (Number.isSafeInteger(page.tabId)) urls[page.tabId] = webpageCacheIdentity(page.url);
+        }
+    }
+    return { ...selection, urls };
+}
+
+function bindSelectedTabs(selection, switches, tabs) {
+    for (const tab of tabs) {
+        if (!Object.hasOwn(switches, tab.id)) continue;
+        const identity = webpageCacheIdentity(tab.url);
+        const previous = selection.urls[tab.id];
+        // Tab IDs survive navigation. A choice belongs to the document that
+        // was selected, never the next document opened in that same tab.
+        if (!identity || previous && previous !== identity) {
+            delete switches[tab.id];
+            delete selection.urls[tab.id];
+        } else {
+            selection.urls[tab.id] = identity;
+        }
+    }
+}
+
 function normalizeSwitches(value) {
     if (!value || typeof value !== 'object') return {};
     const result = {};
@@ -203,23 +237,51 @@ function enqueueWrite(chatId, write) {
     return pending;
 }
 
-export async function getWebpageSwitchesForChat(chatId, { currentTab, initialize = false } = {}) {
+export async function getWebpageSwitchesForChat(chatId, { currentTab, tabs = [], initialize = false } = {}) {
     if (!chatId) return {};
     // Desktop can select pages explicitly; only the extension auto-adds its current page.
     if(globalThis.cerebrDesktop)return desktopBrowserRequest({type:'GET_WEBPAGE_SWITCHES',chatId,initialize:false});
     const preferenceKey = currentTab && webpagePreferenceKey(currentTab.url);
-    if (isExtensionEnvironment && initialize && preferenceKey && currentTab.id != null) {
+    const knownTabs = tabs.length ? tabs : currentTab ? [currentTab] : [];
+    if (isExtensionEnvironment && (knownTabs.length || initialize)) {
         // Capture earlier choices before joining the per-chat queue. Looking up
         // this promise inside the job could wait on a later write behind itself.
         const priorChoice = pendingPreferences.get(preferenceKey);
         return enqueueWrite(chatId, async () => {
             await priorChoice?.catch(() => {});
             const existing = await readSwitchesRecord(chatId);
-            if (existing && typeof existing === 'object') return normalizeSwitches(existing);
-            const preferences = await storageAdapter.get(preferenceKey);
-            const switches = { [currentTab.id]: preferences[preferenceKey] !== false };
-            await storageAdapter.set({ [keyForChatId(chatId)]: switches });
-            changed(chatId);
+            const switches = normalizeSwitches(existing);
+            const selection = await readSelection(chatId);
+            const previousSelection = JSON.stringify(selection);
+            bindSelectedTabs(selection, switches, knownTabs);
+            if (initialize && (selection.autoFollow || !existing)) {
+                selection.autoFollow = true;
+                const identity = preferenceKey && webpageCacheIdentity(currentTab.url);
+                const previous = selection.automatic;
+                if (previous && (previous.id !== currentTab?.id || previous.url !== identity)) {
+                    delete switches[previous.id];
+                    delete selection.urls[previous.id];
+                }
+                selection.automatic = null;
+                if (identity && currentTab.id != null) {
+                    const automatic = !Object.hasOwn(switches, currentTab.id) ||
+                        previous?.id === currentTab.id && previous.url === identity;
+                    if (!Object.hasOwn(switches, currentTab.id)) {
+                        const preferences = await storageAdapter.get(preferenceKey);
+                        switches[currentTab.id] = preferences[preferenceKey] !== false;
+                    }
+                    selection.urls[currentTab.id] = identity;
+                    if (automatic) selection.automatic = { id: currentTab.id, url: identity };
+                }
+            }
+            const switchesChanged = JSON.stringify(normalizeSwitches(existing)) !== JSON.stringify(switches);
+            if (switchesChanged || previousSelection !== JSON.stringify(selection)) {
+                await storageAdapter.set({
+                    [keyForChatId(chatId)]: switches,
+                    [selectionKey(chatId)]: selection,
+                });
+                if (switchesChanged) changed(chatId);
+            }
             return switches;
         });
     }
@@ -260,9 +322,17 @@ export async function updateWebpageSwitchesForChat(chatId, patch, { tabs = [] } 
         // click order even if one chat's storage read takes longer than another.
         await Promise.all(previousChoices.map((pending) => pending?.catch(() => {})));
         const current = normalizeSwitches(await readSwitchesRecord(chatId));
+        const selection = await readSelection(chatId);
+        for (const tab of tabs) {
+            if (Object.hasOwn(changes, tab.id)) selection.urls[tab.id] = webpageCacheIdentity(tab.url);
+        }
         // One storage operation keeps the visible selection and future default
         // consistent, including when a save fails.
-        await storageAdapter.set({ [keyForChatId(chatId)]: { ...current, ...changes }, ...preferences });
+        await storageAdapter.set({
+            [keyForChatId(chatId)]: { ...current, ...changes },
+            [selectionKey(chatId)]: selection,
+            ...preferences,
+        });
         if (removedUrls.length) await removeCachedWebpagesForChat(chatId, removedUrls);
         changed(chatId);
         return true;
