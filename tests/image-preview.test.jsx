@@ -12,8 +12,8 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 let host, root, viewport, picture, frames, width, height;
 const source = 'data:image/png;base64,AQ==';
 function Preview() {
-    const { image } = useSyncExternalStore(uiStore.subscribe, uiStore.getSnapshot);
-    return <ImagePreview image={image} />;
+    const { image, imageTransition } = useSyncExternalStore(uiStore.subscribe, uiStore.getSnapshot);
+    return <ImagePreview image={image} transition={imageTransition} />;
 }
 
 beforeEach(async () => {
@@ -54,7 +54,7 @@ afterEach(async () => {
 });
 async function render(image) {
     await act(async () => {
-        uiStore.set({ image, imageGallery: null });
+        uiStore.set({ image, imageGallery: null, imageTransition: null });
         root.render(<Preview />);
     });
 }
@@ -178,16 +178,54 @@ describe('image preview trackpad navigation', () => {
         expect(picture.getAttribute('src')).toBe(third);
     });
 
-    it('ignores momentum and direction changes until a new wheel sequence begins', async () => {
+    it('ignores a long decelerating momentum tail without requiring pointer movement for the next swipe', async () => {
         await wheel({ deltaX: 90 });
         expect(picture.getAttribute('src')).toBe(second);
-        // Momentum outlasts a fixed cooldown, and the image's effect was replaced.
         for (let i = 0; i < 20; i++) {
             now += 40;
-            await wheel({ deltaX: i < 10 ? 90 : -90 });
+            await wheel({ deltaX: 90 * Math.pow(0.8, i) });
         }
         expect(picture.getAttribute('src')).toBe(second);
         now += 300;
+        await wheel({ deltaX: 90 });
+        expect(picture.getAttribute('src')).toBe(third);
+    });
+
+    it('accepts renewed same-direction and reverse strokes during the previous momentum tail', async () => {
+        await wheel({ deltaX: 90 });
+        for (const deltaX of [50, 20, 5, 1]) {
+            now += 60;
+            await wheel({ deltaX });
+        }
+        expect(picture.getAttribute('src')).toBe(second);
+        now += 40;
+        await wheel({ deltaX: 30 });
+        now += 20;
+        await wheel({ deltaX: 60 });
+        expect(picture.getAttribute('src')).toBe(third);
+        now += 200;
+        await wheel({ deltaX: -90 });
+        expect(picture.getAttribute('src')).toBe(second);
+    });
+
+    it('keeps the wheel listener stable through repeated swipes at the same cursor position', async () => {
+        const remove = vi.spyOn(viewport, 'removeEventListener');
+        for (let i = 0; i < 9; i++) {
+            now += 300;
+            await wheel({ deltaX: 90 });
+            expect(uiStore.getSnapshot().imageGallery.index).toBe((i + 1) % 3);
+        }
+        expect(remove.mock.calls.filter(([type]) => type === 'wheel')).toHaveLength(0);
+        await act(async () => host.querySelector('button').click());
+        expect(remove.mock.calls.filter(([type]) => type === 'wheel')).toHaveLength(1);
+    });
+
+    it('does not let zero-delta events prolong the gesture lock', async () => {
+        await wheel({ deltaX: 90 });
+        for (let i = 0; i < 6; i++) {
+            now += 50;
+            await wheel({ deltaX: 0, deltaY: 0 });
+        }
         await wheel({ deltaX: 90 });
         expect(picture.getAttribute('src')).toBe(third);
     });
@@ -250,6 +288,75 @@ describe('image preview trackpad navigation', () => {
         now += 300;
         await wheel({ deltaX: 100 });
         expect(picture.getAttribute('src')).toBe(third);
+    });
+});
+
+describe('image preview slide transitions', () => {
+    let descriptor, animations;
+    const second = 'data:image/png;base64,Ag==';
+    beforeEach(async () => {
+        animations = [];
+        descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'animate');
+        Object.defineProperty(Element.prototype, 'animate', { configurable: true, value: vi.fn(function (frames, options) {
+            const animation = { element: this, frames, options, cancel: vi.fn(), onfinish: null };
+            animations.push(animation);
+            return animation;
+        }) });
+        await act(async () => openImagePreview([source, second]));
+    });
+    afterEach(() => {
+        if (descriptor) Object.defineProperty(Element.prototype, 'animate', descriptor);
+        else delete Element.prototype.animate;
+    });
+    const arrow = async (key) => act(async () => host.querySelector('button').dispatchEvent(
+        new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+    ));
+
+    it('slides the old and new images in opposite directions and clears the old image on finish', async () => {
+        await wheel({ deltaX: 90 });
+        expect(picture.getAttribute('src')).toBe(second);
+        const outgoing = host.querySelector('.image-preview-outgoing');
+        expect(outgoing.querySelector('img').getAttribute('src')).toBe(source);
+        expect(outgoing.getAttribute('aria-hidden')).toBe('true');
+        expect(animations[0].frames).toEqual([{ transform: 'translateX(100vw)' }, { transform: 'translateX(0)' }]);
+        expect(animations[1].frames).toEqual([{ transform: 'translateX(0)' }, { transform: 'translateX(-100vw)' }]);
+        await act(async () => animations[0].onfinish());
+        expect(host.querySelector('.image-preview-outgoing')).toBeNull();
+        await arrow('ArrowLeft');
+        expect(animations[2].frames[0].transform).toBe('translateX(-100vw)');
+        expect(animations[3].frames[1].transform).toBe('translateX(100vw)');
+    });
+
+    it('cancels interrupted animations and ignores a stale completion when rapidly reversing', async () => {
+        await arrow('ArrowRight');
+        const staleFinish = animations[0].onfinish;
+        await arrow('ArrowLeft');
+        expect(animations[0].cancel).toHaveBeenCalledOnce();
+        expect(animations[1].cancel).toHaveBeenCalledOnce();
+        await act(async () => staleFinish());
+        expect(host.querySelector('.image-preview-outgoing img').getAttribute('src')).toBe(second);
+        await act(async () => host.querySelector('button').click());
+        expect(host.querySelector('.image-preview-outgoing')).toBeNull();
+        expect(animations[2].cancel).toHaveBeenCalledOnce();
+    });
+
+    it('retains the outgoing zoom transform while resetting the incoming image', async () => {
+        await wheel(zoomTwice);
+        await wheel({ deltaX: 80, deltaY: 30 });
+        const oldTransform = picture.style.transform;
+        await arrow('ArrowRight');
+        expect(host.querySelector('.image-preview-outgoing img').style.transform).toBe(oldTransform);
+        expect(view()).toEqual({ scale: 1, x: 0, y: 0 });
+    });
+
+    it('honors reduced motion without leaving an outgoing image or an animation lock', async () => {
+        vi.stubGlobal('matchMedia', () => ({ matches: true }));
+        await arrow('ArrowRight');
+        expect(picture.getAttribute('src')).toBe(second);
+        expect(host.querySelector('.image-preview-outgoing')).toBeNull();
+        expect(animations).toHaveLength(0);
+        await arrow('ArrowLeft');
+        expect(picture.getAttribute('src')).toBe(source);
     });
 });
 

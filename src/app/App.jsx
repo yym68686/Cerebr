@@ -415,7 +415,7 @@ export function App() {
             <PluginPage />
             <PluginModals />
             <DropFeedback phase={ui.dropPhase} />
-            <ImagePreview image={ui.image} />
+            <ImagePreview image={ui.image} transition={ui.imageTransition} />
             <Toasts toasts={ui.toasts} />
         </>
     );

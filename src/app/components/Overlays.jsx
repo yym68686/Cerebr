@@ -8,7 +8,7 @@ import { isReplyTarget, resolveMessageTarget } from '../message-actions.js';
 import { copyMessageImage } from '../../render/message/message-clipboard.js';
 import { contentText } from './Messages.jsx';
 import { useImagePreviewGestures } from '../hooks/useImagePreviewGestures.js';
-import { closeImagePreview, moveImagePreview } from '../state/image-preview.js';
+import { closeImagePreview, moveImagePreview, finishImageTransition } from '../state/image-preview.js';
 
 export function ContextMenu({ context, session }) {
     useSyncExternalStore(chatManager.subscribe, chatManager.getSnapshot);
@@ -147,13 +147,41 @@ export function ContextMenu({ context, session }) {
         </div>
     );
 }
-export function ImagePreview({ image }) {
+const imageTransform = ({ x, y, scale }) => `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
+
+export function ImagePreview({ image, transition }) {
     const closeRef = useRef(null);
+    const incomingRef = useRef(null);
+    const outgoingRef = useRef(null);
     const open = !!image;
     const { viewportRef, imageRef, view, dragging, onClickCapture } = useImagePreviewGestures(
         image,
         moveImagePreview
     );
+    useLayoutEffect(() => {
+        if (!transition) return;
+        if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+            finishImageTransition(transition);
+            return;
+        }
+        const offset = transition.direction * 100;
+        const options = { duration: 240, easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)', fill: 'both' };
+        const incoming = incomingRef.current.animate?.([
+            { transform: `translateX(${offset}vw)` }, { transform: 'translateX(0)' },
+        ], options);
+        const outgoing = outgoingRef.current.animate?.([
+            { transform: 'translateX(0)' }, { transform: `translateX(${-offset}vw)` },
+        ], options);
+        const finish = () => finishImageTransition(transition);
+        if (incoming) incoming.onfinish = finish;
+        // Also release the outgoing image when animation events are unavailable.
+        const timer = setTimeout(finish, 300);
+        return () => {
+            clearTimeout(timer);
+            incoming?.cancel();
+            outgoing?.cancel();
+        };
+    }, [transition]);
     // Restore focus after React's commit-time selection restoration has finished.
     useEffect(() => {
         if (!open) return;
@@ -180,7 +208,7 @@ export function ImagePreview({ image }) {
                 ) {
                     e.preventDefault();
                     e.stopPropagation();
-                    moveImagePreview(e.key === 'ArrowRight' ? 1 : -1);
+                    moveImagePreview(e.key === 'ArrowRight' ? 1 : -1, view);
                 }
                 if (e.key === 'Tab') {
                     e.preventDefault();
@@ -194,13 +222,21 @@ export function ImagePreview({ image }) {
             }}
         >
             <div className={`image-preview-content${dragging ? ' is-dragging' : ''}`} role="document">
-                <img
-                    ref={imageRef}
-                    src={image || undefined}
-                    alt={t('image_preview_alt')}
-                    draggable={false}
-                    style={{ transform: `translate3d(${view.x}px, ${view.y}px, 0) scale(${view.scale})` }}
-                />
+                <div className="image-preview-slide" ref={incomingRef}>
+                    <img
+                        ref={imageRef}
+                        src={image || undefined}
+                        alt={t('image_preview_alt')}
+                        draggable={false}
+                        style={{ transform: imageTransform(view) }}
+                    />
+                </div>
+                {transition && (
+                    <div className="image-preview-slide image-preview-outgoing" ref={outgoingRef} aria-hidden="true">
+                        <img src={transition.from} alt="" draggable={false}
+                            style={{ transform: imageTransform(transition.view) }} />
+                    </div>
+                )}
             </div>
             <button
                 ref={closeRef}

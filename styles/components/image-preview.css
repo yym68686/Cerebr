@@ -31,9 +31,21 @@
 }
 
 .image-preview-content {
-    max-width: 90%;
-    max-height: 90%;
-    position: relative;
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.image-preview-slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.image-preview-outgoing {
+    pointer-events: none;
 }
 
 .image-preview-content img {
@@ -46,6 +58,11 @@
     will-change: transform;
     cursor: grab;
     -webkit-user-drag: none;
+    pointer-events: auto;
+}
+
+.image-preview-outgoing img {
+    pointer-events: none;
 }
 
 .image-preview-content.is-dragging img {

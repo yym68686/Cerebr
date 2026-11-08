@@ -7,6 +7,7 @@ export const uiStore = createStore({
     context: null,
     image: null,
     imageGallery: null,
+    imageTransition: null,
     pdf: null,
     pdfTabs: [],
     toasts: [],
