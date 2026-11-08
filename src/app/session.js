@@ -27,6 +27,8 @@ import { attachSidebarDrag } from '../platform/sidebar-drag.js';
 import { t } from '../utils/i18n.js';
 import { attachDesktopUpdates } from '../platform/desktop-updates.js';
 import { attachChatSelectAll } from './chat-selection.js';
+import { getDraftImageTags } from '../runtime/input/draft-attachments.js';
+import { openImagePreview } from './state/image-preview.js';
 
 export function createSession({ messageInput, chatContainer }) {
     const detachSidebarDrag = attachSidebarDrag(chatContainer);
@@ -40,7 +42,11 @@ export function createSession({ messageInput, chatContainer }) {
     const uiConfig = {
         textarea: { maxHeight: 200 },
         imageTag: {
-            onImageClick: (image) => uiStore.set({ image }),
+            onImageClick: (image, node) => {
+                const tags = getDraftImageTags(messageInput);
+                const index = tags.indexOf(node);
+                openImagePreview(index < 0 ? [image] : tags.map((tag) => tag.dataset.image), Math.max(0, index));
+            },
             onDeleteClick: (node) => {
                 node.remove();
                 messageInput.dispatchEvent(new Event('input', { bubbles: true }));

@@ -9,7 +9,7 @@ import {
 } from '../../../htmd/latex.js';
 import { enhanceCodeBlocks } from '../../render/message/markdown-enhancements.js';
 import { morphHtml } from '../../render/message/morph-html.js';
-import { uiStore } from '../state/ui-store.js';
+import { openImagePreview } from '../state/image-preview.js';
 import { t } from '../../utils/i18n.js';
 import { LoadingState, ThinkingState } from './ThinkingState.jsx';
 import { TextFiles } from './ComposerFiles.jsx';
@@ -165,7 +165,7 @@ export const Message = memo(function Message({
                                 type="button"
                                 className="message-attachment-preview"
                                 aria-label={t('message_preview_image', [imageIndex + 1])}
-                                onClick={() => uiStore.set({ image: part.image_url.url })}
+                                onClick={() => openImagePreview(images.map((part) => part.image_url.url), imageIndex)}
                             >
                                 <img src={part.image_url.url} alt={t('label_image')} />
                             </button>

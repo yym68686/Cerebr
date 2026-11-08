@@ -8,6 +8,7 @@ import { isReplyTarget, resolveMessageTarget } from '../message-actions.js';
 import { copyMessageImage } from '../../render/message/message-clipboard.js';
 import { contentText } from './Messages.jsx';
 import { useImagePreviewGestures } from '../hooks/useImagePreviewGestures.js';
+import { closeImagePreview, moveImagePreview } from '../state/image-preview.js';
 
 export function ContextMenu({ context, session }) {
     useSyncExternalStore(chatManager.subscribe, chatManager.getSnapshot);
@@ -148,14 +149,15 @@ export function ContextMenu({ context, session }) {
 }
 export function ImagePreview({ image }) {
     const closeRef = useRef(null);
+    const open = !!image;
     const { viewportRef, imageRef, view, dragging, onClickCapture } = useImagePreviewGestures(image);
     // Restore focus after React's commit-time selection restoration has finished.
     useEffect(() => {
-        if (!image) return;
+        if (!open) return;
         const old = document.activeElement;
         closeRef.current?.focus();
         return () => old?.isConnected && old.focus?.({ preventScroll: true });
-    }, [image]);
+    }, [open]);
     return (
         <div
             ref={viewportRef}
@@ -165,9 +167,18 @@ export function ImagePreview({ image }) {
             aria-label={t('image_preview_label')}
             onClickCapture={onClickCapture}
             onClick={(e) => {
-                if (e.target === e.currentTarget) uiStore.set({ image: null });
+                if (e.target === e.currentTarget) closeImagePreview();
             }}
             onKeyDown={(e) => {
+                if (!image) return;
+                if (
+                    !e.nativeEvent.isComposing && !e.altKey && !e.ctrlKey && !e.metaKey &&
+                    (e.key === 'ArrowLeft' || e.key === 'ArrowRight')
+                ) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    moveImagePreview(e.key === 'ArrowRight' ? 1 : -1);
+                }
                 if (e.key === 'Tab') {
                     e.preventDefault();
                     closeRef.current.focus();
@@ -175,7 +186,7 @@ export function ImagePreview({ image }) {
                 if (e.key === 'Escape') {
                     e.preventDefault();
                     e.stopPropagation();
-                    uiStore.set({ image: null });
+                    closeImagePreview();
                 }
             }}
         >
@@ -192,7 +203,7 @@ export function ImagePreview({ image }) {
                 ref={closeRef}
                 className="image-preview-close"
                 aria-label={t('image_preview_close_aria')}
-                onClick={() => uiStore.set({ image: null })}
+                onClick={closeImagePreview}
             >
                 <svg viewBox="0 0 24 24" fill="none">
                     <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeLinecap="round" />

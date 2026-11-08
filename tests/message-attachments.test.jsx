@@ -42,6 +42,9 @@ it('places sent images above the text with preview and context actions, without 
     expect(message.dataset.originalText).toBe('请分析这些图片');
     await act(async () => host.querySelectorAll('.message-attachment-preview')[1].click());
     expect(uiStore.getSnapshot().image).toBe(images[1].image_url.url);
+    expect(uiStore.getSnapshot().imageGallery).toEqual({
+        images: images.map((part) => part.image_url.url), index: 1,
+    });
     expect(
         [...message.querySelectorAll('.message-attachments button')].every((button) =>
             button.classList.contains('message-attachment-preview')

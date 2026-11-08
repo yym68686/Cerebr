@@ -41,6 +41,7 @@ import { ComposerQuotes } from './components/ComposerQuotes.jsx';
 import { DesktopTitlebar } from './components/DesktopTitlebar.jsx';
 import { PdfPreview } from './components/PdfPreview.jsx';
 import { openPdf, closePdf, closePdfTab } from './state/pdf-preview.js';
+import { closeImagePreview } from './state/image-preview.js';
 import '../utils/viewport.js';
 
 export function App() {
@@ -110,7 +111,7 @@ export function App() {
         const keydown = (e) => {
             if (e.key !== 'Escape') return;
             const state = uiStore.getSnapshot();
-            if (state.image) uiStore.set({ image: null });
+            if (state.image) closeImagePreview();
             else if (state.pdf && !state.page) closePdf();
             else if (state.navigationOpen) uiStore.set({ navigationOpen: false });
             else if (state.context || state.menu || state.webpageMenu) {

@@ -5,7 +5,8 @@
  */
 
 import { t } from './i18n.js';
-import { uiStore, notify } from '../app/state/ui-store.js';
+import { notify } from '../app/state/ui-store.js';
+import { openImagePreview, closeImagePreview } from '../app/state/image-preview.js';
 
 /**
  * 图片预览配置接口
@@ -58,9 +59,9 @@ export function adjustTextareaHeight({
  * @param {string} params.base64Data - 图片base64数据
  */
 export function showImagePreview({ base64Data }) {
-    uiStore.set({ image: base64Data });
+    openImagePreview([base64Data]);
 }
-export function hideImagePreview() { uiStore.set({ image: null }); }
+export function hideImagePreview() { closeImagePreview(); }
 
 /**
  * 创建图片标签
@@ -126,7 +127,7 @@ export function createImageTag({
         name.textContent = resolvedFileName;
         preview.append(name);
         preview.addEventListener('click', (event) => {
-            if (event.target !== thumbnail) safeConfig.onImageClick?.(base64Data);
+            if (event.target !== thumbnail) safeConfig.onImageClick?.(base64Data, container);
         });
         container.append(preview);
     } else {
@@ -139,7 +140,7 @@ export function createImageTag({
         e.preventDefault();
         e.stopPropagation();
         if (safeConfig.onImageClick) {
-            safeConfig.onImageClick(base64Data);
+            safeConfig.onImageClick(base64Data, container);
         }
     });
 

@@ -129,6 +129,31 @@ function message(source, type) {
 }
 
 describe('new chat shortcut delivery', () => {
+    it('previews the current draft images in order from either the thumbnail or filename', async () => {
+        const composer = document.getElementById('input-container');
+        composer.dataset.composer = '';
+        const shelf = document.createElement('div');
+        shelf.dataset.composerAttachments = '';
+        composer.prepend(shelf);
+        start();
+        ready();
+        await session.addImages([
+            new File(['first'], 'first.png', { type: 'image/png' }),
+            new File(['second'], 'second.png', { type: 'image/png' }),
+        ]);
+        const pictures = [...shelf.querySelectorAll('img')];
+        pictures[1].click();
+        expect(uiStore.getSnapshot().imageGallery).toEqual({
+            images: pictures.map((picture) => picture.src), index: 1,
+        });
+        shelf.querySelector('.composer-attachment__name').click();
+        expect(uiStore.getSnapshot().image).toBe(pictures[0].src);
+        expect(uiStore.getSnapshot().imageGallery.index).toBe(0);
+        shelf.querySelector('.delete-btn').click();
+        pictures[1].click();
+        expect(uiStore.getSnapshot().imageGallery).toEqual({ images: [pictures[1].src], index: 0 });
+    });
+
     it('guards pending document imports and cancels them on navigation and disposal', async () => {
         start();
         const task = beginFileImport(input);

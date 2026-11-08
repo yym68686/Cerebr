@@ -1,4 +1,4 @@
-import { act } from 'react';
+import { act, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -6,10 +6,15 @@ vi.mock('../src/utils/i18n.js', () => ({ t: (key) => key }));
 vi.mock('../src/domain/chat/chat-store.js', () => ({ chatManager: {} }));
 import { ImagePreview } from '../src/app/components/Overlays.jsx';
 import { uiStore } from '../src/app/state/ui-store.js';
+import { openImagePreview } from '../src/app/state/image-preview.js';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 let host, root, viewport, picture, frames, width, height;
 const source = 'data:image/png;base64,AQ==';
+function Preview() {
+    const { image } = useSyncExternalStore(uiStore.subscribe, uiStore.getSnapshot);
+    return <ImagePreview image={image} />;
+}
 
 beforeEach(async () => {
     frames = new Map();
@@ -49,8 +54,8 @@ afterEach(async () => {
 });
 async function render(image) {
     await act(async () => {
-        uiStore.set({ image });
-        root.render(<ImagePreview image={image} />);
+        uiStore.set({ image, imageGallery: null });
+        root.render(<Preview />);
     });
 }
 async function flush() {
@@ -91,6 +96,60 @@ function view() {
     return { x: +x, y: +y, scale: +scale };
 }
 const zoomTwice = { ctrlKey: true, deltaY: -Math.log(2) / 0.01 };
+
+describe('image preview keyboard navigation', () => {
+    const second = 'data:image/png;base64,Ag==';
+    const third = 'data:image/png;base64,Aw==';
+    const key = async (key, options = {}) => {
+        const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...options });
+        await act(async () => document.activeElement.dispatchEvent(event));
+        return event;
+    };
+
+    it('opens the selected image and cycles both ways without returning focus to the draft', async () => {
+        await render(null);
+        const input = document.createElement('input');
+        document.body.append(input);
+        input.focus();
+        const focus = vi.spyOn(input, 'focus');
+        await act(async () => openImagePreview([source, second, third], 1));
+        const close = host.querySelector('button');
+        expect(picture.getAttribute('src')).toBe(second);
+        await wheel(zoomTwice, false);
+        const event = await key('ArrowRight');
+        await flush();
+        expect(event.defaultPrevented).toBe(true);
+        expect(picture.getAttribute('src')).toBe(third);
+        expect(view()).toEqual({ x: 0, y: 0, scale: 1 });
+        await key('ArrowRight');
+        expect(picture.getAttribute('src')).toBe(source);
+        await key('ArrowLeft');
+        expect(picture.getAttribute('src')).toBe(third);
+        expect(document.activeElement).toBe(close);
+        expect(focus).not.toHaveBeenCalled();
+        await key('Escape');
+        expect(uiStore.getSnapshot().imageGallery).toBeNull();
+        expect(document.activeElement).toBe(input);
+        input.remove();
+    });
+
+    it('preserves duplicate image positions and keeps single-image previews isolated', async () => {
+        await act(async () => openImagePreview([source, source, second], 1));
+        await key('ArrowRight');
+        expect(picture.getAttribute('src')).toBe(second);
+        await key('ArrowLeft');
+        await key('ArrowLeft');
+        expect(uiStore.getSnapshot().imageGallery.index).toBe(0);
+        await act(async () => openImagePreview([third]));
+        await key('ArrowRight');
+        await key('ArrowLeft');
+        expect(picture.getAttribute('src')).toBe(third);
+        await key('Escape');
+        const event = await key('ArrowRight');
+        expect(event.defaultPrevented).toBe(false);
+        expect(uiStore.getSnapshot().image).toBeNull();
+    });
+});
 
 describe('image preview gestures', () => {
     it('keeps the close control outside the image content while zooming and panning', async () => {
