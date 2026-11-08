@@ -102,6 +102,9 @@ beforeEach(async () => {
     state.messages = undefined;
     state.extension = true;
     state.memory.clear();
+    storageAdapter.set.mockImplementation(async (data) => {
+        for (const [name, value] of Object.entries(data)) state.memory.set(name, structuredClone(value));
+    });
     state.memory.set(key('chat-a'), { 1: true, 2: true });
     browserAdapter.getAllTabs.mockResolvedValue(structuredClone(papers));
     browserAdapter.getCurrentTab.mockResolvedValue(papers[0]);
@@ -341,7 +344,7 @@ describe('selected PDF context', () => {
     });
 });
 
-describe('per-page default source choice', () => {
+describe('per-conversation default source choice', () => {
     const initialize = (id, currentTab = papers[0]) =>
         getWebpageSwitchesForChat(id, { currentTab, initialize: true });
     it('includes the current page even when sending before the composer has finished loading', async () => {
@@ -351,36 +354,34 @@ describe('per-page default source choice', () => {
         expect(result.pages.map((page) => page.url)).toEqual([papers[0].url]);
         expect(state.memory.get(key('chat-a'))).toEqual({ 1: true });
     });
-    it('waits for a pending removal before initializing another chat and lets a later choice restore inclusion', async () => {
+    it('initializes a new chat independently of a pending removal in another chat', async () => {
         const gate = deferred();
-        storageAdapter.set.mockImplementationOnce(async (values) => {
-            await gate.promise;
+        storageAdapter.set.mockImplementation(async (values) => {
+            if (Object.hasOwn(values, key('chat-a'))) await gate.promise;
             for (const [name, value] of Object.entries(values)) state.memory.set(name, value);
         });
         const removal = updateWebpageSwitchesForChat('chat-a', { 1: false }, { tabs: [papers[0]] });
         const nextChat = initialize('next');
-        await vi.waitFor(() => expect(storageAdapter.set).toHaveBeenCalledOnce());
-        expect(state.memory.has(key('next'))).toBe(false);
+        expect(await nextChat).toEqual({ 1: true });
         gate.resolve();
         await removal;
-        expect(await nextChat).toEqual({ 1: false });
-        await updateWebpageSwitchesForChat('next', { 1: true }, { tabs: [papers[0]] });
         expect(await initialize('after-reenable', { ...papers[0], id: 91 })).toEqual({ 91: true });
         expect(await initialize('chat-a')).toEqual({ 1: false, 2: true });
     });
-    it('orders opposite choices for the same page across conversations', async () => {
+    it('keeps opposite choices for the same page independent across conversations', async () => {
         const gate = deferred();
-        storageAdapter.set.mockImplementationOnce(async (values) => {
-            await gate.promise;
+        storageAdapter.set.mockImplementation(async (values) => {
+            if (Object.hasOwn(values, key('chat-a'))) await gate.promise;
             for (const [name, value] of Object.entries(values)) state.memory.set(name, value);
         });
         const remove = updateWebpageSwitchesForChat('chat-a', { 1: false }, { tabs: [papers[0]] });
         const reenable = updateWebpageSwitchesForChat('chat-b', { 1: true }, { tabs: [papers[0]] });
         const next = initialize('next');
-        await vi.waitFor(() => expect(storageAdapter.set).toHaveBeenCalledOnce());
+        expect(await next).toEqual({ 1: true });
         gate.resolve();
         await Promise.all([remove, reenable]);
-        expect(await next).toEqual({ 1: true });
+        expect(await initialize('chat-a')).toEqual({ 1: false, 2: true });
+        expect(await initialize('chat-b')).toEqual({ 1: true });
     });
     it('uses the full URL from the tab list when the current-tab adapter abbreviates local PDF paths', async () => {
         state.messages = [];
@@ -389,32 +390,33 @@ describe('per-page default source choice', () => {
         browserAdapter.getAllTabs.mockResolvedValue([pdf]);
         browserAdapter.getCurrentTab.mockResolvedValue({ ...pdf, url: 'file://' });
         state.memory.set(webpagePreferenceKey(pdf.url), false);
-        expect(await getEnabledTabsContent()).toBeNull();
-        expect(browserAdapter.sendMessage).not.toHaveBeenCalled();
+        expect((await getEnabledTabsContent()).pages.map((page) => page.url)).toEqual([pdf.url]);
+        expect(browserAdapter.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ tabId: pdf.id }));
     });
     it('does not overwrite a manual change queued during default initialization', async () => {
         const first = initialize('first');
         const removal = updateWebpageSwitchesForChat('first', { 1: false }, { tabs: [papers[0]] });
         await Promise.all([first, removal]);
         expect(await initialize('first')).toEqual({ 1: false });
-        expect(await initialize('second')).toEqual({ 1: false });
+        expect(await initialize('second')).toEqual({ 1: true });
     });
-    it('keeps choices for different pages independently and preserves the earlier preference on failed save', async () => {
+    it('preserves this chat\'s choices on a failed save without suppressing new chats', async () => {
         await updateWebpageSwitchesForChat('chat-a', { 1: false, 2: false }, { tabs: papers });
-        expect(await initialize('paper-one')).toEqual({ 1: false });
-        expect(await initialize('paper-two', papers[1])).toEqual({ 2: false });
+        expect(await initialize('paper-one')).toEqual({ 1: true });
+        expect(await initialize('paper-two', papers[1])).toEqual({ 2: true });
         storageAdapter.set.mockRejectedValueOnce(new Error('storage failed'));
         await expect(
             updateWebpageSwitchesForChat('chat-a', { 1: true }, { tabs: [papers[0]] })
         ).rejects.toThrow('storage failed');
-        expect(await initialize('after-error')).toEqual({ 1: false });
+        expect(await initialize('chat-a')).toEqual({ 1: false, 2: false });
+        expect(await initialize('after-error')).toEqual({ 1: true });
     });
-    it('applies an opted-out preference to the outgoing first request, not just the source chips', async () => {
+    it('includes the current page in the first request despite a legacy global opt-out', async () => {
         state.messages = [];
         state.memory.delete(key('chat-a'));
         state.memory.set(webpagePreferenceKey(papers[0].url), false);
-        expect(await getEnabledTabsContent()).toBeNull();
-        expect(browserAdapter.sendMessage).not.toHaveBeenCalled();
+        expect((await getEnabledTabsContent()).pages.map((page) => page.url)).toEqual([papers[0].url]);
+        expect(browserAdapter.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ tabId: papers[0].id }));
     });
     it('distinguishes articles, query parameters, hash routes and local PDFs, while sharing ordinary anchors', () => {
         expect(webpagePreferenceKey('https://example.org/article#intro')).toBe(

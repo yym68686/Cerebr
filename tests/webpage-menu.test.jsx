@@ -56,7 +56,7 @@ import { useComposerDraft } from '../src/app/hooks/useComposerDraft.js';
 import { uiStore } from '../src/app/state/ui-store.js';
 import { desktopBrowserStore } from '../src/platform/desktop-browser.js';
 import { getEnabledTabsContent } from '../src/runtime/webpage/webpage-context.js';
-import { getCachedWebpagesForChat } from '../src/utils/webpage-switches.js';
+import { getCachedWebpagesForChat, webpagePreferenceKey } from '../src/utils/webpage-switches.js';
 import { applyRemoteRecord, replicaRecord } from '../src/runtime/sync/replica.js';
 import { webpageSourceKey } from '../src/runtime/sync/webpage-sources.js';
 
@@ -281,7 +281,8 @@ describe('Prompt Bar source picker', () => {
         expect(latest.selected.map((tab) => tab.title)).toEqual(['Beta']);
         expect(latest.selected[0].cached).toBe(true);
     });
-    it('automatically adds the current page to new chats, remembers removal and restores the default after selecting again', async () => {
+    it('automatically adds the current page in each new chat without inheriting another chat\'s removal', async () => {
+        state.memory[webpagePreferenceKey(tabs[0].url)] = false;
         await render('first', true);
         expect(latest.selected.map((tab) => tab.id)).toEqual([1]);
         expect(host.querySelector('#input-container').classList.contains('is-expanded')).toBe(true);
@@ -291,8 +292,9 @@ describe('Prompt Bar source picker', () => {
         await tick();
         expect(latest.selected).toEqual([]);
         await render('second', true);
-        expect(latest.selected).toEqual([]);
-        expect(host.querySelector('#input-container').classList.contains('is-expanded')).toBe(false);
+        expect(latest.selected.map((tab) => tab.id)).toEqual([1]);
+        expect(host.querySelector('#input-container').classList.contains('is-expanded')).toBe(true);
+        await click('.composer-source-remove');
         await click('#settings-button');
         await click('#composer-current-page');
         expect(latest.selected.map((tab) => tab.id)).toEqual([1]);
@@ -301,15 +303,18 @@ describe('Prompt Bar source picker', () => {
         await render('first', true);
         expect(latest.selected).toEqual([]);
     });
-    it('remembers unchecked picker choices by URL after a tab is reopened, without suppressing another page', async () => {
+    it('remembers removals when a tab reopens in the same chat while new chats include that page', async () => {
         await render('first', true);
         await open();
         await check('Alpha');
         const reopened = { ...tabs[0], id: 91 };
         browserAdapter.getCurrentTab.mockResolvedValue(reopened);
         browserAdapter.getAllTabs.mockResolvedValue([reopened]);
-        await render('reopened', true);
+        await act(async () => state.tabChange());
+        await tick();
         expect(latest.selected).toEqual([]);
+        await render('reopened', true);
+        expect(latest.selected.map((tab) => tab.id)).toEqual([91]);
         const other = { ...reopened, id: 92, url: 'https://alpha.example/other-article' };
         browserAdapter.getCurrentTab.mockResolvedValue(other);
         browserAdapter.getAllTabs.mockResolvedValue([other]);

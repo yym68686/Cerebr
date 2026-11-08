@@ -11,14 +11,13 @@ import {
     webpageSourceChatId,
     writeCachedWebpageSources,
 } from '../runtime/sync/webpage-sources.js';
-import { webpageCacheIdentity, webpagePreferenceKey } from './webpage-identity.js';
+import { webpageCacheIdentity } from './webpage-identity.js';
 export { webpageCacheIdentity, webpagePreferenceKey } from './webpage-identity.js';
 
 const WEBPAGE_SWITCHES_BY_CHAT_PREFIX = 'cerebr_webpage_switches_v1_';
 const LEGACY_WEBPAGE_SWITCHES_KEY = 'webpageSwitches';
 const WEBPAGE_CACHE_PREFIX = 'cerebr_webpage_cache_v1_';
 const WEBPAGE_SELECTION_PREFIX = 'cerebr_webpage_selection_v1_';
-const pendingPreferences = new Map();
 const pendingCacheWrites = new Map();
 const cacheClearRevisions = new Map();
 const cachePageRevisions = new Map();
@@ -266,14 +265,10 @@ export async function getWebpageSwitchesForChat(chatId, { currentTab, tabs = [],
     if (!chatId) return {};
     // Desktop can select pages explicitly; only the extension auto-adds its current page.
     if(globalThis.cerebrDesktop)return desktopBrowserRequest({type:'GET_WEBPAGE_SWITCHES',chatId,initialize:false});
-    const preferenceKey = currentTab && webpagePreferenceKey(currentTab.url);
+    const currentIdentity = currentTab && webpageCacheIdentity(currentTab.url);
     const knownTabs = tabs.length ? tabs : currentTab ? [currentTab] : [];
     if (isExtensionEnvironment && (knownTabs.length || initialize)) {
-        // Capture earlier choices before joining the per-chat queue. Looking up
-        // this promise inside the job could wait on a later write behind itself.
-        const priorChoice = pendingPreferences.get(preferenceKey);
         return enqueueWrite(chatId, async () => {
-            await priorChoice?.catch(() => {});
             const existing = await readSwitchesRecord(chatId);
             const switches = normalizeSwitches(existing);
             const selection = await readSelection(chatId);
@@ -288,7 +283,7 @@ export async function getWebpageSwitchesForChat(chatId, { currentTab, tabs = [],
             }
             if (initialize && (selection.autoFollow || !existing)) {
                 selection.autoFollow = true;
-                const identity = preferenceKey && webpageCacheIdentity(currentTab.url);
+                const identity = currentIdentity;
                 const previous = selection.automatic;
                 if (previous && (previous.id !== currentTab?.id || previous.url !== identity)) {
                     delete switches[previous.id];
@@ -299,8 +294,9 @@ export async function getWebpageSwitchesForChat(chatId, { currentTab, tabs = [],
                     const automatic = !Object.hasOwn(switches, currentTab.id) ||
                         previous?.id === currentTab.id && previous.url === identity;
                     if (!Object.hasOwn(switches, currentTab.id)) {
-                        const preferences = await storageAdapter.get(preferenceKey);
-                        switches[currentTab.id] = preferences[preferenceKey] !== false;
+                        // Removing a source belongs to this chat. Legacy URL
+                        // preferences must not suppress the default in new chats.
+                        switches[currentTab.id] = true;
                     }
                     selection.urls[currentTab.id] = identity;
                     if (automatic) selection.automatic = { id: currentTab.id, url: identity };
@@ -344,17 +340,7 @@ export async function updateWebpageSwitchesForChat(chatId, patch, { tabs = [] } 
         if (removedUrls.length) await removeCachedWebpagesForChat(chatId, removedUrls);
         return result;
     }
-    const preferences = Object.fromEntries(
-        tabs.flatMap((tab) => {
-            const key = webpagePreferenceKey(tab.url);
-            return key && Object.hasOwn(changes, tab.id) ? [[key, changes[tab.id]]] : [];
-        })
-    );
-    const previousChoices = Object.keys(preferences).map((key) => pendingPreferences.get(key));
-    const saving = enqueueWrite(chatId, async () => {
-        // The same URL can be changed from different conversations. Preserve
-        // click order even if one chat's storage read takes longer than another.
-        await Promise.all(previousChoices.map((pending) => pending?.catch(() => {})));
+    return enqueueWrite(chatId, async () => {
         const current = normalizeSwitches(await readSwitchesRecord(chatId));
         const selection = await readSelection(chatId);
         const db = await webpageDb(chatId);
@@ -362,23 +348,13 @@ export async function updateWebpageSwitchesForChat(chatId, patch, { tabs = [] } 
             if (Object.hasOwn(changes, tab.id)) selection.urls[tab.id] = webpageCacheIdentity(tab.url);
             if (changes[tab.id] === true) await restoreWebpageSource(db, chatId, tab);
         }
-        // One storage operation keeps the visible selection and future default
-        // consistent, including when a save fails.
+        // Keep the visible choices and their document bindings together.
         await storageAdapter.set({
             [keyForChatId(chatId)]: { ...current, ...changes },
             [selectionKey(chatId)]: selection,
-            ...preferences,
         });
         if (removedUrls.length) await removeCachedWebpagesForChat(chatId, removedUrls);
         changed(chatId);
         return true;
     });
-    for (const key of Object.keys(preferences)) {
-        pendingPreferences.set(key, saving);
-        const clear = () => {
-            if (pendingPreferences.get(key) === saving) pendingPreferences.delete(key);
-        };
-        saving.then(clear, clear);
-    }
-    return saving;
 }
