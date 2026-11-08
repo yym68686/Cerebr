@@ -150,7 +150,10 @@ export function ContextMenu({ context, session }) {
 export function ImagePreview({ image }) {
     const closeRef = useRef(null);
     const open = !!image;
-    const { viewportRef, imageRef, view, dragging, onClickCapture } = useImagePreviewGestures(image);
+    const { viewportRef, imageRef, view, dragging, onClickCapture } = useImagePreviewGestures(
+        image,
+        moveImagePreview
+    );
     // Restore focus after React's commit-time selection restoration has finished.
     useEffect(() => {
         if (!open) return;

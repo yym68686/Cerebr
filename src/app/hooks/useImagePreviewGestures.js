@@ -2,13 +2,18 @@ import { useLayoutEffect, useRef, useState } from 'react';
 
 const fittedView = () => ({ scale: 1, x: 0, y: 0 });
 const clamp = (value, limit) => Math.max(-limit, Math.min(limit, value));
+const swipeIdleMs = 250;
+const swipeDistance = 80;
 
 // Keep high-frequency input outside React and publish at most once per frame.
 // React still owns the image's transform; no message or preview DOM is mutated.
-export function useImagePreviewGestures(image) {
+export function useImagePreviewGestures(image, onNavigate) {
     const viewportRef = useRef(null);
     const imageRef = useRef(null);
     const suppressClick = useRef(false);
+    // Keep the wheel sequence across image changes so its momentum cannot
+    // advance several images. Closing the preview starts a fresh sequence.
+    const wheelSequence = useRef(null);
     const [view, setView] = useState(fittedView);
     const [dragging, setDragging] = useState(false);
 
@@ -16,7 +21,10 @@ export function useImagePreviewGestures(image) {
         setView(fittedView());
         setDragging(false);
         suppressClick.current = false;
-        if (!image) return;
+        if (!image) {
+            wheelSequence.current = null;
+            return;
+        }
         const viewport = viewportRef.current;
         const picture = imageRef.current;
         let current = fittedView();
@@ -58,16 +66,38 @@ export function useImagePreviewGestures(image) {
         };
         const wheel = (event) => {
             event.preventDefault();
+            const now = performance.now();
+            if (!wheelSequence.current || now - wheelSequence.current.time > swipeIdleMs) {
+                wheelSequence.current = { time: now, x: 0, y: 0, blocked: current.scale > 1 };
+            }
+            const sequence = wheelSequence.current;
+            sequence.time = now;
             // Safari supplies GestureEvents; Chromium/Firefox supply Ctrl+wheel
             // for a trackpad pinch. Do not apply both for the same gesture.
-            if (gesture) return;
+            if (gesture || pointers.size) {
+                sequence.blocked = true;
+                return;
+            }
             const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientHeight : 1;
             if (event.ctrlKey || event.metaKey) {
+                sequence.blocked = true;
                 const anchor = point(event);
                 transform(anchor, anchor, Math.exp(-event.deltaY * unit * 0.01));
             } else {
                 const dx = event.shiftKey && !event.deltaX ? event.deltaY : event.deltaX;
                 const dy = event.shiftKey && !event.deltaX ? 0 : event.deltaY;
+                if (current.scale === 1 && !sequence.blocked) {
+                    sequence.x += dx * unit;
+                    sequence.y += Math.abs(dy * unit);
+                    if (
+                        Math.abs(sequence.x) >= swipeDistance &&
+                        Math.abs(sequence.x) > sequence.y * 1.5
+                    ) {
+                        sequence.blocked = true;
+                        onNavigate?.(sequence.x > 0 ? 1 : -1);
+                        return;
+                    }
+                }
                 publish({ ...current, x: current.x - dx * unit, y: current.y - dy * unit });
             }
         };
@@ -169,7 +199,7 @@ export function useImagePreviewGestures(image) {
             window.removeEventListener('resize', resize);
             window.removeEventListener('blur', cancel);
         };
-    }, [image]);
+    }, [image, onNavigate]);
 
     return {
         viewportRef,

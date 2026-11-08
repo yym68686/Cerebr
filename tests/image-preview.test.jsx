@@ -151,6 +151,108 @@ describe('image preview keyboard navigation', () => {
     });
 });
 
+describe('image preview trackpad navigation', () => {
+    const second = 'data:image/png;base64,Ag==';
+    const third = 'data:image/png;base64,Aw==';
+    let now;
+    beforeEach(async () => {
+        now = 1000;
+        vi.spyOn(performance, 'now').mockImplementation(() => now);
+        await act(async () => openImagePreview([source, second, third]));
+    });
+    afterEach(() => vi.restoreAllMocks());
+
+    it('accumulates small horizontal deltas and navigates in both directions', async () => {
+        await wheel({ deltaX: 30, deltaY: 2 });
+        await wheel({ deltaX: 30, deltaY: 2 });
+        expect(picture.getAttribute('src')).toBe(source);
+        const event = await wheel({ deltaX: 30, deltaY: 2 });
+        expect(event.defaultPrevented).toBe(true);
+        expect(picture.getAttribute('src')).toBe(second);
+        expect(view()).toEqual({ x: 0, y: 0, scale: 1 });
+        now += 300;
+        await wheel({ deltaX: -90, deltaY: 3 });
+        expect(picture.getAttribute('src')).toBe(source);
+        now += 300;
+        await wheel({ deltaX: -90 });
+        expect(picture.getAttribute('src')).toBe(third);
+    });
+
+    it('ignores momentum and direction changes until a new wheel sequence begins', async () => {
+        await wheel({ deltaX: 90 });
+        expect(picture.getAttribute('src')).toBe(second);
+        // Momentum outlasts a fixed cooldown, and the image's effect was replaced.
+        for (let i = 0; i < 20; i++) {
+            now += 40;
+            await wheel({ deltaX: i < 10 ? 90 : -90 });
+        }
+        expect(picture.getAttribute('src')).toBe(second);
+        now += 300;
+        await wheel({ deltaX: 90 });
+        expect(picture.getAttribute('src')).toBe(third);
+    });
+
+    it('keeps zoomed scrolling as pan, including at the image edges and during zoom-out momentum', async () => {
+        await wheel(zoomTwice);
+        now += 300;
+        await wheel({ deltaX: 10000 });
+        expect(view()).toEqual({ x: -400, y: 0, scale: 2 });
+        expect(picture.getAttribute('src')).toBe(source);
+        await wheel({ ctrlKey: true, deltaY: 10000 });
+        await wheel({ deltaX: 90 });
+        expect(view()).toEqual({ x: 0, y: 0, scale: 1 });
+        expect(picture.getAttribute('src')).toBe(source);
+        now += 300;
+        await wheel({ deltaX: 90 });
+        expect(picture.getAttribute('src')).toBe(second);
+    });
+
+    it('does not treat vertical, diagonal or minor accidental scrolling as a swipe', async () => {
+        await wheel({ deltaY: 100 });
+        now += 300;
+        await wheel({ deltaX: 100, deltaY: 100 });
+        now += 300;
+        await wheel({ deltaX: 25 });
+        now += 300;
+        await wheel({ deltaX: 25 });
+        expect(picture.getAttribute('src')).toBe(source);
+    });
+
+    it('normalizes horizontal line units and Shift scrolling', async () => {
+        await wheel({ deltaX: 6, deltaMode: 1 });
+        expect(picture.getAttribute('src')).toBe(second);
+        now += 300;
+        await wheel({ deltaY: -90, shiftKey: true });
+        expect(picture.getAttribute('src')).toBe(source);
+    });
+
+    it('ignores horizontal wheel events during Safari pinch gestures', async () => {
+        await gesture('gesturestart', 1);
+        await wheel({ deltaX: 100 });
+        await gesture('gesturechange', 2);
+        await gesture('gesturechange', 1);
+        await gesture('gestureend', 1);
+        await wheel({ deltaX: 100 });
+        expect(picture.getAttribute('src')).toBe(source);
+        now += 300;
+        await wheel({ deltaX: 100 });
+        expect(picture.getAttribute('src')).toBe(second);
+    });
+
+    it('starts fresh on reopening and keeps single-image previews stable', async () => {
+        await wheel({ deltaX: 90 });
+        await act(async () => host.querySelector('button').click());
+        expect((await wheel({ deltaX: 100 })).defaultPrevented).toBe(false);
+        await act(async () => openImagePreview([source, second, third]));
+        await wheel({ deltaX: 90 });
+        expect(picture.getAttribute('src')).toBe(second);
+        await act(async () => openImagePreview([third]));
+        now += 300;
+        await wheel({ deltaX: 100 });
+        expect(picture.getAttribute('src')).toBe(third);
+    });
+});
+
 describe('image preview gestures', () => {
     it('keeps the close control outside the image content while zooming and panning', async () => {
         const close = host.querySelector('.image-preview-close');
