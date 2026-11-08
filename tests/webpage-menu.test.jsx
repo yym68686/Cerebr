@@ -1,8 +1,12 @@
 import { act, useRef, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-const state = vi.hoisted(() => ({ memory: {}, tabChange: null, extension: true, messages: undefined }));
+import { IDBKeyRange } from 'fake-indexeddb';
+import { setImmediate } from 'node:timers';
+import { createTestSyncDatabase } from './helpers/sync-database.js';
+const state = vi.hoisted(() => ({ memory: {}, tabChange: null, extension: true, messages: undefined, db: null }));
 vi.mock('../src/utils/storage-adapter.js', () => ({
+    getDb: async () => state.db,
     get isExtensionEnvironment() {
         return state.extension;
     },
@@ -52,6 +56,9 @@ import { useComposerDraft } from '../src/app/hooks/useComposerDraft.js';
 import { uiStore } from '../src/app/state/ui-store.js';
 import { desktopBrowserStore } from '../src/platform/desktop-browser.js';
 import { getEnabledTabsContent } from '../src/runtime/webpage/webpage-context.js';
+import { getCachedWebpagesForChat } from '../src/utils/webpage-switches.js';
+import { applyRemoteRecord, replicaRecord } from '../src/runtime/sync/replica.js';
+import { webpageSourceKey } from '../src/runtime/sync/webpage-sources.js';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 let root, host, latest, actions, sizeCallbacks;
@@ -95,7 +102,11 @@ function Composer({ chatId = 'a', autoAddCurrentPage = false }) {
         </div>
     );
 }
-const tick = () => act(async () => vi.advanceTimersByTimeAsync(40));
+const advanceTimers = async (ms) => {
+    await vi.advanceTimersByTimeAsync(ms);
+    for (let i = 0; i < 100; i++) await new Promise(setImmediate);
+};
+const tick = () => act(async () => advanceTimers(40));
 const render = async (chatId = 'a', autoAddCurrentPage = false) => {
     await act(async () => root.render(<Composer chatId={chatId} autoAddCurrentPage={autoAddCurrentPage} />));
     await tick();
@@ -115,8 +126,10 @@ const search = async (value) =>
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value);
         input.dispatchEvent(new Event('input', { bubbles: true }));
     });
-beforeEach(() => {
-    vi.useFakeTimers();
+beforeEach(async () => {
+    vi.stubGlobal('IDBKeyRange', IDBKeyRange);
+    state.db = await createTestSyncDatabase();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
     vi.clearAllMocks();
     state.memory = {};
     state.extension = true;
@@ -160,13 +173,27 @@ afterEach(async () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    state.db.close();
 });
 
 describe('Prompt Bar source picker', () => {
+    it('updates chips immediately on remote removals while the removed browser tabs stay open', async () => {
+        state.memory.cerebr_webpage_cache_v1_a = tabs.map((tab) => ({ ...tab, tabId: tab.id, content: tab.title }));
+        state.memory.cerebr_webpage_switches_v1_a = { 1: true, 2: true };
+        await render();
+        expect(latest.selected).toHaveLength(2);
+        const key = await webpageSourceKey('a', tabs[1].url), old = await replicaRecord(state.db, key);
+        await act(async () => {
+            await applyRemoteRecord(state.db, { ...old, value: null, deleted: true, version: { clock: old.version.clock + 1, actor: 'desktop' } });
+        });
+        await tick(); await tick();
+        expect(latest.selected.map((tab) => tab.title)).toEqual(['Alpha']);
+        expect((await getCachedWebpagesForChat('a')).map((page) => page.title)).toEqual(['Alpha']);
+    });
     it('follows only the current document in an empty chat without caching unasked pages', async () => {
         state.messages = [];
         await render('a', true);
-        await act(async () => vi.advanceTimersByTimeAsync(400));
+        await act(async () => advanceTimers(400));
         expect(latest.selected.map((tab) => tab.title)).toEqual(['Alpha']);
         expect(state.memory.cerebr_webpage_cache_v1_a).toBeUndefined();
         expect(browserAdapter.sendMessage).not.toHaveBeenCalled();
@@ -185,7 +212,7 @@ describe('Prompt Bar source picker', () => {
         browserAdapter.getAllTabs.mockResolvedValue([]);
         browserAdapter.getCurrentTab.mockResolvedValue(null);
         await act(async () => state.tabChange());
-        await act(async () => vi.advanceTimersByTimeAsync(400));
+        await act(async () => advanceTimers(400));
         expect(latest.selected).toEqual([]);
         expect(state.memory.cerebr_webpage_cache_v1_a).toBeUndefined();
     });
@@ -200,21 +227,21 @@ describe('Prompt Bar source picker', () => {
         browserAdapter.getAllTabs.mockResolvedValue([article, tabs[1]]);
         browserAdapter.getCurrentTab.mockResolvedValue(article);
         await act(async () => state.tabChange());
-        await act(async () => vi.advanceTimersByTimeAsync(400));
+        await act(async () => advanceTimers(400));
         expect(latest.selected.map((tab) => tab.title)).toEqual(['Alpha']);
         expect(latest.selected[0].cached).toBe(true);
 
         browserAdapter.getCurrentTab.mockResolvedValue(tabs[1]);
         await act(async () => state.tabChange());
-        await act(async () => vi.advanceTimersByTimeAsync(400));
+        await act(async () => advanceTimers(400));
         expect(latest.selected.map((tab) => tab.title)).toEqual(['Alpha']);
-        expect(state.memory.cerebr_webpage_cache_v1_a.map((page) => page.url)).toEqual([tabs[0].url]);
+        expect((await getCachedWebpagesForChat('a')).map((page) => page.url)).toEqual([tabs[0].url]);
         expect((await getEnabledTabsContent('a')).pages.map((page) => page.url)).toEqual([tabs[0].url]);
     });
     it('keeps manual additions available but waits for a question before caching them', async () => {
         await render();
         await act(async () => latest.toggle([tabs[1]], true));
-        await act(async () => vi.advanceTimersByTimeAsync(400));
+        await act(async () => advanceTimers(400));
         expect(latest.selected.map((tab) => tab.title)).toEqual(['Beta']);
         expect(state.memory.cerebr_webpage_cache_v1_a).toBeUndefined();
         await act(async () => getEnabledTabsContent('a'));
@@ -429,8 +456,7 @@ describe('Prompt Bar source picker', () => {
         expect(host.querySelector('.composer-source-title').textContent).toBe('Archived article');
         await click('.composer-source-remove');
         expect(host.querySelector('.composer-sources')).toBeNull();
-        expect(state.memory.cerebr_webpage_cache_v1_a).toBeUndefined();
-        expect(state.memory.cerebr_webpage_switches_v1_a).toEqual({ 77: false });
+        expect(await getCachedWebpagesForChat('a')).toEqual([]);
     });
     it('refreshes previously used pages and restores their chips after the tab and composer are closed', async () => {
         state.memory.cerebr_webpage_switches_v1_a = { 1: true };
@@ -438,8 +464,8 @@ describe('Prompt Bar source picker', () => {
             { title: tabs[0].title, url: tabs[0].url, content: 'Earlier content', tabId: 1 },
         ];
         await render();
-        await act(async () => vi.advanceTimersByTimeAsync(350));
-        expect(state.memory.cerebr_webpage_cache_v1_a).toEqual([
+        await act(async () => advanceTimers(350));
+        expect(await getCachedWebpagesForChat('a')).toEqual([
             expect.objectContaining({ url: tabs[0].url, content: 'Page content for tab 1' }),
         ]);
         browserAdapter.getAllTabs.mockResolvedValue([]);
@@ -449,7 +475,7 @@ describe('Prompt Bar source picker', () => {
         await render();
         expect(host.querySelector('.composer-source-title').textContent).toBe('Alpha');
         await click('.composer-source-remove');
-        expect(state.memory.cerebr_webpage_cache_v1_a).toBeUndefined();
+        expect(await getCachedWebpagesForChat('a')).toEqual([]);
         expect(host.querySelector('.composer-sources')).toBeNull();
     });
     it('ignores an old load completing after a chat switch', async () => {

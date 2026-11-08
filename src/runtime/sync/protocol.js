@@ -6,6 +6,7 @@ export const CHAT_PREFIX = 'cerebr_chat_v2_';
 export const CHAT_INDEX = 'cerebr_chats_index_v2';
 export const API_CONFIG_PREFIX = 'cerebr_api_config_v1_';
 export const API_SELECTION = 'cerebr_api_selection_v1';
+export const WEBPAGE_SOURCE_PREFIX = 'cerebr_webpage_source_v1_';
 export function isSyncedKey(key) {
     return (
         typeof key === 'string' &&
@@ -15,6 +16,7 @@ export function isSyncedKey(key) {
             key.startsWith('cerebr_reading_progress_v1_') ||
             key.startsWith('cerebr_draft_v1_') ||
             key.startsWith('cerebr_youtube_transcript_v1_') ||
+            key.startsWith(WEBPAGE_SOURCE_PREFIX) ||
             key === 'cerebr_chat_organization_v1')
     );
 }

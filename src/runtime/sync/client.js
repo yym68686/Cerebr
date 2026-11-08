@@ -10,6 +10,7 @@ import {
     subscribeRemoteChanges,
 } from './replica.js';
 import { browserSummary } from './summary.js';
+import { migrateCachedWebpageSources } from './webpage-sources.js';
 export async function createSyncClient({
     db,
     send,
@@ -17,6 +18,7 @@ export async function createSyncClient({
     onProgress = () => {},
     onLive = () => {},
 }) {
+    await migrateCachedWebpageSources(db);
     await seedReplica(db);
     let ready = false,
         timer = 0,

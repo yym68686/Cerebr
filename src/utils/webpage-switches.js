@@ -1,46 +1,72 @@
-import { storageAdapter, isExtensionEnvironment } from './storage-adapter.js';
+import { storageAdapter, isExtensionEnvironment, getDb } from './storage-adapter.js';
 import { desktopBrowserRequest, onDesktopBrowserEvent } from '../platform/desktop-browser.js';
+import { subscribeLocalChanges, subscribeRemoteChanges } from '../runtime/sync/replica.js';
+import {
+    clearCachedWebpageSources,
+    migrateCachedWebpageSources,
+    readCachedWebpageSources,
+    readWebpageSourceRecord,
+    removeCachedWebpageSources,
+    restoreWebpageSource,
+    webpageSourceChatId,
+    writeCachedWebpageSources,
+} from '../runtime/sync/webpage-sources.js';
+import { webpageCacheIdentity, webpagePreferenceKey } from './webpage-identity.js';
+export { webpageCacheIdentity, webpagePreferenceKey } from './webpage-identity.js';
 
 const WEBPAGE_SWITCHES_BY_CHAT_PREFIX = 'cerebr_webpage_switches_v1_';
 const LEGACY_WEBPAGE_SWITCHES_KEY = 'webpageSwitches';
-const WEBPAGE_PREFERENCE_PREFIX = 'cerebr_webpage_auto_include_v1_';
 const WEBPAGE_CACHE_PREFIX = 'cerebr_webpage_cache_v1_';
 const WEBPAGE_SELECTION_PREFIX = 'cerebr_webpage_selection_v1_';
 const pendingPreferences = new Map();
 const pendingCacheWrites = new Map();
 const cacheClearRevisions = new Map();
 const cachePageRevisions = new Map();
+const migratedChoices = new WeakMap();
 
 function cachePageRevisionKey(chatId, identity) {
     return `${chatId}\u0000${identity}`;
 }
 
-export function getWebpageCacheRevision(chatId, url) {
+export async function getWebpageCacheRevision(chatId, url) {
     const identity = webpageCacheIdentity(url);
     const pageRevision = identity ? cachePageRevisions.get(cachePageRevisionKey(chatId, identity)) || 0 : 0;
-    return `${cacheClearRevisions.get(chatId) || 0}:${pageRevision}`;
+    const record = await readWebpageSourceRecord(await webpageDb(chatId), chatId, url);
+    return { generation: `${cacheClearRevisions.get(chatId) || 0}:${pageRevision}`, version: record?.version, deleted: !!record?.deleted };
 }
 
-// Remember a document, including query parameters and hash-router paths, while
-// treating ordinary in-page anchors as the same document.
-export function webpagePreferenceKey(value) {
-    try {
-        const url = new URL(value);
-        if (!['https:', 'http:', 'file:'].includes(url.protocol)) return null;
-        if (!/^#!?\//.test(url.hash)) url.hash = '';
-        return WEBPAGE_PREFERENCE_PREFIX + encodeURIComponent(url.href);
-    } catch {
-        return null;
-    }
-}
-
-export function webpageCacheIdentity(value) {
-    const key = webpagePreferenceKey(value);
-    return key ? key.slice(WEBPAGE_PREFERENCE_PREFIX.length) : null;
+export function sameWebpageCacheRevision(a, b) {
+    return a?.generation === b?.generation &&
+        a?.version?.clock === b?.version?.clock && a?.version?.actor === b?.version?.actor;
 }
 
 function webpageCacheKey(chatId) {
     return `${WEBPAGE_CACHE_PREFIX}${chatId}`;
+}
+
+async function webpageDb(chatId) {
+    const db = await getDb();
+    await migrateCachedWebpageSources(db, chatId, async () =>
+        (await storageAdapter.get(webpageCacheKey(chatId)))[webpageCacheKey(chatId)]
+    );
+    if (!migratedChoices.has(db)) migratedChoices.set(db, new Map());
+    const pending = migratedChoices.get(db);
+    if (!pending.has(chatId)) {
+        const migration = (async () => {
+            // Older releases shared checkboxes through the local bridge, but
+            // kept each device's old cache. Honor those explicit removals too.
+            const data = await storageAdapter.get([webpageCacheKey(chatId), keyForChatId(chatId)]);
+            const pages = data[webpageCacheKey(chatId)];
+            const removed = (Array.isArray(pages) ? pages : [])
+                .filter((page) => data[keyForChatId(chatId)]?.[page.tabId] === false)
+                .map((page) => page.url);
+            if (removed.length) await removeCachedWebpageSources(db, chatId, removed);
+        })();
+        pending.set(chatId, migration);
+        migration.catch(() => pending.delete(chatId));
+    }
+    await pending.get(chatId);
+    return db;
 }
 
 function enqueueCacheWrite(chatId, write) {
@@ -56,37 +82,31 @@ function enqueueCacheWrite(chatId, write) {
 export async function getCachedWebpagesForChat(chatId) {
     if (!chatId) return [];
     await pendingCacheWrites.get(chatId)?.catch(() => {});
-    const key = webpageCacheKey(chatId);
-    const result = await storageAdapter.get(key);
-    return Array.isArray(result?.[key])
-        ? result[key].filter((page) => page && webpageCacheIdentity(page.url) && typeof page.content === 'string')
-        : [];
+    return readCachedWebpageSources(await webpageDb(chatId), chatId);
 }
 
 export async function saveCachedWebpagesForChat(chatId, pages, revisions = null) {
     if (!chatId || !Array.isArray(pages) || !pages.length) return;
-    const expectedRevisions = revisions || new Map(
-        pages.map((page) => [webpageCacheIdentity(page?.url), getWebpageCacheRevision(chatId, page?.url)])
-    );
+    const expectedRevisions = revisions || new Map(await Promise.all(
+        pages.map(async (page) => [webpageCacheIdentity(page?.url), await getWebpageCacheRevision(chatId, page?.url)])
+    ));
     return enqueueCacheWrite(chatId, async () => {
         // A source removed while extraction was running must not reappear when
         // that older extraction eventually completes.
-        const key = webpageCacheKey(chatId);
-        const result = await storageAdapter.get(key);
-        const cached = Array.isArray(result?.[key]) ? result[key] : [];
-        const byUrl = new Map(cached.flatMap((page) => {
-            const identity = webpageCacheIdentity(page?.url);
-            return identity && typeof page?.content === 'string' ? [[identity, page]] : [];
-        }));
+        const db = await webpageDb(chatId);
+        const selected = [];
         for (const page of pages) {
             const identity = webpageCacheIdentity(page?.url);
             if (!identity || typeof page.content !== 'string') continue;
-            if (expectedRevisions.get(identity) !== getWebpageCacheRevision(chatId, page.url)) continue;
+            const revision = await getWebpageCacheRevision(chatId, page.url);
+            if (revision.deleted) continue;
+            if (!sameWebpageCacheRevision(expectedRevisions.get(identity), revision)) continue;
             const observedAt = Number(page.observedAt) || Date.now();
-            if (observedAt < (Number(byUrl.get(identity)?.updatedAt) || 0)) continue;
-            byUrl.set(identity, { ...page, updatedAt: observedAt });
+            const existing = await readWebpageSourceRecord(db, chatId, page.url);
+            if (observedAt < (Number(existing?.value?.updatedAt) || 0)) continue;
+            selected.push({ ...page, observedAt });
         }
-        await storageAdapter.set({ [key]: [...byUrl.values()] });
+        await writeCachedWebpageSources(db, chatId, selected, expectedRevisions);
     });
 }
 
@@ -99,20 +119,14 @@ export async function removeCachedWebpagesForChat(chatId, urls) {
         cachePageRevisions.set(key, (cachePageRevisions.get(key) || 0) + 1);
     }
     return enqueueCacheWrite(chatId, async () => {
-        const key = webpageCacheKey(chatId);
-        const result = await storageAdapter.get(key);
-        const cached = Array.isArray(result?.[key]) ? result[key] : [];
-        const remaining = cached.filter((page) => !identities.has(webpageCacheIdentity(page?.url)));
-        if (remaining.length === cached.length) return;
-        if (remaining.length) await storageAdapter.set({ [key]: remaining });
-        else await storageAdapter.remove(key);
+        await removeCachedWebpageSources(await webpageDb(chatId), chatId, urls);
     });
 }
 
 export async function clearCachedWebpagesForChat(chatId) {
     if (!chatId) return;
     cacheClearRevisions.set(chatId, (cacheClearRevisions.get(chatId) || 0) + 1);
-    return enqueueCacheWrite(chatId, () => storageAdapter.remove(webpageCacheKey(chatId)));
+    return enqueueCacheWrite(chatId, async () => clearCachedWebpageSources(await webpageDb(chatId), chatId));
 }
 
 export async function removeCachedWebpageSource(chatId, page) {
@@ -146,6 +160,16 @@ export function isNewWebpageConversation(chat) {
 const pendingWrites = new Map();
 const listeners = new Set();
 
+const sourceChanges = (keys, remote = false) => {
+    const chats = new Set(keys.map(webpageSourceChatId).filter(Boolean));
+    for (const chatId of chats) {
+        if (remote) cacheClearRevisions.set(chatId, (cacheClearRevisions.get(chatId) || 0) + 1);
+        changed(chatId);
+    }
+};
+subscribeLocalChanges(sourceChanges);
+subscribeRemoteChanges((keys) => sourceChanges(keys, true));
+
 export function subscribeWebpageSwitches(listener) {
     listeners.add(listener);
     const unsubscribe=onDesktopBrowserEvent(event=>{if(event.type==='selection-changed')listener(event.chatId);});
@@ -172,7 +196,8 @@ async function readSelection(chatId) {
     const selection = result?.[key];
     const urls = { ...selection?.urls };
     if (!selection) {
-        for (const page of await getCachedWebpagesForChat(chatId)) {
+        const legacy = (await storageAdapter.get(webpageCacheKey(chatId)))[webpageCacheKey(chatId)];
+        for (const page of Array.isArray(legacy) ? legacy : []) {
             if (Number.isSafeInteger(page.tabId)) urls[page.tabId] = webpageCacheIdentity(page.url);
         }
     }
@@ -254,6 +279,13 @@ export async function getWebpageSwitchesForChat(chatId, { currentTab, tabs = [],
             const selection = await readSelection(chatId);
             const previousSelection = JSON.stringify(selection);
             bindSelectedTabs(selection, switches, knownTabs);
+            const db = await webpageDb(chatId);
+            for (const tab of knownTabs) {
+                if ((await readWebpageSourceRecord(db, chatId, tab.url))?.deleted) {
+                    switches[tab.id] = false;
+                    selection.urls[tab.id] = webpageCacheIdentity(tab.url);
+                }
+            }
             if (initialize && (selection.autoFollow || !existing)) {
                 selection.autoFollow = true;
                 const identity = preferenceKey && webpageCacheIdentity(currentTab.url);
@@ -307,6 +339,8 @@ export async function updateWebpageSwitchesForChat(chatId, patch, { tabs = [] } 
     const removedUrls = tabs.filter((tab) => changes[tab.id] === false).map((tab) => tab.url);
     if (globalThis.cerebrDesktop) {
         const result = await desktopBrowserRequest({ type: 'UPDATE_WEBPAGE_SWITCHES', chatId, patch: changes });
+        const db = await webpageDb(chatId);
+        for (const tab of tabs) if (changes[tab.id] === true) await restoreWebpageSource(db, chatId, tab);
         if (removedUrls.length) await removeCachedWebpagesForChat(chatId, removedUrls);
         return result;
     }
@@ -323,8 +357,10 @@ export async function updateWebpageSwitchesForChat(chatId, patch, { tabs = [] } 
         await Promise.all(previousChoices.map((pending) => pending?.catch(() => {})));
         const current = normalizeSwitches(await readSwitchesRecord(chatId));
         const selection = await readSelection(chatId);
+        const db = await webpageDb(chatId);
         for (const tab of tabs) {
             if (Object.hasOwn(changes, tab.id)) selection.urls[tab.id] = webpageCacheIdentity(tab.url);
+            if (changes[tab.id] === true) await restoreWebpageSource(db, chatId, tab);
         }
         // One storage operation keeps the visible selection and future default
         // consistent, including when a save fails.

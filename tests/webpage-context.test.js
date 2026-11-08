@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { IDBKeyRange } from 'fake-indexeddb';
+import { createTestSyncDatabase } from './helpers/sync-database.js';
 
-const state = vi.hoisted(() => ({ memory: new Map(), chatId: 'chat-a', messages: undefined, extension: true }));
+const state = vi.hoisted(() => ({ memory: new Map(), chatId: 'chat-a', messages: undefined, extension: true, db: null }));
 vi.mock('../src/utils/storage-adapter.js', () => ({
+    getDb: async () => state.db,
     get isExtensionEnvironment() { return state.extension; },
     storageAdapter: {
         get: vi.fn(async (keys) =>
@@ -40,9 +43,12 @@ import {
     setWebpageSwitchesForChat,
     webpagePreferenceKey,
     isNewWebpageConversation,
+    getCachedWebpagesForChat,
 } from '../src/utils/webpage-switches.js';
 import { callAPI } from '../src/runtime/chat/api-client.js';
 import { desktopBrowserStore } from '../src/platform/desktop-browser.js';
+import { applyRemoteRecord } from '../src/runtime/sync/replica.js';
+import { readWebpageSourceRecord } from '../src/runtime/sync/webpage-sources.js';
 
 it('desktop reads explicit choices without initializing the current page, including before sending', async () => {
     state.extension = false;
@@ -88,7 +94,9 @@ const deferred = () => {
     return { promise, resolve };
 };
 
-beforeEach(() => {
+beforeEach(async () => {
+    vi.stubGlobal('IDBKeyRange', IDBKeyRange);
+    state.db = await createTestSyncDatabase();
     vi.clearAllMocks();
     state.chatId = 'chat-a';
     state.messages = undefined;
@@ -106,6 +114,7 @@ beforeEach(() => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
 afterEach(() => {
+    state.db.close();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
 });
@@ -116,7 +125,7 @@ describe('selected PDF context', () => {
         const result = await getEnabledTabsContent('chat-a', { cachedOnly: true });
         expect(result.pages.map((page) => page.url)).toEqual([papers[0].url]);
         expect(browserAdapter.sendMessage).toHaveBeenCalledTimes(1);
-        expect(state.memory.get(cacheKey('chat-a')).map((page) => page.url)).toEqual([papers[0].url]);
+        expect((await getCachedWebpagesForChat('chat-a')).map((page) => page.url)).toEqual([papers[0].url]);
         expect((await getEnabledTabsContent()).pages.map((page) => page.url)).toEqual(papers.map((page) => page.url));
     });
 
@@ -158,8 +167,9 @@ describe('selected PDF context', () => {
         expect(settled).toBe(false);
         second.resolve();
         const webpageInfo = await gathering;
-        expect(webpageInfo.pages.map((p) => p.content)).toEqual(Object.values(textById));
-        expect(webpageInfo.pages.map((p) => p.isCurrent)).toEqual([true, false]);
+        expect(webpageInfo.pages.map((p) => p.content).sort()).toEqual(Object.values(textById).sort());
+        expect(webpageInfo.pages.find((p) => p.url === papers[0].url).isCurrent).toBe(true);
+        expect(webpageInfo.pages.find((p) => p.url === papers[1].url).isCurrent).toBe(false);
         let request;
         vi.stubGlobal(
             'fetch',
@@ -189,20 +199,15 @@ describe('selected PDF context', () => {
     });
 
     it('keeps a page available after its tab closes, with no expiry, and refreshes it when seen again', async () => {
-        expect((await getEnabledTabsContent()).pages.map((page) => page.content)).toEqual(Object.values(textById));
-        expect(state.memory.get(cacheKey('chat-a'))).toHaveLength(2);
-
-        const oldCache = state.memory.get(cacheKey('chat-a')).map((page) => ({
-            ...page,
-            updatedAt: Date.now() - 31 * 24 * 60 * 60 * 1000,
-        }));
-        state.memory.set(cacheKey('chat-a'), oldCache);
+        expect((await getEnabledTabsContent()).pages.map((page) => page.content).sort()).toEqual(Object.values(textById).sort());
+        expect(await getCachedWebpagesForChat('chat-a')).toHaveLength(2);
+        vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 31 * 24 * 60 * 60 * 1000);
         browserAdapter.getAllTabs.mockResolvedValue([]);
         browserAdapter.getCurrentTab.mockResolvedValue(null);
         browserAdapter.sendMessage.mockClear();
 
         const afterClosing = await getEnabledTabsContent();
-        expect(afterClosing.pages.map((page) => page.content)).toEqual(Object.values(textById));
+        expect(afterClosing.pages.map((page) => page.content).sort()).toEqual(Object.values(textById).sort());
         expect(browserAdapter.sendMessage).not.toHaveBeenCalled();
 
         const reopened = { ...papers[0], id: 91 };
@@ -211,7 +216,7 @@ describe('selected PDF context', () => {
         browserAdapter.sendMessage.mockResolvedValue({ title: papers[0].title, content: 'Updated page content' });
         const afterReopening = await getEnabledTabsContent();
         expect(afterReopening.pages.find((page) => page.url === papers[0].url).content).toBe('Updated page content');
-        expect(state.memory.get(cacheKey('chat-a')).find((page) => page.url === papers[0].url).content).toBe(
+        expect((await getCachedWebpagesForChat('chat-a')).find((page) => page.url === papers[0].url).content).toBe(
             'Updated page content'
         );
     });
@@ -220,14 +225,14 @@ describe('selected PDF context', () => {
         await getEnabledTabsContent();
         browserAdapter.sendMessage.mockRejectedValue(new Error('Page unavailable'));
         const result = await getEnabledTabsContent();
-        expect(result.pages.map((page) => page.content)).toEqual(Object.values(textById));
+        expect(result.pages.map((page) => page.content).sort()).toEqual(Object.values(textById).sort());
     });
 
     it('uses cached page context when the browser connection is no longer available', async () => {
         await getEnabledTabsContent();
         browserAdapter.getAllTabs.mockRejectedValue(new Error('Browser disconnected'));
         const result = await getEnabledTabsContent();
-        expect(result.pages.map((page) => page.content)).toEqual(Object.values(textById));
+        expect(result.pages.map((page) => page.content).sort()).toEqual(Object.values(textById).sort());
     });
 
     it('does not restore a source when the user removes it during an in-flight extraction', async () => {
@@ -241,7 +246,7 @@ describe('selected PDF context', () => {
         await updateWebpageSwitchesForChat('chat-a', { 1: false }, { tabs: [papers[0]] });
         extraction.resolve();
         await gathering;
-        expect(state.memory.get(cacheKey('chat-a'))).toEqual([
+        expect(await getCachedWebpagesForChat('chat-a')).toEqual([
             expect.objectContaining({ url: papers[1].url, content: textById[2] }),
         ]);
     });
@@ -249,7 +254,27 @@ describe('selected PDF context', () => {
     it('deletes cached page content when that source is explicitly deselected', async () => {
         await getEnabledTabsContent();
         await updateWebpageSwitchesForChat('chat-a', { 1: false }, { tabs: [papers[0]] });
-        expect(state.memory.get(cacheKey('chat-a')).map((page) => page.url)).toEqual([papers[1].url]);
+        expect((await getCachedWebpagesForChat('chat-a')).map((page) => page.url)).toEqual([papers[1].url]);
+    });
+
+    it('discards an extraction when another device removes its source before it finishes', async () => {
+        await getEnabledTabsContent();
+        const source = await readWebpageSourceRecord(state.db, 'chat-a', papers[0].url);
+        const extraction = deferred();
+        browserAdapter.sendMessage.mockClear();
+        browserAdapter.sendMessage.mockImplementation(async ({ tabId }) => {
+            if (tabId === 1) await extraction.promise;
+            return { title: papers.find((tab) => tab.id === tabId).title, content: textById[tabId] };
+        });
+        const gathering = getEnabledTabsContent();
+        await vi.waitFor(() => expect(browserAdapter.sendMessage).toHaveBeenCalled());
+        await applyRemoteRecord(state.db, {
+            ...source, value: null, deleted: true,
+            version: { clock: source.version.clock + 1, actor: 'another-device' },
+        });
+        extraction.resolve();
+        expect((await gathering).pages.map((page) => page.url)).toEqual([papers[1].url]);
+        expect((await getCachedWebpagesForChat('chat-a')).map((page) => page.url)).toEqual([papers[1].url]);
     });
 
     it.each(['empty', 'error'])('rejects incomplete context when a selected PDF returns %s', async (kind) => {

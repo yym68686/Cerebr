@@ -69,7 +69,7 @@ const done = (tx) =>
     });
 
 // Data and its pending sync revision are committed together, even while offline.
-export async function writeLocal(db, values, removals = []) {
+export async function writeLocal(db, values, removals = [], { expectedVersions } = {}) {
     const tx = db.transaction([KV, SYNC_RECORDS, SYNC_META], 'readwrite'),
         complete = done(tx);
     const kv = tx.objectStore(KV),
@@ -83,6 +83,9 @@ export async function writeLocal(db, values, removals = []) {
     ]) {
         if (isSyncedKey(key)) {
             const old = await request(records.get(key));
+            // Page extraction can finish after a remote deletion or a newer
+            // snapshot. Check inside this transaction so stale work cannot win.
+            if (expectedVersions?.has(key) && compareVersions(old?.version, expectedVersions.get(key)) !== 0) continue;
             if (old?.deleted === deleted && JSON.stringify(old.value) === JSON.stringify(value)) continue;
             state.clock = Math.max(Date.now(), state.clock + 1, (old?.version.clock || 0) + 1);
             records.put(
@@ -106,6 +109,22 @@ export async function writeLocal(db, values, removals = []) {
     meta.put(state, 'state');
     await complete;
     if (changed) announceLocalChanges([...Object.keys(values), ...removals].filter(isSyncedKey));
+}
+
+export async function seedReplicaValues(db, values) {
+    const keys = Object.keys(values);
+    if (!keys.length) return;
+    const tx = db.transaction([KV, SYNC_RECORDS], 'readwrite'), complete = done(tx);
+    const inserted = [];
+    for (const key of keys) {
+        if (!(await request(tx.objectStore(SYNC_RECORDS).get(key)))) {
+            tx.objectStore(KV).put(values[key], key);
+            inserted.push(key);
+        }
+    }
+    await complete;
+    await seedReplica(db, inserted);
+    if (inserted.length) announceLocalChanges(inserted);
 }
 
 export async function seedReplica(db, suppliedKeys) {

@@ -8,7 +8,10 @@ vi.mock('../src/utils/storage-adapter.js', () => ({
         remove: async keys => { for (const key of Array.isArray(keys) ? keys : [keys]) state.data.delete(key); },
     },
 }));
-vi.mock('../src/runtime/sync/replica.js', () => ({ subscribeRemoteChanges: fn => { state.handlers.push(fn); return () => {}; } }));
+vi.mock('../src/runtime/sync/replica.js', () => ({
+    subscribeRemoteChanges: fn => { state.handlers.push(fn); return () => {}; },
+    subscribeLocalChanges: () => () => {},
+}));
 vi.mock('../src/utils/default-chat.js', () => ({
     DEFAULT_CHAT_KIND: 'default', buildDefaultChatSeedMessages: () => [], getDefaultChatTitle: () => 'Default', resolveDefaultChatLocale: async () => 'en',
 }));

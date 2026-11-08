@@ -7,6 +7,7 @@ import {
     getWebpageSwitchesForChat,
     isNewWebpageConversation,
     saveCachedWebpagesForChat,
+    sameWebpageCacheRevision,
     webpageCacheIdentity,
 } from '../../utils/webpage-switches.js';
 import { createChatError } from '../chat/chat-errors.js';
@@ -162,15 +163,16 @@ export async function getEnabledTabsContent(chatId = chatManager.currentChatId, 
     const finalTabs = getWebpageSourceTabs(allTabs, switches);
 
     const currentTabId = currentTab?.id;
-    const enabledTabs = finalTabs.filter(
+    const selectedTabs = finalTabs.filter(
         (tab) => (!cachedOnly && switches[tab.id] === true) || cachedByUrl.has(webpageCacheIdentity(tab.url))
     );
-    const cacheRevisions = new Map(
-        enabledTabs.map((tab) => [
+    const cacheRevisions = new Map(await Promise.all(
+        selectedTabs.map(async (tab) => [
             webpageCacheIdentity(tab.url),
-            getWebpageCacheRevision(activeChatId, tab.url),
+            await getWebpageCacheRevision(activeChatId, tab.url),
         ])
-    );
+    ));
+    const enabledTabs = selectedTabs.filter((tab) => !cacheRevisions.get(webpageCacheIdentity(tab.url)).deleted);
     const pageEntries = await mapWithConcurrency(enabledTabs, 4, async (tab) => {
         try {
             if (!browserSessionIsCurrent()) throw new Error('Browser extension disconnected during page extraction');
@@ -292,7 +294,7 @@ export async function getEnabledTabsContent(chatId = chatManager.currentChatId, 
         const identity = webpageCacheIdentity(page.url);
         const current = pagesByUrl.get(identity);
         if (
-            cacheRevisions.get(identity) === getWebpageCacheRevision(activeChatId, page.url) &&
+            sameWebpageCacheRevision(cacheRevisions.get(identity), await getWebpageCacheRevision(activeChatId, page.url)) &&
             Number(page.observedAt) >= (Number(current?.updatedAt) || 0)
         )
             pagesByUrl.set(identity, page);
