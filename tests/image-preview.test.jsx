@@ -106,7 +106,7 @@ describe('image preview keyboard navigation', () => {
         return event;
     };
 
-    it('opens the selected image and cycles both ways without returning focus to the draft', async () => {
+    it('opens the selected image and stops at both ends without returning focus to the draft', async () => {
         await render(null);
         const input = document.createElement('input');
         document.body.append(input);
@@ -122,9 +122,13 @@ describe('image preview keyboard navigation', () => {
         expect(picture.getAttribute('src')).toBe(third);
         expect(view()).toEqual({ x: 0, y: 0, scale: 1 });
         await key('ArrowRight');
+        expect(picture.getAttribute('src')).toBe(third);
+        await key('ArrowLeft');
+        expect(picture.getAttribute('src')).toBe(second);
+        await key('ArrowLeft');
         expect(picture.getAttribute('src')).toBe(source);
         await key('ArrowLeft');
-        expect(picture.getAttribute('src')).toBe(third);
+        expect(picture.getAttribute('src')).toBe(source);
         expect(document.activeElement).toBe(close);
         expect(focus).not.toHaveBeenCalled();
         await key('Escape');
@@ -175,7 +179,31 @@ describe('image preview trackpad navigation', () => {
         expect(picture.getAttribute('src')).toBe(source);
         now += 300;
         await wheel({ deltaX: -90 });
-        expect(picture.getAttribute('src')).toBe(third);
+        expect(picture.getAttribute('src')).toBe(source);
+    });
+
+    it('stops at both ends of a two-image gallery and allows swiping back without moving the pointer', async () => {
+        await act(async () => openImagePreview([source, second]));
+        await wheel({ deltaX: 90 });
+        expect(picture.getAttribute('src')).toBe(second);
+        const last = uiStore.getSnapshot();
+        for (let i = 0; i < 3; i++) {
+            now += 300;
+            await wheel({ deltaX: 90 });
+            expect(uiStore.getSnapshot()).toBe(last);
+        }
+        now += 300;
+        await wheel({ deltaX: -90 });
+        expect(picture.getAttribute('src')).toBe(source);
+        const first = uiStore.getSnapshot();
+        for (let i = 0; i < 3; i++) {
+            now += 300;
+            await wheel({ deltaX: -90 });
+            expect(uiStore.getSnapshot()).toBe(first);
+        }
+        now += 300;
+        await wheel({ deltaX: 90 });
+        expect(picture.getAttribute('src')).toBe(second);
     });
 
     it('ignores a long decelerating momentum tail without requiring pointer movement for the next swipe', async () => {
@@ -210,10 +238,10 @@ describe('image preview trackpad navigation', () => {
 
     it('keeps the wheel listener stable through repeated swipes at the same cursor position', async () => {
         const remove = vi.spyOn(viewport, 'removeEventListener');
-        for (let i = 0; i < 9; i++) {
+        for (const [direction, index] of [[1, 1], [1, 2], [1, 2], [1, 2], [-1, 1], [-1, 0], [-1, 0], [1, 1], [1, 2]]) {
             now += 300;
-            await wheel({ deltaX: 90 });
-            expect(uiStore.getSnapshot().imageGallery.index).toBe((i + 1) % 3);
+            await wheel({ deltaX: direction * 90 });
+            expect(uiStore.getSnapshot().imageGallery.index).toBe(index);
         }
         expect(remove.mock.calls.filter(([type]) => type === 'wheel')).toHaveLength(0);
         await act(async () => host.querySelector('button').click());
@@ -320,11 +348,17 @@ describe('image preview slide transitions', () => {
         expect(outgoing.getAttribute('aria-hidden')).toBe('true');
         expect(animations[0].frames).toEqual([{ transform: 'translateX(100vw)' }, { transform: 'translateX(0)' }]);
         expect(animations[1].frames).toEqual([{ transform: 'translateX(0)' }, { transform: 'translateX(-100vw)' }]);
+        await arrow('ArrowRight');
+        expect(animations).toHaveLength(2);
+        expect(animations[0].cancel).not.toHaveBeenCalled();
         await act(async () => animations[0].onfinish());
         expect(host.querySelector('.image-preview-outgoing')).toBeNull();
         await arrow('ArrowLeft');
         expect(animations[2].frames[0].transform).toBe('translateX(-100vw)');
         expect(animations[3].frames[1].transform).toBe('translateX(100vw)');
+        await arrow('ArrowLeft');
+        expect(animations).toHaveLength(4);
+        expect(animations[2].cancel).not.toHaveBeenCalled();
     });
 
     it('cancels interrupted animations and ignores a stale completion when rapidly reversing', async () => {
