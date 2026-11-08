@@ -61,7 +61,7 @@ import { applyRemoteRecord, replicaRecord } from '../src/runtime/sync/replica.js
 import { webpageSourceKey } from '../src/runtime/sync/webpage-sources.js';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-let root, host, latest, actions, sizeCallbacks;
+let root, host, latest, actions, sizeCallbacks, pendingIO;
 const tabs = [
     { id: 1, title: 'Alpha', url: 'https://alpha.example', groupId: -1, lastAccessed: 2 },
     { id: 2, title: 'Beta', url: 'https://beta.example', groupId: -1, lastAccessed: 1 },
@@ -102,9 +102,23 @@ function Composer({ chatId = 'a', autoAddCurrentPage = false }) {
         </div>
     );
 }
+const trackIO = (promise) => {
+    pendingIO.add(promise);
+    const finished = () => pendingIO.delete(promise);
+    promise.then(finished, finished);
+    return promise;
+};
+const settleIO = async () => {
+    // IndexedDB and Web Crypto use real asynchronous work. A fixed number of
+    // event-loop turns can finish before hashing completes on a faster host.
+    do {
+        await Promise.all([...pendingIO]);
+        await new Promise(setImmediate);
+    } while (pendingIO.size);
+};
 const advanceTimers = async (ms) => {
     await vi.advanceTimersByTimeAsync(ms);
-    for (let i = 0; i < 100; i++) await new Promise(setImmediate);
+    await settleIO();
 };
 const tick = () => act(async () => advanceTimers(40));
 const render = async (chatId = 'a', autoAddCurrentPage = false) => {
@@ -131,6 +145,18 @@ beforeEach(async () => {
     state.db = await createTestSyncDatabase();
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
     vi.clearAllMocks();
+    pendingIO = new Set();
+    const digest = crypto.subtle.digest.bind(crypto.subtle);
+    vi.spyOn(crypto.subtle, 'digest').mockImplementation((...args) => trackIO(digest(...args)));
+    const transaction = state.db.transaction.bind(state.db);
+    vi.spyOn(state.db, 'transaction').mockImplementation((...args) => {
+        const tx = transaction(...args);
+        trackIO(new Promise((resolve) => {
+            tx.addEventListener('complete', resolve, { once: true });
+            tx.addEventListener('abort', resolve, { once: true });
+        }));
+        return tx;
+    });
     state.memory = {};
     state.extension = true;
     state.messages = undefined;
@@ -167,7 +193,10 @@ beforeEach(async () => {
     uiStore.set({ menu: false, webpageMenu: false, page: null, toasts: [] });
 });
 afterEach(async () => {
-    await act(async () => root.unmount());
+    await act(async () => {
+        root.unmount();
+        await settleIO();
+    });
     host.remove();
     vi.clearAllTimers();
     vi.useRealTimers();
