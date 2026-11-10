@@ -75,29 +75,11 @@ async function saveYouTubeTranscript({ key, videoId, lang, text }) {
     });
 }
 
-export function getUniqueTabsByUrl(tabs) {
-    const seenUrls = new Set();
-    return tabs.filter((tab) => {
-        if (!tab.url || seenUrls.has(tab.url)) {
-            return false;
-        }
-        seenUrls.add(tab.url);
-        return true;
-    });
-}
-
 // Use the same ordering and explicit selection in the picker and outgoing request.
-// Prefer a selected duplicate so another copy of its URL cannot hide that selection.
-export function getWebpageSourceTabs(tabs, switches = {}) {
-    return getUniqueTabsByUrl(
-        tabs
-            .filter((tab) => tab.url && !/^(chrome|chrome-extension|edge|about|moz-extension):/.test(tab.url))
-            .sort(
-                (a, b) =>
-                    Number(!!switches[b.id]) - Number(!!switches[a.id]) ||
-                    (b.lastAccessed || 0) - (a.lastAccessed || 0)
-            )
-    ).sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
+export function getWebpageSourceTabs(tabs) {
+    return tabs
+        .filter((tab) => tab.url && !/^(chrome|chrome-extension|edge|about|moz-extension):/.test(tab.url))
+        .sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
 }
 
 async function mapWithConcurrency(items, limit, mapper) {
@@ -129,10 +111,10 @@ export async function getEnabledTabsContent(chatId = chatManager.currentChatId, 
     // Browsing can refresh a document already used by this conversation, but
     // merely showing a source chip must not turn an unused page into history.
     if (cachedOnly && !cachedPages.length) return null;
-    const cachedContext = (currentUrl = null) => ({
+    const cachedContext = (current = null) => ({
         pages: cachedPages.map((page) => ({
             ...page,
-            isCurrent: !!currentUrl && webpageCacheIdentity(currentUrl) === webpageCacheIdentity(page.url),
+            isCurrent: !!current && webpageCacheIdentity(current) === webpageCacheIdentity(page),
         })),
     });
     let allTabs, currentTab;
@@ -146,6 +128,7 @@ export async function getEnabledTabsContent(chatId = chatManager.currentChatId, 
         if (cachedPages.length) return cachedContext();
         throw new Error('Browser extension disconnected during page extraction');
     }
+    currentTab = allTabs.find((tab) => tab.id === currentTab?.id) || currentTab;
     let switches;
     try {
         switches = await getWebpageSwitchesForChat(activeChatId, {
@@ -154,25 +137,25 @@ export async function getEnabledTabsContent(chatId = chatManager.currentChatId, 
             initialize,
         });
     } catch (error) {
-        if (cachedPages.length) return cachedContext(currentTab?.url);
+        if (cachedPages.length) return cachedContext(currentTab);
         throw error;
     }
-    const cachedByUrl = new Map(cachedPages.map((page) => [webpageCacheIdentity(page.url), page]));
+    const cachedByUrl = new Map(cachedPages.map((page) => [webpageCacheIdentity(page), page]));
     let combinedContent = null;
 
     const finalTabs = getWebpageSourceTabs(allTabs, switches);
 
     const currentTabId = currentTab?.id;
     const selectedTabs = finalTabs.filter(
-        (tab) => (!cachedOnly && switches[tab.id] === true) || cachedByUrl.has(webpageCacheIdentity(tab.url))
+        (tab) => (!cachedOnly && switches[tab.id] === true) || cachedByUrl.has(webpageCacheIdentity(tab))
     );
     const cacheRevisions = new Map(await Promise.all(
         selectedTabs.map(async (tab) => [
-            webpageCacheIdentity(tab.url),
-            await getWebpageCacheRevision(activeChatId, tab.url),
+            webpageCacheIdentity(tab),
+            await getWebpageCacheRevision(activeChatId, tab),
         ])
     ));
-    const enabledTabs = selectedTabs.filter((tab) => !cacheRevisions.get(webpageCacheIdentity(tab.url)).deleted);
+    const enabledTabs = selectedTabs.filter((tab) => !cacheRevisions.get(webpageCacheIdentity(tab)).deleted);
     const pageEntries = await mapWithConcurrency(enabledTabs, 4, async (tab) => {
         try {
             if (!browserSessionIsCurrent()) throw new Error('Browser extension disconnected during page extraction');
@@ -235,6 +218,7 @@ export async function getEnabledTabsContent(chatId = chatManager.currentChatId, 
             return {
                 title: pageData.title,
                 url: tab.url,
+                ...(tab.sourceId ? { sourceId: tab.sourceId } : {}),
                 content,
                 isCurrent: tab.id === currentTabId,
                 tabId: tab.id,
@@ -249,7 +233,7 @@ export async function getEnabledTabsContent(chatId = chatManager.currentChatId, 
     const refreshedPages = pageEntries.filter(Boolean);
     let pagesToCache = [];
     if (!browserSessionIsCurrent()) {
-        if (cachedPages.length) return cachedContext(currentTab?.url);
+        if (cachedPages.length) return cachedContext(currentTab);
         throw new Error('Browser extension disconnected during page extraction');
     }
     if (refreshedPages.length) {
@@ -257,15 +241,15 @@ export async function getEnabledTabsContent(chatId = chatManager.currentChatId, 
             getWebpageSwitchesForChat(activeChatId).catch(() => switches),
             getCachedWebpagesForChat(activeChatId),
         ]);
-        const latestCachedUrls = new Set(latestCachedPages.map((page) => webpageCacheIdentity(page.url)));
+        const latestCachedUrls = new Set(latestCachedPages.map((page) => webpageCacheIdentity(page)));
         const stillSelected = new Set(
             enabledTabs
-                .filter((tab) => latestSwitches[tab.id] === true || latestCachedUrls.has(webpageCacheIdentity(tab.url)))
-                .map((tab) => webpageCacheIdentity(tab.url))
+                .filter((tab) => latestSwitches[tab.id] === true || latestCachedUrls.has(webpageCacheIdentity(tab)))
+                .map((tab) => webpageCacheIdentity(tab))
         );
-        pagesToCache = refreshedPages.filter((page) => stillSelected.has(webpageCacheIdentity(page.url)));
+        pagesToCache = refreshedPages.filter((page) => stillSelected.has(webpageCacheIdentity(page)));
         const revisionsToSave = new Map(
-            pagesToCache.map((page) => [webpageCacheIdentity(page.url), cacheRevisions.get(webpageCacheIdentity(page.url))])
+            pagesToCache.map((page) => [webpageCacheIdentity(page), cacheRevisions.get(webpageCacheIdentity(page))])
         );
         if (pagesToCache.length) {
             await saveCachedWebpagesForChat(activeChatId, pagesToCache, revisionsToSave).catch((error) => {
@@ -274,10 +258,10 @@ export async function getEnabledTabsContent(chatId = chatManager.currentChatId, 
         }
     }
     const failedTabs = enabledTabs.filter(
-        (tab, index) => !pageEntries[index] && !cachedByUrl.has(webpageCacheIdentity(tab.url))
+        (tab, index) => !pageEntries[index] && !cachedByUrl.has(webpageCacheIdentity(tab))
     );
     if (!browserSessionIsCurrent()) {
-        if (cachedPages.length) return cachedContext(currentTab?.url);
+        if (cachedPages.length) return cachedContext(currentTab);
         throw new Error('Browser extension disconnected during page extraction');
     }
     if (failedTabs.length) {
@@ -288,20 +272,20 @@ export async function getEnabledTabsContent(chatId = chatManager.currentChatId, 
         );
     }
     const pagesByUrl = new Map(
-        (await getCachedWebpagesForChat(activeChatId)).map((page) => [webpageCacheIdentity(page.url), page])
+        (await getCachedWebpagesForChat(activeChatId)).map((page) => [webpageCacheIdentity(page), page])
     );
     for (const page of pagesToCache) {
-        const identity = webpageCacheIdentity(page.url);
+        const identity = webpageCacheIdentity(page);
         const current = pagesByUrl.get(identity);
         if (
-            sameWebpageCacheRevision(cacheRevisions.get(identity), await getWebpageCacheRevision(activeChatId, page.url)) &&
+            sameWebpageCacheRevision(cacheRevisions.get(identity), await getWebpageCacheRevision(activeChatId, page)) &&
             Number(page.observedAt) >= (Number(current?.updatedAt) || 0)
         )
             pagesByUrl.set(identity, page);
     }
     const pages = [...pagesByUrl.values()].map((page) => ({
         ...page,
-        isCurrent: !!currentTab?.url && webpageCacheIdentity(page.url) === webpageCacheIdentity(currentTab.url),
+        isCurrent: !!currentTab?.url && webpageCacheIdentity(page) === webpageCacheIdentity(currentTab),
     }));
     if (pages.length > 0) {
         combinedContent = { pages };

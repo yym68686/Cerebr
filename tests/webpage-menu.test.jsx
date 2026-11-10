@@ -206,6 +206,27 @@ afterEach(async () => {
 });
 
 describe('Prompt Bar source picker', () => {
+    it('shows both same-URL tabs and keeps their cached chips independent on the web', async () => {
+        const copies = [tabs[0], { ...tabs[0], id: 2, sourceId: 'other-chat', lastAccessed: 1 }];
+        browserAdapter.getAllTabs.mockResolvedValue(copies);
+        state.memory.cerebr_webpage_switches_v1_a = {};
+        await render();
+        expect(latest.tabs.map((tab) => tab.id)).toEqual([1, 2]);
+        await act(async () => { await latest.toggle([copies[1]], true); await settleIO(); });
+        expect(latest.selected.map((tab) => tab.id)).toEqual([2]);
+        await act(async () => { await latest.toggle([copies[0]], true); await settleIO(); });
+        expect(latest.selected).toHaveLength(2);
+        await act(async () => { await getEnabledTabsContent('a'); await settleIO(); });
+        state.extension = false;
+        await render();
+        expect(latest.selected).toHaveLength(2);
+        expect(new Set(latest.selected.map((tab) => tab.id)).size).toBe(2);
+        const second = latest.selected.find((tab) => tab.sourceId);
+        await act(async () => { await latest.toggle([second], false); await settleIO(); });
+        expect(latest.selected).toHaveLength(1);
+        expect(latest.selected[0].sourceId).toBeUndefined();
+    });
+
     it('updates chips immediately on remote removals while the removed browser tabs stay open', async () => {
         state.memory.cerebr_webpage_cache_v1_a = tabs.map((tab) => ({ ...tab, tabId: tab.id, content: tab.title }));
         state.memory.cerebr_webpage_switches_v1_a = { 1: true, 2: true };

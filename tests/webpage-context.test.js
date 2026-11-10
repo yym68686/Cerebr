@@ -123,6 +123,20 @@ afterEach(() => {
 });
 
 describe('selected PDF context', () => {
+    it('reads, caches and removes same-URL tabs independently, including after they close', async () => {
+        const duplicate = { ...papers[0], id: 2, sourceId: 'second-document' };
+        browserAdapter.getAllTabs.mockResolvedValue([papers[0], duplicate]);
+        const result = await getEnabledTabsContent();
+        expect(result.pages.map((page) => page.content).sort()).toEqual(Object.values(textById).sort());
+        expect(result.pages.find((page) => !page.sourceId).isCurrent).toBe(true);
+        expect(result.pages.find((page) => page.sourceId).isCurrent).toBe(false);
+        expect(await getCachedWebpagesForChat('chat-a')).toHaveLength(2);
+        await updateWebpageSwitchesForChat('chat-a', { 2: false }, { tabs: [duplicate] });
+        browserAdapter.getAllTabs.mockResolvedValue([]);
+        browserAdapter.getCurrentTab.mockResolvedValue(null);
+        expect((await getEnabledTabsContent()).pages.map((page) => page.content)).toEqual([textById[1]]);
+    });
+
     it('refreshes only previously used pages while browsing, even if another source is selected', async () => {
         state.memory.set(cacheKey('chat-a'), [{ ...papers[0], tabId: 1, content: 'Earlier page content' }]);
         const result = await getEnabledTabsContent('chat-a', { cachedOnly: true });

@@ -13,6 +13,9 @@ export function webpagePreferenceKey(value) {
 }
 
 export function webpageCacheIdentity(value) {
-    const key = webpagePreferenceKey(value);
-    return key ? key.slice(WEBPAGE_PREFERENCE_PREFIX.length) : null;
+    const page = typeof value === 'object' && value !== null ? value : null;
+    const key = webpagePreferenceKey(page ? page.url : value);
+    if (!key) return null;
+    const identity = key.slice(WEBPAGE_PREFERENCE_PREFIX.length);
+    return page?.sourceId ? JSON.stringify([identity, page.sourceId]) : identity;
 }

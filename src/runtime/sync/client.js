@@ -26,6 +26,11 @@ export async function createSyncClient({
         stopped = false;
     const checks = new Map();
     let reconciliation = null, reconciliationBarrier = null;
+    let syncError = null;
+    const reportError = (error) => {
+        syncError = error instanceof Error ? error.message : String(error);
+        onStatus({ syncing: false, error: syncError });
+    };
     const acknowledged = new Map();
     const pending = new Set();
     let scan = true;
@@ -77,7 +82,7 @@ export async function createSyncClient({
         if (!timer)
             timer = setTimeout(() => {
                 timer = 0;
-                queue = queue.then(transmit).catch((e) => onStatus({ error: e.message }));
+                queue = queue.then(transmit).catch(reportError);
             }, 100);
     };
     const unsubscribe = subscribeLocalChanges(schedule);
@@ -87,6 +92,9 @@ export async function createSyncClient({
     const receive = async (message) => {
         if (stopped) return;
         if (message.type === 'manifest') {
+            // Only a new reconciliation can recover a failed round. A barrier
+            // after a rejected record must not erase that error or claim success.
+            syncError = null;
             onStatus({ syncing: true });
             const local = new Map((await replicaManifest(db, { includeDirty: true, includeCounts: true })).map((r) => [r.key, r]));
             counted.clear();
@@ -127,14 +135,15 @@ export async function createSyncClient({
                 clearTimeout(reconciliation?.timer);
                 const round = reconciliation;
                 reconciliation = null;
-                round?.resolve();
+                if (syncError) round?.reject(new Error(syncError));
+                else round?.resolve();
             }
             publishCounts();
             onStatus({
                 connected: true,
                 syncing: false,
-                lastSyncAt: Date.now(),
-                error: null,
+                ...(!syncError ? { lastSyncAt: Date.now() } : {}),
+                error: syncError,
                 ...(message.summary ? { summary: message.summary } : {}),
             });
             const check = checks.get(message.id);
@@ -142,6 +151,7 @@ export async function createSyncClient({
                 checks.delete(message.id);
                 clearTimeout(check.timer);
                 try {
+                    if (syncError) throw new Error(syncError);
                     const local = await browserSummary(await replicaRecords(db));
                     const verification = {
                         local,
@@ -156,7 +166,7 @@ export async function createSyncClient({
                 }
             }
         } else if (message.type === 'progress') onProgress(message.progress);
-        else if (message.type === 'error') onStatus({ error: message.error });
+        else if (message.type === 'error') reportError(message.error);
     };
     const reconcile = () => {
         if (stopped) return Promise.reject(new Error('同步连接已关闭。'));
@@ -189,7 +199,7 @@ export async function createSyncClient({
                 if (!stopped) onProgress(message.progress);
                 return Promise.resolve();
             }
-            queue = queue.then(() => receive(message)).catch((e) => onStatus({ error: e.message }));
+            queue = queue.then(() => receive(message)).catch(reportError);
             return queue;
         },
         flush() {

@@ -44,7 +44,7 @@ export async function migrateCachedWebpageSources(db, chatId, legacyPages) {
         const values = {};
         for (const page of Array.isArray(pages) ? pages : []) {
             if (typeof page?.content !== 'string') continue;
-            const key = await webpageSourceKey(chatId, page.url);
+            const key = await webpageSourceKey(chatId, page);
             if (key) {
                 // Browser tab IDs belong to one browser; only document data is shared.
                 const { tabId, isCurrent, observedAt, ...document } = page;
@@ -73,13 +73,13 @@ export async function readWebpageSourceRecord(db, chatId, url) {
 export async function writeCachedWebpageSources(db, chatId, pages, revisions) {
     const values = {}, expectedVersions = new Map();
     for (const page of pages) {
-        const key = await webpageSourceKey(chatId, page.url);
+        const key = await webpageSourceKey(chatId, page);
         if (!key || typeof page.content !== 'string') continue;
         const { tabId, isCurrent, observedAt, ...document } = page;
         const existing = await replicaRecord(db, key);
         if (existing?.deleted) continue;
         values[key] = { ...document, addedAt: existing?.value?.addedAt || existing?.value?.updatedAt || Number(observedAt) || Date.now(), updatedAt: Number(observedAt) || Date.now() };
-        expectedVersions.set(key, revisions.get(webpageCacheIdentity(page.url))?.version);
+        expectedVersions.set(key, revisions.get(webpageCacheIdentity(page))?.version);
     }
     await writeLocal(db, values, [], { expectedVersions });
 }
@@ -95,10 +95,10 @@ export async function clearCachedWebpageSources(db, chatId) {
 }
 
 export async function restoreWebpageSource(db, chatId, tab) {
-    const record = await readWebpageSourceRecord(db, chatId, tab.url);
+    const record = await readWebpageSourceRecord(db, chatId, tab);
     if (record?.deleted) {
         // An explicit re-selection permits the next question to read the page.
         // It does not cache content before that question is asked.
-        await writeLocal(db, { [record.key]: { url: tab.url, title: tab.title } });
+        await writeLocal(db, { [record.key]: { url: tab.url, title: tab.title, ...(tab.sourceId ? { sourceId: tab.sourceId } : {}) } });
     }
 }

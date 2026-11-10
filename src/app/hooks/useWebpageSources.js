@@ -56,7 +56,8 @@ export function useWebpageSources(chatId, menuOpen, autoAddCurrentPage = false) 
                     const cachedPages = await getCachedWebpagesForChat(chatId);
                     if (!current()) return;
                     const tabs = cachedPages.map((page) => ({
-                        id: `cached:${webpageCacheIdentity(page.url)}`,
+                        id: `cached:${webpageCacheIdentity(page)}`,
+                        sourceId: page.sourceId,
                         title: page.title,
                         url: page.url,
                         lastAccessed: page.updatedAt || 0,
@@ -89,11 +90,12 @@ export function useWebpageSources(chatId, menuOpen, autoAddCurrentPage = false) 
                     tabs: allTabs,
                     initialize: autoAddCurrentPage,
                 });
-                const visibleUrls = new Set(allTabs.map((item) => webpageCacheIdentity(item.url)).filter(Boolean));
+                const visibleUrls = new Set(allTabs.map((item) => webpageCacheIdentity(item)).filter(Boolean));
                 const cachedTabs = cachedPages
-                    .filter((page) => !visibleUrls.has(webpageCacheIdentity(page.url)))
+                    .filter((page) => !visibleUrls.has(webpageCacheIdentity(page)))
                     .map((page) => ({
-                        id: `cached:${webpageCacheIdentity(page.url)}`,
+                        id: `cached:${webpageCacheIdentity(page)}`,
+                        sourceId: page.sourceId,
                         title: page.title,
                         url: page.url,
                         lastAccessed: page.updatedAt || 0,
@@ -102,9 +104,9 @@ export function useWebpageSources(chatId, menuOpen, autoAddCurrentPage = false) 
                     }));
                 const tabs = getWebpageSourceTabs([...allTabs, ...cachedTabs], switches);
                 const sourceSwitches = { ...switches };
-                const cachedUrls = new Set(cachedPages.map((page) => webpageCacheIdentity(page.url)).filter(Boolean));
+                const cachedUrls = new Set(cachedPages.map((page) => webpageCacheIdentity(page)).filter(Boolean));
                 for (const item of tabs) {
-                    if (cachedUrls.has(webpageCacheIdentity(item.url))) sourceSwitches[item.id] = true;
+                    if (cachedUrls.has(webpageCacheIdentity(item))) sourceSwitches[item.id] = true;
                 }
                 const groupIds = [...new Set(tabs.map((tab) => tab.groupId).filter((id) => id >= 0))];
                 const groups = await browserAdapter.getTabGroupsByIds(groupIds).catch(() => ({}));
@@ -112,7 +114,7 @@ export function useWebpageSources(chatId, menuOpen, autoAddCurrentPage = false) 
                     const next = {
                         chatId,
                         tabs,
-                        current: tabs.find((item) => item.id === tab?.id || item.url === tab?.url) || null,
+                        current: tabs.find((item) => item.id === tab?.id) || null,
                         groups,
                         switches: sourceSwitches,
                         loading: false,
@@ -127,7 +129,8 @@ export function useWebpageSources(chatId, menuOpen, autoAddCurrentPage = false) 
                     const cachedPages = await getCachedWebpagesForChat(chatId).catch(() => []);
                     if (!current()) return;
                     const cachedTabs = cachedPages.map((page) => ({
-                        id: `cached:${webpageCacheIdentity(page.url)}`,
+                        id: `cached:${webpageCacheIdentity(page)}`,
+                        sourceId: page.sourceId,
                         title: page.title,
                         url: page.url,
                         lastAccessed: page.updatedAt || 0,

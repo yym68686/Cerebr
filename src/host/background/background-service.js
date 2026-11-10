@@ -2,7 +2,8 @@ import { startExtensionSync } from '../../runtime/sync/extension-sync.js';
 import { startCloudSync } from '../../runtime/sync/cloud-sync.js';
 void startCloudSync({ isBackground: true }).catch((error)=>console.error('[Cerebr] Cloud sync failed',error));
 import { createBrowserPageRequests } from './browser-page-requests.js';
-const desktopSync = startExtensionSync({ browserRequest: createBrowserPageRequests({ api: chrome, getPageContent: readBrowserPage }) });
+const browserPageRequest = createBrowserPageRequests({ api: chrome, getPageContent: readBrowserPage });
+const desktopSync = startExtensionSync({ browserRequest: browserPageRequest });
 import { extensionAssetPath } from '../../platform/assets.js';
 import { createTabConnection } from './tab-connection.js';
 import { createBackgroundPluginRuntime } from '../../plugin/background/background-plugin-runtime.js';
@@ -585,7 +586,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'GET_ALL_TABS') {
     (async () => {
       try {
-        const tabs = await chrome.tabs.query({});
+        const tabs = await browserPageRequest(message);
         sendResponse(tabs);
       } catch (e) {
         console.error("Failed to get all tabs:", e);

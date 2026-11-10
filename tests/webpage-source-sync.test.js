@@ -101,3 +101,36 @@ it('uses fixed-size keys for long URLs and does not let migration overwrite a re
     expect(await replicaRecord(db, key)).toMatchObject({ deleted: true });
     expect(await readCachedWebpageSources(db, 'chat')).toEqual([]);
 });
+
+it('syncs distinct documents at one URL and deletes only the chosen copy', async () => {
+    vi.stubGlobal('IDBKeyRange', IDBKeyRange);
+    const source = await database(), web = await database();
+    const copies = [
+        { ...pages[0], content: 'First chat' },
+        { ...pages[0], sourceId: crypto.randomUUID(), content: 'Second chat' },
+    ];
+    await writeCachedWebpageSources(source, 'chat', copies, new Map());
+    for (const record of await replicaRecords(source)) await applyRemoteRecord(web, record);
+    expect((await readCachedWebpageSources(web, 'chat')).map((page) => page.content).sort()).toEqual(['First chat', 'Second chat']);
+    await removeCachedWebpageSources(web, 'chat', [copies[1]]);
+    for (const record of await replicaRecords(web)) await applyRemoteRecord(source, record);
+    expect((await readCachedWebpageSources(source, 'chat')).map((page) => page.content)).toEqual(['First chat']);
+    expect((await readWebpageSourceRecord(source, 'chat', copies[1])).deleted).toBe(true);
+});
+
+it('keeps failed sync rounds in error until a complete reconciliation succeeds', async () => {
+    vi.stubGlobal('IDBKeyRange', IDBKeyRange);
+    const db = await database(), sent = [], statuses = [];
+    const client = await createSyncClient({ db, send: (message) => sent.push(message), onStatus: (status) => statuses.push(status) });
+    clients.push(client);
+    await client.receive({ type: 'manifest', records: [] });
+    await client.receive({ type: 'record', record: { key: 'unknown-record', version: { clock: 1, actor: 'test' }, value: {} } });
+    await client.receive({ type: 'caught-up', id: sent.findLast((message) => message.type === 'barrier').id });
+    expect(statuses.at(-1)).toMatchObject({ syncing: false, error: 'Invalid sync record' });
+    expect(statuses.at(-1).lastSyncAt).toBeUndefined();
+    const recovery = client.reconcile();
+    await client.receive({ type: 'manifest', records: [] });
+    await client.receive({ type: 'caught-up', id: sent.findLast((message) => message.type === 'barrier').id });
+    await recovery;
+    expect(statuses.at(-1)).toMatchObject({ error: null, lastSyncAt: expect.any(Number) });
+});

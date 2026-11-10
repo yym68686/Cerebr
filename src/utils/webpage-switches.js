@@ -87,7 +87,7 @@ export async function getCachedWebpagesForChat(chatId) {
 export async function saveCachedWebpagesForChat(chatId, pages, revisions = null) {
     if (!chatId || !Array.isArray(pages) || !pages.length) return;
     const expectedRevisions = revisions || new Map(await Promise.all(
-        pages.map(async (page) => [webpageCacheIdentity(page?.url), await getWebpageCacheRevision(chatId, page?.url)])
+        pages.map(async (page) => [webpageCacheIdentity(page), await getWebpageCacheRevision(chatId, page)])
     ));
     return enqueueCacheWrite(chatId, async () => {
         // A source removed while extraction was running must not reappear when
@@ -95,13 +95,13 @@ export async function saveCachedWebpagesForChat(chatId, pages, revisions = null)
         const db = await webpageDb(chatId);
         const selected = [];
         for (const page of pages) {
-            const identity = webpageCacheIdentity(page?.url);
+            const identity = webpageCacheIdentity(page);
             if (!identity || typeof page.content !== 'string') continue;
-            const revision = await getWebpageCacheRevision(chatId, page.url);
+            const revision = await getWebpageCacheRevision(chatId, page);
             if (revision.deleted) continue;
             if (!sameWebpageCacheRevision(expectedRevisions.get(identity), revision)) continue;
             const observedAt = Number(page.observedAt) || Date.now();
-            const existing = await readWebpageSourceRecord(db, chatId, page.url);
+            const existing = await readWebpageSourceRecord(db, chatId, page);
             if (observedAt < (Number(existing?.value?.updatedAt) || 0)) continue;
             selected.push({ ...page, observedAt });
         }
@@ -147,7 +147,7 @@ export async function removeCachedWebpageSource(chatId, page) {
             // A disconnected browser must not prevent removal of the local snapshot.
         }
     }
-    await removeCachedWebpagesForChat(chatId, [page.url]);
+    await removeCachedWebpagesForChat(chatId, [page]);
     return true;
 }
 
@@ -206,7 +206,7 @@ async function readSelection(chatId) {
 function bindSelectedTabs(selection, switches, tabs) {
     for (const tab of tabs) {
         if (!Object.hasOwn(switches, tab.id)) continue;
-        const identity = webpageCacheIdentity(tab.url);
+        const identity = webpageCacheIdentity(tab);
         const previous = selection.urls[tab.id];
         // Tab IDs survive navigation. A choice belongs to the document that
         // was selected, never the next document opened in that same tab.
@@ -265,8 +265,9 @@ export async function getWebpageSwitchesForChat(chatId, { currentTab, tabs = [],
     if (!chatId) return {};
     // Desktop can select pages explicitly; only the extension auto-adds its current page.
     if(globalThis.cerebrDesktop)return desktopBrowserRequest({type:'GET_WEBPAGE_SWITCHES',chatId,initialize:false});
-    const currentIdentity = currentTab && webpageCacheIdentity(currentTab.url);
     const knownTabs = tabs.length ? tabs : currentTab ? [currentTab] : [];
+    currentTab = knownTabs.find((tab) => tab.id === currentTab?.id) || currentTab;
+    const currentIdentity = currentTab && webpageCacheIdentity(currentTab);
     if (isExtensionEnvironment && (knownTabs.length || initialize)) {
         return enqueueWrite(chatId, async () => {
             const existing = await readSwitchesRecord(chatId);
@@ -276,9 +277,9 @@ export async function getWebpageSwitchesForChat(chatId, { currentTab, tabs = [],
             bindSelectedTabs(selection, switches, knownTabs);
             const db = await webpageDb(chatId);
             for (const tab of knownTabs) {
-                if ((await readWebpageSourceRecord(db, chatId, tab.url))?.deleted) {
+                if ((await readWebpageSourceRecord(db, chatId, tab))?.deleted) {
                     switches[tab.id] = false;
-                    selection.urls[tab.id] = webpageCacheIdentity(tab.url);
+                    selection.urls[tab.id] = webpageCacheIdentity(tab);
                 }
             }
             if (initialize && (selection.autoFollow || !existing)) {
@@ -332,7 +333,7 @@ export async function setWebpageSwitchesForChat(chatId, switches) {
 export async function updateWebpageSwitchesForChat(chatId, patch, { tabs = [] } = {}) {
     if (!chatId) return false;
     const changes = normalizeSwitches(patch);
-    const removedUrls = tabs.filter((tab) => changes[tab.id] === false).map((tab) => tab.url);
+    const removedUrls = tabs.filter((tab) => changes[tab.id] === false);
     if (globalThis.cerebrDesktop) {
         const result = await desktopBrowserRequest({ type: 'UPDATE_WEBPAGE_SWITCHES', chatId, patch: changes });
         const db = await webpageDb(chatId);
@@ -345,7 +346,7 @@ export async function updateWebpageSwitchesForChat(chatId, patch, { tabs = [] } 
         const selection = await readSelection(chatId);
         const db = await webpageDb(chatId);
         for (const tab of tabs) {
-            if (Object.hasOwn(changes, tab.id)) selection.urls[tab.id] = webpageCacheIdentity(tab.url);
+            if (Object.hasOwn(changes, tab.id)) selection.urls[tab.id] = webpageCacheIdentity(tab);
             if (changes[tab.id] === true) await restoreWebpageSource(db, chatId, tab);
         }
         // Keep the visible choices and their document bindings together.

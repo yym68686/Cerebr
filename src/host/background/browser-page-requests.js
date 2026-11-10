@@ -1,4 +1,5 @@
 import { validateBrowserRequest } from '../../runtime/sync/browser-protocol.js';
+import { createWebpageTabRegistry } from './webpage-tab-registry.js';
 import {
     getWebpageSwitchesForChat,
     updateWebpageSwitchesForChat,
@@ -6,11 +7,13 @@ import {
 } from '../../utils/webpage-switches.js';
 
 export function createBrowserPageRequests({ api, getPageContent }) {
+    const identifyTabs = createWebpageTabRegistry(api.storage?.session);
+    const allTabs = async () => identifyTabs(await api.tabs.query({}));
     const currentTab = async () =>
         (await api.tabs.query({ active: true, lastFocusedWindow: true }))[0] || null;
     return async (raw) => {
         const message = validateBrowserRequest(raw);
-        if (message.type === 'GET_ALL_TABS') return api.tabs.query({});
+        if (message.type === 'GET_ALL_TABS') return allTabs();
         if (message.type === 'GET_CURRENT_TAB') return currentTab();
         if (message.type === 'GET_PAGE_CONTENT_FROM_SIDEBAR') return getPageContent(message);
         if (message.type === 'GET_TAB_GROUPS_BY_IDS') {
@@ -23,15 +26,12 @@ export function createBrowserPageRequests({ api, getPageContent }) {
         if (message.type === 'GET_WEBPAGE_SWITCHES')
             return getWebpageSwitchesForChat(message.chatId, {
                 currentTab: await currentTab(),
-                tabs: await api.tabs.query({}),
+                tabs: await allTabs(),
                 initialize: message.initialize,
             });
         if (message.type === 'SET_WEBPAGE_SWITCHES')
             return setWebpageSwitchesForChat(message.chatId, message.patch);
-        const results = await Promise.allSettled(
-            Object.keys(message.patch).map((id) => api.tabs.get(Number(id)))
-        );
-        const tabs = results.filter((result) => result.status === 'fulfilled').map(({ value }) => value);
+        const tabs = (await allTabs()).filter((tab) => Object.hasOwn(message.patch, tab.id));
         if (tabs.length !== Object.keys(message.patch).length)
             throw new Error('Selected browser tab has closed');
         return updateWebpageSwitchesForChat(message.chatId, message.patch, { tabs });
