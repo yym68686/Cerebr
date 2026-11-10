@@ -17,6 +17,8 @@ import { useProgressiveCount } from '../hooks/useProgressiveCount.js';
 import { useChatReorder } from '../hooks/useChatReorder.js';
 import { Icon } from './Icon.jsx';
 import { NavigationDialog, NavigationMenu } from './NavigationOverlays.jsx';
+import { storageAdapter } from '../../utils/storage-adapter.js';
+import { SharedLinkDialog } from './SharedConversation.jsx';
 
 function GlideList({ children, resetKey, scrollRef, pinnedRow = null }) {
     const pinned = useRef(pinnedRow);
@@ -128,12 +130,28 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
     const version = useSyncExternalStore(chatManager.subscribe, chatManager.getSnapshot);
     const organization = useSyncExternalStore(chatOrganization.subscribe, chatOrganization.getSnapshot);
     const ui = useSyncExternalStore(uiStore.subscribe, uiStore.getSnapshot);
-    const pluginPageOpen = useSyncExternalStore(pluginUiStore.subscribe, () => !!pluginUiStore.getSnapshot().page);
+    const pluginPageOpen = useSyncExternalStore(
+        pluginUiStore.subscribe,
+        () => !!pluginUiStore.getSnapshot().page
+    );
     const [searchOpen, setSearchOpen] = useState(false),
         [search, setSearch] = useState('');
     const [menu, setMenu] = useState(null),
         [dialog, setDialog] = useState(null),
         [loadError, setLoadError] = useState(null);
+    const [shareOwner, setShareOwner] = useState(null),
+        [shareLink, setShareLink] = useState(null);
+    useEffect(() => {
+        let active = true;
+        setShareOwner(null);
+        if (menu?.chat?.sharing)
+            void storageAdapter.get('cerebr_cloud_auth_v1').then((data) => {
+                if (active) setShareOwner(data.cerebr_cloud_auth_v1?.user?.id || null);
+            });
+        return () => {
+            active = false;
+        };
+    }, [menu]);
     const searchRef = useRef(null),
         closeRef = useRef(null),
         listRef = useRef(null),
@@ -164,14 +182,20 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
         cancelHoverClose();
         hoverTimer.current = setTimeout(() => {
             hoverTimer.current = null;
-            if (!hovering.current && !hoverOverlays.current.menu && !hoverOverlays.current.dialog && !hoverOverlays.current.reordering)
+            if (
+                !hovering.current &&
+                !hoverOverlays.current.menu &&
+                !hoverOverlays.current.dialog &&
+                !hoverOverlays.current.reordering
+            )
                 setPreview(false);
         }, 180);
     };
     const enterPreview = (event) => {
         hovering.current = true;
         cancelHoverClose();
-        if (wide && collapsed && !pageBlocksToggle && !suppressHover.current && event.pointerType !== 'touch') setPreview(true);
+        if (wide && collapsed && !pageBlocksToggle && !suppressHover.current && event.pointerType !== 'touch')
+            setPreview(true);
     };
     const menuTarget = useRef(null);
     menuTarget.current = menu;
@@ -184,6 +208,44 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
         },
         [report]
     );
+    const share = (chatId) => {
+        notify(t('share_publishing'));
+        const link = import('../../runtime/chat/conversation-share.js').then(
+            ({ publishConversation, shareUrl }) => {
+                const existing = chatManager.chats.get(chatId)?.sharing?.id;
+                return existing ? shareUrl(existing) : publishConversation(chatId);
+            }
+        );
+        // Promise-backed ClipboardItem preserves Safari's click activation while
+        // the snapshot uploads. A selectable link is the fallback for denied access.
+        let copied;
+        try {
+            const content = link.then((url) => new Blob([url], { type: 'text/plain' }));
+            // Clipboard access can reject before reading the promised data.
+            // Keep upload failures handled even when the browser never consumes it.
+            void content.catch(() => {});
+            copied =
+                globalThis.ClipboardItem && navigator.clipboard?.write
+                    ? navigator.clipboard.write([
+                          new ClipboardItem({
+                              'text/plain': content,
+                          }),
+                      ])
+                    : link.then((url) => navigator.clipboard.writeText(url));
+        } catch (error) {
+            copied = Promise.reject(error);
+        }
+        void copied.then(
+            () => notify(t('share_copied')),
+            async () => {
+                try {
+                    setShareLink(await link);
+                } catch (error) {
+                    report(error);
+                }
+            }
+        );
+    };
     const load = useCallback(async () => {
         setLoadError(null);
         try {
@@ -268,11 +330,13 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
             if (query && !members.length && !folder.name.toLowerCase().includes(query)) continue;
             rows.push({ kind: 'folder', id: folder.id, folder, count: members.length });
             if (!folder.collapsed || query) {
-                if (!members.length) rows.push({ kind: 'empty', id: `empty-${folder.id}`, folderId: folder.id });
+                if (!members.length)
+                    rows.push({ kind: 'empty', id: `empty-${folder.id}`, folderId: folder.id });
                 for (const chat of members) rows.push({ kind: 'chat', id: chat.id, chat, nested: true });
             }
         }
-        if (organization.folders.length && (unfiled.length || !query)) rows.push({ kind: 'label', id: 'unfiled' });
+        if (organization.folders.length && (unfiled.length || !query))
+            rows.push({ kind: 'label', id: 'unfiled' });
         for (const chat of unfiled) rows.push({ kind: 'chat', id: chat.id, chat });
         return rows;
     }, [orderedChats, organization, query, folderById, loaded]);
@@ -280,9 +344,14 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
     const reorder = useChatReorder({
         listRef,
         resetKey: `${visible}:${query}:${organization.chatsCollapsed}:${organization.folders.map((folder) => `${folder.id}:${folder.collapsed}`).join(',')}`,
-        onDrop: (id, destination) => run(() => chatOrganization.reorderChat(
-            id, destination, chatManager.getAllChats().map((chat) => chat.id)
-        )),
+        onDrop: (id, destination) =>
+            run(() =>
+                chatOrganization.reorderChat(
+                    id,
+                    destination,
+                    chatManager.getAllChats().map((chat) => chat.id)
+                )
+            ),
     });
     hoverOverlays.current.reordering = !!reorder.preview;
     const drop = reorder.preview?.destination;
@@ -557,13 +626,21 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                             {entries.slice(0, count).map((entry) => {
                                 if (entry.kind === 'label')
                                     return (
-                                        <div className={`navigation-group-label${folderDrop(null) ? ' is-drop-folder' : ''}`} data-drop-folder-id="" key={entry.id}>
+                                        <div
+                                            className={`navigation-group-label${folderDrop(null) ? ' is-drop-folder' : ''}`}
+                                            data-drop-folder-id=""
+                                            key={entry.id}
+                                        >
                                             {t('nav_unfiled')}
                                         </div>
                                     );
                                 if (entry.kind === 'empty')
                                     return (
-                                        <div className={`navigation-folder-empty${folderDrop(entry.folderId) ? ' is-drop-folder' : ''}`} data-drop-folder-id={entry.folderId} key={entry.id}>
+                                        <div
+                                            className={`navigation-folder-empty${folderDrop(entry.folderId) ? ' is-drop-folder' : ''}`}
+                                            data-drop-folder-id={entry.folderId}
+                                            key={entry.id}
+                                        >
                                             {t('nav_folder_empty')}
                                         </div>
                                     );
@@ -571,7 +648,8 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                                 const active = isChat && entry.id === chatManager.currentChatId;
                                 const running =
                                     isChat &&
-                                    (!!ui.localRequests?.[entry.id] || (ui.phase !== 'idle' && ui.requestChatId === entry.id) ||
+                                    (!!ui.localRequests?.[entry.id] ||
+                                        (ui.phase !== 'idle' && ui.requestChatId === entry.id) ||
                                         ['thinking', 'replying'].includes(ui.remoteProgress?.[entry.id]));
                                 const label = isChat ? entry.chat.title : entry.folder.name;
                                 return (
@@ -584,15 +662,33 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                                         className={`navigation-item${active ? ' is-active' : ''}${entry.nested ? ' is-nested' : ''}${reorder.preview?.id === entry.id ? ' is-dragging' : ''}${drop?.targetId === entry.id ? (drop.before ? ' is-drop-before' : ' is-drop-after') : ''}${!isChat && folderDrop(entry.id) ? ' is-drop-folder' : ''}`}
                                         onContextMenu={(event) => showMenu(event, entry)}
                                         onKeyDown={(event) => {
-                                            if (isChat && event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) {
+                                            if (
+                                                isChat &&
+                                                event.altKey &&
+                                                ['ArrowUp', 'ArrowDown'].includes(event.key)
+                                            ) {
                                                 event.preventDefault();
                                                 event.stopPropagation();
-                                                const siblings = entries.filter((item) => item.kind === 'chat' &&
-                                                    organization.assignments[item.id] === organization.assignments[entry.id]);
+                                                const siblings = entries.filter(
+                                                    (item) =>
+                                                        item.kind === 'chat' &&
+                                                        organization.assignments[item.id] ===
+                                                            organization.assignments[entry.id]
+                                                );
                                                 const before = event.key === 'ArrowUp';
-                                                const target = siblings[siblings.findIndex((item) => item.id === entry.id) + (before ? -1 : 1)];
-                                                if (target) run(() => chatOrganization.reorderChat(entry.id,
-                                                    { targetId: target.id, before }, chatManager.getAllChats().map((chat) => chat.id)));
+                                                const target =
+                                                    siblings[
+                                                        siblings.findIndex((item) => item.id === entry.id) +
+                                                            (before ? -1 : 1)
+                                                    ];
+                                                if (target)
+                                                    run(() =>
+                                                        chatOrganization.reorderChat(
+                                                            entry.id,
+                                                            { targetId: target.id, before },
+                                                            chatManager.getAllChats().map((chat) => chat.id)
+                                                        )
+                                                    );
                                                 return;
                                             }
                                             if (
@@ -603,7 +699,10 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                                         }}
                                         onPointerDown={(event) => {
                                             if (event.pointerType !== 'touch') {
-                                                if (isChat && !event.target.closest('.navigation-item-more')) {
+                                                if (
+                                                    isChat &&
+                                                    !event.target.closest('.navigation-item-more')
+                                                ) {
                                                     closeMenu(false);
                                                     reorder.begin(event, entry.id);
                                                 }
@@ -640,7 +739,9 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                                             className="navigation-item-label"
                                             title={label}
                                             aria-current={active ? 'page' : undefined}
-                                            aria-keyshortcuts={isChat ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}
+                                            aria-keyshortcuts={
+                                                isChat ? 'Alt+ArrowUp Alt+ArrowDown' : undefined
+                                            }
                                             aria-expanded={
                                                 !isChat ? !entry.folder.collapsed || !!query : undefined
                                             }
@@ -710,6 +811,24 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                     onMove={(folderId) => run(() => chatOrganization.moveChat(menu.id, folderId))}
                     onCreateFolder={() => setDialog({ type: 'createFolder', chatId: menu.id })}
                     onRename={rename}
+                    onShare={() => share(menu.id)}
+                    canManageShare={!!shareOwner && menu.chat?.sharing?.ownerId === shareOwner}
+                    onUpdateShare={() =>
+                        run(async () => {
+                            const { publishConversation } =
+                                await import('../../runtime/chat/conversation-share.js');
+                            await publishConversation(menu.id, true);
+                            notify(t('share_updated'));
+                        })
+                    }
+                    onRevokeShare={() =>
+                        run(async () => {
+                            const { revokeConversation } =
+                                await import('../../runtime/chat/conversation-share.js');
+                            await revokeConversation(menu.id);
+                            notify(t('share_revoked'));
+                        })
+                    }
                     onDelete={() =>
                         setDialog({
                             type: menu.kind === 'chat' ? 'deleteChat' : 'deleteFolder',
@@ -727,6 +846,7 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                     onSubmit={submitDialog}
                 />
             )}
+            {shareLink && <SharedLinkDialog url={shareLink} onClose={() => setShareLink(null)} />}
         </div>
     );
 }

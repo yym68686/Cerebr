@@ -3,6 +3,7 @@ import { cp, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { verifyBuild } from './verify-build.mjs';
 import { createPackagedManifest } from './extension-manifest.mjs';
+import { applicationChunk } from './build-entry.mjs';
 
 const result = await build();
 const contentEntry = result.output.find(
@@ -94,8 +95,11 @@ for (const name of ['manifest.json', 'manifest.firefox.json']) {
     await writeFile(path.join(dest, name), JSON.stringify(createPackagedManifest(m), null, 2) + '\n');
 }
 let html = await readFile(path.join(dest, 'index.html'), 'utf8');
-const entry = html.match(/<script type="module"[^>]*src="([^"]+)"[^>]*><\/script>/)?.[1];
-if (!entry) throw new Error('Missing Vite application entry');
+// Vite can emit dependency scripts ahead of the application script when chunks
+// are shared by several entries. The first HTML script may only be a polyfill.
+const application = applicationChunk(result.output);
+if (!application) throw new Error('Missing Vite application entry');
+const entry = `./${application.fileName}`;
 const css = [...html.matchAll(/<link[^>]*rel="stylesheet"[^>]*href="([^"]+)"[^>]*>/g)].map((m) => m[1]);
 html = html
     .replace(/<script type="module"[^>]*><\/script>/g, '')

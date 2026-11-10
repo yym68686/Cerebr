@@ -19,6 +19,7 @@ import { setPlaceholderRestoreResolver } from '../runtime/input/native-editor.js
 import { ApiSettings } from './components/ApiSettings.jsx';
 import { Preferences } from './components/Preferences.jsx';
 import { ChatNavigation } from './components/ChatNavigation.jsx';
+import { SharedConversation } from './components/SharedConversation.jsx';
 import { useWideLayout } from './hooks/useWideLayout.js';
 import { Message } from './components/Messages.jsx';
 import { ContextMenu, ImagePreview, Toasts } from './components/Overlays.jsx';
@@ -227,6 +228,7 @@ export function App() {
     return (
         <>
             <DesktopTitlebar />
+            <SharedConversation session={session} />
             <ChatNavigation
                 wide={wide}
                 open={ui.navigationOpen}

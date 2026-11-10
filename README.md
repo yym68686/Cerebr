@@ -170,3 +170,5 @@ This project is licensed under the GPLv3 License
 ## Desktop app
 
 The Electron app lives in the `desktop/` workspace and shares the React frontend with the web app and extension. Run `npm run dev:desktop` to develop or `npm run package:desktop` to package. It supports paired local history synchronization with the browser extension. See [desktop setup, synchronization and data boundaries](docs/desktop.md).
+
+Conversation context menus support share links that import a separate copy on any Cerebr web host. See [conversation sharing and the independently deployed sync service](docs/conversation-sharing.md).

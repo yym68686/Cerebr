@@ -1,0 +1,31 @@
+{
+  "name": "cerebr-sync",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "start": "node --env-file-if-exists=.env server/index.js",
+    "test": "node --env-file-if-exists=.env.test --test tests/*.test.js",
+    "check": "npm run test && npm run build"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.0.0",
+    "@fastify/rate-limit": "^10.0.0",
+    "@fastify/static": "^10.1.6",
+    "fastify": "^5.0.0",
+    "iconoir-react": "^7.12.1",
+    "pg": "^8.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "ws": "^8.0.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.1.0",
+    "vite": "^7.3.0"
+  }
+}

@@ -1,0 +1,31 @@
+services:
+  server:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      DATABASE_URL: postgres://cerebr:${POSTGRES_PASSWORD}@postgres:5432/cerebr
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://cerebr.fugue.pro,https://cerebr.vercel.app,https://cerebr.yym68686.top,https://cerebr.pages.dev,https://yym68686.github.io}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: cerebr
+      POSTGRES_USER: cerebr
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cerebr -d cerebr"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+volumes:
+  postgres_data:

@@ -1,0 +1,36 @@
+name: Validate sync service
+on:
+  push:
+    branches: [main]
+    paths: ['services/sync/**', 'src/domain/chat/share-snapshot.js', '.github/workflows/sync-service.yml']
+  pull_request:
+    paths: ['services/sync/**', 'src/domain/chat/share-snapshot.js', '.github/workflows/sync-service.yml']
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: cerebr_test
+          POSTGRES_PASSWORD: test-only-password
+          POSTGRES_DB: cerebr_sync_test
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 3s --health-retries 20
+    defaults:
+      run:
+        working-directory: services/sync
+    env:
+      DATABASE_URL: postgres://cerebr_test:test-only-password@127.0.0.1:5432/cerebr_sync_test
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: services/sync/package-lock.json
+      - run: npm ci
+      - run: npm run check

@@ -69,12 +69,18 @@ const done = (tx) =>
     });
 
 // Data and its pending sync revision are committed together, even while offline.
-export async function writeLocal(db, values, removals = [], { expectedVersions } = {}) {
+export async function writeLocal(db, values, removals = [], { expectedVersions, ifAbsent } = {}) {
     const tx = db.transaction([KV, SYNC_RECORDS, SYNC_META], 'readwrite'),
         complete = done(tx);
     const kv = tx.objectStore(KV),
         records = tx.objectStore(SYNC_RECORDS),
         meta = tx.objectStore(SYNC_META);
+    // A shared chat and all its sources are one import. Concurrent tabs must
+    // neither create duplicate copies nor overwrite a copy already being used.
+    if (ifAbsent && await request(kv.get(ifAbsent))) {
+        await complete;
+        return false;
+    }
     const state = (await request(meta.get('state'))) || { actor: crypto.randomUUID(), clock: 0 };
     let changed = false;
     for (const [key, value, deleted] of [
@@ -109,6 +115,7 @@ export async function writeLocal(db, values, removals = [], { expectedVersions }
     meta.put(state, 'state');
     await complete;
     if (changed) announceLocalChanges([...Object.keys(values), ...removals].filter(isSyncedKey));
+    return true;
 }
 
 export async function seedReplicaValues(db, values) {

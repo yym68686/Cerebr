@@ -123,6 +123,16 @@ afterEach(() => {
 });
 
 describe('selected PDF context', () => {
+    it('uses imported cached webpage text on the standalone web app without browser access', async () => {
+        state.extension = false;
+        state.messages = [{ role: 'user', content: 'Previously shared question' }];
+        state.memory.set(cacheKey('chat-a'), [{ url: papers[0].url, title: papers[0].title, content: 'Shared page text' }]);
+        browserAdapter.getAllTabs.mockResolvedValue([]);
+        browserAdapter.getCurrentTab.mockResolvedValue(null);
+        const result = await getEnabledTabsContent('chat-a', { cachedOnly: true });
+        expect(result.pages.map(page => page.content)).toEqual(['Shared page text']);
+        expect(browserAdapter.sendMessage).not.toHaveBeenCalled();
+    });
     it('reads, caches and removes same-URL tabs independently, including after they close', async () => {
         const duplicate = { ...papers[0], id: 2, sourceId: 'second-document' };
         browserAdapter.getAllTabs.mockResolvedValue([papers[0], duplicate]);

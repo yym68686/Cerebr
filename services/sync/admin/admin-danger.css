@@ -1,0 +1,8 @@
+.row-actions button.danger{color:#e9a6a6;border-color:#9b5d5d66}
+.row-actions button.danger:hover:not(:disabled){background:#813d3d33}
+.danger-primary{background:#8c3e3e;color:#fff!important}
+.danger-primary:hover:not(:disabled){background:#a14a4a!important}
+.status.deleted{color:#d4a0a0;background:#c48f8f0c;border-color:#c48f8f28}
+.delete-confirm-label{display:grid;gap:8px;margin-top:20px;color:var(--muted);font-size:12px}
+.delete-confirm-label input{background:var(--bg)}
+#user-action-title{overflow-wrap:anywhere}

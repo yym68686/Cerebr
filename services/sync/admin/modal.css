@@ -1,0 +1,49 @@
+.modal-backdrop {
+    overflow: auto;
+    overscroll-behavior: contain;
+}
+
+.modal {
+    max-height: calc(100vh - 40px);
+    max-height: calc(100dvh - 40px);
+    min-width: 0;
+    min-height: 0;
+    flex-shrink: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+}
+
+.modal.wide {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.modal > .panel-heading {
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.modal .panel-heading > div {
+    min-width: 0;
+}
+
+.modal h2 {
+    overflow-wrap: anywhere;
+}
+
+.modal .panel-heading button {
+    flex-shrink: 0;
+}
+
+.modal > .table-scroll {
+    min-height: 0;
+    overscroll-behavior: contain;
+}
+
+.modal th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--surface);
+}

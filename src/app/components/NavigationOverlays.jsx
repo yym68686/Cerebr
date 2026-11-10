@@ -11,6 +11,10 @@ export function NavigationMenu({
     onCreateFolder,
     onRename,
     onDelete,
+    onShare,
+    canManageShare,
+    onUpdateShare,
+    onRevokeShare,
 }) {
     const ref = useRef(null);
     const [moving, setMoving] = useState(false);
@@ -122,6 +126,34 @@ export function NavigationMenu({
                         <Icon name="edit-message" />
                         <span>{t('nav_rename')}</span>
                     </button>
+                    {target.kind === 'chat' && target.chat?.messages.length > 0 && (
+                        <>
+                            <button role="menuitem" type="button" onClick={() => action(onShare)}>
+                                <Icon name="copy-message" />
+                                <span>{t('share_copy_link')}</span>
+                            </button>
+                            {canManageShare && (
+                                <>
+                                    <button
+                                        role="menuitem"
+                                        type="button"
+                                        onClick={() => action(onUpdateShare)}
+                                    >
+                                        <Icon name="edit-message" />
+                                        <span>{t('share_update')}</span>
+                                    </button>
+                                    <button
+                                        role="menuitem"
+                                        type="button"
+                                        onClick={() => action(onRevokeShare)}
+                                    >
+                                        <Icon name="delete-message" />
+                                        <span>{t('share_stop')}</span>
+                                    </button>
+                                </>
+                            )}
+                        </>
+                    )}
                     <div className="navigation-menu-divider" role="separator" />
                     <button
                         className="navigation-destructive"

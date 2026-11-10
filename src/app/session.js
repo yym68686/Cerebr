@@ -162,10 +162,9 @@ export function createSession({ messageInput, chatContainer }) {
         chatManager,
         editor,
         getSelectedApiConfig,
-        getWebpageInfo: (id) =>
-            isExtensionEnvironment || desktopBrowserStore.getSnapshot().session
-                ? getEnabledTabsContent(id)
-                : null,
+        getWebpageInfo: (id) => getEnabledTabsContent(id, {
+            cachedOnly: !isExtensionEnvironment && !desktopBrowserStore.getSnapshot().session,
+        }),
         getUserLanguage: () => navigator.language,
         pluginRuntime: runtime,
         onPhase: (phase, requestChatId, { preserveReadingPosition = false } = {}) => {

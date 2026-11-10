@@ -2,6 +2,7 @@ import { access, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { verifyContentModuleAccess } from './extension-manifest.mjs';
 import { extensionAssetPath } from '../src/platform/assets.js';
+import { applicationChunk } from './build-entry.mjs';
 
 export async function verifyBuild(root, chunks = []) {
     const assertFile = async (file) => {
@@ -54,6 +55,9 @@ export async function verifyBuild(root, chunks = []) {
         }
     }
     const boot = JSON.parse(await readFile(path.join(root, 'web-manifest.json'), 'utf8'));
+    const application = applicationChunk(chunks);
+    if (!application || boot.entry !== `./${application.fileName}`)
+        throw new Error('Web boot must load the application entry, not a dependency script');
     for (const file of [boot.entry, ...boot.css]) await assertFile(file);
     for (const file of [
         'lib/pdfjs/cmaps/UniGB-UCS2-H.bcmap',
