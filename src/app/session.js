@@ -76,9 +76,13 @@ export function createSession({ messageInput, chatContainer }) {
             bodyElement: document.getElementById('plugin-shell-page-body'),
         },
     });
+    // A shared-link preview can be visible before it becomes the writable chat.
+    // Never save that preview's scroll position against the previous chat.
+    const getReadingChatId = () =>
+        chatContainer.dataset.chatId === chatManager.currentChatId ? chatManager.currentChatId : null;
     const reading = createReadingProgressManager({
         chatContainer,
-        getActiveChatId: () => chatManager.currentChatId,
+        getActiveChatId: getReadingChatId,
         storage: storageAdapter,
     });
     let activeDraftId = chatManager.currentChatId;
@@ -263,11 +267,11 @@ export function createSession({ messageInput, chatContainer }) {
         clearTimeout(draftTimer);
         draftTimer = setTimeout(() => void saveDraft().catch(reportStorageError), 400);
     });
-    const switchChat = async (id) => {
+    const switchChat = async (id, { restoreReadingProgress = true } = {}) => {
         cancelEdit();
         void saveDraft().catch(reportStorageError);
         void reading.saveNow().catch(reportStorageError);
-        pendingReadingId = id;
+        pendingReadingId = restoreReadingProgress ? id : null;
         await chatManager.switchChat(id);
         syncActivePhase();
         // A completed reply may still be writing. Navigation must not join that
@@ -284,6 +288,7 @@ export function createSession({ messageInput, chatContainer }) {
         document.dispatchEvent(new CustomEvent('cerebr:chatSwitched', { detail: { chatId: id } }));
         requestAnimationFrame(() => {
             if (
+                restoreReadingProgress &&
                 chatContainer.querySelectorAll('.message').length >=
                     chatManager.getCurrentChat().messages.length &&
                 pendingReadingId === id
@@ -425,7 +430,10 @@ export function createSession({ messageInput, chatContainer }) {
         },
     });
     void restoreDraft();
-    requestAnimationFrame(() => void reading.restore(chatManager.currentChatId));
+    requestAnimationFrame(() => {
+        const id = getReadingChatId();
+        if (id) void reading.restore(id);
+    });
     void runtime
         .start()
         .then(() => {

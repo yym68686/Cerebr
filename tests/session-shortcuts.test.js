@@ -4,6 +4,8 @@ const state = vi.hoisted(() => ({
     extension: false,
     start: null,
     pipelineOptions: null,
+    readingOptions: null,
+    restoreReading: vi.fn(async () => {}),
     saveReading: vi.fn(async () => {}),
 }));
 vi.mock('../src/utils/storage-adapter.js', () => ({
@@ -49,12 +51,15 @@ vi.mock('../src/app/state/api-configs.js', () => ({
 vi.mock('../src/app/state/preferences.js', () => ({ loadPreferences: async () => {} }));
 vi.mock('../src/runtime/webpage/webpage-context.js', () => ({ getEnabledTabsContent: async () => null }));
 vi.mock('../src/utils/reading-progress.js', () => ({
-    createReadingProgressManager: () => ({
-        saveNow: state.saveReading,
-        restore: async () => {},
-        start() {},
-        stop() {},
-    }),
+    createReadingProgressManager: (options) => {
+        state.readingOptions = options;
+        return {
+            saveNow: state.saveReading,
+            restore: state.restoreReading,
+            start() {},
+            stop() {},
+        };
+    },
 }));
 vi.mock('../src/utils/webpage-switches.js', () => ({ setWebpageSwitchesForChat: vi.fn(async () => {}) }));
 vi.mock('../src/plugin/shell/shell-plugin-runtime.js', () => ({
@@ -129,6 +134,19 @@ function message(source, type) {
 }
 
 describe('new chat shortcut delivery', () => {
+    it('keeps a shared preview position without overwriting the previous chat reading progress', async () => {
+        const container = document.getElementById('chat-container');
+        container.dataset.chatId = 'old';
+        start();
+        expect(state.readingOptions.getActiveChatId()).toBe('old');
+        container.dataset.chatId = 'shared';
+        expect(state.readingOptions.getActiveChatId()).toBeNull();
+        await session.switchChat('shared', { restoreReadingProgress: false });
+        for (const [callback] of requestAnimationFrame.mock.calls) callback();
+        document.dispatchEvent(new CustomEvent('cerebr:chatContentLoaded', { detail: { chatId: 'shared' } }));
+        expect(state.restoreReading).not.toHaveBeenCalled();
+    });
+
     it('previews the current draft images in order from either the thumbnail or filename', async () => {
         const composer = document.getElementById('input-container');
         composer.dataset.composer = '';

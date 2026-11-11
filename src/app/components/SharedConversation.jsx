@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { t } from '../../utils/i18n.js';
-import { uiStore } from '../state/ui-store.js';
+import { openPage } from '../state/ui-store.js';
 
 function ShareDialog({ title, onClose, children }) {
     const ref = useRef(null);
@@ -87,7 +87,7 @@ export function SharedLinkDialog({ url, onClose }) {
     );
 }
 
-export function SharedConversation({ session }) {
+export function useSharedConversation(session) {
     const [hash, setHash] = useState(location.hash),
         [attempt, setAttempt] = useState(0),
         [state, setState] = useState(null);
@@ -104,47 +104,68 @@ export function SharedConversation({ session }) {
     useEffect(() => {
         if (!session || !hash.startsWith('#/share/')) return;
         let active = true;
+        let switching = false;
+        let previewed = state?.hash === hash && !!state.chat;
         const controller = new AbortController();
-        setState({ loading: true });
+        setState((previous) => ({ hash, chat: previous?.hash === hash ? previous.chat : null }));
+        openPage(null);
+        const navigated = () => {
+            if (!switching) close();
+        };
+        document.addEventListener('cerebr:chatSwitched', navigated);
         void import('../../runtime/chat/conversation-share.js')
             .then(async ({ shareIdFromHash, importConversation }) => {
                 const id = shareIdFromHash(hash);
                 if (!id) throw new Error('share_unavailable');
-                const chatId = await importConversation(id, { signal: controller.signal });
+                const chatId = await importConversation(id, {
+                    signal: controller.signal,
+                    onPreview: (chat) => {
+                        previewed = true;
+                        if (active) setState({ hash, chat });
+                    },
+                });
                 if (!active) return;
-                await session.switchChat(chatId);
-                if (active) {
-                    uiStore.set({ navigationOpen: false });
-                    close();
-                }
+                switching = true;
+                await session.switchChat(chatId, { restoreReadingProgress: !previewed });
+                if (active) close();
             })
             .catch((error) => {
-                if (active) setState({ error: t(error.message) });
+                if (active)
+                    setState((previous) => ({ ...previous, hash, error: t(error.message) }));
             });
         return () => {
             active = false;
             controller.abort();
+            document.removeEventListener('cerebr:chatSwitched', navigated);
         };
     }, [hash, session, attempt]);
-    if (!state) return null;
+    const current = state?.hash === hash ? state : null;
+    return {
+        pending: hash.startsWith('#/share/'),
+        chat: current?.chat,
+        error: current?.error,
+        close,
+        retry: () => setAttempt((value) => value + 1),
+    };
+}
+
+export function SharedConversationStatus({ shared }) {
+    if (!shared.pending || (shared.chat && !shared.error)) return null;
     return (
-        <ShareDialog title={t('share_import_title')} onClose={close}>
-            {state.loading ? (
-                <p role="status" className="share-import-loading">
+        <div className={`shared-conversation-status${shared.chat ? ' has-preview' : ''}`}>
+            {!shared.error ? (
+                <div role="status" aria-label={t('share_loading')}>
                     <span className="pdf-preview-spinner" aria-hidden="true" />
-                    {t('share_importing')}
-                </p>
+                </div>
             ) : (
-                <p role="alert" className="navigation-error">
-                    {state.error}
-                </p>
+                <>
+                    <p role="alert" className="navigation-error">{shared.error}</p>
+                    <div className="shared-conversation-actions">
+                        <button onClick={shared.close}>{t('nav_cancel')}</button>
+                        <button onClick={shared.retry}>{t('share_retry')}</button>
+                    </div>
+                </>
             )}
-            <div className="navigation-dialog-actions">
-                <button onClick={close}>{t('nav_cancel')}</button>
-                {!state.loading && (
-                    <button onClick={() => setAttempt((value) => value + 1)}>{t('share_retry')}</button>
-                )}
-            </div>
-        </ShareDialog>
+        </div>
     );
 }

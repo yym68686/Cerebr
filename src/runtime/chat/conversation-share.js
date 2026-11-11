@@ -99,13 +99,12 @@ export async function importedChatId(id) {
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-export async function importConversation(id, { signal } = {}) {
+export async function importConversation(id, { signal, onPreview } = {}) {
     const chatId = await importedChatId(id),
         key = CHAT_PREFIX + chatId;
-    await chatManager.loadAllChats();
-    await chatManager.flushNow();
     // An already imported copy remains available even after the link is revoked.
-    const existing = chatManager.chats.get(chatId) || (await storageAdapter.get(key))[key];
+    const saved = chatManager.chats.get(chatId) || (await storageAdapter.get(key))[key];
+    const existing = chatManager.chats.get(chatId) || saved;
     if (existing) {
         chatManager.chats.set(chatId, existing);
         chatManager.notify();
@@ -124,6 +123,12 @@ export async function importConversation(id, { signal } = {}) {
         importedShareId: id,
         ...(selection ? { modelSelection: { ...selection } } : {}),
     };
+    signal?.throwIfAborted();
+    // Reading does not wait for the history list or storage. Keep the preview
+    // outside the writable store until its chat and sources commit together.
+    onPreview?.(chat);
+    await chatManager.loadAllChats();
+    await chatManager.flushNow();
     const values = { [key]: chat, [CHAT_INDEX]: [chatId] };
     for (const page of snapshot.pages) {
         const sourceKey = await webpageSourceKey(chatId, page);

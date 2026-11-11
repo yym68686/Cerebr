@@ -17,8 +17,11 @@ snapshot. Copying the same conversation's link again does not publish later
 messages. **Update shared content** explicitly replaces the public snapshot;
 **Stop sharing** removes it from the service.
 
-Opening a link imports a separate local conversation using the recipient's
-model selection. The chat and all its webpage sources are committed in one
+Opening a link displays the fetched conversation directly in the chat area,
+without an import dialog. Local persistence runs in the background, using the
+recipient's model selection. The composer becomes available once saving finishes;
+if saving fails, the readable preview remains with an inline retry action.
+The chat and all its webpage sources are committed in one
 IndexedDB transaction and enter normal local/cloud sync. Concurrent tabs and
 repeat visits use the same imported copy. Reopening never overwrites subsequent
 messages or removed sources, and an existing copy works offline or after the

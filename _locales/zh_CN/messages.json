@@ -88,7 +88,7 @@
   "share_busy": { "message": "请等待回复完成后再共享。" },
   "share_import_failed": { "message": "无法保存共享对话，请稍后重试。" },
   "share_import_title": { "message": "导入共享对话" },
-  "share_importing": { "message": "正在导入共享对话…" },
+  "share_loading": { "message": "正在读取共享对话…" },
   "share_retry": { "message": "重试" },
   "nav_delete_folder": { "message": "删除文件夹" },
   "nav_delete_folder_hint": { "message": "删除“$1”？其中的聊天会移回未分类聊天，不会被删除。" },

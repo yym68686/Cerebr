@@ -88,7 +88,7 @@
   "share_busy": { "message": "Wait for the reply to finish before sharing." },
   "share_import_failed": { "message": "Unable to save the shared conversation. Please try again." },
   "share_import_title": { "message": "Import shared conversation" },
-  "share_importing": { "message": "Importing shared conversation…" },
+  "share_loading": { "message": "Loading shared conversation…" },
   "share_retry": { "message": "Retry" },
   "nav_delete_folder": { "message": "Delete folder" },
   "nav_delete_folder_hint": { "message": "Delete “$1”? Its chats will be moved to Unfiled chats." },

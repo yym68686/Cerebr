@@ -5,8 +5,8 @@ const state = vi.hoisted(() => ({ chats: new Map() }));
 vi.mock('../src/domain/chat/chat-store.js', () => ({
     chatManager: {
         chats: state.chats,
-        loadAllChats: async () => {},
-        flushNow: async () => {},
+        loadAllChats: vi.fn(async () => {}),
+        flushNow: vi.fn(async () => {}),
         notify: vi.fn(),
         getDefaultModelSelection: () => ({ configId: 'recipient-api', modelName: 'recipient-model' }),
         markChatDirty: vi.fn(),
@@ -16,7 +16,7 @@ vi.mock('../src/domain/chat/chat-store.js', () => ({
 vi.mock('../src/runtime/sync/cloud-sync.js', () => ({ CLOUD_SYNC_URL: 'https://cerebr-sync.fugue.pro' }));
 const id = 'a'.repeat(48),
     otherId = 'b'.repeat(48);
-let service, storage, getDb, snapshot, fetcher;
+let service, storage, getDb, snapshot, fetcher, manager;
 beforeEach(async () => {
     vi.resetModules();
     vi.stubGlobal('indexedDB', new IDBFactory());
@@ -25,6 +25,9 @@ beforeEach(async () => {
     state.chats.clear();
     ({ storageAdapter: storage, getDb } = await import('../src/utils/storage-adapter.js'));
     service = await import('../src/runtime/chat/conversation-share.js');
+    ({ chatManager: manager } = await import('../src/domain/chat/chat-store.js'));
+    manager.loadAllChats.mockResolvedValue();
+    manager.flushNow.mockResolvedValue();
     snapshot = {
         version: 1,
         chat: {
@@ -128,6 +131,36 @@ it('deduplicates concurrent imports and never overwrites a continued conversatio
     expect(state.chats.get(ids[0]).messages.at(-1).content).toBe('Continued privately');
     expect(await readCachedWebpageSources(await getDb(), ids[0])).toEqual([]);
     expect(await service.importedChatId(otherId)).not.toBe(ids[0]);
+});
+
+it('provides readable content before the history load and background persistence finish', async () => {
+    let finishLoading;
+    manager.loadAllChats.mockReturnValue(new Promise((resolve) => { finishLoading = resolve; }));
+    const onPreview = vi.fn();
+    const importing = service.importConversation(id, { onPreview });
+    await vi.waitFor(() => expect(onPreview).toHaveBeenCalledOnce());
+    const chat = onPreview.mock.calls[0][0];
+    expect(chat.messages[1].content).toBe('answer');
+    expect(chat.modelSelection.modelName).toBe('recipient-model');
+    expect(state.chats.has(chat.id)).toBe(false);
+    expect((await storage.get(`cerebr_chat_v2_${chat.id}`))[`cerebr_chat_v2_${chat.id}`]).toBeUndefined();
+    finishLoading();
+    expect(await importing).toBe(chat.id);
+    expect(state.chats.has(chat.id)).toBe(true);
+});
+
+it('does not persist a preview cancelled during the background history load', async () => {
+    let finishLoading;
+    manager.loadAllChats.mockReturnValue(new Promise((resolve) => { finishLoading = resolve; }));
+    const controller = new AbortController(), onPreview = vi.fn();
+    const importing = service.importConversation(id, { onPreview, signal: controller.signal });
+    await vi.waitFor(() => expect(onPreview).toHaveBeenCalledOnce());
+    controller.abort();
+    finishLoading();
+    await expect(importing).rejects.toThrow();
+    expect(state.chats.size).toBe(0);
+    const key = `cerebr_chat_v2_${onPreview.mock.calls[0][0].id}`;
+    expect((await storage.get(key))[key]).toBeUndefined();
 });
 
 it('does not leave a partial chat on malformed responses or cancelled imports', async () => {

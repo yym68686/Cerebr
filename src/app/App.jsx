@@ -19,7 +19,7 @@ import { setPlaceholderRestoreResolver } from '../runtime/input/native-editor.js
 import { ApiSettings } from './components/ApiSettings.jsx';
 import { Preferences } from './components/Preferences.jsx';
 import { ChatNavigation } from './components/ChatNavigation.jsx';
-import { SharedConversation } from './components/SharedConversation.jsx';
+import { useSharedConversation, SharedConversationStatus } from './components/SharedConversation.jsx';
 import { useWideLayout } from './hooks/useWideLayout.js';
 import { Message } from './components/Messages.jsx';
 import { ContextMenu, ImagePreview, Toasts } from './components/Overlays.jsx';
@@ -52,7 +52,9 @@ export function App() {
     const prefs = useSyncExternalStore(preferencesStore.subscribe, preferencesStore.getSnapshot);
     const revision = useSyncExternalStore(chatManager.subscribe, chatManager.getSnapshot);
     const locale = useSyncExternalStore(onLocaleChanged, getActiveLocale);
-    const chat = chatManager.getCurrentChat();
+    const [session, setSession] = useState(null);
+    const shared = useSharedConversation(session);
+    const chat = shared.pending ? shared.chat : chatManager.getCurrentChat();
     const wide = useWideLayout();
     const selectionScope = useCallback(() => document.getElementById('chat-container'), []);
     const navigationCoversChat = !wide && ui.navigationOpen;
@@ -65,7 +67,6 @@ export function App() {
     const settingsMenuEvents = useSettingsMenu();
     const sources = useWebpageSources(chat?.id, ui.menu, isNewWebpageConversation(chat));
     const draft = useComposerDraft(inputRef, composerRowRef, sources.selected.length > 0 || sources.reserveSources);
-    const [session, setSession] = useState(null);
     const [elapsed, setElapsed] = useState(0);
     const [showScroll, setShowScroll] = useState(false);
     const previousTop = useRef(0);
@@ -152,6 +153,7 @@ export function App() {
     }, []);
     useLayoutEffect(() => {
         const el = chatRef.current;
+        if (shared.pending) el.__cerebrUserPausedAutoScroll = true;
         if (!el.__cerebrUserPausedAutoScroll) el.scrollTop = el.scrollHeight;
         // Appending offscreen messages need not emit a scroll event. Keep the
         // explicit jump-to-latest control available while preserving the view.
@@ -164,7 +166,7 @@ export function App() {
                 { detail: { chatId: chat?.id } }
             )
         );
-    }, [revision, chat?.id, ui.phase, messageCount]);
+    }, [revision, chat?.id, ui.phase, messageCount, shared.pending]);
     const scrollBottom = () => {
         chatRef.current.__cerebrUserPausedAutoScroll = false;
         chatRef.current.scrollTo({ top: chatRef.current.scrollHeight, behavior: 'smooth' });
@@ -187,6 +189,7 @@ export function App() {
     }, []);
     useEffect(() => () => cancelAnimationFrame(scrollFrame.current), []);
     const context = useCallback((event, index) => {
+        if (shared.pending) return;
         const target = event.target instanceof Element ? event.target : event.target?.parentElement;
         if (!target) return;
         const mathEl = target.closest('mjx-container');
@@ -208,7 +211,7 @@ export function App() {
             menu: false,
             webpageMenu: false,
         });
-    }, []);
+    }, [shared.pending]);
     const navigate = (page) => {
         session?.runtime.dismissPage();
         if (page === 'history') {
@@ -222,13 +225,12 @@ export function App() {
     const localRequest = ui.localRequests?.[chat?.id];
     const localRequestActive = !!localRequest || (ui.requestChatId === chat?.id && ui.phase !== 'idle');
     const displayedPhase = localRequestActive ? (localRequest?.phase || ui.phase) : ui.remoteProgress[chat?.id] || 'idle';
-    const requestActive = displayedPhase !== 'idle';
+    const requestActive = !shared.pending && displayedPhase !== 'idle';
     const displayedStartedAt = localRequestActive ? (localRequest?.startedAt || ui.requestStartedAt) : ui.remoteStartedAt[chat?.id];
     const messages = chat?.messages || [];
     return (
         <>
             <DesktopTitlebar />
-            <SharedConversation session={session} />
             <ChatNavigation
                 wide={wide}
                 open={ui.navigationOpen}
@@ -250,6 +252,7 @@ export function App() {
             <Slot name="shell.chat.before" />
             <div
                 id="chat-container"
+                data-chat-id={chat?.id || ''}
                 inert={navigationCoversChat || !!ui.page}
                 ref={chatRef}
                 onCopy={copyChatSelection}
@@ -263,6 +266,7 @@ export function App() {
                         session?.editor.focus();
                 }}
             >
+                <SharedConversationStatus shared={shared} />
                 {messages.slice(0, messageCount).map((message, index) => (
                     <Message
                         key={`${chat.id}-${index}`}
@@ -295,7 +299,7 @@ export function App() {
             </div>
             <Slot name="shell.chat.after" />
             {ui.pdf && <PdfPreview key={`pdf-${chat?.id}`} file={ui.pdf} files={ui.pdfTabs}
-                disabled={!session || !!ui.page || navigationCoversChat || pluginPageOpen}
+                disabled={!session || !!ui.page || navigationCoversChat || pluginPageOpen || shared.pending}
                 onSelect={openPdf} onClose={closePdfTab}
                 onAdd={(text) => {
                     session.editor.addQuote(text);
@@ -306,7 +310,7 @@ export function App() {
             <SelectionActions
                 key={chat?.id}
                 scope={selectionScope}
-                disabled={!session || !!ui.page || navigationCoversChat}
+                disabled={!session || !!ui.page || navigationCoversChat || shared.pending}
                 onAdd={(text) => {
                     session.editor.addQuote(text);
                     session.editor.focus();
@@ -327,7 +331,7 @@ export function App() {
             <ContextMenu context={ui.context} session={session} />
             <div
                 id="input-container"
-                inert={navigationCoversChat || !!ui.page}
+                inert={navigationCoversChat || !!ui.page || shared.pending}
                 data-composer
                 className={`${ui.editing ? 'is-editing-message' : ''}${draft.expanded ? ' is-expanded' : ''}`}
             >
