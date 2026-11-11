@@ -36,6 +36,7 @@ function ConnectionEditor({
     onDuplicate,
     onDelete,
     onSelect,
+    onBack,
 }) {
     const [showKey, setShowKey] = useState(false);
     const modelEdited = useRef(false);
@@ -90,6 +91,19 @@ function ConnectionEditor({
                                 placeholder={t(placeholder)}
                                 value={config[key]}
                                 onChange={(e) => change({ [key]: e.target.value })}
+                                onKeyDown={(e) => {
+                                    if (
+                                        key !== 'apiKey' ||
+                                        e.key !== 'Enter' ||
+                                        e.nativeEvent.isComposing ||
+                                        e.keyCode === 229
+                                    )
+                                        return;
+                                    e.preventDefault();
+                                    void saveApiConfigs()
+                                        .then(() => onBack())
+                                        .catch(report);
+                                }}
                                 onBlur={(e) => {
                                     if (key === 'baseUrl')
                                         change({ baseUrl: normalizeChatCompletionsUrl(e.target.value) });
@@ -269,6 +283,7 @@ export function ApiSettings({ visible, onBack, chat, onSelectConfig = selectConf
                         index={index}
                         selected={selection?.configId === editing.id}
                         onSelect={onSelectConfig}
+                        onBack={onBack}
                         canDelete={state.configs.length > 1}
                         onDuplicate={() =>
                             run(async () => {

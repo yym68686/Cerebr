@@ -75,6 +75,44 @@ const fill = async (selector, value) =>
         el.dispatchEvent(new Event('input', { bubbles: true }));
     });
 
+it('returns to chat when Enter confirms an API key', async () => {
+    await act(async () => root.render(<ApiSettings visible onBack={back} />));
+    await fill('[name="apiKey"]', 'entered-key');
+    await act(async () => {
+        const input = host.querySelector('[name="apiKey"]');
+        input.dispatchEvent(
+            new KeyboardEvent('keydown', {
+                key: 'Enter',
+                code: 'Enter',
+                bubbles: true,
+                cancelable: true,
+            })
+        );
+        await saveApiConfigs();
+    });
+    expect(back).toHaveBeenCalledOnce();
+    expect(memory.apiConfigs[0].apiKey).toBe('entered-key');
+});
+
+it.each([{ isComposing: true }, { keyCode: 229 }])(
+    'keeps settings open when Enter confirms IME composition (%j)',
+    async (composition) => {
+        await act(async () => root.render(<ApiSettings visible onBack={back} />));
+        await fill('[name="apiKey"]', 'composing-key');
+        await act(async () => {
+            host.querySelector('[name="apiKey"]').dispatchEvent(
+                new KeyboardEvent('keydown', {
+                    key: 'Enter',
+                    bubbles: true,
+                    cancelable: true,
+                    ...composition,
+                })
+            );
+        });
+        expect(back).not.toHaveBeenCalled();
+    }
+);
+
 it('edits a connection independently from the active model and saves all settings', async () => {
     await act(async () => root.render(<ApiSettings visible onBack={back} />));
     expect(host.querySelector('.connection-fields [name="modelName"]')).toBeNull();
