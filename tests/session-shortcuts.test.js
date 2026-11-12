@@ -103,7 +103,7 @@ beforeEach(() => {
     document.body.innerHTML =
         '<div id="chat-container"></div><div id="input-container"><div id="message-input" contenteditable="true" tabindex="0"></div></div>';
     input = document.getElementById('message-input');
-    uiStore.set({ page: null, menu: false, editing: null, phase: 'idle' });
+    uiStore.set({ page: null, menu: false, editing: null, phase: 'idle', localRequests: {} });
 });
 afterEach(() => {
     session?.dispose();
@@ -134,6 +134,67 @@ function message(source, type) {
 }
 
 describe('new chat shortcut delivery', () => {
+    const pendingSubmission = () => {
+        chatManager.chats.set('old', { id: 'old', messages: [] });
+        state.pipelineOptions.onPhase('thinking', 'old');
+        return state.pipelineOptions.onSubmissionPending('old', {
+            draft: session.editor.getDraftSnapshot(),
+            userMessage: { role: 'user', content: 'question' },
+        });
+    };
+
+    it('immediately moves a submitted draft into the conversation and keeps the next draft on commit', async () => {
+        start();
+        session.editor.setDraft('question');
+        const pending = pendingSubmission();
+        expect(session.editor.hasDraft()).toBe(false);
+        expect(uiStore.getSnapshot().localRequests.old.pendingSubmission.message.content).toBe('question');
+        session.editor.setDraft('next question');
+        pending.commit();
+        await state.pipelineOptions.onSubmitted('old', { preserveDraft: true });
+        expect(uiStore.getSnapshot().localRequests.old.pendingSubmission).toBeUndefined();
+        expect(session.editor.getDraft()).toBe('next question');
+        await session.saveDraft();
+        await vi.waitFor(() => expect(storageAdapter.set).toHaveBeenCalledWith({
+            cerebr_draft_v1_old: { content: 'next question', quotes: [], textFiles: [] },
+        }));
+    });
+
+    it('restores cancelled text, images, quotes and files without losing newly typed text', async () => {
+        start();
+        session.editor.setDraft('question');
+        session.editor.addQuote('Original passage');
+        session.editor.setFiles([{ id: 'file', name: 'keep.txt', text: 'Full body', size: 9 }]);
+        await session.addImages([new File(['image'], 'keep.png', { type: 'image/png' })]);
+        const image = session.editor.getDraftSnapshot().imageTags[0].dataset.image;
+        const pending = pendingSubmission();
+        session.editor.setDraft('next question');
+        pending.rollback();
+        state.pipelineOptions.onPhase('idle', 'old');
+        await vi.waitFor(() => expect(session.editor.getDraft()).toBe('question\n\nnext question'));
+        const draft = session.editor.getDraftSnapshot();
+        expect(draft.quotes).toEqual(['Original passage']);
+        expect(draft.textFiles[0].text).toBe('Full body');
+        expect(draft.imageTags[0].dataset.image).toBe(image);
+    });
+
+    it('restores failed submissions to their own chat after navigation', async () => {
+        start();
+        session.editor.setDraft('question');
+        const pending = pendingSubmission();
+        // Retain in-memory drafts while persistence is unavailable.
+        storageAdapter.set.mockReturnValue(new Promise(() => {}));
+        await session.switchChat('other');
+        session.editor.setDraft('other chat draft');
+        pending.rollback();
+        state.pipelineOptions.onPhase('idle', 'old');
+        await vi.waitFor(() => expect(storageAdapter.set).toHaveBeenCalled());
+        await new Promise(resolve => setTimeout(resolve, 10));
+        expect(session.editor.getDraft()).toBe('other chat draft');
+        await session.switchChat('old');
+        expect(session.editor.getDraft()).toBe('question');
+    });
+
     it('keeps a shared preview position without overwriting the previous chat reading progress', async () => {
         const container = document.getElementById('chat-container');
         container.dataset.chatId = 'old';

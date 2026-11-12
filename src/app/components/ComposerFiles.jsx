@@ -108,12 +108,27 @@ export function TextFiles({ files = [], onRemove }) {
     );
 }
 
-export function ComposerFiles({ files = [], reading, inputRef }) {
+export function ComposerFiles({ files = [], pending = [], inputRef }) {
     return (
         <>
-            {reading && (
-                <div className="document-text-note" role="status">
-                    {t('drop_reading')}
+            {pending.length > 0 && (
+                <div className="text-file-attachments" role="status" aria-label={t('drop_reading')}>
+                    {pending.map(file => (
+                        <div className="text-file-chip is-loading" key={file.id} aria-busy="true">
+                            <span className="text-file-label">
+                                <span className="attachment-loading-spinner" aria-hidden="true" />
+                                <span>{file.name}</span>
+                            </span>
+                            <button type="button" className="text-file-remove"
+                                aria-label={t('composer_remove_file', [file.name])}
+                                onClick={() => {
+                                    file.cancel();
+                                    inputRef.current.focus({ preventScroll: true });
+                                }}>
+                                <Icon name="close" />
+                            </button>
+                        </div>
+                    ))}
                 </div>
             )}
             <TextFiles

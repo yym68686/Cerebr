@@ -55,10 +55,15 @@ export function App() {
     const [session, setSession] = useState(null);
     const shared = useSharedConversation(session);
     const chat = shared.pending ? shared.chat : chatManager.getCurrentChat();
+    const localRequest = ui.localRequests?.[chat?.id];
+    const pendingSubmission = !shared.pending && localRequest?.pendingSubmission;
+    const storedMessages = chat?.messages || [];
+    const messages = pendingSubmission?.index === storedMessages.length
+        ? [...storedMessages, pendingSubmission.message] : storedMessages;
     const wide = useWideLayout();
     const selectionScope = useCallback(() => document.getElementById('chat-container'), []);
     const navigationCoversChat = !wide && ui.navigationOpen;
-    const messageCount = useProgressiveCount(chat?.id, chat?.messages.length || 0);
+    const messageCount = useProgressiveCount(chat?.id, messages.length);
     const inputRef = useRef(null),
         composerRowRef = useRef(null),
         imagePickerRef = useRef(null),
@@ -160,13 +165,13 @@ export function App() {
         setShowScroll(el.scrollHeight - el.scrollTop - el.clientHeight > 160);
         document.dispatchEvent(
             new CustomEvent(
-                messageCount === chat?.messages.length
+                messageCount >= storedMessages.length
                     ? 'cerebr:chatContentLoaded'
                     : 'cerebr:chatContentChunk',
                 { detail: { chatId: chat?.id } }
             )
         );
-    }, [revision, chat?.id, ui.phase, messageCount, shared.pending]);
+    }, [revision, chat?.id, ui.phase, messageCount, shared.pending, pendingSubmission]);
     const scrollBottom = () => {
         chatRef.current.__cerebrUserPausedAutoScroll = false;
         chatRef.current.scrollTo({ top: chatRef.current.scrollHeight, behavior: 'smooth' });
@@ -222,12 +227,10 @@ export function App() {
         openPage(page);
     };
     const close = () => navigate(null);
-    const localRequest = ui.localRequests?.[chat?.id];
     const localRequestActive = !!localRequest || (ui.requestChatId === chat?.id && ui.phase !== 'idle');
     const displayedPhase = localRequestActive ? (localRequest?.phase || ui.phase) : ui.remoteProgress[chat?.id] || 'idle';
     const requestActive = !shared.pending && displayedPhase !== 'idle';
     const displayedStartedAt = localRequestActive ? (localRequest?.startedAt || ui.requestStartedAt) : ui.remoteStartedAt[chat?.id];
-    const messages = chat?.messages || [];
     return (
         <>
             <DesktopTitlebar />
@@ -281,7 +284,7 @@ export function App() {
                         requestStartedAt={
                             requestActive && index === messages.length - 1 ? displayedStartedAt : undefined
                         }
-                        onContext={context}
+                        onContext={index < storedMessages.length ? context : () => {}}
                         editing={ui.editing?.index === index}
                         locale={locale}
                     />
@@ -336,7 +339,7 @@ export function App() {
                 className={`${ui.editing ? 'is-editing-message' : ''}${draft.expanded ? ' is-expanded' : ''}`}
             >
                 <ComposerSources sources={sources} onManage={settingsMenuEvents.openSources} />
-                <ComposerFiles files={draft.textFiles} reading={draft.readingFiles} inputRef={inputRef} />
+                <ComposerFiles files={draft.textFiles} pending={draft.pendingFiles} inputRef={inputRef} />
                 <ComposerQuotes quotes={draft.quotes} inputRef={inputRef} />
                 <div
                     className="composer-attachments"

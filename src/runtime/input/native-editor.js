@@ -12,6 +12,7 @@ import { syncChatBottomExtraPadding } from '../../utils/scroll.js';
 import { t } from '../../utils/i18n.js';
 import { setDraftQuotes, getDraftQuotes } from './draft-quotes.js';
 import { captureImageTarget, clearDraftAttachments, getAttachmentContainer, getDraftImageTags, invalidatePendingImages } from './draft-attachments.js';
+import { beginFileImport } from './file-import-state.js';
 
 // 跟踪输入法状态
 let isComposing = false;
@@ -561,14 +562,17 @@ export function appendDraftImage(messageInput, imageData, uiConfig = {}) {
 
 export async function addImageFilesToDraft(messageInput, files, uiConfig = {}) {
     const isCurrent = captureImageTarget(messageInput);
-    for (const file of Array.from(files).filter((file) => file?.type.startsWith('image/'))) {
+    const entries = Array.from(files).filter(file => file?.type.startsWith('image/'))
+        .map(file => ({ file, task: beginFileImport(messageInput, file) }));
+    for (const { file, task } of entries) {
         try {
-            const base64Data = await readImageFileAsDataUrl(file);
-            if (!isCurrent()) return;
+            if (!isCurrent() || task.signal.aborted) continue;
+            const base64Data = await readImageFileAsDataUrl(file, { signal: task.signal });
+            if (!isCurrent() || task.signal.aborted) continue;
             appendDraftImage(messageInput, { base64Data, fileName: file.name }, uiConfig);
         } catch (error) {
-            if (isCurrent()) showToast(error?.message || t('toast_handle_image_failed'), { type: 'error' });
-        }
+            if (isCurrent() && !task.signal.aborted) showToast(error?.message || t('toast_handle_image_failed'), { type: 'error' });
+        } finally { task.finish(); }
     }
 }
 

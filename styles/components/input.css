@@ -313,6 +313,10 @@
 .text-file-label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .text-file-label small { color: var(--cerebr-text-color-secondary); font-size: 11px; white-space: nowrap; flex-shrink: 0; }
 .text-file-chip .text-file-remove { align-self: stretch; color: var(--cerebr-text-color-secondary); flex-shrink: 0; }
+.text-file-chip.is-loading > .text-file-label { display: inline-flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 8px; font-size: var(--cerebr-fs-12); }
+.attachment-loading-spinner { width: 14px; height: 14px; flex: 0 0 auto; border: 2px solid var(--cerebr-surface-border); border-top-color: var(--cerebr-text-color-secondary); border-radius: 50%; animation: attachmentLoadingSpin .8s linear infinite; }
+@keyframes attachmentLoadingSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .attachment-loading-spinner { animation: none; } }
 .message .text-file-attachments { justify-content: flex-end; }
 .document-text-note { display: block; width: 100%; padding: 4px 8px; color: var(--cerebr-text-color-secondary); font-size: var(--cerebr-fs-12); }
 .document-text-preview { box-sizing: border-box; width: min(720px, calc(100% - 24px)); max-height: 85dvh; padding: 18px; border: 1px solid var(--cerebr-surface-border); border-radius: 12px; color: var(--cerebr-text-color); background: var(--cerebr-surface-bg); }

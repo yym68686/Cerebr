@@ -14,6 +14,7 @@ export async function handleImageDrop(e, config) {
         messageInput,
         createImageTag,
         insertImage,
+        signal,
         onSuccess = () => {},
         onError = (error) => console.error('处理拖放事件失败:', error)
     } = config;
@@ -27,7 +28,7 @@ export async function handleImageDrop(e, config) {
             const file = e.dataTransfer.files[0];
             if (file.type.startsWith('image/')) {
                 try {
-                    const base64Data = await readImageFileAsDataUrl(file);
+                    const base64Data = await readImageFileAsDataUrl(file, { signal });
                     insertImageToInput({
                         messageInput,
                         createImageTag,
@@ -59,11 +60,11 @@ export async function handleImageDrop(e, config) {
         const image = html && new DOMParser().parseFromString(html, 'text/html').querySelector('img');
         const url = image?.getAttribute('src') || e.dataTransfer.getData('text/uri-list').split('\n').find(line => line && !line.startsWith('#'));
         if (!url || !/^(https?:|data:image\/|blob:)/i.test(url)) return;
-        const response = await fetch(url);
+        const response = await fetch(url, { signal });
         if (!response.ok) throw new Error(t('drop_read_failed'));
         const file = await response.blob();
         if (!file.type.startsWith('image/')) throw new Error(t('drop_unsupported'));
-        const base64Data = await readImageFileAsDataUrl(file);
+        const base64Data = await readImageFileAsDataUrl(file, { signal });
         insertImageToInput({messageInput,createImageTag,insertImage,imageData:{base64Data,fileName:image?.alt || t('label_image')}});
         onSuccess();
     } catch (error) {
@@ -80,11 +81,18 @@ function estimateDataUrlBytes(dataUrl) {
     return Math.floor((base64.length * 3) / 4);
 }
 
-function readFileAsDataUrl(file) {
+function readFileAsDataUrl(file, signal) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(reader.error || new Error(t('error_read_image_failed')));
+        const abort = () => {
+            reader.abort?.();
+            signal?.removeEventListener('abort', abort);
+            reject(new DOMException('Aborted', 'AbortError'));
+        };
+        if (signal?.aborted) return abort();
+        signal?.addEventListener('abort', abort, { once: true });
+        reader.onload = () => { signal?.removeEventListener('abort', abort); resolve(reader.result); };
+        reader.onerror = () => { signal?.removeEventListener('abort', abort); reject(reader.error || new Error(t('error_read_image_failed'))); };
         reader.readAsDataURL(file);
     });
 }
@@ -109,13 +117,13 @@ function loadImage(dataUrl) {
  */
 export async function readImageFileAsDataUrl(
     file,
-    { maxBytes = 3_500_000, maxDimension = 1600, maxPixels = 2_600_000 } = {}
+    { maxBytes = 3_500_000, maxDimension = 1600, maxPixels = 2_600_000, signal } = {}
 ) {
     if (!file || !file.type?.startsWith('image/')) {
         throw new Error(t('error_not_image_file'));
     }
 
-    const originalDataUrl = await readFileAsDataUrl(file);
+    const originalDataUrl = await readFileAsDataUrl(file, signal);
     if (file.size <= maxBytes) return originalDataUrl;
 
     const img = await loadImage(originalDataUrl);

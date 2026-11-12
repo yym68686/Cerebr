@@ -93,6 +93,22 @@ export function createSession({ messageInput, chatContainer }) {
     const draftKey = (id) => `cerebr_draft_v1_${id}`;
     const draftSnapshots = new Map();
     const draftWrites = new Map();
+    const pendingDrafts = new Map();
+    const snapshotDraft = (draft) => draft.empty ? null : {
+        content: buildMessageContent(draft.text, draft.imageTags),
+        quotes: draft.quotes || [],
+        textFiles: draft.textFiles || [],
+    };
+    const mergeDrafts = (first, second) => {
+        if (!first) return second;
+        if (!second) return first;
+        const parts = content => Array.isArray(content) ? content : [{ type: 'text', text: content || '' }];
+        return {
+            content: [...parts(first.content), { type: 'text', text: '\n\n' }, ...parts(second.content)],
+            quotes: [...first.quotes, ...second.quotes],
+            textFiles: [...first.textFiles, ...second.textFiles],
+        };
+    };
     const reportStorageError = (error) => {
         console.error('[Cerebr] Failed to persist session data', error);
         notify(t('error_session_persistence'), { type: 'error', durationMs: 6000 });
@@ -121,21 +137,28 @@ export function createSession({ messageInput, chatContainer }) {
         );
         return write;
     };
+    const persistDraft = (id, snapshot) => {
+        const pending = pendingDrafts.get(id);
+        if (pending) pending.next = snapshot;
+        // Until preflight accepts the message, keep a recoverable copy on disk,
+        // including any follow-up draft typed while pages or hooks are loading.
+        return writeDraft(id, mergeDrafts(pending?.snapshot, snapshot));
+    };
     const saveDraft = async () => {
         clearTimeout(draftTimer);
         if (!activeDraftId || uiStore.getSnapshot().editing) return;
         const draft = editor.getDraftSnapshot();
-        await writeDraft(
+        await persistDraft(
             activeDraftId,
-            draft.empty
-                ? null
-                : { content: buildMessageContent(draft.text, draft.imageTags), quotes: draft.quotes || [], textFiles: draft.textFiles || [] }
+            snapshotDraft(draft)
         );
     };
     const restoreDraft = async () => {
         const version = ++restoreVersion;
         const id = activeDraftId;
-        const data = draftSnapshots.has(id)
+        const data = pendingDrafts.has(id)
+            ? { [draftKey(id)]: pendingDrafts.get(id).next }
+            : draftSnapshots.has(id)
             ? { [draftKey(id)]: draftSnapshots.get(id) }
             : await storageAdapter.get(draftKey(id));
         if (disposed || id !== activeDraftId || version !== restoreVersion || editor.hasDraft()) return;
@@ -161,6 +184,14 @@ export function createSession({ messageInput, chatContainer }) {
             ...(full ? { chat } : { index, message: chat.messages[index] }),
         });
     };
+    const followSubmission = (id) => {
+        if (chatManager.currentChatId !== id) return;
+        chatContainer.__cerebrUserPausedAutoScroll = false;
+        requestAnimationFrame(() => {
+            if (chatManager.currentChatId === id && !chatContainer.__cerebrUserPausedAutoScroll)
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+        });
+    };
     const pipeline = createChatPipeline({
         isDraftReady,
         chatManager,
@@ -171,6 +202,55 @@ export function createSession({ messageInput, chatContainer }) {
         }),
         getUserLanguage: () => navigator.language,
         pluginRuntime: runtime,
+        onSubmissionPending: (id, { draft, userMessage }) => {
+            const snapshot = snapshotDraft(draft);
+            const recovery = { snapshot, next: null };
+            pendingDrafts.set(id, recovery);
+            const pending = { message: userMessage, index: chatManager.chats.get(id).messages.length };
+            if (activeDraftId === id) {
+                ++restoreVersion;
+                clearTimeout(draftTimer);
+                editor.clear();
+                editor.focus();
+            }
+            void persistDraft(id, null).catch(reportStorageError);
+            followSubmission(id);
+            uiStore.set(state => ({ ...state, localRequests: {
+                ...state.localRequests,
+                [id]: { ...state.localRequests[id], pendingSubmission: pending },
+            } }));
+            const clearPending = () => uiStore.set(state => {
+                const request = state.localRequests[id];
+                if (request?.pendingSubmission !== pending) return state;
+                const { pendingSubmission, ...rest } = request;
+                return { ...state, localRequests: { ...state.localRequests, [id]: rest } };
+            });
+            return {
+                commit: () => {
+                    clearPending();
+                    pendingDrafts.delete(id);
+                    const next = activeDraftId === id ? snapshotDraft(editor.getDraftSnapshot()) : recovery.next;
+                    void persistDraft(id, next).catch(reportStorageError);
+                },
+                rollback: () => {
+                    clearPending();
+                    void (async () => {
+                        // Let a queued submission take its captured draft first.
+                        // Restoring the cancelled question must not erase it.
+                        await new Promise(resolve => setTimeout(resolve, 0));
+                        if (disposed || !chatManager.chats.has(id)) return;
+                        const next = activeDraftId === id ? snapshotDraft(editor.getDraftSnapshot()) : recovery.next;
+                        const restored = mergeDrafts(snapshot, next);
+                        if (pendingDrafts.get(id) === recovery) pendingDrafts.delete(id);
+                        if (activeDraftId === id) {
+                            ++restoreVersion;
+                            setMessageInputContent(messageInput, restored.content, uiConfig, restored.quotes, restored.textFiles);
+                        }
+                        await persistDraft(id, restored);
+                    })().catch(reportStorageError);
+                },
+            };
+        },
         onPhase: (phase, requestChatId, { preserveReadingPosition = false } = {}) => {
             if (preserveReadingPosition && requestChatId === chatManager.currentChatId)
                 chatContainer.__cerebrUserPausedAutoScroll = true;
@@ -186,7 +266,7 @@ export function createSession({ messageInput, chatContainer }) {
                 if (phase !== 'idle' && state.localRequests?.[requestChatId]?.phase === phase) return state;
                 const localRequests = { ...state.localRequests }, remoteProgress = { ...state.remoteProgress };
                 if (phase === 'idle') { delete localRequests[requestChatId]; delete remoteProgress[requestChatId]; }
-                else localRequests[requestChatId] = { phase, startedAt: request?.startedAt };
+                else localRequests[requestChatId] = { ...localRequests[requestChatId], phase, startedAt: request?.startedAt };
                 return { ...state, localRequests, remoteProgress };
             });
             if (phase === 'idle') liveRequests.delete(requestChatId);
@@ -194,13 +274,7 @@ export function createSession({ messageInput, chatContainer }) {
         },
         onSubmitted: (id, { preserveDraft = false, preserveReadingPosition = false } = {}) => {
             sendLive(id, 'thinking', true);
-            if (!preserveReadingPosition && chatManager.currentChatId === id) {
-                chatContainer.__cerebrUserPausedAutoScroll = false;
-                requestAnimationFrame(() => {
-                    if (chatManager.currentChatId === id && !chatContainer.__cerebrUserPausedAutoScroll)
-                        chatContainer.scrollTop = chatContainer.scrollHeight;
-                });
-            }
+            if (!preserveReadingPosition) followSubmission(id);
             if (preserveDraft) return;
             if (activeDraftId === id) clearTimeout(draftTimer);
             void writeDraft(id, null).catch(reportStorageError);
@@ -463,9 +537,9 @@ export function createSession({ messageInput, chatContainer }) {
         regenerateMessage,
         saveDraft,
         addFiles: async (files) => {
+            editor.focus();
             try { await addFilesToDraft(messageInput, files, uiConfig); }
             catch (error) { notify(error.message || t('drop_read_failed'), { type: 'error' }); }
-            editor.focus();
         },
         addImages: (files) => addImageFilesToDraft(messageInput, files, uiConfig),
         dispose() {

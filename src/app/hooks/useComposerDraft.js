@@ -3,7 +3,7 @@ import { getAttachmentContainer, getDraftImageTags } from '../../runtime/input/d
 import { adjustTextareaHeight } from '../../utils/ui.js';
 import { getDraftFiles } from '../../runtime/input/draft-files.js';
 import { getDraftQuotes } from '../../runtime/input/draft-quotes.js';
-import { hasPendingFileImports } from '../../runtime/input/file-import-state.js';
+import { hasPendingFileImports, getPendingFileImports } from '../../runtime/input/file-import-state.js';
 
 // Observe the native editor; React never rewrites its text, selection or undo history.
 export function useComposerDraft(inputRef, rowRef, hasSources = false) {
@@ -25,6 +25,7 @@ export function useComposerDraft(inputRef, rowRef, hasSources = false) {
             const quotes = getDraftQuotes(input);
             const textFiles = getDraftFiles(input);
             const readingFiles = hasPendingFileImports(input);
+            const pendingFiles = getPendingFileImports(input);
             const style = getComputedStyle(input);
             const rowStyle = getComputedStyle(row);
             const composer = input.closest('[data-composer]');
@@ -49,6 +50,7 @@ export function useComposerDraft(inputRef, rowRef, hasSources = false) {
             const multiline = /\n/.test(text) || !!input.querySelector('br, div');
             const expanded =
                 hasImages ||
+                pendingFiles.length > 0 ||
                 quotes.length > 0 ||
                 textFiles.length > 0 ||
                 (hasText &&
@@ -57,10 +59,11 @@ export function useComposerDraft(inputRef, rowRef, hasSources = false) {
                         (available > 0 && context && context.measureText(text).width > available)));
             setState((previous) => {
                 const next = {
-                    empty: !hasText && !hasImages && !quotes.length && !textFiles.length,
+                    empty: !hasText && !hasImages && !quotes.length && !textFiles.length && !pendingFiles.length,
                     quotes,
                     textFiles,
                     readingFiles,
+                    pendingFiles,
                     textEmpty: !hasText,
                     expanded: composing ? previous.expanded : !!expanded,
                     composing,

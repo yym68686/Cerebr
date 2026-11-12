@@ -82,6 +82,7 @@ function createConversationPipeline({
     getUserLanguage,
     pluginRuntime,
     onPhase = () => {},
+    onSubmissionPending,
     onSubmitted = () => {},
     onSettled = () => {},
     isDraftReady = () => true,
@@ -335,6 +336,8 @@ function createConversationPipeline({
         // Let the UI pause following before the first phase/store notification.
         const preserveReadingPosition = !!directDraft;
         onPhase('thinking', chat.id, { preserveReadingPosition });
+        let pendingSubmission;
+        let submitted = false;
         try {
             let messages = cloneMessages(chat.messages);
             if (mode === 'regenerate') {
@@ -345,18 +348,18 @@ function createConversationPipeline({
                 if (messages[index]?.role !== 'user') return false;
                 messages = messages.slice(0, index + 1);
             }
+            const userMessage = mode === 'send' ? { role: 'user', ...composeDraftMessage(draft) } : null;
+            // Show the composer submission before reading pages or running hooks.
+            // The session owns this temporary view; history stays unchanged until
+            // beforeSend accepts the request (including any message transforms).
+            if (mode === 'send' && !directDraft)
+                pendingSubmission = onSubmissionPending?.(chat.id, { draft, userMessage });
             const webpageInfo = await raceAbort(Promise.resolve(getWebpageInfo(chat.id)));
             if (webpageInfo === ABORTED) return false;
             const initial = {
                 mode,
                 draft: mode === 'send' ? { message: draft.text, imageTags: draft.imageTags, textFiles: draft.textFiles || [] } : null,
-                userMessage:
-                    mode === 'send'
-                        ? {
-                              role: 'user',
-                              ...composeDraftMessage(draft),
-                          }
-                        : null,
+                userMessage,
                 messages,
                 apiConfig: config,
                 userLanguage: getUserLanguage(),
@@ -389,12 +392,14 @@ function createConversationPipeline({
                 const userMessage = resolveUserMessage(payload, initial);
                 if (!chat.messages.length) chat.title = draft.text || draft.textFiles?.[0]?.name || t('label_image');
                 await chatManager.addMessageToChat(chat.id, userMessage);
+                submitted = true;
+                pendingSubmission?.commit();
                 directDraft?.onSubmitted?.();
-                if (!directDraft && chatManager.getCurrentChat()?.id === chat.id) {
+                if (!directDraft && !pendingSubmission && chatManager.getCurrentChat()?.id === chat.id) {
                     editor.clear();
                     editor.focus();
                 }
-                await onSubmitted(chat.id, { preserveDraft: !!directDraft, preserveReadingPosition });
+                await onSubmitted(chat.id, { preserveDraft: !!directDraft || !!pendingSubmission, preserveReadingPosition });
                 payload.messages = [...payload.messages, userMessage];
             } else {
                 chat.messages = messages;
@@ -421,6 +426,7 @@ function createConversationPipeline({
             }
             return false;
         } finally {
+            if (!submitted) pendingSubmission?.rollback();
             currentController = null;
             abortControllerRef.current = null;
             if (releasePrelude === prelude.release) releasePrelude = null;

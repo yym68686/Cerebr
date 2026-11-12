@@ -23,7 +23,7 @@ beforeEach(async () => {
         const ref = useRef(null), row = useRef(null);
         const draft = useComposerDraft(ref, row);
         return <div data-composer data-expanded={draft.expanded} data-empty={draft.empty}>
-            <ComposerFiles files={draft.textFiles} reading={draft.readingFiles} inputRef={ref} />
+            <ComposerFiles files={draft.textFiles} pending={draft.pendingFiles} inputRef={ref} />
             <div data-composer-attachments />
             <div ref={row}><div className="message-input-shell"><div ref={ref} contentEditable suppressContentEditableWarning /></div></div>
         </div>;
@@ -143,6 +143,49 @@ it('imports DOCX via a worker, previews literal text without executing markup, a
     expect(clicked).toHaveBeenCalledOnce();
     await act(async () => dialog.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape',bubbles:true,cancelable:true})));
     expect(document.querySelector('dialog')).toBeNull();
+});
+
+it('shows all queued files while reading, allows typing, and cancels individual imports', async () => {
+    const workers = mockWorker();
+    let importing;
+    await act(async () => {
+        importing = addFilesToDraft(input, [new File(['zip'], 'first.docx'), new File(['zip'], 'second.docx')]);
+    });
+    await settle();
+    expect([...host.querySelectorAll('.is-loading')].map(chip => chip.textContent)).toEqual(['first.docx', 'second.docx']);
+    expect(host.querySelectorAll('.attachment-loading-spinner')).toHaveLength(2);
+    expect(host.querySelector('[data-composer]').dataset.expanded).toBe('true');
+    editor.insertText('Question typed while reading');
+    await act(async () => host.querySelector('.is-loading .text-file-remove').click());
+    expect(workers[0].terminate).toHaveBeenCalledOnce();
+    expect(document.activeElement).toBe(input);
+    await vi.waitFor(() => expect(workers).toHaveLength(2));
+    await act(async () => { workers[1].onmessage({ data: { text: 'Second document' } }); await importing; });
+    await settle();
+    expect(host.querySelector('.is-loading')).toBeNull();
+    expect(editor.getDraft()).toBe('Question typed while reading');
+    expect(editor.getDraftSnapshot().textFiles.map(file => file.name)).toEqual(['second.docx']);
+    expect(hasPendingFileImports(input)).toBe(false);
+});
+
+it('shows loading images above an editable composer and replaces the placeholder after reading', async () => {
+    let reader;
+    vi.stubGlobal('FileReader', class {
+        constructor() { reader = this; }
+        readAsDataURL() {}
+        abort = vi.fn();
+    });
+    let importing;
+    await act(async () => { importing = addFilesToDraft(input, [new File(['image'], 'photo.png', { type: 'image/png' })]); });
+    await settle();
+    expect(host.querySelector('.is-loading').textContent).toBe('photo.png');
+    expect(host.querySelector('.is-loading').compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    editor.insertText('Describe this');
+    await act(async () => { reader.result = 'data:image/png;base64,AQ=='; reader.onload(); await importing; });
+    await settle();
+    expect(host.querySelector('.is-loading')).toBeNull();
+    expect(editor.getDraft()).toBe('Describe this');
+    expect(editor.getDraftSnapshot().imageTags[0].dataset.image).toBe('data:image/png;base64,AQ==');
 });
 
 it('cancels stale DOCX imports on draft replacement without locking the next chat', async () => {

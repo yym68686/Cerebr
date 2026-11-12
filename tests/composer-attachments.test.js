@@ -13,6 +13,8 @@ import {
     setMessageInputContent,
 } from '../src/runtime/input/native-editor.js';
 import { serializeDraftSnapshot } from '../src/runtime/input/draft-snapshot.js';
+import { getPendingFileImports, hasPendingFileImports } from '../src/runtime/input/file-import-state.js';
+import { attachFileDrop } from '../src/runtime/input/file-drop.js';
 
 let host, input, shelf, editor, detach, send;
 beforeEach(() => {
@@ -179,4 +181,34 @@ it('accepts each extension image drop once, only from its parent and before the 
   editor.clear();window.dispatchEvent(new MessageEvent('message',{source:parent,data:{...data,requestId:next.requestId}}));
   expect(shelf.children).toHaveLength(0);
  }finally{vi.unstubAllGlobals();}
+});
+
+it('dismisses drag feedback and focuses the editor before a webpage image arrives, and supports cancelling it', () => {
+    detach();
+    const onState = vi.fn();
+    detach = attachFileDrop({ messageInput: input, uiConfig: {}, onState });
+    const parent = { postMessage: vi.fn() };
+    vi.stubGlobal('parent', parent);
+    try {
+        const transfer = { files: [], types: ['application/x-cerebr-page-image'] };
+        for (const type of ['dragenter', 'drop']) {
+            const event = new Event(type, { bubbles: true, cancelable: true });
+            Object.defineProperty(event, 'dataTransfer', { value: transfer });
+            shelf.dispatchEvent(event);
+        }
+        expect(onState.mock.calls.map(([phase]) => phase)).toEqual(['ready', null]);
+        expect(document.activeElement).toBe(input);
+        expect(hasPendingFileImports(input)).toBe(true);
+        expect(getPendingFileImports(input)).toHaveLength(1);
+        editor.insertText('Question before download completes');
+        const requestId = parent.postMessage.mock.calls[0][0].requestId;
+        getPendingFileImports(input)[0].cancel();
+        expect(hasPendingFileImports(input)).toBe(false);
+        window.dispatchEvent(new MessageEvent('message', { source: parent, data: {
+            type: 'CEREBR_DROP_PAGE_IMAGE_RESULT', requestId,
+            imageData: { data: 'data:image/png;base64,AQ==', name: 'late.png' },
+        } }));
+        expect(shelf.querySelector('img')).toBeNull();
+        expect(editor.getDraft()).toBe('Question before download completes');
+    } finally { vi.unstubAllGlobals(); }
 });

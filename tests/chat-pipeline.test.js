@@ -6,7 +6,7 @@ import { createChatPipeline } from '../src/runtime/chat/chat-pipeline.js';
 import { showToast } from '../src/utils/ui.js';
 import { resolveChatApiConfig } from '../src/domain/chat/model-selection.js';
 
-function setup(plugins = {}, getWebpageInfo = async () => null, managerOverrides = {}, selectApi, isDraftReady = () => true) {
+function setup(plugins = {}, getWebpageInfo = async () => null, managerOverrides = {}, selectApi, isDraftReady = () => true, onSubmissionPending) {
     const chat = { id: 'a', title: '', messages: [] };
     const manager = {
         chats: new Map([['a', chat]]),
@@ -37,11 +37,60 @@ function setup(plugins = {}, getWebpageInfo = async () => null, managerOverrides
         getUserLanguage: () => 'zh-CN',
         pluginRuntime: plugins,
         onPhase: phase,
+        onSubmissionPending,
         onSubmitted: submitted,
     });
     return { pipeline, chat, editor, phase, manager, submitted };
 }
 describe('React chat session pipeline', () => {
+    it('shows a pending submission before page extraction and hooks, then commits the transformed message once', async () => {
+        let releasePage, releaseHook;
+        const pending = { commit: vi.fn(), rollback: vi.fn() };
+        const prepare = vi.fn(() => pending);
+        const hook = vi.fn(() => new Promise(resolve => { releaseHook = resolve; }));
+        const { pipeline, chat, editor, submitted } = setup(
+            { runBeforeSend: hook },
+            () => new Promise(resolve => { releasePage = resolve; }),
+            {}, undefined, undefined, prepare
+        );
+        callAPI.mockReset().mockResolvedValue({ controller: new AbortController(), processStream: async () => ({ content: 'answer' }) });
+        const request = pipeline.sendMessage();
+        expect(prepare).toHaveBeenCalledWith('a', expect.objectContaining({ userMessage: { role: 'user', content: 'hello' } }));
+        expect(chat.messages).toHaveLength(0);
+        expect(callAPI).not.toHaveBeenCalled();
+        releasePage('Page body');
+        await vi.waitFor(() => expect(hook).toHaveBeenCalledOnce());
+        expect(pending.commit).not.toHaveBeenCalled();
+        releaseHook({ payload: { userMessage: { role: 'user', content: 'Transformed' } } });
+        expect(await request).toBe(true);
+        expect(chat.messages.filter(message => message.role === 'user')).toEqual([expect.objectContaining({ role: 'user', content: 'Transformed' })]);
+        expect(pending.commit).toHaveBeenCalledOnce();
+        expect(pending.rollback).not.toHaveBeenCalled();
+        // The UI already consumed the submitted draft; don't erase newly typed text.
+        expect(editor.clear).not.toHaveBeenCalled();
+        expect(submitted).toHaveBeenCalledWith('a', { preserveDraft: true, preserveReadingPosition: false });
+    });
+
+    it.each(['stop', 'cancel', 'error'])('rolls back the pending view on preflight %s without writing a user message', async (reason) => {
+        const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const pending = { commit: vi.fn(), rollback: vi.fn() };
+        const { pipeline, chat } = setup(
+            { runBeforeSend: async () => ({ cancel: true }) },
+            reason === 'stop' ? () => new Promise(() => {}) : async () => {
+                if (reason === 'error') throw new Error('Page unavailable');
+                return null;
+            },
+            {}, undefined, undefined, () => pending
+        );
+        const request = pipeline.sendMessage();
+        if (reason === 'stop') await pipeline.abortActiveReply();
+        expect(await request).toBe(false);
+        expect(chat.messages).toHaveLength(0);
+        expect(pending.rollback).toHaveBeenCalledOnce();
+        expect(pending.commit).not.toHaveBeenCalled();
+        errors.mockRestore();
+    });
+
     it('sends a discovered model without a configured model name and pins the conversation to it', async () => {
         const state={configs:[{id:'auto',baseUrl:'https://auto.test/v1',apiKey:'test-only',modelName:''}],selected:0,modelLists:{auto:['discovered']}};
         const {pipeline,chat}=setup({},async()=>null,{},chat=>resolveChatApiConfig(chat,state));

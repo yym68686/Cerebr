@@ -34,6 +34,9 @@ it('finishes long histories and cancels pending rows when switching chats', asyn
         await act(async () => callbacks.forEach((callback) => callback()));
     }
     expect(host.querySelectorAll('p')).toHaveLength(1000);
+    await act(async () => root.render(<Rows chat="large" total={1001} />));
+    expect(host.querySelectorAll('p')).toHaveLength(1001);
+    expect(idle.size).toBe(0);
     await act(async () => root.render(<Rows chat="another-large" total={500} />));
     await act(async () => root.render(<Rows chat="small" total={3} />));
     while (idle.size) {
