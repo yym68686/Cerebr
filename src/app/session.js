@@ -244,7 +244,8 @@ export function createSession({ messageInput, chatContainer }) {
                         if (pendingDrafts.get(id) === recovery) pendingDrafts.delete(id);
                         if (activeDraftId === id) {
                             ++restoreVersion;
-                            setMessageInputContent(messageInput, restored.content, uiConfig, restored.quotes, restored.textFiles);
+                            setMessageInputContent(messageInput, restored.content, uiConfig, restored.quotes, restored.textFiles,
+                                { preservePendingImports: true });
                         }
                         await persistDraft(id, restored);
                     })().catch(reportStorageError);

@@ -468,10 +468,11 @@ export function setMessageInputText(messageInput, text) {
     moveCaretToEnd(messageInput);
 }
 
-export function setMessageInputContent(messageInput, content, uiConfig = {}, quotes = [], textFiles = []) {
+export function setMessageInputContent(messageInput, content, uiConfig = {}, quotes = [], textFiles = [], { preservePendingImports = false } = {}) {
     if (!messageInput) return;
     setDraftQuotes(messageInput, quotes, false);
-    clearDraftAttachments(messageInput);
+    if (preservePendingImports) getAttachmentContainer(messageInput)?.replaceChildren();
+    else clearDraftAttachments(messageInput);
     setDraftFiles(messageInput, textFiles, false);
 
     try {

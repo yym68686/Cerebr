@@ -169,6 +169,7 @@ describe('new chat shortcut delivery', () => {
         const image = session.editor.getDraftSnapshot().imageTags[0].dataset.image;
         const pending = pendingSubmission();
         session.editor.setDraft('next question');
+        const followUpImport = beginFileImport(input, { name: 'next.pdf' });
         pending.rollback();
         state.pipelineOptions.onPhase('idle', 'old');
         await vi.waitFor(() => expect(session.editor.getDraft()).toBe('question\n\nnext question'));
@@ -176,6 +177,8 @@ describe('new chat shortcut delivery', () => {
         expect(draft.quotes).toEqual(['Original passage']);
         expect(draft.textFiles[0].text).toBe('Full body');
         expect(draft.imageTags[0].dataset.image).toBe(image);
+        expect(followUpImport.signal.aborted).toBe(false);
+        followUpImport.finish();
     });
 
     it('restores failed submissions to their own chat after navigation', async () => {
