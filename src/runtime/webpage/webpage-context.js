@@ -12,6 +12,7 @@ import {
 } from '../../utils/webpage-switches.js';
 import { createChatError } from '../chat/chat-errors.js';
 import { desktopBrowserStore } from '../../platform/desktop-browser.js';
+import { matchesBilibiliSubtitle } from './bilibili-subtitles.js';
 
 const YT_TRANSCRIPT_KEY_PREFIX = 'cerebr_youtube_transcript_v1_';
 
@@ -169,7 +170,10 @@ export async function getEnabledTabsContent(chatId = chatManager.currentChatId, 
                 skipWaitContent: true, // 明确要求立即提取
             });
 
-            if (!pageData || (!pageData.content?.trim() && !pageData.youtubeTranscript?.transcript?.trim())) {
+            const cachedPage = cachedByUrl.get(webpageCacheIdentity(tab));
+            const bilibiliSubtitle = [pageData?.bilibiliSubtitle, cachedPage?.bilibiliSubtitle]
+                .find((subtitle) => matchesBilibiliSubtitle(subtitle, tab.url));
+            if (!pageData || (!pageData.content?.trim() && !pageData.youtubeTranscript?.transcript?.trim() && !bilibiliSubtitle)) {
                 return null;
             }
             if (pageData.url && webpageCacheIdentity(pageData.url) !== webpageCacheIdentity(tab.url)) {
@@ -215,11 +219,18 @@ export async function getEnabledTabsContent(chatId = chatManager.currentChatId, 
                 }
             }
 
+            if (bilibiliSubtitle) {
+                content = `${content}\n\n${t('bilibili_subtitle_prefix')}\n${bilibiliSubtitle.text}`.trim();
+            }
+
             return {
                 title: pageData.title,
                 url: tab.url,
                 ...(tab.sourceId ? { sourceId: tab.sourceId } : {}),
                 content,
+                // One versioned webpage record owns both body and transcript:
+                // cloud/local sync, sharing and deletion retain their semantics.
+                ...(bilibiliSubtitle ? { bilibiliSubtitle } : {}),
                 isCurrent: tab.id === currentTabId,
                 tabId: tab.id,
                 observedAt,

@@ -122,6 +122,84 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
+describe('Bilibili subtitles in persistent webpage context', () => {
+    const tab = { id: 1, title: 'B站视频 P2', url: 'https://www.bilibili.com/video/BV1xx411c7mD/?p=2' };
+    const subtitle = { bvid: 'BV1xx411c7mD', page: 2, cid: 222, lang: 'ai-zh', text: 'AI 字幕第一句\nAI 字幕第二句' };
+    beforeEach(() => {
+        state.memory.set(key('chat-a'), { 1: true });
+        browserAdapter.getAllTabs.mockResolvedValue([tab]);
+        browserAdapter.getCurrentTab.mockResolvedValue(tab);
+        browserAdapter.sendMessage.mockResolvedValue({ title: tab.title, url: tab.url, content: '', bilibiliSubtitle: subtitle });
+    });
+
+    it('includes a subtitle-only video in the model request and the versioned page cache', async () => {
+        const webpageInfo = await getEnabledTabsContent();
+        expect(webpageInfo.pages[0].content).toContain(subtitle.text);
+        expect((await getCachedWebpagesForChat('chat-a'))[0]).toMatchObject({ bilibiliSubtitle: subtitle });
+        let request;
+        vi.stubGlobal('fetch', vi.fn(async (_url, init) => {
+            request = JSON.parse(init.body);
+            return new Response('data: [DONE]\n\n', { headers: { 'Content-Type': 'text/event-stream' } });
+        }));
+        const { processStream } = await callAPI({ apiConfig: { baseUrl: 'https://model.test/v1', apiKey: 'test-only', modelName: 'test' },
+            messages: [{ role: 'user', content: '总结视频' }], webpageInfo });
+        await processStream();
+        expect(request.messages.find((message) => message.role === 'system').content).toContain(subtitle.text);
+    });
+
+    it('retains subtitles on the standalone web app after closing the tab for over 30 days', async () => {
+        await getEnabledTabsContent();
+        vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 31 * 24 * 60 * 60 * 1000);
+        state.extension = false;
+        browserAdapter.getAllTabs.mockResolvedValue([]);
+        browserAdapter.getCurrentTab.mockResolvedValue(null);
+        browserAdapter.sendMessage.mockClear();
+        expect((await getEnabledTabsContent('chat-a', { cachedOnly: true })).pages[0].content).toContain(subtitle.text);
+        expect(browserAdapter.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('keeps cached subtitles during failed refreshes without duplicating them in refreshed page text', async () => {
+        await getEnabledTabsContent();
+        browserAdapter.sendMessage.mockResolvedValue({ title: tab.title, content: 'New video description' });
+        for (let i = 0; i < 2; i++) {
+            const page = (await getEnabledTabsContent()).pages[0];
+            expect(page.content).toContain('New video description');
+            expect(page.content.split(subtitle.text)).toHaveLength(2);
+            expect(page.bilibiliSubtitle).toEqual(subtitle);
+        }
+    });
+
+    it('replaces old subtitles with the newest successfully fetched version', async () => {
+        await getEnabledTabsContent();
+        browserAdapter.sendMessage.mockResolvedValue({ title: tab.title, content: '',
+            bilibiliSubtitle: { ...subtitle, text: 'Updated subtitles' } });
+        expect((await getEnabledTabsContent()).pages[0].content).not.toContain(subtitle.text);
+        expect((await getCachedWebpagesForChat('chat-a'))[0].content).toContain('Updated subtitles');
+    });
+
+    it('ignores subtitles for a different part or video', async () => {
+        for (const wrong of [{ ...subtitle, page: 1 }, { ...subtitle, bvid: 'BV1yy411c7mD' }]) {
+            browserAdapter.sendMessage.mockResolvedValue({ title: tab.title, content: 'Video description', bilibiliSubtitle: wrong });
+            const page = (await getEnabledTabsContent()).pages[0];
+            expect(page.content).toBe('Video description');
+            expect(page.bilibiliSubtitle).toBeUndefined();
+        }
+    });
+
+    it('does not resurrect a removed source when subtitle extraction finishes later', async () => {
+        const waiting = deferred();
+        browserAdapter.sendMessage.mockImplementation(async () => { await waiting.promise; return {
+            title: tab.title, content: '', bilibiliSubtitle: subtitle,
+        }; });
+        const gathering = getEnabledTabsContent();
+        await vi.waitFor(() => expect(browserAdapter.sendMessage).toHaveBeenCalled());
+        await updateWebpageSwitchesForChat('chat-a', { 1: false }, { tabs: [tab] });
+        waiting.resolve();
+        expect(await gathering).toBeNull();
+        expect(await getCachedWebpagesForChat('chat-a')).toEqual([]);
+    });
+});
+
 describe('selected PDF context', () => {
     it('uses imported cached webpage text on the standalone web app without browser access', async () => {
         state.extension = false;

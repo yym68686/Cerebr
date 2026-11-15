@@ -10,6 +10,9 @@ import { createPluginBridgeMessage, isPluginBridgeMessage } from '../../plugin/b
 import { createPagePluginRuntime } from '../../plugin/page/page-plugin-runtime.js';
 import { getBuiltinPagePluginEntries } from '../../plugin/page/page-plugin-registry.js';
 import { handleUserScriptPagePluginHostRpc } from '../../plugin/page/user-script-page-plugin-host.js';
+import { createBilibiliSubtitleExtractor } from '../../runtime/webpage/bilibili-subtitles.js';
+
+const bilibiliSubtitles = createBilibiliSubtitleExtractor({ getUrl: () => window.location.href });
 
 const SITE_OVERRIDES_KEY = 'panelSiteOverridesV1';
 const SIDEBAR_POSITIONS_KEY = 'cerebr_sidebar_positions_v1';
@@ -1176,7 +1179,7 @@ class CerebrSidebar {
 
 let sidebar = null;
 let pagePluginRuntime = null;
-let inFlightPageContentPromise = null;
+let inFlightPageContent = null;
 let hasBooted = false;
 
 async function routePluginBridgeMessage(bridgeMessage, bridgeSource = null) {
@@ -1286,20 +1289,22 @@ function handleRuntimeMessage(message, sender, sendResponse) {
 	    // 处理获取页面内容请求
 	    if (message.type === 'GET_PAGE_CONTENT_INTERNAL') {
 	        // console.log('收到获取页面内容请求');
-	        if (inFlightPageContentPromise) {
-	            inFlightPageContentPromise.then(sendResponse).catch(() => sendResponse(null));
+	        const url = window.location.href;
+	        if (inFlightPageContent?.url === url) {
+	            inFlightPageContent.promise.then(sendResponse).catch(() => sendResponse(null));
 	            return true;
 	        }
 
-	        inFlightPageContentPromise = extractPageContent(message.skipWaitContent);
+	        const request = { url, promise: extractPageContent(message.skipWaitContent) };
+	        inFlightPageContent = request;
 
-	        inFlightPageContentPromise.then(content => {
+	        request.promise.then(content => {
 	            sendResponse(content);
 	        }).catch(error => {
 	            console.error('提取页面内容失败:', error);
 	            sendResponse(null);
 	        }).finally(() => {
-	            inFlightPageContentPromise = null;
+	            if (inFlightPageContent === request) inFlightPageContent = null;
 	        });
 
 	        return true;
@@ -1430,6 +1435,7 @@ function sendInitMessage(retryCount = 0) {
 }
 
 function attachLifecycleListeners() {
+  window.addEventListener('pagehide', bilibiliSubtitles.cancel);
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       setTimeout(sendInitMessage, 500);
@@ -1669,7 +1675,7 @@ async function extractPageContent(skipWaitContent = false) {
       return null;
     }
 
-    // 非 PDF：短 TTL 缓存，减少重复提取导致的卡顿（但 YouTube 字幕仍会每次尝试获取）
+    // 非 PDF：正文短 TTL 缓存；视频字幕由各平台独立获取/缓存。
     const now = Date.now();
     const currentUrl = window.location.href;
     const mutationVersion = getPageTextCacheMutationVersion();
@@ -1738,13 +1744,19 @@ async function extractPageContent(skipWaitContent = false) {
     if (isYouTubeHost(window.location.hostname)) {
       youtubeTranscript = await extractYouTubeTranscriptText();
     }
+    const bilibiliSubtitle = await bilibiliSubtitles.extract();
 
-    if (mainContent.length < 40 && !youtubeTranscript?.transcript) {
+    // Do not mix the previous page's body with the next video's subtitle or
+    // title when an SPA navigates while the network request is in progress.
+    if (window.location.href !== currentUrl) return null;
+
+    if (mainContent.length < 40 && !youtubeTranscript?.transcript && !bilibiliSubtitle?.text) {
       console.log('提取的内容太少，返回 null');
       return null;
     }
 
     const gptTokenCount = await estimateGPTTokens(mainContent);
+    if (window.location.href !== currentUrl) return null;
     console.log('页面内容提取完成，内容长度:', mainContent.length, 'GPT tokens:', gptTokenCount);
 
     if (!usedCache) {
@@ -1761,7 +1773,8 @@ async function extractPageContent(skipWaitContent = false) {
       title: document.title,
       url: currentUrl,
       content: mainContent,
-      youtubeTranscript
+      youtubeTranscript,
+      bilibiliSubtitle
     };
   }
 

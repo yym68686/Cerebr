@@ -102,6 +102,27 @@ it('uses fixed-size keys for long URLs and does not let migration overwrite a re
     expect(await readCachedWebpageSources(db, 'chat')).toEqual([]);
 });
 
+it('preserves Bilibili subtitles through local and cloud replicas, including source removal', async () => {
+    vi.stubGlobal('IDBKeyRange', IDBKeyRange);
+    const extension = await database(), desktop = await database(), web = await database();
+    const local = new SyncDatabase(':memory:'), cloud = new SyncDatabase(':memory:');
+    servers.push(local, cloud);
+    const page = { url: 'https://www.bilibili.com/video/BV1xx411c7mD/?p=2', title: 'B站视频 P2',
+        content: '视频简介\n\nB站字幕：\n视频字幕正文',
+        bilibiliSubtitle: { bvid: 'BV1xx411c7mD', page: 2, cid: 222, lang: 'ai-zh', text: '视频字幕正文' } };
+    await writeCachedWebpageSources(extension, 'chat', [page], new Map());
+    const source = await readWebpageSourceRecord(extension, 'chat', page);
+    await applyRemoteRecord(desktop, local.put(source).record);
+    await applyRemoteRecord(web, cloud.put(await readWebpageSourceRecord(desktop, 'chat', page)).record);
+    expect((await readCachedWebpageSources(web, 'chat'))[0]).toMatchObject(page);
+    await removeCachedWebpageSources(web, 'chat', [page]);
+    const removed = cloud.put(await readWebpageSourceRecord(web, 'chat', page)).record;
+    await applyRemoteRecord(desktop, removed);
+    await applyRemoteRecord(extension, local.put(removed).record);
+    for (const db of [extension, desktop, web]) expect(await readCachedWebpageSources(db, 'chat')).toEqual([]);
+    expect(await applyRemoteRecord(extension, source)).toBe(false);
+});
+
 it('syncs distinct documents at one URL and deletes only the chosen copy', async () => {
     vi.stubGlobal('IDBKeyRange', IDBKeyRange);
     const source = await database(), web = await database();
