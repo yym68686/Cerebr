@@ -77,10 +77,11 @@ async function wheel(options, flushFrame = true) {
     if (flushFrame) await flush();
     return event;
 }
-async function pointer(type, x, y, id = 1, target = picture) {
+async function pointer(type, x, y, id = 1, target = picture, pointerType = 'mouse') {
     const event = new Event(type, { bubbles: true, cancelable: true });
-    Object.assign(event, { clientX: x, clientY: y, pointerId: id, button: 0 });
+    Object.assign(event, { clientX: x, clientY: y, pointerId: id, button: 0, pointerType });
     await act(async () => target.dispatchEvent(event));
+    return event;
 }
 async function gesture(type, scale) {
     const event = new Event(type, { bubbles: true, cancelable: true });
@@ -96,6 +97,153 @@ function view() {
     return { x: +x, y: +y, scale: +scale };
 }
 const zoomTwice = { ctrlKey: true, deltaY: -Math.log(2) / 0.01 };
+
+describe('image preview finger navigation', () => {
+    const second = 'data:image/png;base64,Ag==';
+    const third = 'data:image/png;base64,Aw==';
+    const touch = (type, x, y, id = 1, target = picture) => pointer(type, x, y, id, target, 'touch');
+    const swipe = async (from, to, target = picture) => {
+        await touch('pointerdown', from, 400, 1, target);
+        await touch('pointermove', to, 405, 1, target);
+        await touch('pointerup', to, 405, 1, target);
+        await flush();
+    };
+    beforeEach(async () => {
+        await act(async () => openImagePreview([source, second, third]));
+    });
+
+    it('swipes left to the next image and right to the previous image with directional transitions', async () => {
+        await swipe(650, 450);
+        expect(picture.getAttribute('src')).toBe(second);
+        expect(uiStore.getSnapshot().imageTransition).toMatchObject({ from: source, direction: 1 });
+        expect(view()).toEqual({ x: 0, y: 0, scale: 1 });
+        await swipe(450, 650);
+        expect(picture.getAttribute('src')).toBe(source);
+        expect(uiStore.getSnapshot().imageTransition).toMatchObject({ from: second, direction: -1 });
+    });
+
+    it('changes only one image on release even during a long stroke and supports successive strokes', async () => {
+        await touch('pointerdown', 850, 400);
+        for (const x of [750, 650, 450, 250]) await touch('pointermove', x, 400);
+        expect(picture.getAttribute('src')).toBe(source);
+        await touch('pointerup', 250, 400);
+        expect(picture.getAttribute('src')).toBe(second);
+        await swipe(650, 450);
+        expect(picture.getAttribute('src')).toBe(third);
+        await swipe(450, 650);
+        expect(picture.getAttribute('src')).toBe(second);
+    });
+
+    it('stops at the first and last images without wrapping', async () => {
+        await act(async () => openImagePreview([source, second]));
+        await swipe(450, 650);
+        expect(picture.getAttribute('src')).toBe(source);
+        await swipe(650, 450);
+        await swipe(650, 450);
+        expect(picture.getAttribute('src')).toBe(second);
+        await swipe(450, 650);
+        expect(picture.getAttribute('src')).toBe(source);
+    });
+
+    it('accepts a finger swipe starting beside the image and suppresses its trailing backdrop click', async () => {
+        await swipe(650, 450, viewport);
+        expect(picture.getAttribute('src')).toBe(second);
+        await act(async () => viewport.click());
+        expect(picture.getAttribute('src')).toBe(second);
+        await touch('pointerdown', 10, 10, 2, viewport);
+        await touch('pointerup', 10, 10, 2, viewport);
+        await act(async () => viewport.click());
+        expect(uiStore.getSnapshot().image).toBeNull();
+    });
+
+    it('uses a reachable swipe threshold on narrow phone screens', async () => {
+        width = 390;
+        await swipe(250, 175);
+        expect(picture.getAttribute('src')).toBe(second);
+    });
+
+    it('ignores short, vertical, diagonal and initially vertical gestures', async () => {
+        const strokes = [[500, 400, 470, 401], [500, 300, 510, 600], [500, 400, 300, 200]];
+        for (const [x, y, toX, toY] of strokes) {
+            await touch('pointerdown', x, y);
+            await touch('pointermove', toX, toY);
+            await touch('pointerup', toX, toY);
+            expect(picture.getAttribute('src')).toBe(source);
+        }
+        await touch('pointerdown', 650, 400);
+        await touch('pointermove', 650, 450);
+        await touch('pointermove', 300, 450);
+        await touch('pointerup', 300, 450);
+        expect(picture.getAttribute('src')).toBe(source);
+    });
+
+    it('does not navigate on cancellation, lost capture or blur', async () => {
+        for (const type of ['pointercancel', 'lostpointercapture', 'blur']) {
+            await touch('pointerdown', 650, 400);
+            await touch('pointermove', 450, 400);
+            if (type === 'blur') await act(async () => window.dispatchEvent(new Event('blur')));
+            else await touch(type, 450, 400);
+            await touch('pointerup', 450, 400);
+            expect(picture.getAttribute('src')).toBe(source);
+        }
+        await swipe(650, 450);
+        expect(picture.getAttribute('src')).toBe(second);
+    });
+
+    it('pans a zoomed image without turning an edge drag into navigation', async () => {
+        await wheel(zoomTwice);
+        await swipe(650, 250);
+        expect(picture.getAttribute('src')).toBe(source);
+        expect(view()).toEqual({ x: -400, y: 5, scale: 2 });
+        await swipe(650, 250);
+        expect(picture.getAttribute('src')).toBe(source);
+    });
+
+    it('never converts a two-finger gesture into a swipe after lifting one finger', async () => {
+        await touch('pointerdown', 650, 400);
+        await touch('pointerdown', 750, 400, 2);
+        await touch('pointerup', 750, 400, 2);
+        await touch('pointermove', 350, 400);
+        await touch('pointerup', 350, 400);
+        expect(picture.getAttribute('src')).toBe(source);
+        await swipe(650, 450);
+        expect(picture.getAttribute('src')).toBe(second);
+    });
+
+    it('does not navigate after pinching back to fit, including Safari gesture events', async () => {
+        await touch('pointerdown', 400, 400);
+        await touch('pointerdown', 600, 400, 2);
+        await touch('pointermove', 800, 400, 2);
+        await touch('pointermove', 600, 400, 2);
+        await touch('pointerup', 600, 400, 2);
+        await touch('pointermove', 200, 400);
+        await touch('pointerup', 200, 400);
+        expect(picture.getAttribute('src')).toBe(source);
+        await touch('pointerdown', 650, 400);
+        await gesture('gesturestart', 1);
+        await gesture('gesturechange', 2);
+        await gesture('gesturechange', 1);
+        await gesture('gestureend', 1);
+        await touch('pointermove', 300, 400);
+        await touch('pointerup', 300, 400);
+        expect(picture.getAttribute('src')).toBe(source);
+    });
+
+    it('keeps mouse dragging, single-image previews and the close button unchanged', async () => {
+        await pointer('pointerdown', 650, 400);
+        await pointer('pointermove', 350, 400);
+        await pointer('pointerup', 350, 400);
+        expect(picture.getAttribute('src')).toBe(source);
+        await act(async () => openImagePreview([source]));
+        await swipe(650, 450);
+        expect(picture.getAttribute('src')).toBe(source);
+        const close = host.querySelector('button');
+        await touch('pointerdown', 980, 20, 1, close);
+        await touch('pointerup', 980, 20, 1, close);
+        await act(async () => close.click());
+        expect(uiStore.getSnapshot().image).toBeNull();
+    });
+});
 
 describe('image preview keyboard navigation', () => {
     const second = 'data:image/png;base64,Ag==';

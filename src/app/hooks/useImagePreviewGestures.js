@@ -32,6 +32,7 @@ export function useImagePreviewGestures(image, onNavigate) {
         let frame = 0;
         let gesture = null;
         let wheelSequence = null;
+        let touchSwipe = null;
         const pointers = new Map();
 
         const publish = (next) => {
@@ -137,10 +138,16 @@ export function useImagePreviewGestures(image, onNavigate) {
         const down = (event) => {
             if (event.button !== 0) return;
             if (!pointers.size) suppressClick.current = false;
+            else touchSwipe = null; // A pinch stays a pinch until all fingers lift.
             if (event.target.closest('button')) return;
-            if (event.target !== picture && !pointers.size) return;
+            const touch = event.pointerType === 'touch';
+            if (!touch && event.target !== picture && !pointers.size) return;
             event.preventDefault();
-            pointers.set(event.pointerId, point(event));
+            const start = point(event);
+            if (!pointers.size && touch && current.scale === 1 && !gesture) {
+                touchSwipe = { pointerId: event.pointerId, start, maxY: 0 };
+            }
+            pointers.set(event.pointerId, start);
             if (pointers.size > 1) suppressClick.current = true;
             picture.setPointerCapture?.(event.pointerId);
             setDragging(true);
@@ -152,15 +159,39 @@ export function useImagePreviewGestures(image, onNavigate) {
             pointers.set(event.pointerId, point(event));
             const after = pointerGeometry();
             if (Math.hypot(after.x - before.x, after.y - before.y) > 0) suppressClick.current = true;
+            if (touchSwipe) {
+                const dx = after.x - touchSwipe.start.x;
+                const dy = after.y - touchSwipe.start.y;
+                touchSwipe.maxY = Math.max(touchSwipe.maxY, Math.abs(dy));
+                // Lock an initially vertical/diagonal stroke out of navigation,
+                // even if the finger later changes direction horizontally.
+                if (Math.hypot(dx, dy) >= 10 && Math.abs(dx) <= Math.abs(dy) * 1.5) touchSwipe = null;
+            }
             transform(before, after, before.distance ? after.distance / before.distance : 1);
         };
         const up = (event) => {
+            if (!pointers.has(event.pointerId)) return;
+            const swipe = touchSwipe;
+            touchSwipe = null;
             pointers.delete(event.pointerId);
             if (picture.hasPointerCapture?.(event.pointerId)) picture.releasePointerCapture(event.pointerId);
             if (!pointers.size) setDragging(false);
+            // Finger movement is not a wheel event on iOS Safari. Navigate once
+            // at release; never reinterpret a cancelled gesture or zoomed pan.
+            if (event.type !== 'pointerup' || !swipe || swipe.pointerId !== event.pointerId ||
+                pointers.size || gesture || current.scale !== 1) return;
+            const end = point(event);
+            const dx = end.x - swipe.start.x;
+            const dy = Math.max(swipe.maxY, Math.abs(end.y - swipe.start.y));
+            const threshold = Math.min(swipeDistance, Math.max(40, viewport.getBoundingClientRect().width * 0.18));
+            if (Math.abs(dx) >= threshold && Math.abs(dx) > dy * 1.5) {
+                suppressClick.current = true;
+                navigateRef.current?.(dx < 0 ? 1 : -1, current);
+            }
         };
         const cancel = () => {
             gesture = null;
+            touchSwipe = null;
             for (const pointerId of pointers.keys()) {
                 if (picture.hasPointerCapture?.(pointerId)) picture.releasePointerCapture(pointerId);
             }
@@ -173,11 +204,13 @@ export function useImagePreviewGestures(image, onNavigate) {
             frame = 0;
             current = fittedView();
             setView(current);
-            suppressClick.current = false;
+            // Preserve the swipe's click guard across the image change. Safari
+            // may emit a compatibility click after pointerup on the backdrop.
         };
         resetRef.current = reset;
         const gestureStart = (event) => {
             event.preventDefault();
+            touchSwipe = null;
             if (pointers.size >= 2) return;
             gesture = { ...point(event), scale: event.scale || 1 };
         };
