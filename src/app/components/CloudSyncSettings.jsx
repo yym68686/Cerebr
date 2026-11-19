@@ -8,6 +8,7 @@ export function CloudSyncSettings() {
     const [mode, setMode] = useState('login'),
         [expanded, setExpanded] = useState(false),
         [username, setUsername] = useState(''),
+        [reauthUsername, setReauthUsername] = useState(null),
         [password, setPassword] = useState(''),
         [error, setError] = useState(''),
         [busy, setBusy] = useState(false);
@@ -17,12 +18,17 @@ export function CloudSyncSettings() {
         try {
             await cloudSyncAction(action, payload);
             setPassword('');
+            if (action === 'login' || action === 'logout') setReauthUsername(null);
         } catch (e) {
             setError(e.message);
         } finally {
             setBusy(false);
         }
     };
+    const needsLogin = state.needsLogin === true;
+    const authMode = needsLogin ? 'login' : mode;
+    const account = needsLogin ? (reauthUsername ?? state.user?.username ?? '') : username;
+    const feedback = error || (needsLogin ? t('cloud_sync_login_expired') : state.error);
     const status = state.syncing
         ? 'cloud_sync_syncing'
         : state.connected
@@ -44,21 +50,23 @@ export function CloudSyncSettings() {
                 <div className="sync-channel-toolbar">
                     {state.user ? (
                         <div className="sync-row-actions sync-actions">
-                            <button
-                                className="sync-button"
-                                type="button"
-                                disabled={busy || state.connecting}
-                                onClick={() => run(state.connected ? 'verify' : 'connect')}
-                            >
-                                <RefreshDouble className={busy || state.syncing ? 'is-spinning' : ''} />
-                                {t(
-                                    busy
-                                        ? 'cloud_sync_syncing'
-                                        : state.connected
-                                          ? 'cloud_sync_now'
-                                          : 'cloud_sync_reconnect'
-                                )}
-                            </button>
+                            {!needsLogin && (
+                                <button
+                                    className="sync-button"
+                                    type="button"
+                                    disabled={busy || state.connecting}
+                                    onClick={() => run(state.connected ? 'verify' : 'connect')}
+                                >
+                                    <RefreshDouble className={busy || state.syncing ? 'is-spinning' : ''} />
+                                    {t(
+                                        busy
+                                            ? 'cloud_sync_syncing'
+                                            : state.connected
+                                              ? 'cloud_sync_now'
+                                              : 'cloud_sync_reconnect'
+                                    )}
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 className="sync-icon-button"
@@ -109,37 +117,39 @@ export function CloudSyncSettings() {
             ) : (
                 <p className="sync-channel-description">{t('cloud_sync_description')}</p>
             )}
-            {!state.user && expanded && (
+            {(needsLogin || (!state.user && expanded)) && (
                 <form
                     className="cloud-auth-form sync-channel-detail"
                     id="cloud-sync-auth"
                     onSubmit={(e) => {
                         e.preventDefault();
-                        void run(mode, { username, password });
+                        void run(authMode, { username: account, password });
                     }}
                 >
-                    <div className="cloud-auth-tabs" role="tablist" aria-label={t('cloud_sync_account')}>
-                        {['login', 'register'].map((value) => (
-                            <button
-                                key={value}
-                                type="button"
-                                role="tab"
-                                aria-selected={mode === value}
-                                onClick={() => {
-                                    setMode(value);
-                                    setError('');
-                                }}
-                            >
-                                {t(`cloud_sync_${value}`)}
-                            </button>
-                        ))}
-                    </div>
+                    {!needsLogin && (
+                        <div className="cloud-auth-tabs" role="tablist" aria-label={t('cloud_sync_account')}>
+                            {['login', 'register'].map((value) => (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={mode === value}
+                                    onClick={() => {
+                                        setMode(value);
+                                        setError('');
+                                    }}
+                                >
+                                    {t(`cloud_sync_${value}`)}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                     <div className="cloud-auth-fields">
                         <label>
-                            {t(mode === 'register' ? 'cloud_sync_email' : 'cloud_sync_username')}
+                            {t(authMode === 'register' ? 'cloud_sync_email' : 'cloud_sync_username')}
                             <input
                                 className="settings-input"
-                                type={mode === 'register' ? 'email' : 'text'}
+                                type={authMode === 'register' ? 'email' : 'text'}
                                 inputMode="email"
                                 autoComplete="username"
                                 autoCapitalize="none"
@@ -148,8 +158,10 @@ export function CloudSyncSettings() {
                                 minLength={3}
                                 maxLength={254}
                                 required
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
+                                value={account}
+                                onChange={(e) =>
+                                    (needsLogin ? setReauthUsername : setUsername)(e.target.value)
+                                }
                             />
                         </label>
                         <label>
@@ -157,7 +169,7 @@ export function CloudSyncSettings() {
                             <input
                                 className="settings-input"
                                 type="password"
-                                autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+                                autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
                                 minLength={10}
                                 maxLength={128}
                                 required
@@ -167,14 +179,14 @@ export function CloudSyncSettings() {
                         </label>
                     </div>
                     <button type="submit" className="sync-button is-primary" disabled={busy}>
-                        {t(busy ? 'cloud_sync_submitting' : `cloud_sync_${mode}`)}
+                        {t(busy ? 'cloud_sync_submitting' : `cloud_sync_${authMode}`)}
                     </button>
                     <p className="cloud-auth-note">{t('cloud_sync_merge_note')}</p>
                 </form>
             )}
-            {(error || state.error) && (
+            {feedback && (
                 <div className="sync-error" role="alert">
-                    {error || state.error}
+                    {feedback}
                 </div>
             )}
         </div>

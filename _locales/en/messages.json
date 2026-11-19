@@ -506,6 +506,7 @@
   "cloud_sync_reconnect": {"message": "Reconnect"},
   "cloud_sync_account": {"message": "Sync account"},
   "cloud_sync_login": {"message": "Sign in"},
+  "cloud_sync_login_expired": {"message": "Your session is no longer valid. Sign in again."},
   "cloud_sync_register": {"message": "Create account"},
   "cloud_sync_username": {"message": "Username or email"},
   "cloud_sync_email": {"message": "Email"},

@@ -11,6 +11,7 @@ export const cloudSyncStore = createStore({
     user: null,
     connected: false,
     connecting: false,
+    needsLogin: false,
     error: null,
     lastSyncAt: null,
 });
@@ -171,8 +172,12 @@ async function connect() {
                         if (!cloudSyncStore.getSnapshot().syncing && Date.now() - lastReconciled > 30000) void recoverSync();
                     }, 15000);
                 } else if (message.type === 'auth-error') {
-                    authenticationError = true;
-                    emitStatus({ connected: false, connecting: false, error: message.error });
+                    // Older servers can return 401 on time expiry. Keep the
+                    // reconnect action available until the service is updated.
+                    const needsLogin = message.status === 401 && message.code === 'SESSION_INVALID';
+                    authenticationError = message.status === 401 || message.status === 403;
+                    if (authenticationError) stopped = true;
+                    emitStatus({ connected: false, connecting: false, needsLogin, error: message.error });
                 } else await client?.receive(message);
             })
             .catch((error) => emitStatus({ error: error.message, connecting: false }));
@@ -193,7 +198,10 @@ async function connect() {
         if (!stopped && !authenticationError && event.code !== 4003)
             retry = setTimeout(() => void connect(), 5000);
     };
-    ws.onerror = () => emitStatus({ error: '暂时无法连接云端，本地聊天已保留。' });
+    ws.onerror = () => {
+        if (current === generation && !authenticationError)
+            emitStatus({ error: '暂时无法连接云端，本地聊天已保留。' });
+    };
 }
 async function recoverSync() {
     if (stopped || !authData?.token || recovering) return recovering;
@@ -217,7 +225,7 @@ async function runAction(action, payload) {
         authData = result;
         stopped = false;
         await storageAdapter.set({ [AUTH]: result });
-        emitStatus({ user: result.user, error: null });
+        emitStatus({ user: result.user, needsLogin: false, error: null });
         void connect();
         return { ok: true };
     }
@@ -240,6 +248,7 @@ async function runAction(action, payload) {
             connected: false,
             connecting: false,
             syncing: false,
+            needsLogin: false,
             error: null,
             verification: null,
             summary: null,
@@ -248,6 +257,8 @@ async function runAction(action, payload) {
         return { ok: true };
     }
     if (action === 'connect') {
+        // Only an explicitly invalid token requires fresh credentials.
+        if (cloudSyncStore.getSnapshot().needsLogin) return { ok: true };
         stopped = false;
         void connect();
         return { ok: true };

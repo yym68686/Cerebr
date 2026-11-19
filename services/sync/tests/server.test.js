@@ -1,9 +1,10 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { once } from 'node:events';
 import { WebSocket } from 'ws';
 import { createApp } from '../server/app.js';
-import { hashPassword } from '../server/auth.js';
+import { hashPassword, tokenHash } from '../server/auth.js';
 if (!new URL(process.env.DATABASE_URL).pathname.endsWith('_test')) throw new Error('Tests require a database name ending in _test');
 let app,database,base,admin,one,two;
 const password='Test-only-password-29!';
@@ -100,6 +101,37 @@ test('passwords are hashed, ordinary users cannot access admin, and sessions rev
  const login=await req('POST','/api/auth/login',{username:'second_user@example.test',password});
  await req('POST','/api/auth/logout',{},login.token);assert.equal((await req('GET','/api/auth/me',undefined,login.token)).status,401);
 });
+test('restores a retained legacy session without a new login and still revokes it on logout', { timeout: 25000 }, async () => {
+ const session = await req('POST', '/api/auth/login', { username: two.user.username, password });
+ assert.equal(session.status, 200);
+ assert.equal(session.expiresAt, null);
+ const hash = tokenHash(session.token);
+ const stored = await database.query('SELECT expires_at::text FROM sessions WHERE token_hash=$1', [hash]);
+ assert.equal(stored.rows[0].expires_at, 'infinity');
+ // Model a row from the old service that has already passed its 30-day cutoff.
+ await database.query("UPDATE sessions SET created_at=now()-interval '60 days', expires_at=now()-interval '30 days' WHERE token_hash=$1", [hash]);
+ assert.equal((await req('GET', '/api/auth/me', undefined, session.token)).user.id, two.user.id);
+ const client = await connect(session.token, 'legacy-session');
+ try {
+  // A previously expired session must also survive the periodic liveness check.
+  await once(client.socket, 'ping', { signal: AbortSignal.timeout(18000) });
+  const closed = once(client.socket, 'close');
+  assert.equal((await req('POST', '/api/auth/logout', {}, session.token)).status, 200);
+  assert.equal((await closed)[0], 4001);
+  assert.equal((await req('GET', '/api/auth/me', undefined, session.token)).status, 401);
+  assert.equal((await req('GET', '/api/auth/me', undefined, two.token)).status, 200);
+  const socket = new WebSocket(base);
+  try {
+   await once(socket, 'open');
+   const response = once(socket, 'message');
+   socket.send(JSON.stringify({ type: 'auth', token: session.token, client: { id: randomUUID() } }));
+   const error = JSON.parse((await response)[0]);
+   assert.equal(error.type, 'auth-error');
+   assert.equal(error.status, 401);
+   assert.equal(error.code, 'SESSION_INVALID');
+  } finally { socket.terminate(); }
+ } finally { client.socket.terminate(); }
+});
 test('requires email for registration while existing username accounts can still log in',async()=>{
  const username='legacy_user',id=randomUUID();
  const registration=await req('POST','/api/auth/register',{username,password});
@@ -178,6 +210,7 @@ test('pause disconnects sync, ban revokes login, resume preserves records and au
  await req('PATCH',`/api/admin/users/${one.user.id}`,{status:'banned'},admin.token);
  assert.equal((await req('POST','/api/auth/login',{username:'first_user@example.test',password})).status,403);
  await req('PATCH',`/api/admin/users/${one.user.id}`,{status:'active'},admin.token);
+ assert.equal((await req('GET','/api/auth/me',undefined,one.token)).status,401);
  assert.equal((await req('POST','/api/auth/login',{username:'first_user@example.test',password})).status,200);
  assert.equal((await req('PATCH',`/api/admin/users/${admin.user.id}`,{status:'banned'},admin.token)).status,400);
  assert.equal((await req('GET','/api/admin/audit',undefined,admin.token)).events.length,3);

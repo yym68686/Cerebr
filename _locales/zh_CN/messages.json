@@ -506,6 +506,7 @@
   "cloud_sync_reconnect": {"message": "重新连接"},
   "cloud_sync_account": {"message": "同步账号"},
   "cloud_sync_login": {"message": "登录"},
+  "cloud_sync_login_expired": {"message": "登录已失效，请重新登录。"},
   "cloud_sync_register": {"message": "注册"},
   "cloud_sync_username": {"message": "用户名或邮箱"},
   "cloud_sync_email": {"message": "邮箱"},

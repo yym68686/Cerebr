@@ -35,19 +35,21 @@ export async function createApp(options = {}) {
     });
     async function authenticate(token) {
         if (typeof token !== 'string' || token.length > 200) throw fail('请先登录。',401);
-        const result = await database.query('SELECT u.*,s.expires_at FROM sessions s JOIN users u ON u.id=s.user_id WHERE token_hash=$1 AND expires_at>now()', [tokenHash(token)]);
+        const result = await database.query('SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1', [tokenHash(token)]);
         const user = result.rows[0];
-        if (!user) throw fail('登录已失效，请重新登录。',401);
+        if (!user) throw Object.assign(fail('登录已失效，请重新登录。',401), { code: 'SESSION_INVALID' });
         if (user.status === 'banned') throw fail('账号已被封禁。',403);
         return user;
     }
     const auth = async (req) => { req.user = await authenticate(req.headers.authorization?.replace(/^Bearer /,'')); };
     const admin = async (req) => { await auth(req); if(req.user.role !== 'admin') throw fail('需要管理员权限。',403); };
     async function session(user) {
-        const token = newToken(), expiresAt = new Date(Date.now() + 30 * 86400000);
-        await database.query('INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,$3)', [tokenHash(token), user.id, expiresAt]);
+        const token = newToken();
+        // Keep the legacy column so a rolling deployment or rollback can read
+        // new sessions too. Only revocation, not a timestamp, ends a session.
+        await database.query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,'infinity')", [tokenHash(token), user.id]);
         await database.query('UPDATE users SET last_login_at=now() WHERE id=$1', [user.id]);
-        return { token, expiresAt, user: publicUser(user) };
+        return { token, expiresAt: null, user: publicUser(user) };
     }
     const dummy = await hashPassword(newToken());
     app.get('/healthz', async () => { await database.query('SELECT 1'); return { ok: true, service: 'cerebr-sync', protocol: 1 }; });
@@ -272,7 +274,12 @@ export async function createApp(options = {}) {
                 }else if(m.type==='ping')send(c,{type:'pong'});
             }).catch((error)=>{
                 if(c)send(c,{type:'error',error:error.statusCode?error.message:'同步暂时失败，请重新连接。'});
-                else socket.send(JSON.stringify({type:'auth-error',error:error.statusCode?error.message:'连接失败。',status:error.statusCode||500}));
+                else socket.send(JSON.stringify({
+                    type:'auth-error',
+                    error:error.statusCode?error.message:'连接失败。',
+                    status:error.statusCode||500,
+                    ...(error.code==='SESSION_INVALID'?{code:'SESSION_INVALID'}:{})
+                }));
                 socket.close(error.statusCode===403?4003:4001,'Sync error');
                 app.log.warn({message:error.message},'Sync request failed');
             }).finally(()=>{pendingBytes-=raw.length;});
@@ -285,7 +292,7 @@ export async function createApp(options = {}) {
         socket.on('error',()=>socket.close());
     });
     const interval=setInterval(()=>{
-        for(const c of clients){if(!c.alive||new Date(c.user.expires_at)<new Date()){c.socket.terminate();continue;}c.alive=false;c.socket.ping();}
+        for(const c of clients){if(!c.alive){c.socket.terminate();continue;}c.alive=false;c.socket.ping();}
         void flushTraffic().catch((e)=>app.log.error({message:e.message},'Traffic flush failed'));
     },15000);interval.unref();
     const root=fileURLToPath(new URL('../dist',import.meta.url));
