@@ -125,6 +125,9 @@ jobs:
             - run: npm ci
             - run: npm run build
             - run: npm run check --workspace cerebr-desktop
+            - name: Test macOS updater under Electron
+              if: matrix.platform == 'darwin'
+              run: npm test -- tests/desktop-update-cache.test.js tests/desktop-updater-lifecycle.test.js
             - name: Make desktop installers
               run: npm run make --workspace cerebr-desktop -- --platform=${{ matrix.platform }} --arch=${{ matrix.arch }}
             - name: Collect installers and checksums

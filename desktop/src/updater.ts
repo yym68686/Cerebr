@@ -12,6 +12,7 @@ import {
     cleanupMacUpdateStages,
     cleanupUpdateCaches,
     isUpdateDirectoryName,
+    removeUpdateTree,
 } from './update-cache.js';
 
 const exec = promisify(execFile);
@@ -199,7 +200,7 @@ export class DesktopUpdater {
             await mkdir(base, { recursive: true, mode: 0o700 });
             // Stable per-version cache survives failed requests and application
             // restarts. A newer release uses a different directory.
-            if (this.staged) await rm(path.dirname(this.staged), { recursive: true, force: true });
+            if (this.staged) await removeUpdateTree(path.dirname(this.staged));
             this.staged = '';
             this.preparedVersion = '';
             this.directory = path.join(
@@ -273,7 +274,7 @@ export class DesktopUpdater {
         const { stdout } = await exec('/usr/bin/unzip', ['-Z1', zip], { maxBuffer: 16 * 1024 * 1024 });
         if (stdout.split('\n').some((entry) => entry.startsWith('/') || entry.split('/').includes('..')))
             throw new Error('Unsafe archive path');
-        await rm(unpacked, { recursive: true, force: true });
+        await removeUpdateTree(unpacked);
         await exec('/usr/bin/ditto', ['-x', '-k', zip, unpacked]);
         const bundle = path.join(unpacked, 'Cerebr.app');
         const plist = path.join(bundle, 'Contents/Info.plist');
@@ -291,9 +292,7 @@ export class DesktopUpdater {
         await exec('/usr/bin/ditto', [bundle, this.staged]);
         // The install bundle is now on the application's volume. Keep the ZIP
         // for retry/resume, but no longer retain a second unpacked copy.
-        await rm(unpacked, { recursive: true, force: true }).catch((error) =>
-            this.log('cleanup-failed', error)
-        );
+        await removeUpdateTree(unpacked).catch((error) => this.log('cleanup-failed', error));
     }
     private prepareWindows() {
         return new Promise<void>((resolve, reject) => {

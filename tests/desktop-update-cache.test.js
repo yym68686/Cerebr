@@ -1,8 +1,21 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises';
+import {
+    copyFile,
+    mkdir,
+    mkdtemp,
+    readFile,
+    readdir,
+    rm,
+    stat,
+    symlink,
+    utimes,
+    writeFile,
+} from 'node:fs/promises';
+import { execFile } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import {
     acknowledgeUpdateStartup,
     cleanupMacUpdateStages,
@@ -33,6 +46,65 @@ async function cache(name, receipt) {
     return folder;
 }
 const cleanup = (options = {}) => cleanupUpdateCaches({ base, currentVersion, ...options });
+
+it.skipIf(process.platform !== 'darwin')(
+    'cleans real packaged app.asar files with Electron filesystem hooks active',
+    async () => {
+        const { createPackage } = await import('@electron/asar');
+        const { default: electron } = await import('electron');
+        const source = path.join(temporary, 'asar-source');
+        await mkdir(source);
+        await writeFile(path.join(source, 'payload.txt'), 'test archive');
+        const obsolete = await cache('download-2.6.25-darwin-arm64');
+        const pending = await cache('download-2.6.27-darwin-arm64');
+        const staging = await stage('Asar01', { owner: {} });
+        const [obsoleteAsar, pendingAsar, stagedAsar] = [
+            path.join(obsolete, 'unpacked', 'Cerebr.app'),
+            path.join(pending, 'unpacked', 'Cerebr.app'),
+            path.join(staging, 'Cerebr.app'),
+        ].map((bundle) => path.join(bundle, 'Contents', 'Resources', 'app.asar'));
+        for (const asar of [obsoleteAsar, pendingAsar, stagedAsar])
+            await mkdir(path.dirname(asar), { recursive: true });
+        await createPackage(source, obsoleteAsar);
+        await copyFile(obsoleteAsar, pendingAsar);
+        await copyFile(obsoleteAsar, stagedAsar);
+        const options = { base, currentVersion, keep: [pending] };
+        const stageOptions = { application, profile, currentVersion };
+
+        await promisify(execFile)(
+            electron,
+            [
+                '--input-type=module',
+                '-e',
+                `import assert from 'node:assert/strict';
+                import { readFile } from 'node:fs/promises';
+                import { cleanupUpdateCaches, cleanupMacUpdateStages, removeUpdateTree } from ${JSON.stringify(
+                    new URL('../desktop/src/update-cache.js', import.meta.url).href
+                )};
+                assert.ok(process.versions.electron);
+                const onError = (error) => { throw error; };
+                // Confirm ASAR virtualization stays enabled in this process.
+                const resource = ${JSON.stringify(`${pendingAsar}/payload.txt`)};
+                assert.equal(await readFile(resource, 'utf8'), 'test archive');
+                await cleanupUpdateCaches({ ...${JSON.stringify(options)}, onError });
+                await cleanupMacUpdateStages({
+                    ...${JSON.stringify(stageOptions)}, processAlive: () => false, onError,
+                });
+                assert.equal(await readFile(resource, 'utf8'), 'test archive');
+                await removeUpdateTree(${JSON.stringify(path.join(pending, 'unpacked'))});
+                `,
+            ],
+            { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, timeout: 15000 }
+        );
+
+        expect(await exists(obsolete)).toBe(false);
+        expect(await exists(staging)).toBe(false);
+        expect(await exists(path.join(pending, 'unpacked'))).toBe(false);
+        expect(await readdir(pending)).toEqual(['Cerebr-darwin-arm64-2.6.26.zip']);
+        expect(await exists(application)).toBe(true);
+    },
+    20000
+);
 
 describe('update cache lifecycle', () => {
     it('reclaims installed versioned and legacy caches, not profile data or newer resumable updates', async () => {

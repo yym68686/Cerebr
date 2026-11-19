@@ -10,6 +10,13 @@ const stagePattern = /^\.Cerebr-update-[A-Za-z0-9]{6}$/;
 const validVersion = (version) => new RegExp(`^${versionPattern}$`).test(version);
 export const isUpdateDirectoryName = (name) => versioned.test(name) || legacy.test(name);
 
+// Electron's patched fs can traverse app.asar as a virtual directory and
+// leave the real file behind (ENOTEMPTY). Update trees are physical files.
+/** @type {typeof rm} */
+const removeFile = process.getBuiltinModule('original-fs')?.promises.rm ?? rm;
+/** @param {string} target */
+export const removeUpdateTree = (target) => removeFile(target, { recursive: true, force: true });
+
 async function info(file) {
     try {
         return await lstat(file);
@@ -75,7 +82,7 @@ export async function cleanupUpdateCaches({
                     if (file !== 'unpacked' && !archive.test(file)) continue;
                     const target = path.join(folder, file),
                         item = await info(target);
-                    if (item && !item.isSymbolicLink()) await rm(target, { recursive: true, force: true });
+                    if (item && !item.isSymbolicLink()) await removeUpdateTree(target);
                 }
                 continue;
             }
@@ -86,7 +93,7 @@ export async function cleanupUpdateCaches({
                 (!isNewerVersion(version, currentVersion) ||
                     (validVersion(obsoleteBefore) && isNewerVersion(obsoleteBefore, version)))
             ) {
-                await rm(folder, { recursive: true, force: true });
+                await removeUpdateTree(folder);
             } else if (
                 legacy.test(entry.name) &&
                 !version &&
@@ -148,7 +155,7 @@ export async function cleanupMacUpdateStages({
                     processAlive(owner.pid)
                 )
                     continue;
-                await rm(folder, { recursive: true, force: true });
+                await removeUpdateTree(folder);
             } else {
                 // Legacy stages have no ownership marker. Only an older,
                 // validated Cerebr bundle is provably obsolete; leave a pending
@@ -165,7 +172,7 @@ export async function cleanupMacUpdateStages({
                     validVersion(identity.version) &&
                     isNewerVersion(currentVersion, identity.version)
                 )
-                    await rm(folder, { recursive: true, force: true });
+                    await removeUpdateTree(folder);
             }
         } catch (error) {
             await onError(error);
