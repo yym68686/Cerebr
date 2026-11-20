@@ -100,6 +100,21 @@ export function getDb() {
     return dbPromise;
 }
 
+export async function withDb(operation) {
+    const opening = getDb();
+    const db = await opening;
+    try {
+        return await operation(db);
+    } catch (error) {
+        // A connection can start closing before IndexedDB delivers its close
+        // event. Drop only this handle, not a replacement opened by another task.
+        if (error?.name !== 'InvalidStateError') throw error;
+        if (dbPromise === opening) dbPromise = null;
+        db.close();
+        return operation(await getDb());
+    }
+}
+
 async function idbGetOne(key) {
     const db = await getDb();
     if (!db) return undefined;

@@ -1,6 +1,6 @@
 import { createProgressTracker } from './progress-tracker.js';
 import { createStore } from '../../app/state/store.js';
-import { getDb, isExtensionEnvironment } from '../../utils/storage-adapter.js';
+import { withDb, isExtensionEnvironment } from '../../utils/storage-adapter.js';
 import { createSyncClient } from './client.js';
 import { startCloudSync, publishCloudLive, publishCloudProgress, subscribeCloudLive, subscribeCloudProgress } from './cloud-sync.js';
 import { applyLiveChat, clearLiveChat, clearLiveChats, settleLiveChat } from './live-chat.js';
@@ -44,26 +44,31 @@ export async function startUISync() {
     subscribeCloudProgress(progress);
     void startCloudSync().catch((error)=>console.error('[Cerebr] Cloud sync initialization failed',error));
     if (isDesktop) {
-        const unsubscribe = globalThis.cerebrDesktop.onMessage(
+        const desktop = globalThis.cerebrDesktop;
+        const unsubscribe = desktop.onMessage(
             (message) => void desktopClient?.receive(message)
         );
+        let receivedStatus = false;
+        const onStatus = (s) => {
+            desktopSyncStore.set(s);
+            updateDesktopBrowser(s);
+            if (!s.connected) progress({ reset: true });
+        };
+        desktop.onStatus((s) => {
+            receivedStatus = true;
+            onStatus(s);
+        });
+        desktop.onBrowserEvent(emitDesktopBrowserEvent);
         desktopClient = await createSyncClient({
-            db: await getDb(),
-            send: globalThis.cerebrDesktop.send,
+            withDatabase: withDb,
+            send: desktop.send,
             onStatus: (s) => desktopSyncStore.set(s),
             onProgress: progress,
             onLive: live,
         });
         desktopClient.start();
-        const status = await globalThis.cerebrDesktop.status();
-        desktopSyncStore.set(status);
-        updateDesktopBrowser(status);
-        globalThis.cerebrDesktop.onStatus((s) => {
-            desktopSyncStore.set(s);
-            updateDesktopBrowser(s);
-            if (!s.connected) progress({ reset: true });
-        });
-        globalThis.cerebrDesktop.onBrowserEvent(emitDesktopBrowserEvent);
+        const status = await desktop.status();
+        if (!receivedStatus) onStatus(status);
         return unsubscribe;
     }
     if (isExtensionEnvironment) {

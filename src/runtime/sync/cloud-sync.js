@@ -1,5 +1,5 @@
 import { createStore } from '../../app/state/store.js';
-import { getDb, storageAdapter, isExtensionEnvironment } from '../../utils/storage-adapter.js';
+import { withDb, storageAdapter, isExtensionEnvironment } from '../../utils/storage-adapter.js';
 import { createSyncClient } from './client.js';
 import { ensureApiReplica } from './api-settings.js';
 
@@ -145,9 +145,9 @@ async function connect() {
                 if (message.type === 'authenticated') {
                     authData.user = message.user;
                     await storageAdapter.set({ [AUTH]: authData });
-                    await ensureApiReplica();
+                    await withDb(ensureApiReplica);
                     client = await createSyncClient({
-                        db: await getDb(),
+                        withDatabase: withDb,
                         send,
                         onLive: emitLive,
                         onProgress: emitProgress,

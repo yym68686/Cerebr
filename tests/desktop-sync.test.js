@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, expect, it, vi } from 'vitest';
-import { IDBFactory } from 'fake-indexeddb';
+import { forceCloseDatabase, IDBFactory } from 'fake-indexeddb';
 import { SyncDatabase } from '../desktop/src/sync-database.ts';
 import {
     applyRemoteRecord,
@@ -13,6 +13,7 @@ import {
 } from '../src/runtime/sync/replica.js';
 import { createSyncClient } from '../src/runtime/sync/client.js';
 import { browserSummary } from '../src/runtime/sync/summary.js';
+import { getDb, withDb } from '../src/utils/storage-adapter.js';
 const databases = [];
 async function database() {
     const factory = new IDBFactory();
@@ -330,6 +331,53 @@ it('repairs a missed deletion on an open connection before verifying', async () 
         expect(status.localSummary).toEqual({ chats: 0, messages: 0 });
         expect(status.syncing).toBe(false);
     } finally { client.close(); server.close(); }
+});
+
+it('continues syncing on the same bridge after IndexedDB closes', async () => {
+    vi.stubGlobal('indexedDB', new IDBFactory());
+    const key = 'cerebr_chat_v2_reconnect';
+    const sent = [];
+    const status = {};
+    const initial = await getDb();
+    const client = await createSyncClient({
+        withDatabase: withDb,
+        send: (message) => sent.push(message),
+        onStatus: (patch) => Object.assign(status, patch),
+    });
+    const closeUnexpectedly = async (db) => {
+        const closed = new Promise((resolve) => db.addEventListener('close', resolve, { once: true }));
+        forceCloseDatabase(db);
+        await closed;
+    };
+    try {
+        await client.receive({ type: 'manifest', records: [] });
+        // Explicit close does not dispatch a close event. The next sync
+        // transaction must recover even if the cached handle is still present.
+        initial.close();
+        const incoming = {
+            key,
+            value: chat('reconnect', 'From Zen'),
+            deleted: false,
+            version: { clock: 1, actor: 'zen' },
+        };
+        await client.receive({ type: 'record', record: incoming });
+        const replacement = await getDb();
+        expect(replacement).not.toBe(initial);
+        expect(await read(replacement, key)).toEqual(incoming.value);
+
+        await closeUnexpectedly(replacement);
+        const reopened = await getDb();
+        expect(reopened).not.toBe(replacement);
+        await writeLocal(reopened, {}, [key]);
+        await client.flush();
+        expect(sent.find((message) => message.type === 'put')?.record).toMatchObject({ key, deleted: true });
+        await client.receive({ type: 'caught-up', id: sent.find((message) => message.type === 'barrier').id });
+        expect(status).toMatchObject({ connected: true, syncing: false, error: null });
+    } finally {
+        client.close();
+        await closeUnexpectedly(await getDb());
+        vi.unstubAllGlobals();
+    }
 });
 
 it('repairs a stale materialized chat when a known tombstone is replayed', async () => {

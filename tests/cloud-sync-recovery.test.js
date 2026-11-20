@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('../src/utils/storage-adapter.js', () => ({
     isExtensionEnvironment: false,
-    getDb: async () => ({}),
+    withDb: async (operation) => operation({}),
     storageAdapter: {
         get: async (key) => ({
             [key]:

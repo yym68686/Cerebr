@@ -13,13 +13,14 @@ import { browserSummary } from './summary.js';
 import { migrateCachedWebpageSources } from './webpage-sources.js';
 export async function createSyncClient({
     db,
+    withDatabase = (operation) => operation(db),
     send,
     onStatus = () => {},
     onProgress = () => {},
     onLive = () => {},
 }) {
-    await migrateCachedWebpageSources(db);
-    await seedReplica(db);
+    await withDatabase(migrateCachedWebpageSources);
+    await withDatabase(seedReplica);
     let ready = false,
         timer = 0,
         queue = Promise.resolve(),
@@ -61,20 +62,27 @@ export async function createSyncClient({
     };
     const transmit = async () => {
         if (!ready || stopped) return;
-        if (scan) {
-            scan = false;
-            for (const item of await replicaManifest(db))
-                if (compareVersions(item.version, acknowledged.get(item.key)) > 0) pending.add(item.key);
+        try {
+            if (scan) {
+                scan = false;
+                for (const item of await withDatabase(replicaManifest))
+                    if (compareVersions(item.version, acknowledged.get(item.key)) > 0) pending.add(item.key);
+            }
+            const keys = [...pending];
+            pending.clear();
+            for (const key of keys) {
+                const record = await withDatabase((db) => replicaRecord(db, key));
+                countRecord(record);
+                if (record && compareVersions(record.version, acknowledged.get(key)) > 0)
+                    send({ type: 'put', record });
+            }
+            send({ type: 'barrier', id: crypto.randomUUID() });
+        } catch (error) {
+            // Unsent revisions remain durable. Scan again after a failed batch
+            // so the next flush does not forget keys from this one.
+            scan = true;
+            throw error;
         }
-        const keys = [...pending];
-        pending.clear();
-        for (const key of keys) {
-            const record = await replicaRecord(db, key);
-            countRecord(record);
-            if (record && compareVersions(record.version, acknowledged.get(key)) > 0)
-                send({ type: 'put', record });
-        }
-        send({ type: 'barrier', id: crypto.randomUUID() });
     };
     const schedule = (keys) => {
         if (keys) keys.forEach((key) => pending.add(key));
@@ -96,7 +104,8 @@ export async function createSyncClient({
             // after a rejected record must not erase that error or claim success.
             syncError = null;
             onStatus({ syncing: true });
-            const local = new Map((await replicaManifest(db, { includeDirty: true, includeCounts: true })).map((r) => [r.key, r]));
+            const manifest = await withDatabase((db) => replicaManifest(db, { includeDirty: true, includeCounts: true }));
+            const local = new Map(manifest.map((r) => [r.key, r]));
             counted.clear();
             chats = messages = 0;
             countsChanged = true;
@@ -108,13 +117,13 @@ export async function createSyncClient({
                 const ours = local.get(remote.key);
                 if (!ours || compareVersions(remote.version, ours.version) > 0) needed.push(remote.key);
                 else if (compareVersions(remote.version, ours.version) < 0)
-                    send({ type: 'put', record: await replicaRecord(db, remote.key) });
+                    send({ type: 'put', record: await withDatabase((db) => replicaRecord(db, remote.key)) });
                 else if (remote.deleted)
-                    await applyRemoteRecord(db, { ...remote, value: null });
-                else if (ours.dirty) await acknowledgeRecord(db, remote);
+                    await withDatabase((db) => applyRemoteRecord(db, { ...remote, value: null }));
+                else if (ours.dirty) await withDatabase((db) => acknowledgeRecord(db, remote));
                 local.delete(remote.key);
             }
-            for (const key of local.keys()) send({ type: 'put', record: await replicaRecord(db, key) });
+            for (const key of local.keys()) send({ type: 'put', record: await withDatabase((db) => replicaRecord(db, key)) });
             ready = true;
             scan = false;
             send({ type: 'get', keys: needed, id: crypto.randomUUID() });
@@ -122,8 +131,8 @@ export async function createSyncClient({
             send({ type: 'barrier', id: reconciliationBarrier });
         } else if (message.type === 'record') {
             acknowledged.set(message.record.key, message.record.version);
-            const applied = await applyRemoteRecord(db, message.record);
-            const record = applied ? message.record : await replicaRecord(db, message.record.key);
+            const applied = await withDatabase((db) => applyRemoteRecord(db, message.record));
+            const record = applied ? message.record : await withDatabase((db) => replicaRecord(db, message.record.key));
             countRecord(record);
             if (!applied) send({ type: 'put', record });
         } else if (message.type === 'caught-up') {
@@ -152,7 +161,7 @@ export async function createSyncClient({
                 clearTimeout(check.timer);
                 try {
                     if (syncError) throw new Error(syncError);
-                    const local = await browserSummary(await replicaRecords(db));
+                    const local = await browserSummary(await withDatabase(replicaRecords));
                     const verification = {
                         local,
                         remote: message.summary,
@@ -203,8 +212,9 @@ export async function createSyncClient({
             return queue;
         },
         flush() {
-            queue = queue.then(transmit);
-            return queue;
+            const result = queue.then(transmit);
+            queue = result.catch(reportError);
+            return result;
         },
         async verify() {
             if (!ready || stopped) throw new Error('请先连接同步并等待首次同步完成。');

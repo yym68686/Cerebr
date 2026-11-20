@@ -1,4 +1,4 @@
-import { getDb, storageAdapter } from '../../utils/storage-adapter.js';
+import { withDb, storageAdapter } from '../../utils/storage-adapter.js';
 import { createSyncClient } from './client.js';
 import { SYNC_PORT } from './protocol.js';
 import { BROWSER_BRIDGE_VERSION } from './browser-protocol.js';
@@ -26,14 +26,17 @@ export function startExtensionSync({ browserRequest } = {}) {
         clearTimeout(retry);
         connecting = true;
         const config = (await chrome.storage.local.get(CONFIG))[CONFIG];
-        if (!code && !config?.token) {
+        if (stopped || (!code && !config?.token)) {
             connecting = false;
             return;
         }
         socket?.close();
         client?.close();
+        client = null;
+        clearInterval(heartbeat);
         const ws = new WebSocket(`ws://127.0.0.1:${SYNC_PORT}`);
         socket = ws;
+        const isCurrent = () => !stopped && socket === ws;
         let queue = Promise.resolve();
         ws.onopen = () =>
             ws.send(
@@ -44,6 +47,7 @@ export function startExtensionSync({ browserRequest } = {}) {
                 )
             );
         ws.onmessage = (event) => {
+            if (!isCurrent()) return;
             const immediate = JSON.parse(event.data);
             if (client && ['progress', 'live-chat'].includes(immediate.type)) {
                 void client.receive(immediate);
@@ -51,19 +55,20 @@ export function startExtensionSync({ browserRequest } = {}) {
             }
             queue = queue
                 .then(async () => {
-                    const message = JSON.parse(event.data);
+                    if (!isCurrent()) return;
+                    const message = immediate;
                     if (message.type === 'paired' || message.type === 'authenticated') {
                         if (message.token)
                             await chrome.storage.local.set({ [CONFIG]: { token: message.token } });
                         // Migrate navigation metadata through the established adapter.
                         await storageAdapter.get('cerebr_chat_organization_v1');
-                        await ensureApiReplica();
-                        client = await createSyncClient({
-                            db: await getDb(),
+                        await withDb(ensureApiReplica);
+                        const nextClient = await createSyncClient({
+                            withDatabase: withDb,
                             send: (m) => {
                                 if (ws.readyState === 1) ws.send(JSON.stringify(m));
                             },
-                            onStatus: publish,
+                            onStatus: (patch) => { if (isCurrent()) publish(patch); },
                             onProgress: (progress) => {
                                 if (progress.phase === 'idle') settleLiveChat(progress.chatId);
                                 void chrome.runtime
@@ -77,6 +82,11 @@ export function startExtensionSync({ browserRequest } = {}) {
                                     .catch(() => {});
                             },
                         });
+                        if (!isCurrent() || ws.readyState !== 1) {
+                            nextClient.close();
+                            return;
+                        }
+                        client = nextClient;
                         client.start();
                         if (browserRequest)
                             ws.send(
@@ -117,11 +127,20 @@ export function startExtensionSync({ browserRequest } = {}) {
                     } else if (message.type === 'error') publish({ error: message.error });
                     else await client?.receive(message);
                 })
-                .catch((error) => publish({ error: error.message }));
+                .catch((error) => {
+                    if (!isCurrent()) return;
+                    publish({ error: error.message });
+                    // An authenticated socket without a replica cannot become
+                    // ready. Reconnect using the stored pairing after onclose.
+                    if (immediate.type === 'paired' || immediate.type === 'authenticated') ws.close();
+                });
         };
-        ws.onerror = () => publish({ connected: false, error: null });
+        ws.onerror = () => {
+            if (socket === ws && !stopped) publish({ connected: false, error: null });
+        };
         ws.onclose = () => {
             if (socket !== ws) return;
+            socket = null;
             connecting = false;
             client?.close();
             client = null;
