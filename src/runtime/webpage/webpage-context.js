@@ -224,7 +224,7 @@ export async function getEnabledTabsContent(chatId = chatManager.currentChatId, 
             }
 
             return {
-                title: pageData.title,
+                title: (typeof pageData.title === 'string' && pageData.title.trim()) || tab.title,
                 url: tab.url,
                 ...(tab.sourceId ? { sourceId: tab.sourceId } : {}),
                 content,

@@ -1,6 +1,6 @@
-import { WEBPAGE_SOURCE_PREFIX } from './protocol.js';
+import { SYNC_RECORDS, WEBPAGE_SOURCE_PREFIX } from './protocol.js';
 import { replicaRecord, replicaRecordsWithPrefix, seedReplicaValues, writeLocal } from './replica.js';
-import { webpageCacheIdentity } from '../../utils/webpage-identity.js';
+import { webpageCacheIdentity, webpageTitle } from '../../utils/webpage-identity.js';
 
 export const LEGACY_WEBPAGE_CACHE_PREFIX = 'cerebr_webpage_cache_v1_';
 const migrations = new WeakMap();
@@ -63,6 +63,33 @@ export async function readCachedWebpageSources(db, chatId) {
         .filter((record) => !record.deleted && typeof record.value?.content === 'string')
         .map((record) => record.value)
         .sort((a, b) => (a.addedAt || a.updatedAt || 0) - (b.addedAt || b.updatedAt || 0) || a.url.localeCompare(b.url));
+}
+
+export function readCachedWebpageTitles(db) {
+    // Only scan webpage records, and retain one small summary per conversation.
+    // Don't load all the cached page bodies into memory or rewrite old chats.
+    const range = IDBKeyRange.bound(WEBPAGE_SOURCE_PREFIX, WEBPAGE_SOURCE_PREFIX + '\uffff');
+    const request = db.transaction(SYNC_RECORDS).objectStore(SYNC_RECORDS).openCursor(range);
+    const titles = new Map();
+    return new Promise((resolve, reject) => {
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+            const cursor = request.result;
+            if (!cursor) return resolve(titles);
+            const chatId = webpageSourceChatId(cursor.key);
+            if (chatId) {
+                const { deleted, value: page } = cursor.value;
+                const title = !deleted && webpageTitle(page);
+                if (title) {
+                    const addedAt = Number(page.addedAt || page.updatedAt) || 0;
+                    const current = titles.get(chatId);
+                    if (!current || addedAt < current.addedAt)
+                        titles.set(chatId, { title, addedAt });
+                }
+            }
+            cursor.continue();
+        };
+    });
 }
 
 export async function readWebpageSourceRecord(db, chatId, url) {

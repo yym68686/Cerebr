@@ -9,12 +9,14 @@ import {
     useSyncExternalStore,
 } from 'react';
 import { chatManager } from '../../domain/chat/chat-store.js';
+import { displayChatTitle } from '../../domain/chat/chat-title.js';
 import { chatOrganization, orderChatIds } from '../../domain/chat/chat-organization.js';
 import { t } from '../../utils/i18n.js';
 import { notify, uiStore } from '../state/ui-store.js';
 import { pluginUiStore } from '../../runtime/ui/plugin-ui-store.js';
 import { useProgressiveCount } from '../hooks/useProgressiveCount.js';
 import { useChatReorder } from '../hooks/useChatReorder.js';
+import { useLegacyChatTitles } from '../hooks/useLegacyChatTitles.js';
 import { Icon } from './Icon.jsx';
 import { NavigationDialog, NavigationMenu } from './NavigationOverlays.jsx';
 import { storageAdapter } from '../../utils/storage-adapter.js';
@@ -292,6 +294,7 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
     }, [wide, visible]);
     useEffect(() => () => clearTimeout(longPress.current), []);
     const chats = useMemo(() => (loaded ? chatManager.getAllChats() : []), [loaded, version]);
+    const cachedPageTitles = useLegacyChatTitles(loaded, chatManager.chats);
     const orderedChats = useMemo(() => {
         const byId = new Map(chats.map((chat) => [chat.id, chat]));
         return orderChatIds([...byId.keys()], organization.chatOrder).map((id) => byId.get(id));
@@ -305,11 +308,12 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
         const byFolder = new Map(organization.folders.map((folder) => [folder.id, []]));
         const unfiled = [];
         for (const chat of orderedChats) {
+            const title = displayChatTitle(chat, cachedPageTitles.get(chat.id));
             const folderId = organization.assignments[chat.id],
                 folder = folderById.get(folderId);
             const matches =
                 !query ||
-                `${chat.title}\n${folder?.name || ''}`.toLowerCase().includes(query) ||
+                `${title}\n${folder?.name || ''}`.toLowerCase().includes(query) ||
                 chat.messages?.some((message) =>
                     (typeof message.content === 'string'
                         ? message.content
@@ -322,7 +326,7 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
                         .includes(query)
                 );
             if (!matches) continue;
-            (byFolder.get(folderId) || unfiled).push(chat);
+            (byFolder.get(folderId) || unfiled).push(title === chat.title ? chat : { ...chat, title });
         }
         const rows = [];
         for (const folder of organization.folders) {
@@ -339,7 +343,7 @@ export function ChatNavigation({ wide, open, session, onClose, onNavigate }) {
             rows.push({ kind: 'label', id: 'unfiled' });
         for (const chat of unfiled) rows.push({ kind: 'chat', id: chat.id, chat });
         return rows;
-    }, [orderedChats, organization, query, folderById, loaded]);
+    }, [orderedChats, organization, query, folderById, loaded, cachedPageTitles]);
     const count = useProgressiveCount(`${query}:${organization.chatsCollapsed}`, entries.length, 50);
     const reorder = useChatReorder({
         listRef,

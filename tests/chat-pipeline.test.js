@@ -86,9 +86,55 @@ describe('React chat session pipeline', () => {
         if (reason === 'stop') await pipeline.abortActiveReply();
         expect(await request).toBe(false);
         expect(chat.messages).toHaveLength(0);
+        expect(chat.title).toBe('');
         expect(pending.rollback).toHaveBeenCalledOnce();
         expect(pending.commit).not.toHaveBeenCalled();
         errors.mockRestore();
+    });
+
+    it('names a chat from the current usable webpage and keeps that title on later questions', async () => {
+        let pages = [
+            { title: 'Other source', content: 'Body' },
+            { title: '  Current article  ', content: 'Article body', isCurrent: true },
+        ];
+        const { pipeline, chat } = setup({}, async () => ({ pages }));
+        callAPI.mockReset().mockResolvedValue({ controller: new AbortController(), processStream: async () => ({ content: 'answer' }) });
+        expect(await pipeline.sendMessage()).toBe(true);
+        expect(chat).toMatchObject({ title: 'Current article', titleSource: 'webpage' });
+        pages = [{ title: 'Later article', content: 'Body', isCurrent: true }];
+        await pipeline.sendMessage();
+        expect(chat.title).toBe('Current article');
+    });
+
+    it('uses the first question until a request actually includes a webpage; preserves manual titles', async () => {
+        const pages = [{ title: 'Article', content: 'Body' }];
+        let withoutPage = true;
+        const { pipeline, chat, editor } = setup({
+            runBeforeSend: async ({ webpageInfo }) => ({ payload: { webpageInfo: withoutPage ? null : webpageInfo } }),
+        }, async () => ({ pages }));
+        callAPI.mockReset().mockResolvedValue({ controller: new AbortController(), processStream: async () => ({ content: 'answer' }) });
+        await pipeline.sendMessage();
+        editor.getDraftSnapshot = () => ({ text: 'second question', imageTags: [], empty: false });
+        await pipeline.sendMessage();
+        expect(chat).toMatchObject({ title: 'hello', titleSource: 'question' });
+        withoutPage = false;
+        await pipeline.sendMessage();
+        expect(chat).toMatchObject({ title: 'Article', titleSource: 'webpage' });
+
+        Object.assign(chat, { title: 'My title', titleSource: 'manual' });
+        await pipeline.sendMessage();
+        expect(chat).toMatchObject({ title: 'My title', titleSource: 'manual' });
+    });
+
+    it('does not name a chat from an empty page and can name it from context when regenerating', async () => {
+        let pages = [{ title: 'Empty page', content: '  ', isCurrent: true }];
+        const { pipeline, chat } = setup({}, async () => ({ pages }));
+        callAPI.mockReset().mockResolvedValue({ controller: new AbortController(), processStream: async () => ({ content: 'answer' }) });
+        await pipeline.sendMessage();
+        expect(chat).toMatchObject({ title: 'hello', titleSource: 'question' });
+        pages = [...pages, { title: 'Available article', content: 'Body' }];
+        await pipeline.regenerateMessage(0);
+        expect(chat).toMatchObject({ title: 'Available article', titleSource: 'webpage' });
     });
 
     it('sends a discovered model without a configured model name and pins the conversation to it', async () => {

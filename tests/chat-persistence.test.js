@@ -24,6 +24,14 @@ vi.mock('../src/utils/default-chat.js', () => ({
 }));
 import { ChatManager, chatManager } from '../src/domain/chat/chat-store.js';
 describe('chat persistence under idle scheduling', () => {
+    it('persists an explicit rename even if the text matches the automatic title', async () => {
+        const manager = new ChatManager();
+        await manager.initialize();
+        const chat = manager.createChat({ title: 'Same title', messages: [{ role: 'user', content: 'Same title' }] });
+        manager.renameChat(chat.id, 'Same title');
+        await manager.flushNow();
+        expect(memory.get(`cerebr_chat_v2_${chat.id}`)).toMatchObject({ title: 'Same title', titleSource: 'manual' });
+    });
     it('persists a background question without consuming the newer blank draft', async () => {
         const manager = new ChatManager();
         await manager.initialize();

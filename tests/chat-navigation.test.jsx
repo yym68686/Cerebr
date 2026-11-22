@@ -1,8 +1,13 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
-const data = vi.hoisted(() => ({ memory: {}, chats: [], revision: 0, listeners: new Set() }));
+import { IDBKeyRange } from 'fake-indexeddb';
+import { createTestSyncDatabase } from './helpers/sync-database.js';
+import { applyRemoteRecord, writeLocal } from '../src/runtime/sync/replica.js';
+import { WEBPAGE_SOURCE_PREFIX } from '../src/runtime/sync/protocol.js';
+const data = vi.hoisted(() => ({ memory: {}, chats: [], revision: 0, listeners: new Set(), db: null }));
 vi.mock('../src/utils/storage-adapter.js', () => ({
+    withDb: async (operation) => data.db ? operation(data.db) : new Map(),
     storageAdapter: {
         get: async (key) => ({ [key]: structuredClone(data.memory[key]) }),
         set: async (values) => Object.assign(data.memory, structuredClone(values)),
@@ -19,6 +24,7 @@ vi.mock('../src/domain/chat/chat-store.js', () => ({
         },
         getSnapshot: () => data.revision,
         getAllChats: () => data.chats,
+        chats: { has: (id) => data.chats.some((chat) => chat.id === id), get: (id) => data.chats.find((chat) => chat.id === id) },
         renameChat: vi.fn(),
         flushNow: async () => {},
     },
@@ -31,7 +37,9 @@ import { uiStore } from '../src/app/state/ui-store.js';
 import { chatManager } from '../src/domain/chat/chat-store.js';
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 let root, host, session, close, navigate;
-const tick = () => act(async () => vi.advanceTimersByTimeAsync(40));
+const tick = () => act(async () => vi.isFakeTimers()
+    ? vi.advanceTimersByTimeAsync(40)
+    : new Promise(resolve => setTimeout(resolve, 40)));
 const render = async (wide = true, open = false) => {
     await act(async () =>
         root.render(
@@ -75,8 +83,11 @@ beforeEach(async () => {
 });
 afterEach(async () => {
     await act(async () => root.unmount());
+    data.db?.close();
+    data.db = null;
+    vi.unstubAllGlobals();
     host.remove();
-    vi.clearAllTimers();
+    if (vi.isFakeTimers()) vi.clearAllTimers();
     vi.useRealTimers();
     vi.restoreAllMocks();
     delete document.elementFromPoint;
@@ -261,6 +272,46 @@ it('searches message content and restores the full list when search closes', asy
     expect(host.querySelector('[data-chat-id="b"]')).not.toBeNull();
     await click(button('chat_clear_search_aria'));
     expect(host.querySelectorAll('[data-chat-id]')).toHaveLength(2);
+});
+it('distinguishes old webpage chats with identical questions and follows synced source changes', async () => {
+    vi.useRealTimers();
+    vi.stubGlobal('IDBKeyRange', IDBKeyRange);
+    data.db = await createTestSyncDatabase();
+    const question = 'What do people think?';
+    const history = { title: question, messages: [{ role: 'user', content: question }], lastUserMessageAt: new Date(2000).toISOString() };
+    data.chats = [
+        { id: 'a', ...history }, { id: 'b', ...history }, { id: 'c', ...history },
+        { id: 'd', ...history, title: 'Custom title' }, { id: 'e', ...history },
+    ];
+    const keyA = `${WEBPAGE_SOURCE_PREFIX}a:article`;
+    await writeLocal(data.db, {
+        [keyA]: { title: 'First article', content: 'Body', addedAt: 1000 },
+        [`${WEBPAGE_SOURCE_PREFIX}a:later`]: { title: 'Later webpage', content: 'Body', addedAt: 2500 },
+        [`${WEBPAGE_SOURCE_PREFIX}b:article`]: { title: 'Second article', content: 'Body', addedAt: 1100 },
+        [`${WEBPAGE_SOURCE_PREFIX}c:unread`]: { title: 'Only selected' },
+        [`${WEBPAGE_SOURCE_PREFIX}d:article`]: { title: 'Must not overwrite', content: 'Body', addedAt: 1100 },
+        [`${WEBPAGE_SOURCE_PREFIX}e:article`]: { title: 'Cached after the question', content: 'Body', addedAt: 2500 },
+    });
+    const label = (id) => host.querySelector(`[data-chat-id="${id}"] .navigation-item-label`)?.textContent;
+    await render();
+    await vi.waitFor(async () => { await tick(); expect(label('a')).toBe('First article'); });
+    expect(label('b')).toBe('Second article');
+    expect(label('c')).toBe(question);
+    expect(label('d')).toBe('Custom title');
+    expect(label('e')).toBe(question);
+    expect(data.chats[0].title).toBe(question); // no mass rewrite of old chats
+
+    await click(button('nav_search_chats'));
+    await textInput('.navigation-search input', 'second article');
+    await tick();
+    expect(host.querySelectorAll('[data-chat-id]')).toHaveLength(1);
+    expect(label('b')).toBe('Second article');
+    await click(button('chat_clear_search_aria'));
+
+    await act(async () => {
+        await applyRemoteRecord(data.db, { key: keyA, deleted: true, version: { actor: 'remote', clock: Date.now() + 100 } });
+    });
+    await vi.waitFor(async () => { await tick(); expect(label('a')).toBe(question); });
 });
 it('supports keyboard context menus without activating or deleting a chat', async () => {
     await render();

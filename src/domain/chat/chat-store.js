@@ -528,11 +528,12 @@ export class ChatManager {
             throw new Error('对话不存在');
         }
 
-        if (chat.title === normalizedTitle) {
+        if (chat.title === normalizedTitle && chat.titleSource === 'manual') {
             return chat;
         }
 
         chat.title = normalizedTitle;
+        chat.titleSource = 'manual';
         if (chat.kind === DEFAULT_CHAT_KIND) {
             chat.titleLocaleBound = false;
         }

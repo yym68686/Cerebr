@@ -19,3 +19,9 @@ export function webpageCacheIdentity(value) {
     const identity = key.slice(WEBPAGE_PREFERENCE_PREFIX.length);
     return page?.sourceId ? JSON.stringify([identity, page.sourceId]) : identity;
 }
+
+export function webpageTitle(page) {
+    return typeof page?.content === 'string' && /\S/u.test(page.content) && typeof page.title === 'string'
+        ? page.title.trim()
+        : '';
+}

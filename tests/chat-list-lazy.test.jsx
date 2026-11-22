@@ -16,11 +16,15 @@ const { memory, bulk } = vi.hoisted(() => {
     memory.set('cerebr_current_chat_id', 'c3');
     let release;
     const gate = new Promise((resolve) => (release = resolve));
-    return { memory, bulk: { reads: 0, gate, release: () => release() } };
+    return { memory, bulk: { reads: 0, titleReads: 0, gate, release: () => release() } };
 });
 vi.mock('../src/utils/storage-adapter.js', () => ({
     isExtensionEnvironment: false,
     browserAdapter: {},
+    withDb: async () => {
+        bulk.titleReads += 1;
+        return new Map();
+    },
     storageAdapter: {
         get: async (keys) => {
             const list = Array.isArray(keys) ? keys : [keys];
@@ -71,9 +75,11 @@ it('其余对话补齐前不列出也不显示空状态，打开列表时触发�
 
     await render(false);
     expect(bulk.reads).toBe(0);
+    expect(bulk.titleReads).toBe(0);
 
     await render(true);
     expect(bulk.reads).toBe(1);
+    expect(bulk.titleReads).toBe(0);
     expect(host.querySelectorAll('[data-chat-id]')).toHaveLength(0);
     expect(host.querySelector('.navigation-folder-empty')).toBeNull();
 
@@ -87,6 +93,7 @@ it('其余对话补齐前不列出也不显示空状态，打开列表时触发�
     expect(host.querySelector('.navigation-item.is-active').dataset.chatId).toBe('c3');
     expect(host.querySelector('.navigation-folder-empty')).toBeNull();
     expect(bulk.reads).toBe(1);
+    expect(bulk.titleReads).toBe(1);
 
     await act(async () => root.unmount());
     host.remove();

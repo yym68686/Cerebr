@@ -3,6 +3,7 @@ import { composeDraftMessage } from '../input/draft-message.js';
 import { showToast } from '../../utils/ui.js';
 import { t } from '../../utils/i18n.js';
 import { createChatError, isAbortError, normalizeChatError } from './chat-errors.js';
+import { updateTitleForQuestion } from '../../domain/chat/chat-title.js';
 
 function cloneMessage(message) {
     if (!message || typeof message !== 'object') return message;
@@ -388,9 +389,12 @@ function createConversationPipeline({
                 chat.modelSelection = { configId: config.id, modelName: config.modelName };
                 chatManager.markChatDirty(chat.id);
             }
+            const firstQuestionTitle = mode === 'send' && !chat.messages.length
+                ? draft.text || draft.textFiles?.[0]?.name || t('label_image')
+                : '';
+            updateTitleForQuestion(chat, payload.webpageInfo, firstQuestionTitle);
             if (mode === 'send') {
                 const userMessage = resolveUserMessage(payload, initial);
-                if (!chat.messages.length) chat.title = draft.text || draft.textFiles?.[0]?.name || t('label_image');
                 await chatManager.addMessageToChat(chat.id, userMessage);
                 submitted = true;
                 pendingSubmission?.commit();
