@@ -21,6 +21,30 @@ function render(markdown) {
     return container;
 }
 
+it.each(['52!', '0!', '7!!', '52 !', 'N!'])('recognizes a standalone factorial formula: %s', (factorial) => {
+    const unfinished = `所有可能的排列组合数是 $${factorial}`;
+    expect(textMayContainMath(unfinished)).toBe(false);
+    const source = `${unfinished}$（阶乘）。`;
+    expect(textMayContainMath(source)).toBe(true);
+    expect(render(source).textContent.trim()).toBe(`所有可能的排列组合数是 \\(${factorial}\\)（阶乘）。`);
+});
+
+it('renders the reported factorial alongside scientific notation in the same paragraph', () => {
+    const source = String.raw`所有可能的排列组合数是 $52!$（52的阶乘），大约是 $8.06 \times 10^{67}$。`;
+    expect(render(source).textContent.trim()).toBe(
+        String.raw`所有可能的排列组合数是 \(52!\)（52的阶乘），大约是 \(8.06 \times 10^{67}\)。`
+    );
+});
+
+it('keeps literal factorials, code and exclaimed prices out of math detection', () => {
+    const source = '只要 $52! 现在是 $100！' + '\n' + String.raw`\$52!\$` + ' `$52!$`\n\n```text\n$52!$\n```';
+    expect(textMayContainMath(source)).toBe(false);
+    const container = render(source);
+    expect(container.textContent).toContain('只要 $52! 现在是 $100！');
+    expect(container.textContent).toContain('$52!$');
+    expect([...container.querySelectorAll('code')].map((el) => el.textContent)).toEqual(['$52!$', '$52!$']);
+});
+
 it.each(['50%', '99.999999999999999999999999999999%', String.raw`50\%`])(
     'recognizes a percentage formula inside bold Chinese text: %s', (percentage) => {
         const source = `我有 **$${percentage}$ 的概率**。`;
