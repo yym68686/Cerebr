@@ -1,3 +1,5 @@
+import { getSelectedMath } from './math-selection.js';
+
 export function getMathSource(container) {
     if (!container) return '';
     const tex =
@@ -24,14 +26,24 @@ export function getMathSource(container) {
 export function copyChatSelection(event) {
     const selection = window.getSelection();
     const root = event.currentTarget;
-    if (!event.clipboardData || !selection?.rangeCount || !selection.toString().trim()) return;
+    if (!event.clipboardData || !selection?.rangeCount || selection.isCollapsed) return;
     if (!root.contains(selection.anchorNode) || !root.contains(selection.focusNode)) return;
     const copy = document.createElement('div');
-    copy.append(selection.getRangeAt(0).cloneContents());
-    copy.querySelectorAll('mjx-container').forEach((container) => {
-        const math = container.querySelector('mjx-assistive-mml math');
-        if (math) container.replaceWith(math.cloneNode(true));
-    });
+    if (!selection.toString().trim()) {
+        // A formula-only selection can contain no native selectable text.
+        for (const container of getSelectedMath(root, selection)) {
+            const math = container.querySelector('mjx-assistive-mml math');
+            if (math) copy.append(math.cloneNode(true));
+            else copy.append(getMathSource(container));
+        }
+        if (!copy.textContent) return;
+    } else {
+        copy.append(selection.getRangeAt(0).cloneContents());
+        copy.querySelectorAll('mjx-container').forEach((container) => {
+            const math = container.querySelector('mjx-assistive-mml math');
+            if (math) container.replaceWith(math.cloneNode(true));
+        });
+    }
     event.preventDefault();
     event.clipboardData.setData('text/html', copy.innerHTML);
     event.clipboardData.setData('text/plain', copy.textContent);

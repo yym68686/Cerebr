@@ -10,6 +10,7 @@ import { ComposerControls } from './components/ComposerControls.jsx';
 import { applyThemePreference } from '../utils/theme.js';
 import { getMathSource, copyChatSelection } from '../render/message/message-clipboard.js';
 import { installCodeBlockDelegation } from '../render/message/markdown-enhancements.js';
+import { attachMathSelection } from '../render/message/math-selection.js';
 import { createSession } from './session.js';
 import { uiStore, openPage } from './state/ui-store.js';
 import { pluginUiStore } from '../runtime/ui/plugin-ui-store.js';
@@ -82,7 +83,9 @@ export function App() {
         setSession(next);
         // 代码块的 hover/复制走容器级事件委托，只注册一次，不随消息数量增长。
         installCodeBlockDelegation(chatRef.current);
+        const detachMathSelection = attachMathSelection(chatRef.current);
         return () => {
+            detachMathSelection();
             next.dispose();
             sessionRef.current = null;
         };

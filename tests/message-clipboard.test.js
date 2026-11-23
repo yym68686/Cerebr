@@ -32,6 +32,20 @@ it('copies a selected formula once as clean MathML instead of duplicated visual 
     expect(event.clipboardData.setData).toHaveBeenCalledWith('text/plain', 'Formula x');
     expect(event.clipboardData.setData.mock.calls[0][1]).not.toContain('mjx-container');
 });
+it('copies MathML when only the CSS-rendered glyphs of a formula are selected', () => {
+    const root = document.createElement('div');
+    root.innerHTML =
+        '<mjx-container><mjx-math><mjx-c></mjx-c></mjx-math><mjx-assistive-mml><math><mi>x</mi></math></mjx-assistive-mml></mjx-container>';
+    document.body.append(root);
+    const selection = window.getSelection();
+    selection.selectAllChildren(root.querySelector('mjx-math'));
+    expect(selection.toString()).toBe('');
+    const event = { currentTarget: root, preventDefault: vi.fn(), clipboardData: { setData: vi.fn() } };
+    copyChatSelection(event);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(event.clipboardData.setData).toHaveBeenCalledWith('text/plain', 'x');
+    expect(event.clipboardData.setData).toHaveBeenCalledWith('text/html', '<math><mi>x</mi></math>');
+});
 it('starts image clipboard writing before the image fetch resolves', async () => {
     let finish;
     const body = new Blob(['png'], { type: 'image/png' });

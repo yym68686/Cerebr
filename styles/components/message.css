@@ -73,6 +73,20 @@
     margin-top: 0.5em;
 }
 
+/* MathJax CHTML draws glyphs with pseudo-elements, which native text selection
+   doesn't paint. Treat a formula as one selection unit and paint its visible
+   math box, not the full-width block or its hidden accessibility markup. */
+#chat-container .message ::selection,
+#chat-container .message mjx-container[data-cerebr-math-selected] > mjx-math {
+    background-color: Highlight;
+    color: HighlightText;
+}
+
+#chat-container .message mjx-container {
+    -webkit-user-select: all;
+    user-select: all;
+}
+
 /* The scrollable table box can be wider than its intrinsic cell grid in Chromium.
    Cell borders already draw the table frame, so a border on the outer box looks doubled. */
 .message table {
