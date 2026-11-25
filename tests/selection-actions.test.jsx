@@ -20,23 +20,24 @@ import {
     loadSelectionSettings,
 } from '../src/runtime/selection/selection-store.js';
 import { readTextSelection } from '../src/runtime/selection/watch-selection.js';
+import { attachMathSelection } from '../src/render/message/math-selection.js';
 let root, host, passage, add, send;
 const surface = () => host.querySelector('[data-selection-actions]')?.shadowRoot;
 const scope = () => document.querySelector('#passage');
 const tick = () => act(async () => vi.advanceTimersByTimeAsync(40));
-const select = async () => {
+const select = async (node = passage) => {
     await act(async () => {
         const range = document.createRange();
-        range.selectNodeContents(passage);
+        range.selectNodeContents(node);
         window.getSelection().removeAllRanges();
         window.getSelection().addRange(range);
         document.dispatchEvent(new Event('selectionchange'));
         await vi.advanceTimersByTimeAsync(200);
     });
 };
-const render = async (page = false) => {
+const render = async (page = false, highlightMath = false) => {
     await act(async () =>
-        root.render(<SelectionActions scope={scope} page={page} onAdd={add} onSend={send} />)
+        root.render(<SelectionActions scope={scope} page={page} highlightMath={highlightMath} onAdd={add} onSend={send} />)
     );
     await tick();
 };
@@ -168,6 +169,49 @@ it.each([false, true])('preserves the passage while typing and clears it on subm
     window.dispatchEvent(new Event('scroll'));
     await act(async () => vi.advanceTimersByTimeAsync(250));
     expect(host.querySelector('[data-selection-actions]')).toBeNull();
+});
+it.each([true, false])('keeps the selected formulas highlighted while the toolbar takes focus (CSS highlights=%s)', async (supportsHighlights) => {
+    const highlights = new Map();
+    vi.stubGlobal('CSS', supportsHighlights ? { highlights } : {});
+    vi.stubGlobal('Highlight', supportsHighlights ? class extends Set {
+        constructor(...ranges) { super(ranges); }
+    } : undefined);
+    passage.innerHTML = '<p>Some text <mjx-container id="selected-formula"><mjx-math></mjx-math></mjx-container> here.</p>' +
+        '<p><mjx-container id="unselected-formula"><mjx-math></mjx-math></mjx-container></p>';
+    const detach = attachMathSelection(passage);
+    try {
+        await render(false, true);
+        await select(passage.firstChild);
+        const formula = passage.querySelector('#selected-formula');
+        const name = formula.getAttribute('data-cerebr-math-passage');
+        expect(name).toBeTruthy();
+        expect(formula.hasAttribute('data-cerebr-math-selected')).toBe(true);
+        expect(passage.querySelector('#unselected-formula').hasAttribute('data-cerebr-math-passage')).toBe(false);
+        const style = [...document.head.querySelectorAll('style')].find((el) => el.textContent.includes(name));
+        expect(style?.textContent).toContain(`mjx-container[data-cerebr-math-passage="${name}"] > mjx-math`);
+        expect(highlights.has(name)).toBe(supportsHighlights);
+
+        const input = surface().querySelector('[aria-label=selection_follow_up]');
+        await act(async () => {
+            input.focus();
+            window.getSelection().removeAllRanges();
+            document.dispatchEvent(new Event('selectionchange'));
+        });
+        await fill('[aria-label=selection_follow_up]', 'What does this mean?');
+        expect(formula.hasAttribute('data-cerebr-math-selected')).toBe(false);
+        expect(formula.getAttribute('data-cerebr-math-passage')).toBe(name);
+        expect(style.isConnected).toBe(true);
+
+        await act(async () =>
+            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true }))
+        );
+        expect(surface()).toBeUndefined();
+        expect(formula.hasAttribute('data-cerebr-math-passage')).toBe(false);
+        expect(style.isConnected).toBe(false);
+        expect(highlights.size).toBe(0);
+    } finally {
+        detach();
+    }
 });
 it('saves a named icon/prompt action, reloads it and sends it with the selected text', async () => {
     await render();

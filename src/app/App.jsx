@@ -316,6 +316,7 @@ export function App() {
             <SelectionActions
                 key={chat?.id}
                 scope={selectionScope}
+                highlightMath
                 disabled={!session || !!ui.page || navigationCoversChat || shared.pending}
                 onAdd={(text) => {
                     session.editor.addQuote(text);

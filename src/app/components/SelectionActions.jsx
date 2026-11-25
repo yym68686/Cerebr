@@ -38,7 +38,7 @@ import {
     ACTION_ICONS,
 } from '../../runtime/selection/selection-store.js';
 
-export function SelectionActions({ scope, page = false, disabled = false, onAdd, onSend }) {
+export function SelectionActions({ scope, page = false, disabled = false, highlightMath = false, onAdd, onSend }) {
     const settings = useSyncExternalStore(selectionStore.subscribe, selectionStore.getSnapshot);
     const [selection, setSelection] = useState(null);
     const [customize, setCustomize] = useState(false);
@@ -74,8 +74,8 @@ export function SelectionActions({ scope, page = false, disabled = false, onAdd,
         });
     }, [enabled, scope, page]);
     useLayoutEffect(() => {
-        if (enabled && selection?.range) return highlightPassage(selection.range);
-    }, [enabled, selection]);
+        if (enabled && selection?.range) return highlightPassage(selection.range, highlightMath ? scope() : null);
+    }, [enabled, selection, highlightMath, scope]);
     useLayoutEffect(() => {
         if (!selection || !root.current) return;
         const place = () => {
