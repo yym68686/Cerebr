@@ -46,6 +46,20 @@ async function cache(name, receipt) {
     return folder;
 }
 const cleanup = (options = {}) => cleanupUpdateCaches({ base, currentVersion, ...options });
+const legacyTime = new Date('2026-01-01T00:00:00Z');
+const cleanupTime = new Date('2026-01-20T00:00:00Z').getTime();
+async function remnant(folder, { unpacked = false, createArchive } = {}) {
+    const bundle = path.join(folder, ...(unpacked ? ['unpacked', 'Cerebr.app'] : ['Cerebr.app']));
+    const contents = path.join(bundle, 'Contents');
+    const resources = path.join(contents, 'Resources');
+    const asar = path.join(resources, 'app.asar');
+    await mkdir(resources, { recursive: true });
+    if (createArchive) await createArchive(asar);
+    else await writeFile(asar, 'old archive');
+    for (const entry of [folder, ...(unpacked ? [path.dirname(bundle)] : []), bundle, contents, resources, asar])
+        await utimes(entry, legacyTime, legacyTime);
+    return { folder, bundle, resources, asar };
+}
 
 it.skipIf(process.platform !== 'darwin')(
     'cleans real packaged app.asar files with Electron filesystem hooks active',
@@ -68,8 +82,13 @@ it.skipIf(process.platform !== 'darwin')(
         await createPackage(source, obsoleteAsar);
         await copyFile(obsoleteAsar, pendingAsar);
         await copyFile(obsoleteAsar, stagedAsar);
-        const options = { base, currentVersion, keep: [pending] };
-        const stageOptions = { application, profile, currentVersion };
+        const createArchive = (asar) => copyFile(obsoleteAsar, asar);
+        const legacyCache = await remnant(path.join(base, 'download-Asar01'), { unpacked: true, createArchive });
+        const legacyStage = await remnant(path.join(path.dirname(application), '.Cerebr-update-Asar02'), {
+            createArchive,
+        });
+        const options = { base, currentVersion, keep: [pending], now: cleanupTime };
+        const stageOptions = { application, profile, currentVersion, now: cleanupTime };
 
         await promisify(execFile)(
             electron,
@@ -99,6 +118,8 @@ it.skipIf(process.platform !== 'darwin')(
 
         expect(await exists(obsolete)).toBe(false);
         expect(await exists(staging)).toBe(false);
+        expect(await exists(legacyCache.folder)).toBe(false);
+        expect(await exists(legacyStage.folder)).toBe(false);
         expect(await exists(path.join(pending, 'unpacked'))).toBe(false);
         expect(await readdir(pending)).toEqual(['Cerebr-darwin-arm64-2.6.26.zip']);
         expect(await exists(application)).toBe(true);
@@ -164,6 +185,20 @@ describe('update cache lifecycle', () => {
         expect(await exists(old)).toBe(false);
         expect(await exists(recent)).toBe(true);
         expect(await exists(unknown)).toBe(true);
+    });
+    it('clears ASAR-only legacy caches without touching active downloads, new writes or unexpected files', async () => {
+        const fixture = (name) => remnant(path.join(base, `download-${name}`), { unpacked: true });
+        const stale = await fixture('Stale1');
+        const active = await fixture('Active');
+        const startup = await fixture('Start1');
+        const recent = await fixture('Recent');
+        const extra = await fixture('Extra1');
+        await utimes(recent.asar, new Date(cleanupTime), new Date(cleanupTime));
+        await writeFile(path.join(extra.resources, 'keep-me'), 'not part of the remnant');
+        await utimes(extra.resources, legacyTime, legacyTime);
+        await cleanup({ now: cleanupTime, keep: [active.folder], startupId: path.basename(startup.folder) });
+        expect(await exists(stale.folder)).toBe(false);
+        for (const { asar } of [active, startup, recent, extra]) expect(await exists(asar)).toBe(true);
     });
     it('rejects path traversal and refuses symlinked roots, directories and startup receipts', async () => {
         const outside = path.join(temporary, 'outside');
@@ -246,6 +281,42 @@ describe('macOS same-volume staging lifecycle', () => {
         await cleanStages();
         expect(await exists(old)).toBe(false);
         for (const folder of [current, future, foreign, rollback]) expect(await exists(folder)).toBe(true);
+    });
+    it('removes only abandoned ASAR-only legacy stages, without opening a missing Info.plist', async () => {
+        const parent = path.dirname(application);
+        const fixture = (name) => remnant(path.join(parent, `.Cerebr-update-${name}`));
+        const stale = await fixture('Stale1');
+        const active = await fixture('Active');
+        const backup = await fixture('Backup');
+        const recent = await fixture('Recent');
+        const extra = await fixture('Extra1');
+        const foreign = await fixture('Other1');
+        await mkdir(path.join(backup.folder, 'previous.app'));
+        await writeFile(path.join(extra.resources, 'keep-me'), 'not part of the remnant');
+        await writeFile(path.join(foreign.folder, 'owner.json'), JSON.stringify({ profile: '/another/profile' }));
+        await utimes(recent.resources, new Date(cleanupTime), new Date(cleanupTime));
+        for (const directory of [backup.folder, extra.resources, foreign.folder])
+            await utimes(directory, legacyTime, legacyTime);
+
+        const outside = await remnant(path.join(temporary, 'outside'));
+        const linked = await fixture('Link01');
+        await rm(linked.resources, { recursive: true });
+        await symlink(outside.resources, linked.resources, 'dir');
+        await utimes(path.dirname(linked.resources), legacyTime, legacyTime);
+        const linkedFile = await fixture('Link02');
+        await rm(linkedFile.asar);
+        await symlink(outside.asar, linkedFile.asar);
+        await utimes(linkedFile.resources, legacyTime, legacyTime);
+
+        const onError = vi.fn();
+        const readBundleInfo = vi.fn();
+        await cleanStages({ now: cleanupTime, keep: [active.folder], onError, readBundleInfo });
+        expect(await exists(stale.folder)).toBe(false);
+        for (const { asar } of [active, backup, recent, extra, foreign, outside, linked, linkedFile])
+            expect(await readFile(asar, 'utf8')).toBe('old archive');
+        expect(await exists(application)).toBe(true);
+        expect(onError).not.toHaveBeenCalled();
+        expect(readBundleInfo).not.toHaveBeenCalled();
     });
     it('skips unsafe markers and symlinked bundles rather than following them', async () => {
         const invalid = await stage('Bad123', { owner: {} });

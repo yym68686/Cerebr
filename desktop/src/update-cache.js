@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { lstat, readFile, readdir, realpath, rename, rm, rmdir, writeFile } from 'node:fs/promises';
+import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import { isNewerVersion } from './update-release.js';
 
@@ -7,15 +7,17 @@ const versionPattern = '(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)';
 const versioned = new RegExp(`^download-(${versionPattern})-(darwin|win32)-(arm64|x64)$`);
 const legacy = /^download-[A-Za-z0-9]{6}$/;
 const stagePattern = /^\.Cerebr-update-[A-Za-z0-9]{6}$/;
+const legacyGracePeriod = 7 * 24 * 60 * 60 * 1000;
 const validVersion = (version) => new RegExp(`^${versionPattern}$`).test(version);
 export const isUpdateDirectoryName = (name) => versioned.test(name) || legacy.test(name);
 
 // Electron's patched fs can traverse app.asar as a virtual directory and
 // leave the real file behind (ENOTEMPTY). Update trees are physical files.
-/** @type {typeof rm} */
-const removeFile = process.getBuiltinModule('original-fs')?.promises.rm ?? rm;
+/** @type {typeof fs} */
+const physicalFs = process.getBuiltinModule('original-fs')?.promises ?? fs;
+const { lstat, readFile, readdir, realpath, rename, rm, rmdir, unlink, writeFile } = physicalFs;
 /** @param {string} target */
-export const removeUpdateTree = (target) => removeFile(target, { recursive: true, force: true });
+export const removeUpdateTree = (target) => rm(target, { recursive: true, force: true });
 
 async function info(file) {
     try {
@@ -29,6 +31,28 @@ const directory = async (file) => (await info(file))?.isDirectory() === true;
 async function smallFile(file) {
     const entry = await info(file);
     return entry?.isFile() && entry.size <= 4096 ? readFile(file, 'utf8') : null;
+}
+
+// Older Electron cleanup could strip the bundle metadata and executable but
+// leave the physical app.asar behind. Match only that exact, inactive tree.
+async function removeLegacyAsarRemnant(folder, now, unpacked = false) {
+    const segments = ['Cerebr.app', 'Contents', 'Resources', 'app.asar'];
+    if (unpacked) segments.unshift('unpacked');
+    const parents = [];
+    let target = folder;
+    for (const name of segments) {
+        const entry = await info(target);
+        if (!entry?.isDirectory() || now - entry.mtimeMs <= legacyGracePeriod) return;
+        const contents = await readdir(target);
+        if (contents.length !== 1 || contents[0] !== name) return;
+        parents.push(target);
+        target = path.join(target, name);
+    }
+    const archive = await info(target);
+    if (!archive?.isFile() || now - archive.mtimeMs <= legacyGracePeriod) return;
+    // Do not recurse: any unexpected files added during cleanup are preserved.
+    await unlink(target);
+    for (const parent of parents.reverse()) await rmdir(parent);
 }
 
 // Never follow a cache/staging-directory symlink or construct a deletion path
@@ -97,10 +121,10 @@ export async function cleanupUpdateCaches({
             } else if (
                 legacy.test(entry.name) &&
                 !version &&
-                now - (await lstat(folder)).mtimeMs > 7 * 24 * 60 * 60 * 1000 &&
-                !(await readdir(folder)).length
+                now - (await lstat(folder)).mtimeMs > legacyGracePeriod
             ) {
-                await rmdir(folder);
+                if (!(await readdir(folder)).length) await rmdir(folder);
+                else await removeLegacyAsarRemnant(folder, now, true);
             }
         } catch (error) {
             await onError(error);
@@ -118,7 +142,7 @@ export function isProcessAlive(pid) {
     }
 }
 
-/** @param {{application: string, profile: string, currentVersion: string, keep?: string[], readBundleInfo: (plist: string) => Promise<{id: string, version: string}>, processAlive?: (pid: number) => boolean, onError?: (error: unknown) => unknown}} options */
+/** @param {{application: string, profile: string, currentVersion: string, keep?: string[], readBundleInfo: (plist: string) => Promise<{id: string, version: string}>, processAlive?: (pid: number) => boolean, now?: number, onError?: (error: unknown) => unknown}} options */
 export async function cleanupMacUpdateStages({
     application,
     profile,
@@ -126,6 +150,7 @@ export async function cleanupMacUpdateStages({
     keep = [],
     readBundleInfo,
     processAlive = isProcessAlive,
+    now = Date.now(),
     onError = (_error) => {},
 }) {
     if (!validVersion(currentVersion) || !application.endsWith('.app')) return;
@@ -157,12 +182,18 @@ export async function cleanupMacUpdateStages({
                     continue;
                 await removeUpdateTree(folder);
             } else {
-                // Legacy stages have no ownership marker. Only an older,
-                // validated Cerebr bundle is provably obsolete; leave a pending
-                // current/newer version alone, including other profiles' updates.
+                // Leave intact pending current/newer bundles alone, including
+                // other profiles' updates. Handle known half-deleted trees
+                // separately, since there is no longer a bundle to validate.
                 const bundle = path.join(folder, 'Cerebr.app');
                 if (!(await directory(bundle))) continue;
                 const plist = path.join(bundle, 'Contents/Info.plist');
+                const metadata = await info(plist);
+                if (!metadata) {
+                    await removeLegacyAsarRemnant(folder, now);
+                    continue;
+                }
+                if (!metadata.isFile()) continue;
                 const resolved = await realpath(plist);
                 if (resolved !== path.join(await realpath(folder), 'Cerebr.app/Contents/Info.plist'))
                     continue;
